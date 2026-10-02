@@ -13,7 +13,10 @@ Web app del Frigorífico Qualitá: stock de medias en cámara, órdenes de despo
 
 ## Publicación
 
-Se publica sola con cada cambio en la rama `main`: GitHub Pages sirve la carpeta `docs/` (Settings → Pages → Deploy from a branch → `main` → `/docs`).
+Cada cambio en la rama `main` se publica solo en dos lugares:
+
+- Firebase Hosting, la dirección principal: https://qualita-produccion.web.app (workflow `.github/workflows/firebase-hosting.yml`, que usa el secreto `FIREBASE_SERVICE_ACCOUNT` del repositorio).
+- GitHub Pages, que sirve la carpeta `docs/`: https://ignaciomalvasio-prog.github.io/qualita-produccion/
 
 ## Cómo se arma una orden
 

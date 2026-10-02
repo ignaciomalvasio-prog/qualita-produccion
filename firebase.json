@@ -1,0 +1,9 @@
+{
+  "hosting": {
+    "public": "docs",
+    "ignore": ["**/.*"],
+    "headers": [
+      { "source": "**/*.@(html|js|json|webmanifest)", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }
+    ]
+  }
+}
