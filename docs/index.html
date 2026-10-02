@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#0d5b78">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Producción">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <title>Producción Qualitá</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
 <style>
@@ -408,7 +414,7 @@ select{font:500 15px var(--body);color:var(--ink);background:var(--surface);bord
   /* ---------- estados y navegación ---------- */
   function stateBlock(el, data, emptyMsg) {
     var msg = S.status === 'loading' && !data ? 'Cargando datos…'
-      : S.status === 'nodb' ? 'No se pudieron leer los datos de esta página. Avisale a quien la administra.'
+      : S.status === 'nodb' ? 'No se pudieron cargar los datos. Revisá la conexión y volvé a abrir la app.'
       : !data || !data.length ? emptyMsg : '';
     if (msg) { el.innerHTML = '<div class="panel"><p class="state">' + msg + '</p></div>'; return true; }
     return false;
@@ -460,12 +466,14 @@ select{font:500 15px var(--body);color:var(--ink);background:var(--surface);bord
   var h0 = (location.hash || '').slice(1); if (['stock', 'ordenes', 'cortes'].indexOf(h0) >= 0) S.tab = h0;
 
   /* ---------- datos: se leen de datos.json, que está al lado de esta página ---------- */
-  function boot() {
-    render();
+  function boot() { render(); cargar(); }
+  function cargar() {
     fetch('datos.json?v=' + Date.now(), { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (d) {
       S.config = d.config || {}; setSemanas(d.semanas || []); setOrdenes(d.ordenes || []); S.status = 'ready'; render();
-    }).catch(function () { S.status = 'nodb'; render(); });
+    }).catch(function () { if (!S.semanas && !S.ordenes) { S.status = 'nodb'; render(); } });
   }
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') cargar(); });
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
   boot();
 })();
 </script>

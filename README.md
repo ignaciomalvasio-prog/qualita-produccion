@@ -1,11 +1,12 @@
 # Producción Qualitá
 
-Web de consulta para el Frigorífico Qualitá: stock de medias en cámara, órdenes de desposte y destino habitual de cada corte. Es una página estática: no pide usuario ni contraseña y cualquiera que tenga la dirección puede verla.
+Web app de consulta para el Frigorífico Qualitá: stock de medias en cámara, órdenes de desposte y destino habitual de cada corte. Es una página estática: no pide usuario ni contraseña y cualquiera que tenga la dirección puede verla.
 
 ## Cómo está armado
 
 - `docs/index.html`: la página. No se toca para cargar datos.
 - `docs/datos.json`: todos los datos. Cada actualización es un cambio en este archivo.
+- `docs/manifest.webmanifest`, `docs/sw.js`, `docs/icon-*.png`: lo que la hace instalable como app en el celular o la computadora. Con conexión siempre trae los datos nuevos; sin conexión muestra lo último que se vio.
 - `herramientas/leer-ordenes-word.js`: convierte a datos las órdenes de producción escritas en Word (pasadas antes a texto con pandoc).
 
 ## Publicación
