@@ -272,7 +272,7 @@
   function renderProduccion() {
     var el = $('view-produccion');
     if (cargando(el, S.prod)) return;
-    if (!S.fecha) S.fecha = fechaProdInicial();
+    if (!S.fecha || !S.fechaFija) S.fecha = fechaProdInicial();
     var f = S.fecha, o = prodDe(f), edit = !!(S.ep && S.ep.fecha === f);
     var h = '<div class="nav"><button class="btn step" data-act="fecha" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + esc(tituloDe(f)) + '</span><button class="btn step" data-act="fecha" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="p-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">';
@@ -593,9 +593,9 @@
     else if (a === 'm-quitar') { S.em.doc.dias[+D.i][D.m].splice(+D.r, 1); guardar('medias'); render(); }
 
     // producción
-    else if (a === 'fecha') { if (S.ep) guardar('prod', true); S.ep = null; var x = S.fecha; do { x = mas(x, +D.d); } while (!esHabil(x)); S.fecha = x; render(); }
-    else if (a === 'p-armar') { S.ep = { fecha: S.fecha, doc: armarOrden(S.fecha) }; guardar('prod', true); render(); }
-    else if (a === 'p-editar') { if (S.ep) { guardar('prod', true); S.ep = null; } else { S.ep = { fecha: S.fecha, doc: clone(prodDe(S.fecha)) }; S.msg.prod = ''; } render(); }
+    else if (a === 'fecha') { S.fechaFija = true; if (S.ep) guardar('prod', true); S.ep = null; var x = S.fecha; do { x = mas(x, +D.d); } while (!esHabil(x)); S.fecha = x; render(); }
+    else if (a === 'p-armar') { S.fechaFija = true; S.ep = { fecha: S.fecha, doc: armarOrden(S.fecha) }; guardar('prod', true); render(); }
+    else if (a === 'p-editar') { S.fechaFija = true; if (S.ep) { guardar('prod', true); S.ep = null; } else { S.ep = { fecha: S.fecha, doc: clone(prodDe(S.fecha)) }; S.msg.prod = ''; } render(); }
     else if (S.ep && a.indexOf('p-') === 0) {
       o = S.ep.doc; c = D.c != null ? o.cortes[+D.c] : null;
       if (a === 'p-estado') { o.estado = D.v; if (D.v === 'lista') o.cortes.forEach(function (x) { x.colgado = false; }); }
@@ -626,7 +626,7 @@
     }
     else if (a === 'ped-borrar') { var p = (S.pedidos || []).filter(function (x) { return x.id === D.id; })[0]; if (p) borrarPedido(p).then(tocar); }
     else if (a === 'ir-medias') { var fa = habilAnterior(S.entrega); S.em = null; S.sem = lunesDe(fa); S.dia = Math.round((fecha(fa) - fecha(S.sem)) / 86400000); irA('medias'); }
-    else if (a === 'ir-orden') { S.ep = null; S.fecha = S.entrega; irA('produccion'); }
+    else if (a === 'ir-orden') { S.ep = null; S.fechaFija = true; S.fecha = S.entrega; irA('produccion'); }
     else if (a === 'cfg-guardar') {
       S._conf = true;
       var clave = $('cfg-clave').value.trim(), cfg = clone(S.config || {}), tareas = []; delete cfg.id;
@@ -657,7 +657,7 @@
   });
   document.addEventListener('change', function (e) {
     var t = e.target;
-    if (t.id === 'p-fecha' && t.value) { if (S.ep) guardar('prod', true); S.ep = null; S.fecha = t.value; render(); }
+    if (t.id === 'p-fecha' && t.value) { if (S.ep) guardar('prod', true); S.ep = null; S.fechaFija = true; S.fecha = t.value; render(); }
     else if (t.id === 'e-fecha' && t.value) { S.entrega = t.value; renderPedidos(); }
     else if (t.id === 'fotos' && t.files && t.files.length) { subirFotos(t.files); }
   });
