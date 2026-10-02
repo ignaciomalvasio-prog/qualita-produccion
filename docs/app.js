@@ -1,4 +1,6 @@
-/* Producción Qualitá. Datos en Firestore; todos leen, solo los editores escriben. */
+/* Producción Qualitá.
+   Dos pantallas de lectura (Producción y Medias) y una de carga (Pedidos).
+   Datos en Firestore: todos leen; solo los editores escriben. */
 (function () {
   'use strict';
 
@@ -13,703 +15,651 @@
       appId: '1:320933123950:web:e0b62500e1ea43b088d37f'
     }
   };
+  var IA_MODELO = 'claude-sonnet-5-5';
 
-  var nf = new Intl.NumberFormat('es-AR');
-  var n = function (v) { return (v < 0 ? '−' : '') + nf.format(Math.abs(v)); };
+  var nf = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
+  var n = function (v) { return v == null || isNaN(v) ? '—' : (v < 0 ? '−' : '') + nf.format(Math.abs(v)); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var clone = function (o) { return JSON.parse(JSON.stringify(o)); };
-  var cap1 = function (s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; };
   var $ = function (id) { return document.getElementById(id); };
+  var norm = function (s) { return String(s || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim(); };
+  var uid = function () { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); };
 
-  var SIG = { 'Lunes': 'martes', 'Martes': 'miércoles', 'Miércoles': 'jueves', 'Jueves': 'viernes', 'Viernes': 'lunes' };
-  var ORDEN_CORTES = ['Jamón', 'Paleta', 'Pecho', 'Carré', 'Solomillo', 'Matambre', 'Bondiola', 'Recorte', 'Grasa buena', 'Grasa mala', 'Grasa (sin separar)', 'Cuero', 'Tapa de paleta', 'Tapa de jamón', 'Tortuga', 'Garrón', 'Tocino', 'Churrasco', 'Papada', 'Orejas', 'Cabeza', 'Pulmón', 'Hígado', 'Patas y manos'];
-  var DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
   var SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
   var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-  var UNIDADES = ['kg', 'unidades', 'cajas', 'boneles'];
-  var ENVASES = ['', 'bines', 'cajas', 'canastos', 'boneles'];
-  var TABS = ['stock', 'ordenes', 'cortes', 'cargar'];
+  var TABS = ['produccion', 'medias', 'pedidos'];
+  var CORTES_BASE = ['JAMON', 'PALETA', 'PECHO', 'CARRE', 'SOLOMILLO', 'MATAMBRE', 'BONDIOLA', 'RECORTE', 'GRASA BUENA', 'GRASA MALA', 'CUERO', 'TAPA DE PALETA', 'TAPA DE JAMON', 'TORTUGA', 'GARRON', 'TOCINO', 'CHURRASCO', 'PAPADA', 'OREJAS', 'CABEZA', 'PULMON', 'HIGADO', 'PATAS Y MANOS'];
 
   var S = {
-    semanas: null, ordenes: null, config: {}, status: 'loading', fuente: '',
-    tab: 'stock', sem: null, ord: null,
+    faena: null, prod: null, pedidos: null, config: {}, ia: {}, status: 'loading', fuente: '',
+    tab: 'produccion', sem: null, dia: null, fecha: null, entrega: null,
     user: null, editor: false,
-    editSem: null,                 // borrador de la semana en edición
-    dia: null, guardado: '',       // orden en carga
-    form: null                     // formulario de pedido abierto
+    em: null,   // semana en edición: { lunes, doc }
+    ep: null,   // orden en edición: { fecha, doc }
+    prop: [],   // pedidos leídos o cargados a mano, todavía sin guardar
+    msg: {}
   };
   var store = null;
 
   /* ---------- fechas ---------- */
   function iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
   function fecha(s) { var p = String(s).split('-'); return new Date(+p[0], +p[1] - 1, +p[2], 12); }
+  function hoy() { return iso(new Date()); }
   function mas(s, dias) { var d = fecha(s); d.setDate(d.getDate() + dias); return iso(d); }
   function diaDe(s) { return SEMANA[fecha(s).getDay()]; }
-  function tituloDe(s) { var d = fecha(s); return SEMANA[d.getDay()] + ' ' + d.getDate() + ' de ' + MESES[d.getMonth()]; }
   function esHabil(s) { var g = fecha(s).getDay(); return g >= 1 && g <= 5; }
   function habilSiguiente(s) { var x = mas(s, 1); while (!esHabil(x)) x = mas(x, 1); return x; }
   function habilAnterior(s) { var x = mas(s, -1); while (!esHabil(x)) x = mas(x, -1); return x; }
+  function lunesDe(s) { var g = fecha(s).getDay(); return mas(s, g === 0 ? -6 : 1 - g); }
+  function tituloDe(s) { var d = fecha(s); return SEMANA[d.getDay()] + ' ' + d.getDate() + ' de ' + MESES[d.getMonth()]; }
+  function fechaCorta(s) { var p = String(s).split('-'); return p[2] + '-' + p[1] + '-' + p[0].slice(2); }
   function etiquetaSemana(desde) {
     var a = fecha(desde), b = fecha(mas(desde, 4)), ma = MESES[a.getMonth()].slice(0, 3), mb = MESES[b.getMonth()].slice(0, 3);
-    return ma === mb ? a.getDate() + '–' + b.getDate() + ' ' + mb : a.getDate() + ' ' + ma + ' – ' + b.getDate() + ' ' + mb;
+    return ma === mb ? a.getDate() + ' al ' + b.getDate() + ' de ' + MESES[b.getMonth()] : a.getDate() + ' ' + ma + ' al ' + b.getDate() + ' ' + mb;
   }
-  function ahoraTxt() { var d = new Date(); return d.getDate() + ' ' + MESES[d.getMonth()].slice(0, 3) + ' ' + d.getFullYear() + ', ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+  function ahoraTxt() { var d = new Date(); return d.getDate() + ' ' + MESES[d.getMonth()].slice(0, 3) + ', ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
 
-  /* ---------- cálculo del stock de medias ---------- */
-  function calc(sem) {
-    var rem = +sem.remanenteInicial || 0;
-    return (sem.dias || []).map(function (d) {
-      var propios = +d.propios || 0, usuarios = +d.usuarios || 0, venta = +d.venta || 0, sale = +d.desposteSig || 0;
-      var aDesposte = (propios - venta) * 2;
-      var disponible = aDesposte + rem;
-      var remFin = disponible - sale;
-      var o = { dia: d.dia, num: d.num, propios: propios, usuarios: usuarios, venta: venta, desposteSig: sale,
-                aDesposte: aDesposte, remAnt: rem, disponible: disponible, remFin: remFin, camara: (propios + usuarios) * 2 + rem };
-      rem = remFin;
-      return o;
+  /* ---------- planilla de medias ---------- */
+  function semDe(lunes) {
+    if (S.em && S.em.lunes === lunes) return S.em.doc;
+    return (S.faena || []).filter(function (s) { return s.id === lunes; })[0] || null;
+  }
+  function prodDe(f) {
+    if (S.ep && S.ep.fecha === f) return S.ep.doc;
+    return (S.prod || []).filter(function (o) { return o.id === f; })[0] || null;
+  }
+  function sumas(d) {
+    var p = 0, u = 0, c = 0;
+    (d.faena || []).forEach(function (r) { p += +r.propios || 0; u += +r.usuarios || 0; });
+    (d.clientes || []).forEach(function (r) { c += +r.cant || 0; });
+    return { propios: p, usuarios: u, clientes: c, desposte: p - c, medias: (p - c) * 2 };
+  }
+  function desposteDe(f) { var o = prodDe(f); return o && o.medias !== '' && o.medias != null ? +o.medias || 0 : +S.config.desposteHabitual || 750; }
+
+  // Stock de la semana. El stock inicial es lo que hay en cámara, propio y sin vender, al empezar el lunes.
+  // Si no está cargado se deduce de la semana anterior.
+  function stockSemana(lunes, nivel) {
+    var sem = semDe(lunes); if (!sem) return null;
+    var ini = sem.stockInicial !== '' && sem.stockInicial != null ? +sem.stockInicial : null, deducido = null;
+    if ((nivel || 0) < 60) { var ant = stockSemana(mas(lunes, -7), (nivel || 0) + 1); if (ant && ant.fin != null) deducido = ant.fin; }
+    var disp = ini != null ? ini : deducido, dias = [];
+    (sem.dias || []).forEach(function (d, i) {
+      var f = mas(lunes, i), s = sumas(d), sale = desposteDe(f);
+      var rem = disp == null ? null : disp - sale;
+      var sig = rem == null ? null : rem + s.medias;
+      dias.push({ disponibleHoy: disp, desposteHoy: sale, remanente: rem, disponibleSig: sig, desposteSig: desposteDe(habilSiguiente(f)), camara: rem == null ? null : rem + (s.propios + s.usuarios) * 2 });
+      disp = sig;
     });
+    return { inicial: ini, deducido: deducido, dias: dias, fin: disp };
   }
-  function diaTxt(d) { return d.dia + (d.num ? ' ' + d.num : ''); }
-
-  function alertas() {
-    var cap = S.config.capacidadCamara, out = [];
-    (S.semanas || []).forEach(function (s) {
-      calc(s).forEach(function (d) {
-        if (cap && d.camara > cap) out.push({ k: 'crit', t: 'Cámara llena', sem: s, x: diaTxt(d) + ': ' + n(d.camara) + ' medias en cámara, ' + n(d.camara - cap) + ' más que la capacidad.' });
-        if (d.remFin < 0) out.push({ k: 'crit', t: 'Falta stock', sem: s, x: diaTxt(d) + ': faltan ' + n(-d.remFin) + ' medias con un día de frío para despostar ' + n(d.desposteSig) + ' el ' + SIG[d.dia] + '.' });
-      });
-    });
-    return out;
-  }
-
-  // Lo que el plan de faena deja disponible para despostar en una fecha.
-  function planPara(fechaISO) {
-    var prev = habilAnterior(fechaISO), hit = null;
-    (S.semanas || []).forEach(function (s) {
-      var i = Math.round((fecha(prev) - fecha(s.desde)) / 86400000);
-      if (i >= 0 && i < (s.dias || []).length) { var c = calc(s)[i]; hit = { medias: c.desposteSig, disponible: c.disponible, remanente: c.remFin }; }
-    });
-    return hit;
-  }
-
-  var FILAS = [
-    { k: 'propios', l: 'Faena propia', sub: 'cerdos' },
-    { k: 'usuarios', l: 'Faena de usuarios', sub: 'cerdos, no van a desposte' },
-    { k: 'venta', l: 'Venta en medias reses', sub: 'cerdos' },
-    { k: 'aDesposte', l: 'Queda para desposte', sub: 'medias', cls: 'sum', calc: true },
-    { k: 'remAnt', l: 'Remanente del día anterior', sub: 'medias', calc: true },
-    { k: 'disponible', l: 'Disponible con un día de frío', sub: 'medias', cls: 'sum', calc: true },
-    { k: 'desposteSig', l: 'Sale a desposte', sub: 'al día siguiente' },
-    { k: 'remFin', l: 'Remanente', sub: 'medias que quedan en cámara', cls: 'key', calc: true },
-    { k: 'camara', l: 'Medias en cámara', sub: '', calc: true }
-  ];
-  function celda(k, d, cap) {
-    if (k === 'usuarios') return d.usuarios ? n(d.usuarios) : '<span class="muted">—</span>';
-    if (k === 'venta') return n(d.venta) + '<small>' + n(d.venta * 2) + ' medias</small>';
-    if (k === 'desposteSig') return n(d.desposteSig) + '<small>' + SIG[d.dia] + '</small>';
-    if (k === 'remAnt' || k === 'remFin') return '<span class="' + (d[k] < 0 ? 'neg' : '') + '">' + n(d[k]) + '</span>';
-    if (k === 'camara') {
-      if (!cap) return n(d.camara);
-      var p = d.camara / cap, c = p > 1 ? 'crit' : p > 0.9 ? 'warn' : '';
-      return '<span class="' + (p > 1 ? 'neg' : '') + '">' + n(d.camara) + '</span><small>' + Math.round(p * 100) + '%</small><div class="meter ' + c + '"><i style="width:' + Math.min(100, Math.round(p * 100)) + '%"></i></div>';
-    }
-    return n(d[k]);
-  }
-  function stat(l, v, u) { return '<div><dt>' + l + '</dt><dd>' + v + ' <small>' + u + '</small></dd></div>'; }
-  function statsSemana(dias) {
-    var t = dias.reduce(function (t, d) { t.p += d.propios; t.u += d.usuarios; t.v += d.venta; t.a += d.aDesposte; return t; }, { p: 0, u: 0, v: 0, a: 0 });
-    var nd = dias.length || 1, ult = dias[dias.length - 1];
-    return stat('Faena propia', n(t.p), 'cerdos') + stat('Faena de usuarios', n(t.u), 'cerdos') + stat('Venta en medias', n(t.v), 'cerdos')
-      + stat('A desposte', n(t.a), 'medias') + stat('A desposte por día', nf.format(Math.round(t.a / nd * 10) / 10), 'medias') + stat('Remanente final', n(ult ? ult.remFin : 0), 'medias');
-  }
-
-  function renderStock() {
-    var el = $('view-stock');
-    if (stateBlock(el, S.semanas, S.editor ? '' : 'Todavía no hay semanas cargadas.')) return;
-    var h = '', cap = S.config.capacidadCamara;
-    if (!S.semanas.length) {
-      el.innerHTML = '<div class="panel"><h2>Plan de faena</h2><p class="muted">Todavía no hay semanas cargadas.</p><div class="acciones"><button class="btn pri" data-act="sem-nueva">Cargar la primera semana</button></div></div>';
-      return;
-    }
-    var sem = S.semanas.filter(function (s) { return s.id === S.sem; })[0] || S.semanas[0];
-    var edit = S.editSem && S.editSem.id === sem.id ? S.editSem : null;
-    var dias = calc(edit || sem), al = alertas();
-
-    h += '<div class="panel"><h2>Para revisar</h2>';
-    if (!al.length) h += '<p class="muted">Sin alertas en las semanas cargadas.</p>';
-    else h += '<ul class="alerts">' + al.map(function (a) { return '<li><span class="badge ' + a.k + '">' + esc(a.t) + '</span><span><strong>' + esc(a.sem.etiqueta) + '</strong> · ' + esc(a.x) + '</span></li>'; }).join('') + '</ul>';
-    h += '</div>';
-
-    h += '<div class="pills" role="group" aria-label="Semana">' + S.semanas.map(function (s) {
-      return '<button class="pill" data-sem="' + esc(s.id) + '" aria-pressed="' + (s.id === sem.id) + '">' + esc(s.etiqueta) + '</button>';
-    }).join('') + (S.editor ? '<button class="btn sm lnk" data-act="sem-nueva">+ Nueva semana</button>' : '') + '</div>';
-
-    h += '<div class="panel">';
-    h += '<div class="weekhead"><h2>Semana ' + esc(sem.etiqueta) + '</h2><span class="badge ' + ((edit || sem).tipo === 'real' ? 'ok' : 'accent') + '">' + ((edit || sem).tipo === 'real' ? 'Real' : 'Proyección') + '</span>';
-    if (S.editor && !edit) h += '<button class="btn sm" data-act="sem-editar">Editar semana</button>';
-    h += '</div>';
-    if (sem.nota && !edit) h += '<p class="small muted">' + esc(sem.nota) + '</p>';
-    if (edit) {
-      h += '<div class="campos"><label class="campo"><span>Remanente inicial (medias)</span><input type="number" inputmode="numeric" id="sem-rem" data-sem-campo="remanenteInicial" value="' + esc(edit.remanenteInicial) + '"></label>'
-        + '<div class="campo"><span>Tipo</span><div class="acciones"><button class="btn sm" data-act="sem-tipo" data-v="real" aria-pressed="' + (edit.tipo === 'real') + '">Real</button><button class="btn sm" data-act="sem-tipo" data-v="proyeccion" aria-pressed="' + (edit.tipo !== 'real') + '">Proyección</button></div></div></div>';
-    }
-    h += '<dl class="stats" id="sem-stats">' + statsSemana(dias) + '</dl>';
-    h += '<div class="scroll"><table class="plan"><thead><tr><th></th>' + dias.map(function (d) { return '<th>' + esc(diaTxt(d)) + '<small>día de faena</small></th>'; }).join('') + '</tr></thead><tbody>';
-    FILAS.forEach(function (f) {
-      var sub = f.k === 'camara' ? (cap ? 'al cierre, sobre ' + n(cap) : 'al cierre del día') : f.sub;
-      h += '<tr' + (f.cls ? ' class="' + f.cls + '"' : '') + '><th>' + f.l + '<small>' + sub + '</small></th>' + dias.map(function (d, i) {
-        if (edit && !f.calc) return '<td><input type="number" inputmode="numeric" min="0" id="sem-' + f.k + '-' + i + '" data-sem-dia="' + i + '" data-sem-k="' + f.k + '" value="' + esc(d[f.k]) + '" aria-label="' + f.l + ', ' + d.dia + '"></td>';
-        return '<td data-calc="' + f.k + '-' + i + '">' + celda(f.k, d, cap) + '</td>';
-      }).join('') + '</tr>';
-    });
-    h += '</tbody></table></div>';
-    if (edit) h += '<div class="acciones"><button class="btn pri" data-act="sem-guardar">Guardar semana</button><button class="btn" data-act="sem-cancelar">Cancelar</button><span class="guardado" id="sem-msg"></span></div>';
-    h += '<p class="small muted">Lo faenado un día pasa un día en cámara: recién al día siguiente se entrega como media o entra a desposte. Las medias de usuarios ocupan cámara pero no cuentan para venta ni desposte.'
-      + (cap ? ' Capacidad de cámaras usada para la alerta: ' + n(cap) + ' medias' + (S.config.capacidadConfirmada ? '.' : ' (dato a confirmar).') : '') + '</p>';
-    h += '</div>';
-    el.innerHTML = h;
-  }
-  function refrescarSemana() {
-    var dias = calc(S.editSem), cap = S.config.capacidadCamara;
-    FILAS.forEach(function (f) { if (f.calc) dias.forEach(function (d, i) { var td = document.querySelector('[data-calc="' + f.k + '-' + i + '"]'); if (td) td.innerHTML = celda(f.k, d, cap); }); });
-    var st = $('sem-stats'); if (st) st.innerHTML = statsSemana(dias);
-  }
-  function semanaNueva() {
-    var ult = S.semanas[S.semanas.length - 1], desde, base;
-    if (ult) { desde = mas(ult.desde, 7); base = ult; }
-    else { var hoy = iso(new Date()), g = fecha(hoy).getDay(); desde = mas(hoy, g === 0 ? 1 : 1 - g); }
-    var cal = ult ? calc(ult) : [];
+  function semanaNueva(lunes) {
+    var ant = semDe(mas(lunes, -7));
     return {
-      id: desde, desde: desde, etiqueta: etiquetaSemana(desde), tipo: 'proyeccion', nota: '',
-      remanenteInicial: cal.length ? cal[cal.length - 1].remFin : 0,
-      dias: DIAS.map(function (dia, i) {
-        var b = base && base.dias[i] || {};
-        return { dia: dia, num: fecha(mas(desde, i)).getDate(), propios: +b.propios || 0, usuarios: +b.usuarios || 0, venta: +b.venta || 0, desposteSig: +b.desposteSig || 750 };
+      desde: lunes, stockInicial: null,
+      dias: [0, 1, 2, 3, 4].map(function (i) {
+        var b = ant && ant.dias[i];
+        return { fecha: mas(lunes, i), faena: b && b.faena.length ? clone(b.faena) : [{ origen: '', propios: 0, usuarios: 0 }], clientes: [] };
       })
     };
   }
-  function guardarSemana() {
-    var e = clone(S.editSem), msg = $('sem-msg');
-    e.remanenteInicial = +e.remanenteInicial || 0;
-    e.dias.forEach(function (d) { ['propios', 'usuarios', 'venta', 'desposteSig'].forEach(function (k) { d[k] = +d[k] || 0; }); });
-    if (msg) msg.textContent = 'Guardando…';
-    // Encadena el remanente a las semanas siguientes.
-    var todas = S.semanas.filter(function (s) { return s.id !== e.id; }).concat([e]).sort(function (a, b) { return a.desde.localeCompare(b.desde); });
-    var escribir = [e], i = todas.indexOf(e), rem = calc(e);
-    rem = rem.length ? rem[rem.length - 1].remFin : 0;
-    for (var j = i + 1; j < todas.length; j++) {
-      var s = clone(todas[j]);
-      if ((+s.remanenteInicial || 0) !== rem) { s.remanenteInicial = rem; escribir.push(s); }
-      var c = calc(s); rem = c.length ? c[c.length - 1].remFin : rem;
-    }
-    Promise.all(escribir.map(function (s) { var id = s.id; delete s.id; return store.set('semanas', id, s); }))
-      .then(function () { S.sem = e.id; S.editSem = null; tocarActualizado(); render(); },
-            function () { if (msg) { msg.textContent = 'No se pudo guardar. Revisá la conexión.'; msg.className = 'guardado err'; } });
-  }
 
-  /* ---------- líneas de una orden ---------- */
-  function envTxt(l) {
-    var e = l.envase ? 'en ' + l.envase : '';
-    if (l.extra) e += (e ? (/^de /.test(l.extra) ? ' ' : ', ') : '') + l.extra;
-    return e;
-  }
-  function descTxt(l) { return cap1([l.prod, envTxt(l)].filter(Boolean).join(', ')); }
-  function estadoBadge(e) { return e === 'congelado' ? '<span class="badge cold">Congelado</span>' : e === 'fresco' ? '<span class="badge ok">Fresco</span>' : ''; }
-  function lineaTxt(l) {
-    if (l.sinResto) return 'Sin resto: todo va a los pedidos';
-    var p = [descTxt(l), l.estado, l.cod ? 'cód. ' + l.cod : '', l.contrato ? 'contrato ' + l.contrato : ''].filter(Boolean).join(' · ');
-    return (p || 'Sin detalle') + (l.destino ? ' → ' + l.destino : ' (sin cliente)');
-  }
-  function claveDe(l) { return [l.tipo === 'nosale' ? 'nosale' : '', l.prod || '', l.estado || '', l.destino || ''].join('|'); }
-  var CAMPOS = ['prod', 'envase', 'extra', 'estado', 'cod', 'contrato', 'destino', 'nota'];
-  function soloCampos(l) { var o = {}; CAMPOS.forEach(function (k) { o[k] = l[k] || ''; }); return o; }
-  function cantTxt(num, unidad) { return n(+num || 0) + ' ' + unidad; }
-
-  function textoOrden(o) {
-    var f = String(o.fecha || '').split('-'), out = [];
-    out.push((o.dia || '').toUpperCase() + ' ' + [f[2], f[1], (f[0] || '').slice(2)].join('-'));
-    out.push(o.medias + '½ ' + String(o.mercado || '').toUpperCase());
-    (o.cortes || []).forEach(function (c) {
-      c.lineas.forEach(function (l, k) {
-        var t = [];
-        if (l.tipo === 'nosale') t.push('NO SACAR');
-        else {
-          if (l.tipo === 'pedido') t.push(String(l.cantNum) + (l.unidad === 'kg' ? 'KG' : ' ' + (l.unidad === 'unidades' ? 'UND' : l.unidad)));
-          if (l.prod) t.push(l.prod);
-          var env = l.tipo === 'pedido' && l.unidad === l.envase ? (l.estado === 'congelado' ? 'a congelar' : l.estado === 'fresco' ? 'fresco' : '') : l.envase ? (l.estado === 'congelado' ? l.envase + ' a congelar' : (l.estado === 'fresco' ? 'fresco en ' : 'en ') + l.envase) : (l.estado === 'congelado' ? 'a congelar' : l.estado === 'fresco' ? 'fresco' : '');
-          if (env) t.push(env);
-          if (l.extra) t.push(l.extra);
-          if (l.cod || l.contrato) t.push('(' + [l.cod ? 'COD ' + l.cod : '', l.contrato ? 'CONTRATO ' + l.contrato : ''].filter(Boolean).join(' – ') + ')');
-          if (l.destino) t.push('“' + l.destino + '”');
-          if (l.nota) t.push('– ' + l.nota.replace(/\.$/, ''));
-        }
-        var pre = k === 0 ? c.corte.replace(' (sin separar)', '') + ': ' : '';
-        out.push((pre + (l.tipo === 'resto' ? 'RESTO: ' : '') + t.join(' ')).toUpperCase());
-      });
+  function diaHTML(sem, i, st, edit) {
+    var d = sem.dias[i], f = mas(sem.desde, i), s = sumas(d), sig = diaDe(habilSiguiente(f)).toLowerCase(), k = st && st.dias[i];
+    var h = '<section class="dia' + (f === hoy() ? ' hoy' : '') + '"><h2>' + esc(diaDe(f)) + ' ' + fecha(f).getDate() + '</h2>';
+    h += '<table class="pl"><thead><tr><th>Faena</th><th>Propios</th><th>Usuarios</th>' + (edit ? '<th></th>' : '') + '</tr></thead><tbody>';
+    (d.faena || []).forEach(function (r, j) {
+      h += edit
+        ? '<tr><td><input type="text" id="f' + i + '-' + j + 'o" data-m="faena" data-i="' + i + '" data-r="' + j + '" data-k="origen" value="' + esc(r.origen) + '" aria-label="Origen"></td>'
+          + '<td><input type="number" inputmode="numeric" class="n" id="f' + i + '-' + j + 'p" data-m="faena" data-i="' + i + '" data-r="' + j + '" data-k="propios" value="' + esc(r.propios || '') + '" aria-label="Propios"></td>'
+          + '<td><input type="number" inputmode="numeric" class="n" id="f' + i + '-' + j + 'u" data-m="faena" data-i="' + i + '" data-r="' + j + '" data-k="usuarios" value="' + esc(r.usuarios || '') + '" aria-label="Usuarios"></td>'
+          + '<td class="xq"><button class="btn x" data-act="m-quitar" data-m="faena" data-i="' + i + '" data-r="' + j + '" aria-label="Quitar renglón">×</button></td></tr>'
+        : '<tr><td>' + esc(r.origen) + '</td><td>' + (r.propios ? n(+r.propios) : '') + '</td><td>' + (r.usuarios ? n(+r.usuarios) : '') + '</td></tr>';
     });
+    h += '</tbody><tfoot><tr><th>Total</th><td id="sp' + i + '">' + n(s.propios) + '</td><td id="su' + i + '">' + n(s.usuarios) + '</td>' + (edit ? '<td></td>' : '') + '</tr></tfoot></table>';
+    if (edit) h += '<div class="acciones"><button class="btn sm" data-act="m-agregar" data-m="faena" data-i="' + i + '">+ Origen</button></div>';
+
+    h += '<table class="pl"><thead><tr><th>Clientes</th><th>Cerdos</th>' + (edit ? '<th></th>' : '') + '</tr></thead><tbody>';
+    if (!(d.clientes || []).length && !edit) h += '<tr><td class="muted" style="text-transform:none;font-weight:400">Sin pedidos de medias</td><td></td></tr>';
+    (d.clientes || []).forEach(function (r, j) {
+      h += edit
+        ? '<tr><td><input type="text" id="c' + i + '-' + j + 'c" data-m="clientes" data-i="' + i + '" data-r="' + j + '" data-k="cliente" value="' + esc(r.cliente) + '" aria-label="Cliente"></td>'
+          + '<td><input type="number" inputmode="decimal" step="0.5" class="n" id="c' + i + '-' + j + 'n" data-m="clientes" data-i="' + i + '" data-r="' + j + '" data-k="cant" value="' + esc(r.cant || '') + '" aria-label="Cerdos"></td>'
+          + '<td class="xq"><button class="btn x" data-act="m-quitar" data-m="clientes" data-i="' + i + '" data-r="' + j + '" aria-label="Quitar cliente">×</button></td></tr>'
+        : '<tr><td>' + esc(r.cliente) + (r.nota ? ' <span class="small muted" style="text-transform:none;font-weight:400">' + esc(r.nota) + '</span>' : '') + '</td><td>' + n(+r.cant || 0) + '</td></tr>';
+    });
+    h += '</tbody><tfoot><tr><th>Total clientes</th><td id="sc' + i + '">' + n(s.clientes) + '</td>' + (edit ? '<td></td>' : '') + '</tr></tfoot></table>';
+    if (edit) h += '<div class="acciones"><button class="btn sm" data-act="m-agregar" data-m="clientes" data-i="' + i + '">+ Cliente</button></div>';
+
+    h += '<div class="desp" id="sd' + i + '">' + despHTML(s) + '</div>';
+    h += '<dl class="stk" id="sk' + i + '">' + stockHTML(k, sig) + '</dl></section>';
+    return h;
+  }
+  function despHTML(s) { return '<span>A desposte</span><span><b class="' + (s.desposte < 0 ? 'neg' : '') + '">' + n(s.desposte) + '</b> cerdos · <b>' + n(s.medias) + '</b> medias</span>'; }
+  function stockHTML(k, sig) {
+    if (!k || k.remanente == null) return '<dt>Stock</dt><dd class="muted">falta el stock inicial</dd>';
+    var cap = +S.config.capacidadCamara || 0, falta = k.disponibleSig - k.desposteSig;
+    return '<dt>Remanente del día</dt><dd class="' + (k.remanente < 0 ? 'neg' : '') + '">' + n(k.remanente) + '</dd>'
+      + '<dt>Disponible el ' + sig + '</dt><dd>' + n(k.disponibleSig) + '</dd>'
+      + '<dt>Desposte del ' + sig + '</dt><dd>' + n(k.desposteSig) + (falta < 0 ? ' <span class="badge crit">faltan ' + n(-falta) + '</span>' : '') + '</dd>'
+      + '<dt>Medias en cámara</dt><dd>' + n(k.camara) + (cap && k.camara > cap ? ' <span class="badge crit">+' + n(k.camara - cap) + '</span>' : '') + '</dd>';
+  }
+  function pintarSumas() {
+    var sem = S.em && S.em.doc; if (!sem) return;
+    var st = stockSemana(S.em.lunes);
+    sem.dias.forEach(function (d, i) {
+      var s = sumas(d), f = mas(sem.desde, i);
+      var set = function (id, v) { var e = $(id); if (e) e.innerHTML = v; };
+      set('sp' + i, n(s.propios)); set('su' + i, n(s.usuarios)); set('sc' + i, n(s.clientes)); set('sd' + i, despHTML(s));
+      set('sk' + i, stockHTML(st && st.dias[i], diaDe(habilSiguiente(f)).toLowerCase()));
+    });
+  }
+
+  function renderMedias() {
+    var el = $('view-medias');
+    if (cargando(el, S.faena)) return;
+    var lunes = S.sem || lunesDe(esHabil(hoy()) ? hoy() : habilSiguiente(hoy()));
+    S.sem = lunes;
+    var sem = semDe(lunes), edit = !!(S.em && S.em.lunes === lunes);
+    if (S.dia == null) { var g = fecha(hoy()).getDay(); S.dia = lunesDe(hoy()) === lunes && g >= 1 && g <= 5 ? g - 1 : 0; }
+    var h = '<div class="nav"><button class="btn step" data-act="sem" data-d="-7" aria-label="Semana anterior">‹</button><span class="tit">Semana del ' + esc(etiquetaSemana(lunes)) + '</span><button class="btn step" data-act="sem" data-d="7" aria-label="Semana siguiente">›</button>';
+    if (S.editor && sem) h += '<button class="btn' + (edit ? ' pri' : '') + '" data-act="m-editar">' + (edit ? 'Listo' : 'Editar') + '</button><span class="guardado" id="g-medias"></span>';
+    h += '</div>';
+    if (!sem) {
+      h += '<div class="panel"><p class="state">No hay faena cargada para esta semana.</p>' + (S.editor ? '<div class="acciones" style="justify-content:center"><button class="btn pri" data-act="m-nueva">Cargar la faena de esta semana</button></div>' : '') + '</div>';
+      el.innerHTML = h; return;
+    }
+    var st = stockSemana(lunes);
+    if (edit) {
+      h += '<div class="panel"><label class="campo" style="max-width:340px"><span>Medias propias en cámara al empezar el lunes</span><input type="number" inputmode="numeric" id="m-stock" value="' + esc(sem.stockInicial == null ? '' : sem.stockInicial) + '" placeholder="' + (st.deducido != null ? 'Se deduce: ' + n(st.deducido) : 'Sin dato') + '"></label>'
+        + '<p class="small muted">Dejalo vacío para que se deduzca de la semana anterior. Cada cambio se guarda solo.</p></div>';
+    }
+    h += '<div class="dtabs" role="group" aria-label="Día">' + sem.dias.map(function (d, i) { var f = mas(lunes, i); return '<button class="btn" data-act="dia" data-i="' + i + '" aria-pressed="' + (S.dia === i) + '">' + diaDe(f).slice(0, 3) + ' ' + fecha(f).getDate() + '</button>'; }).join('') + '</div>';
+    h += '<div class="dias" data-sel="' + S.dia + '">' + sem.dias.map(function (d, i) { return diaHTML(sem, i, st, edit); }).join('') + '</div>';
+    el.innerHTML = h;
+    pintarMsg('medias');
+  }
+
+  /* ---------- orden de producción ---------- */
+  var DEST = [[/GRION/, 'GRION'], [/A?RGENCARNES/, 'ARGENCARNES'], [/CARREFOUR/, 'CARREFOUR'], [/ROVER/, 'ROVER'], [/CICLO (3|III)/, 'CICLO 3'], [/ABASTECIMIENTO/, 'ABASTECIMIENTO'], [/SERVICIOS DE ALIMENTOS/, 'SERVICIOS'], [/SERAFINI/, 'SERAFINI'], [/SWIFT/, 'SWIFT'], [/MAFER/, 'MAFER'], [/RENDERING/, 'RENDERING'], [/ALICAN/, 'ALICAN'], [/BOCANTINO/, 'BOCANTINO'], [/SCURTIS/, 'SCURTIS'], [/LLUGDAR/, 'LLUGDAR'], [/CONSUMO INTERNO/, 'INTERNO']];
+  var PRODS = {
+    JAMON: [[/5 MUSCULOS/, '5M'], [/RECORTE DE JAMON/, 'REC'], [/CON HUESO SIN CUERO CON TAPA/, 'CHSCT'], [/CON HUESO SIN CUERO/, 'CHSC']],
+    PALETA: [[/S\/H Y C\/CUERO|SIN HUESO CON CUERO/, 'SHCC'], [/RECORTE DE PALETA/, 'REC'], [/CON HUESO SIN CUERO/, 'CHSC'], [/CON HUESO CON CUERO/, 'CHCC'], [/INDUSTRIAL/, 'IND']],
+    RECORTE: [[/80\/20 BUENO/, '8020B'], [/80\/20/, '8020'], [/70\/30/, '7030'], [/60\/40/, '6040'], [/50\/50/, '5050']]
+  };
+  function esPedido(t) { return /^\s*\d/.test(t || ''); }
+  function sinResto(t) { return String(t || '').replace(/^\s*RESTO\s*:?\s*/i, ''); }
+  // Clave que identifica "a dónde va" una línea, sin importar cómo esté redactada.
+  function claveLinea(corte, t) {
+    var s = norm(sinResto(t));
+    if (/NO SACAR/.test(s)) return 'NOSALE';
+    var dest = '', i;
+    for (i = 0; i < DEST.length; i++) if (DEST[i][0].test(s)) { dest = DEST[i][1]; break; }
+    if (!dest) { var q = String(t).match(/[“"]([^”"]+)[”"]/); if (q) dest = norm(q[1]); }
+    var est = /CONGEL/.test(s) ? 'C' : /FRESC/.test(s) ? 'F' : '', prod = '', R = PRODS[norm(corte)] || [];
+    for (i = 0; i < R.length; i++) if (R[i][0].test(s)) { prod = R[i][1]; break; }
+    return [prod, est, dest].join('|');
+  }
+  function corteDe(o, nombre) { var k = norm(nombre); return (o.cortes || []).filter(function (c) { return norm(c.corte) === k; })[0] || null; }
+  function fijoDe(o, nombre) {
+    var c = corteDe(o, nombre); if (!c) return null;
+    var l = c.lineas.filter(function (x) { return !esPedido(x.t); }).slice(-1)[0];
+    return l ? { t: sinResto(l.t), key: claveLinea(nombre, l.t) } : null;
+  }
+  function historial(antesDe) { return (S.prod || []).filter(function (o) { return o.id < antesDe && (o.cortes || []).length; }).sort(function (a, b) { return a.id.localeCompare(b.id); }); }
+
+  function insertarLinea(o, corte, texto, pid) {
+    var c = corteDe(o, corte);
+    if (!c) { c = { corte: norm(corte) || 'SIN UBICAR', lineas: [], colgado: true }; o.cortes.push(c); }
+    var linea = { t: texto }; if (pid) linea.p = pid;
+    if (esPedido(texto)) {
+      var pos = c.lineas.length;
+      for (var i = 0; i < c.lineas.length; i++) if (!esPedido(c.lineas[i].t)) { pos = i; break; }
+      c.lineas.splice(pos, 0, linea);
+      c.lineas.forEach(function (x) { if (!esPedido(x.t) && !/^\s*RESTO/i.test(x.t) && !/NO SACAR/i.test(x.t)) x.t = 'RESTO: ' + x.t; });
+    } else {
+      // "Todo" para un cliente: reemplaza el destino del resto.
+      var hayPed = c.lineas.some(function (x) { return esPedido(x.t); });
+      c.lineas = c.lineas.filter(function (x) { return esPedido(x.t); });
+      linea.t = (hayPed ? 'RESTO: ' : '') + sinResto(texto);
+      c.lineas.push(linea); c.colgado = false;
+    }
+  }
+  function armarOrden(f) {
+    var hist = historial(f), prev = hist[hist.length - 1], dia = diaDe(f);
+    var mismo = hist.filter(function (o) { return diaDe(o.id) === dia; }).slice(-1)[0];
+    var o = { fecha: f, medias: mismo ? mismo.medias : prev ? prev.medias : (+S.config.desposteHabitual || 750), mercado: prev ? prev.mercado : 'CONSUMO', estado: 'borrador', cortes: [] };
+    var nombres = prev ? prev.cortes.map(function (c) { return c.corte; }) : CORTES_BASE;
+    var ult = hist.slice(-5);
+    o.cortes = nombres.map(function (nombre) {
+      var fs = ult.map(function (x) { return fijoDe(x, nombre); }), fijo = null;
+      for (var i = fs.length - 1; i >= 0 && !fijo; i--) fijo = fs[i];
+      var estable = fs.length > 0 && fs.every(function (x) { return x && x.key === fs[0].key; });
+      return { corte: nombre, lineas: fijo ? [{ t: fijo.t }] : [], colgado: !estable };
+    });
+    (S.pedidos || []).filter(function (p) { return p.entrega === f; }).forEach(function (p) {
+      (p.cortes || []).forEach(function (c) { if (c.orden && c.texto) insertarLinea(o, c.corte, c.texto, p.id); });
+    });
+    return o;
+  }
+  // Pedidos con cantidad que se repiten ese día de la semana y todavía no están en la orden.
+  function habitualesDia(o) {
+    var dia = diaDe(o.fecha), ords = historial(o.fecha).filter(function (x) { return diaDe(x.id) === dia; }), g = {}, out = [];
+    if (!ords.length) return out;
+    ords.forEach(function (x) { (x.cortes || []).forEach(function (c) { var visto = {}; c.lineas.forEach(function (l) {
+      if (!esPedido(l.t)) return; var k = norm(c.corte) + '~' + claveLinea(c.corte, l.t); if (visto[k]) return; visto[k] = 1;
+      g[k] = g[k] || { corte: c.corte, veces: 0 }; g[k].veces++; g[k].t = l.t;
+    }); }); });
+    Object.keys(g).forEach(function (k) {
+      var x = g[k], c = corteDe(o, x.corte);
+      var ya = c && c.lineas.some(function (l) { return esPedido(l.t) && norm(c.corte) + '~' + claveLinea(c.corte, l.t) === k; });
+      if (!ya && x.veces / ords.length >= 0.5) out.push({ corte: x.corte, t: x.t, veces: x.veces, total: ords.length });
+    });
+    return out;
+  }
+  function textoOrden(o) {
+    var out = [diaDe(o.fecha).toUpperCase() + ' ' + fechaCorta(o.fecha), (o.medias || '') + '½ ' + String(o.mercado || '').toUpperCase()];
+    (o.cortes || []).forEach(function (c) { (c.lineas.length ? c.lineas : [{ t: '' }]).forEach(function (l, i) { out.push(((i === 0 ? c.corte + ': ' : '') + l.t).toUpperCase()); }); });
     return out.join('\n');
   }
-
-  function ordenHTML(o, conCopia) {
-    var borrador = o.estado === 'borrador', dest = {}, sinDest = 0;
-    (o.cortes || []).forEach(function (c) { c.lineas.forEach(function (l) { if (l.tipo === 'nosale') return; if (l.destino) dest[l.destino] = (dest[l.destino] || 0) + 1; else sinDest++; }); });
-    var dl = Object.keys(dest).sort(function (a, b) { return dest[b] - dest[a]; });
-    var h = '<div class="weekhead"><h2>' + esc(o.titulo) + '</h2>' + (borrador ? '<span class="badge warn">Borrador</span>' : '') + '<span class="badge accent">' + n(o.medias) + ' medias</span><span class="badge plain">' + esc(o.mercado || '') + '</span></div>';
-    h += '<div class="pills">' + dl.map(function (d) { return '<span class="badge plain">' + esc(d) + ' · ' + dest[d] + '</span>'; }).join('') + (sinDest ? '<span class="badge plain">Sin cliente indicado · ' + sinDest + '</span>' : '') + '</div>';
-    h += '<div class="cortes">' + (o.cortes || []).map(function (c) {
-      return '<div class="corte"><div><h3>' + esc(c.corte) + '</h3>' + (c.revisar ? '<span class="badge ' + (c.revisar === 'definir' ? 'warn' : 'accent') + '">' + (c.revisar === 'definir' ? 'A definir' : 'Confirmar') + '</span>' : '') + '</div><div class="lines">' + c.lineas.map(function (l) {
-        var d = descTxt(l);
-        return '<div class="line"><span class="qty ' + esc(l.tipo) + '">' + esc(l.cant) + '</span><span class="desc">'
-          + (d ? '<span>' + esc(d) + '</span>' : '') + estadoBadge(l.estado)
-          + (l.cod ? '<span class="badge plain">Cód. ' + esc(l.cod) + '</span>' : '')
-          + (l.contrato ? '<span class="badge plain">Contrato ' + esc(l.contrato) + '</span>' : '')
-          + (l.destino ? '<span class="dest">' + esc(l.destino) + '</span>' : '')
-          + '</span>' + (l.nota ? '<span class="note">' + esc(l.nota) + '</span>' : '') + '</div>';
-      }).join('') + '</div></div>';
-    }).join('') + '</div>';
-    if (conCopia && !borrador) h += '<div class="copy"><button class="btn" data-act="copiar">Copiar como texto</button><span class="small muted" id="copiado" aria-live="polite"></span></div><textarea id="txt-orden" class="txt" readonly hidden aria-label="Orden en texto">' + esc(textoOrden(o)) + '</textarea>';
-    return h;
+  function fechaProdInicial() {
+    var h = hoy(), ids = (S.prod || []).map(function (o) { return o.id; });
+    if (ids.indexOf(h) >= 0) return h;
+    var sig = habilSiguiente(h); if (ids.indexOf(sig) >= 0) return sig;
+    var prev = ids.filter(function (x) { return x <= h; }).sort().slice(-1)[0];
+    return prev || (esHabil(h) ? h : sig);
   }
 
-  function renderOrdenes() {
-    var el = $('view-ordenes');
-    if (stateBlock(el, S.ordenes, 'Todavía no hay órdenes de desposte cargadas.')) return;
-    var i = Math.max(0, S.ordenes.map(function (o) { return o.id; }).indexOf(S.ord));
-    var o = S.ordenes[i], borrador = o.estado === 'borrador';
-    var h = '<div class="picker"><button class="step" data-step="-1" aria-label="Orden anterior"' + (i === 0 ? ' disabled' : '') + '>‹</button>'
-      + '<select id="sel-orden" aria-label="Fecha de la orden">' + S.ordenes.map(function (x) { return '<option value="' + esc(x.id) + '"' + (x.id === o.id ? ' selected' : '') + '>' + esc(x.titulo) + ' · ' + n(x.medias) + ' medias' + (x.estado === 'borrador' ? ' · borrador' : '') + '</option>'; }).join('') + '</select>'
-      + '<button class="step" data-step="1" aria-label="Orden siguiente"' + (i === S.ordenes.length - 1 ? ' disabled' : '') + '>›</button></div>';
-    var pend = (o.cortes || []).filter(function (c) { return c.revisar; });
-    if (borrador && pend.length) {
-      h += '<div class="panel"><div class="weekhead"><h2>Falta definir</h2><span class="badge warn">' + pend.length + ' cortes</span></div>';
-      if (o.aviso) h += '<p class="muted">' + esc(o.aviso) + '</p>';
-      h += pend.map(function (c) {
-        return '<div class="block"><div class="weekhead"><h3>' + esc(c.corte) + '</h3><span class="badge ' + (c.revisar === 'definir' ? 'warn' : 'accent') + '">' + (c.revisar === 'definir' ? 'A definir' : 'Confirmar') + '</span></div>'
-          + (c.motivo ? '<p class="small muted">' + esc(c.motivo) + '</p>' : '')
-          + (c.opciones && c.opciones.length ? '<ul class="opts">' + c.opciones.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' : '') + '</div>';
-      }).join('') + '</div>';
-    }
-    h += '<div class="panel">' + ordenHTML(o, true);
-    if (S.editor) h += '<div class="acciones"><button class="btn sm" data-act="abrir-carga" data-fecha="' + esc(o.id) + '">Modificar en Cargar pedidos</button></div>';
-    if (o.fuente) h += '<p class="small muted">Fuente: ' + esc(o.fuente) + '</p>';
+  function renderProduccion() {
+    var el = $('view-produccion');
+    if (cargando(el, S.prod)) return;
+    if (!S.fecha) S.fecha = fechaProdInicial();
+    var f = S.fecha, o = prodDe(f), edit = !!(S.ep && S.ep.fecha === f);
+    var h = '<div class="nav"><button class="btn step" data-act="fecha" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + esc(tituloDe(f)) + '</span><button class="btn step" data-act="fecha" data-d="1" aria-label="Día siguiente">›</button>'
+      + '<input type="date" id="p-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">';
+    if (S.editor && o) h += '<button class="btn' + (edit ? ' pri' : '') + '" data-act="p-editar">' + (edit ? 'Listo' : 'Editar') + '</button><span class="guardado" id="g-prod"></span>';
     h += '</div>';
+    if (!o) {
+      h += '<div class="panel"><p class="state">No hay orden de producción cargada para este día.</p>' + (S.editor ? '<div class="acciones" style="justify-content:center"><button class="btn pri" data-act="p-armar">Armar la orden</button></div>' : '') + '</div>';
+      el.innerHTML = h; return;
+    }
+    var colg = (o.cortes || []).filter(function (c) { return c.colgado; }).length;
+    if (edit) { h += prodEditHTML(o, colg); el.innerHTML = h; pintarMsg('prod'); return; }
+    h += '<div class="panel">';
+    if (o.estado === 'borrador') h += '<p><span class="badge warn">Borrador</span> <span class="muted">Todavía no está confirmada' + (colg ? ': ' + colg + (colg === 1 ? ' corte sin definir' : ' cortes sin definir') : '') + '.</span></p>';
+    h += '<article class="op"><p class="op-f">' + esc(diaDe(f)) + ' ' + esc(fechaCorta(f)) + '</p><p class="op-m">' + esc(o.medias) + '½ ' + esc(o.mercado || '') + '</p>';
+    (o.cortes || []).forEach(function (c) {
+      var ls = c.lineas.length ? c.lineas : [{ t: '' }];
+      h += '<div class="op-c' + (c.colgado && o.estado === 'borrador' ? ' colg' : '') + '">' + ls.map(function (l, i) { return '<p>' + (i === 0 ? '<u>' + esc(c.corte) + '</u>: ' : '') + esc(l.t) + '</p>'; }).join('') + '</div>';
+    });
+    h += '</article><div class="acciones"><button class="btn" data-act="copiar">Copiar como texto</button><span class="small muted" id="copiado" aria-live="polite"></span></div><textarea id="txt-orden" class="txt" readonly hidden aria-label="Orden en texto">' + esc(textoOrden(o)) + '</textarea></div>';
     el.innerHTML = h;
   }
+  function prodEditHTML(o, colg) {
+    var h = '<div class="panel"><div class="campos"><label class="campo"><span>Medias</span><input type="number" inputmode="numeric" class="n" id="p-medias" data-p="medias" value="' + esc(o.medias) + '"></label>'
+      + '<label class="campo"><span>Mercado</span><input type="text" id="p-mercado" data-p="mercado" value="' + esc(o.mercado || '') + '"></label></div>';
+    var st = stockParaFecha(o.fecha);
+    if (st != null) h += '<p class="small ' + (st < +o.medias ? 'neg' : 'muted') + '">Hay ' + n(st) + ' medias con un día de frío para este día.</p>';
+    h += '<div class="acciones">' + (o.estado === 'borrador'
+      ? '<button class="btn pri" data-act="p-estado" data-v="lista">Confirmar orden</button>' + (colg ? '<span class="small"><span class="badge warn">' + colg + ' sin definir</span></span>' : '')
+      : '<span class="badge ok">Confirmada</span><button class="btn sm" data-act="p-estado" data-v="borrador">Volver a borrador</button>') + '</div></div>';
 
-  /* ---------- lo aprendido de las órdenes confirmadas ---------- */
-  function firmes(menos) { return (S.ordenes || []).filter(function (o) { return o.estado !== 'borrador' && o.id !== menos; }); }
-  function mayoria(m, total) { var k = Object.keys(m).sort(function (a, b) { return m[b] - m[a]; })[0]; return k && m[k] / total > 0.5 ? k : ''; }
+    var sug = habitualesDia(o); S._sug = sug;
+    if (sug.length) h += '<div class="panel"><h3>Suele ir los ' + esc(diaDe(o.fecha).toLowerCase()) + '</h3><div class="lista">' + sug.map(function (x, i) {
+      return '<div class="item"><div class="cuerpo"><strong>' + esc(x.corte) + '</strong><span style="text-transform:uppercase">' + esc(x.t) + '</span><span class="small muted">' + x.veces + ' de ' + x.total + ' ' + esc(diaDe(o.fecha).toLowerCase()) + ' anteriores</span></div><button class="btn sm" data-act="p-sug" data-i="' + i + '">Agregar</button></div>';
+    }).join('') + '</div></div>';
 
-  function modelo(menos) {
-    var ORD = firmes(menos), porDia = {}, cortes = {};
-    DIAS.forEach(function (d) { porDia[d] = 0; });
-    ORD.forEach(function (o, idx) {
-      porDia[o.dia] = (porDia[o.dia] || 0) + 1;
-      (o.cortes || []).forEach(function (c) {
-        var C = cortes[c.corte] = cortes[c.corte] || { corte: c.corte, fechas: {}, g: {}, hist: [] };
-        C.fechas[o.id] = 1;
-        var fijo = null, nosale = false;
-        c.lineas.forEach(function (l) {
-          var k = claveDe(l);
-          var G = C.g[k] = C.g[k] || { k: k, fechas: {}, tipos: {}, cods: {}, env: {}, cant: {}, dias: {}, nPed: 0, nFijo: 0, notasPed: {}, notasFijo: {}, ultPorDia: {}, idx: -1 };
-          G.fechas[o.id] = 1; G.tipos[l.tipo] = (G.tipos[l.tipo] || 0) + 1; G.idx = idx; G.l = l;
-          if (l.cod) G.cods[l.cod] = (G.cods[l.cod] || 0) + 1;
-          var e = envTxt(l); if (e) G.env[e] = (G.env[e] || 0) + 1;
-          G.dias[o.dia] = (G.dias[o.dia] || 0) + 1;
-          if (l.tipo === 'pedido') {
-            (G.cant[l.unidad] = G.cant[l.unidad] || []).push(l.cantNum);
-            G.nPed++; G.ultPed = l; G.ultPorDia[o.dia] = l; G.idxPed = idx; G.notasPed[l.nota || ''] = (G.notasPed[l.nota || ''] || 0) + 1;
-          } else if (l.tipo === 'nosale') { nosale = true; }
-          else { G.nFijo++; G.ultFijo = l; G.idxFijo = idx; fijo = k; G.notasFijo[l.nota || ''] = (G.notasFijo[l.nota || ''] || 0) + 1; }
-        });
-        C.hist.push({ idx: idx, fijo: fijo, nosale: nosale });
+    h += '<div class="panel">';
+    (o.cortes || []).forEach(function (c, ci) {
+      h += '<div class="ed-corte' + (c.colgado ? ' colg' : '') + '"><div class="cab"><input type="text" id="pc' + ci + '" data-p="corte" data-c="' + ci + '" value="' + esc(c.corte) + '" aria-label="Corte">'
+        + (c.colgado ? '<span class="badge warn">Sin definir</span><button class="btn sm" data-act="p-ok" data-c="' + ci + '">Está bien así</button>' : '')
+        + '<button class="btn x" data-act="p-quitar-corte" data-c="' + ci + '" aria-label="Quitar corte">×</button></div>';
+      c.lineas.forEach(function (l, li) {
+        h += '<div class="ed-linea"><textarea rows="2" id="pl' + ci + '-' + li + '" data-p="linea" data-c="' + ci + '" data-l="' + li + '" aria-label="Línea de ' + esc(c.corte) + '">' + esc(l.t) + '</textarea><button class="btn x" data-act="p-quitar-linea" data-c="' + ci + '" data-l="' + li + '" aria-label="Quitar línea">×</button></div>';
       });
+      h += '<div class="acciones"><button class="btn sm" data-act="p-linea" data-c="' + ci + '">+ Línea</button></div></div>';
     });
-    return { ordenes: ORD, porDia: porDia, cortes: cortes };
-  }
-
-  // Destino habitual del resto de un corte: estable si las últimas 5 órdenes coinciden.
-  function defecto(C) {
-    if (!C) return { linea: null, estable: true, opciones: [], nosale: false };
-    var ops = Object.keys(C.g).map(function (k) { return C.g[k]; }).filter(function (G) { return G.nFijo > 0; })
-      .sort(function (a, b) { return b.idxFijo - a.idxFijo || b.nFijo - a.nFijo; })
-      .map(function (G) { var l = soloCampos(G.ultFijo); l.nota = mayoria(G.notasFijo, G.nFijo); l.k = G.k; l.veces = G.nFijo; return l; });
-    var ult = C.hist.slice(-5), u = ult[ult.length - 1];
-    if (u && u.nosale && !ops.length) return { linea: null, estable: true, opciones: [], nosale: true };
-    var estable = ult.length > 0 && ult.every(function (h) { return h.fijo && h.fijo === ult[0].fijo; });
-    return { linea: ops[0] || null, estable: estable, opciones: ops, nosale: !!(u && u.nosale) };
-  }
-  // Pedidos con cantidad que ya aparecieron para un corte, del más reciente al más viejo.
-  function habituales(C, M, dia) {
-    if (!C) return [];
-    return Object.keys(C.g).map(function (k) { return C.g[k]; }).filter(function (G) { return G.nPed > 0; })
-      .sort(function (a, b) { return b.nPed - a.nPed; })
-      .map(function (G) {
-        var ref = (dia && G.ultPorDia[dia]) || G.ultPed, l = soloCampos(ref);
-        l.nota = mayoria(G.notasPed, G.nPed); l.corte = C.corte; l.k = G.k; l.cantNum = ref.cantNum; l.unidad = ref.unidad; l.veces = G.nPed;
-        l.delDia = dia && M.porDia[dia] ? (function () { var c = 0; M.ordenes.forEach(function (o) { if (o.dia === dia && G.fechas[o.id] && (o.cortes || []).some(function (x) { return x.corte === C.corte && x.lineas.some(function (y) { return y.tipo === 'pedido' && claveDe(y) === G.k; }); })) c++; }); return c; })() : 0;
-        l.totalDia = dia ? (M.porDia[dia] || 0) : 0;
-        return l;
-      });
-  }
-
-  /* ---------- armado automático de la orden ---------- */
-  function cortesDelDia(d, M) {
-    return ORDEN_CORTES.filter(function (c) {
-      if (c === 'Grasa (sin separar)') return d.grasaJunta;
-      if (c === 'Grasa buena' || c === 'Grasa mala') return !d.grasaJunta;
-      return M.cortes[c] || d.pedidos.some(function (p) { return p.corte === c; });
-    });
-  }
-  function armar(d, M) {
-    M = M || modelo(d.fecha);
-    return cortesDelDia(d, M).map(function (nombre) {
-      var def = defecto(M.cortes[nombre]), el = d.elecciones[nombre];
-      var peds = d.pedidos.filter(function (p) { return p.corte === nombre; }).map(function (p) {
-        var l = soloCampos(p); l.tipo = 'pedido'; l.cantNum = +p.cantNum || 0; l.unidad = p.unidad || 'kg'; l.cant = cantTxt(l.cantNum, l.unidad); return l;
-      });
-      var out = { corte: nombre, lineas: peds };
-      if (!peds.length && !el && def.nosale && !def.linea) { out.lineas = [{ tipo: 'nosale', cant: 'No sacar', cantNum: null, unidad: '', prod: '', envase: '', extra: '', estado: '', cod: '', contrato: '', destino: '', nota: '' }]; return out; }
-      var fijo = el ? (el.sinResto ? null : el) : def.linea;
-      if (fijo) { var f = soloCampos(fijo); f.tipo = peds.length ? 'resto' : 'todo'; f.cant = peds.length ? 'Resto' : 'Todo'; f.cantNum = null; f.unidad = ''; out.lineas.push(f); }
-      if (!el && (!def.estable || (!def.linea && !peds.length))) {
-        out.revisar = 'definir';
-        out.motivo = def.opciones.length ? 'El destino del resto cambia según el día. Estas son las opciones que ya se usaron:' : 'Este corte todavía no tiene un destino habitual.';
-        out.opciones = def.opciones.map(lineaTxt);
-      }
-      return out;
-    });
-  }
-  function ordenDe(d) {
-    var cortes = armar(d);
-    return {
-      fecha: d.fecha, dia: diaDe(d.fecha), titulo: tituloDe(d.fecha), medias: +d.medias || 0, mercado: d.mercado || 'Consumo', estado: d.estado,
-      pedidos: clone(d.pedidos), elecciones: clone(d.elecciones), grasaJunta: !!d.grasaJunta, cortes: cortes,
-      fuente: 'Cargada desde la app', actualizado: ahoraTxt(), por: S.user ? S.user.email : ''
-    };
-  }
-  // Abre para editar una fecha: toma la orden guardada si existe, o arranca una nueva.
-  function diaDesde(fechaISO) {
-    var o = (S.ordenes || []).filter(function (x) { return x.id === fechaISO; })[0];
-    if (o && o.pedidos) return { fecha: fechaISO, medias: o.medias, mercado: o.mercado || 'Consumo', estado: o.estado || 'borrador', pedidos: clone(o.pedidos), elecciones: clone(o.elecciones || {}), grasaJunta: !!o.grasaJunta, existe: true };
-    var d = { fecha: fechaISO, medias: 750, mercado: 'Consumo', estado: 'borrador', pedidos: [], elecciones: {}, grasaJunta: false, existe: !!o };
-    if (o) {
-      d.medias = o.medias; d.mercado = o.mercado || 'Consumo'; d.estado = o.estado || 'confirmada';
-      d.grasaJunta = (o.cortes || []).some(function (c) { return c.corte === 'Grasa (sin separar)'; });
-      (o.cortes || []).forEach(function (c) {
-        var fijo = false;
-        c.lineas.forEach(function (l, i) {
-          if (l.tipo === 'pedido') { var p = soloCampos(l); p.id = 'p' + c.corte + i; p.corte = c.corte; p.cantNum = l.cantNum; p.unidad = l.unidad; d.pedidos.push(p); }
-          else if (l.tipo !== 'nosale') { fijo = true; if (c.revisar !== 'definir') d.elecciones[c.corte] = soloCampos(l); }
-        });
-        if (!fijo && c.lineas.some(function (l) { return l.tipo === 'pedido'; })) d.elecciones[c.corte] = { sinResto: true };
-      });
-    } else {
-      var plan = planPara(fechaISO), ult = firmes().slice(-1)[0];
-      if (plan) d.medias = plan.medias;
-      if (ult) d.grasaJunta = (ult.cortes || []).some(function (c) { return c.corte === 'Grasa (sin separar)'; });
-    }
-    return d;
-  }
-
-  var tGuardar = null;
-  function guardarDia(ya) {
-    if (!S.dia) return;
-    S.guardado = 'Guardando…'; pintarGuardado();
-    clearTimeout(tGuardar);
-    tGuardar = setTimeout(function () {
-      var doc = ordenDe(S.dia), id = S.dia.fecha;
-      store.set('ordenes', id, doc).then(function () { S.dia.existe = true; S.guardado = 'Guardado ' + ahoraTxt().split(', ')[1]; pintarGuardado(); tocarActualizado(); },
-        function () { S.guardado = '!No se pudo guardar. Revisá la conexión y tocá de nuevo.'; pintarGuardado(); });
-    }, ya ? 0 : 600);
-  }
-  function pintarGuardado() { var e = $('c-guardado'); if (e) { var err = S.guardado.charAt(0) === '!'; e.textContent = err ? S.guardado.slice(1) : S.guardado; e.className = 'guardado' + (err ? ' err' : ''); } }
-  var tAct = null;
-  function tocarActualizado() {
-    clearTimeout(tAct);
-    tAct = setTimeout(function () { var c = clone(S.config || {}); delete c.id; c.actualizado = ahoraTxt(); store.set('config', 'general', c).catch(function () {}); }, 1500);
-  }
-
-  /* ---------- pestaña Cargar pedidos ---------- */
-  function renderCargar() {
-    var el = $('view-cargar');
-    if (!S.editor) { el.innerHTML = '<div class="panel"><p class="state">Para cargar pedidos hay que ingresar con una cuenta autorizada.</p></div>'; return; }
-    if (S.ordenes && S.semanas && !S.ordenes.length && !S.semanas.length && S.fuente !== 'vivo-con-datos') {
-      el.innerHTML = '<div class="panel"><h2>La base está vacía</h2><p class="muted">Podés traer los datos que ya estaban en la web: las semanas de faena y las órdenes de septiembre, que son las que usa la app para saber cómo va cada corte.</p><div class="acciones"><button class="btn pri" data-act="importar">Importar los datos iniciales</button><span class="guardado" id="imp-msg"></span></div></div>';
-      return;
-    }
-    if (!S.dia) S.dia = diaDesde(habilSiguiente(iso(new Date())));
-    el.innerHTML = '<div class="panel" id="c-cab"></div><div class="panel" id="c-hab"></div><div class="panel" id="c-ped"></div><div class="panel" id="c-def"></div><div class="panel" id="c-prev"></div>';
-    pintarCarga();
-  }
-  function pintarCarga() {
-    var d = S.dia, M = modelo(d.fecha), dia = diaDe(d.fecha), cortes = armar(d, M), plan = planPara(d.fecha);
-    var pend = cortes.filter(function (c) { return c.revisar === 'definir'; });
-
-    // cabecera
-    var h = '<div class="weekhead"><h2>Orden para el ' + esc(tituloDe(d.fecha).toLowerCase()) + '</h2><span class="badge ' + (d.estado === 'borrador' ? 'warn' : 'ok') + '">' + (d.estado === 'borrador' ? 'Borrador' : 'Confirmada') + '</span><span class="guardado" id="c-guardado"></span></div>';
-    h += '<div class="campos"><label class="campo"><span>Fecha de desposte</span><input type="date" id="c-fecha" value="' + esc(d.fecha) + '"></label>'
-      + '<label class="campo"><span>Medias a despostar</span><input type="number" inputmode="numeric" min="0" id="c-medias" class="q" value="' + esc(d.medias) + '"></label>'
-      + '<label class="campo"><span>Mercado</span><input type="text" id="c-mercado" value="' + esc(d.mercado) + '"></label></div>';
-    if (!esHabil(d.fecha)) h += '<p class="small"><span class="badge warn">Ojo</span> Esa fecha cae en fin de semana.</p>';
-    if (plan) h += '<p class="small muted">Según el plan de faena hay ' + n(plan.disponible) + ' medias con un día de frío para ese día y están previstas ' + n(plan.medias) + ' a desposte.</p>';
-    $('c-cab').innerHTML = h;
-    pintarGuardado();
-
-    // habituales del día
-    var sug = [];
-    cortesDelDia(d, M).forEach(function (c) {
-      habituales(M.cortes[c], M, dia).forEach(function (p) {
-        if (p.totalDia && p.delDia / p.totalDia >= 0.5 && !d.pedidos.some(function (x) { return x.corte === c && claveDe(x) === p.k; })) sug.push(p);
-      });
-    });
-    S._sug = sug;
-    h = '<h2>Habituales de los ' + dia.toLowerCase() + '</h2>';
-    if (!sug.length) h += '<p class="muted">' + (M.ordenes.length ? 'No queda ningún pedido habitual por agregar.' : 'Todavía no hay órdenes confirmadas de donde aprender.') + '</p>';
-    else h += '<div class="lista">' + sug.map(function (p, i) {
-      return '<div class="item"><div class="cuerpo"><strong>' + esc(p.corte) + '</strong><span>' + esc(cantTxt(p.cantNum, p.unidad)) + ' · ' + esc(lineaTxt(p)) + '</span><span class="small muted">' + p.delDia + ' de ' + p.totalDia + ' ' + dia.toLowerCase() + ' anteriores' + '</span></div><button class="btn sm" data-act="sug" data-i="' + i + '">Agregar</button></div>';
-    }).join('') + '</div><div class="acciones"><button class="btn" data-act="sug-todos">Agregar todos</button></div>';
-    $('c-hab').innerHTML = h;
-
-    // pedidos cargados
-    h = '<div class="weekhead"><h2>Pedidos</h2><span class="badge plain">' + d.pedidos.length + '</span></div>';
-    if (!d.pedidos.length) h += '<p class="muted">Todavía no hay pedidos para este día.</p>';
-    else h += '<div class="lista">' + ORDEN_CORTES.map(function (c) {
-      return d.pedidos.filter(function (p) { return p.corte === c; }).map(function (p) {
-        return '<div class="item"><div class="cuerpo"><strong>' + esc(p.corte) + '</strong><span>' + esc(lineaTxt(p)) + '</span></div>'
-          + '<div class="cant"><input type="number" inputmode="numeric" min="0" class="q" id="q-' + esc(p.id) + '" data-ped="' + esc(p.id) + '" data-k="cantNum" value="' + esc(p.cantNum) + '" aria-label="Cantidad, ' + esc(p.corte) + '"><span>' + esc(p.unidad) + '</span></div>'
-          + '<button class="btn sm" data-act="ped-quitar" data-id="' + esc(p.id) + '">Quitar</button>'
-          + '<input type="text" class="nota" id="n-' + esc(p.id) + '" data-ped="' + esc(p.id) + '" data-k="nota" value="' + esc(p.nota) + '" placeholder="Aclaración (opcional)" aria-label="Aclaración, ' + esc(p.corte) + '"></div>';
-      }).join('');
-    }).join('') + '</div>';
-    h += formPedido(M, dia);
-    $('c-ped').innerHTML = h;
-
-    // falta definir
-    h = '<div class="weekhead"><h2>Falta definir</h2><span class="badge ' + (pend.length ? 'warn' : 'ok') + '">' + (pend.length ? pend.length + ' cortes' : 'Nada pendiente') + '</span></div>';
-    h += pend.map(function (c) { return bloqueOpciones(c.corte, d, M); }).join('');
-    var otros = cortes.filter(function (c) { return c.revisar !== 'definir' && c.lineas[0] && c.lineas[0].tipo !== 'nosale'; });
-    h += '<details' + (S._otro ? ' open' : '') + '><summary>Cambiar el destino de otro corte</summary><div class="campo"><span>Corte</span><select id="c-otro"><option value="">Elegir…</option>' + otros.map(function (c) { return '<option' + (S._otro === c.corte ? ' selected' : '') + '>' + esc(c.corte) + '</option>'; }).join('') + '</select></div>'
-      + (S._otro && otros.some(function (c) { return c.corte === S._otro; }) ? bloqueOpciones(S._otro, d, M) : '') + '</details>';
-    h += '<div class="campo"><span>Grasa</span><div class="acciones"><button class="btn sm" data-act="grasa" data-v="0" aria-pressed="' + !d.grasaJunta + '">Buena y mala por separado</button><button class="btn sm" data-act="grasa" data-v="1" aria-pressed="' + !!d.grasaJunta + '">Toda junta</button></div></div>';
-    $('c-def').innerHTML = h;
-
-    pintarPrevia(cortes, pend.length);
-  }
-  function bloqueOpciones(corte, d, M) {
-    var def = defecto(M.cortes[corte]), el = d.elecciones[corte], ops = def.opciones.slice();
-    var tienePed = d.pedidos.some(function (p) { return p.corte === corte; });
-    if (el && !el.sinResto && !ops.some(function (o) { return claveDe(o) === claveDe(el); })) ops.unshift(el);
-    var h = '<div class="block"><h3>' + esc(corte) + '</h3><p class="small muted">' + (tienePed ? '¿A dónde va el resto?' : '¿A dónde va?') + '</p><div class="ops">';
-    S._ops = S._ops || {}; S._ops[corte] = ops;
-    h += ops.map(function (o, i) {
-      var sel = el && !el.sinResto && claveDe(o) === claveDe(el);
-      return '<button class="btn" data-act="elegir" data-corte="' + esc(corte) + '" data-i="' + i + '" aria-pressed="' + !!sel + '">' + esc(lineaTxt(o)) + (o.veces ? ' <span class="small muted">· ' + o.veces + ' veces</span>' : '') + '</button>';
-    }).join('');
-    if (tienePed) h += '<button class="btn" data-act="elegir" data-corte="' + esc(corte) + '" data-i="-1" aria-pressed="' + !!(el && el.sinResto) + '">Sin resto: todo va a los pedidos</button>';
-    h += '<button class="btn lnk" data-act="otro-destino" data-corte="' + esc(corte) + '">Otro destino…</button></div></div>';
+    h += '<div class="acciones"><button class="btn" data-act="p-corte">+ Corte</button><button class="btn lnk" data-act="p-rearmar">' + (S._rearmar ? 'Tocá de nuevo para rearmar: se pierden los cambios hechos a mano' : 'Volver a armar desde cero') + '</button></div></div>';
     return h;
   }
-  function pintarPrevia(cortes, pend) {
-    var d = S.dia, o = ordenDe(d);
-    o.cortes = cortes || o.cortes;
-    var h = '<p class="label">Así queda la orden</p>' + ordenHTML(o, true) + '<div class="acciones">';
-    if (d.estado === 'borrador') h += '<button class="btn pri" data-act="confirmar"' + (pend ? ' disabled' : '') + '>Confirmar orden</button>' + (pend ? '<span class="small muted">Falta definir ' + pend + ' ' + (pend === 1 ? 'corte' : 'cortes') + '.</span>' : '');
-    else h += '<button class="btn" data-act="reabrir">Reabrir para modificar</button>';
-    h += '</div>';
-    $('c-prev').innerHTML = h;
+  function stockParaFecha(f) {
+    var st = stockSemana(lunesDe(f)); if (!st) return null;
+    var i = Math.round((fecha(f) - fecha(lunesDe(f))) / 86400000);
+    return st.dias[i] ? st.dias[i].disponibleHoy : null;
   }
 
-  function formPedido(M, dia) {
-    var f = S.form;
-    if (!f) return '<div class="acciones"><button class="btn pri" data-act="form-abrir">Agregar pedido</button></div>';
-    var h = '<div class="block"><h3>' + (f.modo === 'destino' ? 'Otro destino para ' + esc(f.corte) : 'Nuevo pedido') + '</h3>';
-    if (f.modo !== 'destino') {
-      h += '<div class="campo"><span>Corte</span><select id="f-corte"><option value="">Elegir…</option>' + ORDEN_CORTES.filter(function (c) { return c !== 'Patas y manos'; }).map(function (c) { return '<option' + (f.corte === c ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select></div>';
-      if (f.corte && !f.manual) {
-        var hab = habituales(M.cortes[f.corte], M, dia); S._hab = hab;
-        h += '<p class="small muted">' + (hab.length ? 'Tocá uno de los que ya se pidieron o cargá uno distinto.' : 'Este corte todavía no tiene pedidos anteriores.') + '</p><div class="ops">'
-          + hab.map(function (p, i) { return '<button class="btn" data-act="hab" data-i="' + i + '">' + esc(lineaTxt(p)) + ' <span class="small muted">· última vez ' + esc(cantTxt(p.cantNum, p.unidad)) + '</span></button>'; }).join('')
-          + '<button class="btn lnk" data-act="form-manual">Otro distinto…</button></div>';
-      }
-    }
-    if (f.manual || f.modo === 'destino') {
-      var dests = {}, prods = {};
-      Object.keys(M.cortes).forEach(function (c) { Object.keys(M.cortes[c].g).forEach(function (k) { var l = M.cortes[c].g[k].l; if (l.destino) dests[l.destino] = 1; if (c === f.corte && l.prod) prods[l.prod] = 1; }); });
-      h += '<div class="campos">'
-        + (f.modo === 'destino' ? '' : '<label class="campo"><span>Cantidad</span><input type="number" inputmode="numeric" min="0" id="f-cantNum" class="q" value="' + esc(f.cantNum || '') + '"></label><label class="campo"><span>Unidad</span><select id="f-unidad">' + UNIDADES.map(function (u) { return '<option' + (f.unidad === u ? ' selected' : '') + '>' + u + '</option>'; }).join('') + '</select></label>')
-        + '<label class="campo"><span>Cliente o destino</span><input type="text" id="f-destino" list="dl-dest" value="' + esc(f.destino || '') + '"></label>'
-        + '<label class="campo"><span>Cómo va el corte</span><input type="text" id="f-prod" list="dl-prod" value="' + esc(f.prod || '') + '" placeholder="Ej.: sin hueso, con cuero"></label>'
-        + '<label class="campo"><span>Estado</span><select id="f-estado"><option value="fresco"' + (f.estado !== 'congelado' ? ' selected' : '') + '>Fresco</option><option value="congelado"' + (f.estado === 'congelado' ? ' selected' : '') + '>Congelado</option></select></label>'
-        + '<label class="campo"><span>Envase</span><select id="f-envase">' + ENVASES.map(function (u) { return '<option value="' + u + '"' + ((f.envase || '') === u ? ' selected' : '') + '>' + (u || 'Sin indicar') + '</option>'; }).join('') + '</select></label>'
-        + '<label class="campo"><span>Código</span><input type="text" inputmode="numeric" id="f-cod" value="' + esc(f.cod || '') + '"></label>'
-        + '<label class="campo"><span>Aclaración</span><input type="text" id="f-nota" value="' + esc(f.nota || '') + '"></label></div>'
-        + '<datalist id="dl-dest">' + Object.keys(dests).sort().map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>'
-        + '<datalist id="dl-prod">' + Object.keys(prods).sort().map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>';
-      if (f.error) h += '<p class="small neg">' + esc(f.error) + '</p>';
-    }
-    h += '<div class="acciones">' + (f.manual || f.modo === 'destino' ? '<button class="btn pri" data-act="form-ok">' + (f.modo === 'destino' ? 'Usar este destino' : 'Agregar') + '</button>' : '') + '<button class="btn" data-act="form-cerrar">Cancelar</button></div></div>';
-    return h;
+  /* ---------- guardado ---------- */
+  var timers = {};
+  function pintarMsg(k) { var e = $('g-' + k); if (!e) return; var m = S.msg[k] || '', err = m.charAt(0) === '!'; e.textContent = err ? m.slice(1) : m; e.className = 'guardado' + (err ? ' err' : ''); }
+  function guardar(k, ya) {
+    S.msg[k] = 'Guardando…'; pintarMsg(k);
+    clearTimeout(timers[k]);
+    var em = S.em, ep = S.ep;
+    timers[k] = setTimeout(function () {
+      var p = k === 'medias' ? (em ? store.set('faena', em.lunes, limpiarSemana(em.doc)) : null) : (ep ? store.set('produccion', ep.fecha, limpiarOrden(ep.doc)) : null);
+      if (!p) return;
+      p.then(function () { S.msg[k] = 'Guardado ' + ahoraTxt().split(', ')[1]; pintarMsg(k); tocar(); }, function () { S.msg[k] = '!No se pudo guardar. Revisá la conexión.'; pintarMsg(k); });
+    }, ya ? 0 : 700);
   }
-  function leerForm() {
-    var f = S.form; if (!f) return;
-    ['cantNum', 'unidad', 'destino', 'prod', 'estado', 'envase', 'cod', 'nota'].forEach(function (k) { var e = $('f-' + k); if (e) f[k] = e.value.trim(); });
-  }
-  function agregarPedido(p) {
-    var x = soloCampos(p);
-    x.id = 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-    x.corte = p.corte; x.cantNum = +p.cantNum || 0; x.unidad = p.unidad || 'kg';
-    S.dia.pedidos.push(x);
+  function limpiarSemana(d) {
+    var x = clone(d); delete x.id;
+    x.stockInicial = x.stockInicial === '' || x.stockInicial == null ? null : +x.stockInicial;
+    x.dias.forEach(function (dia) {
+      dia.faena.forEach(function (r) { r.propios = +r.propios || 0; r.usuarios = +r.usuarios || 0; r.origen = String(r.origen || '').toUpperCase().trim(); });
+      dia.clientes.forEach(function (r) { r.cant = +r.cant || 0; r.cliente = String(r.cliente || '').toUpperCase().trim(); });
+    });
     return x;
   }
+  function limpiarOrden(o) {
+    var x = clone(o); delete x.id; x.medias = +x.medias || 0; x.mercado = String(x.mercado || '').toUpperCase().trim();
+    x.cortes.forEach(function (c) { c.corte = String(c.corte || '').toUpperCase().trim(); c.colgado = !!c.colgado; c.lineas.forEach(function (l) { l.t = String(l.t || '').toUpperCase().replace(/\s+/g, ' ').trim(); }); });
+    x.actualizado = ahoraTxt(); x.por = S.user ? S.user.email : '';
+    return x;
+  }
+  var tTocar = null;
+  function tocar() { clearTimeout(tTocar); tTocar = setTimeout(function () { var c = clone(S.config || {}); delete c.id; c.actualizado = ahoraTxt(); store.set('config', 'general', c).catch(function () {}); }, 1500); }
 
-  /* ---------- cómo va cada corte ---------- */
-  function renderCortes() {
-    var el = $('view-cortes'), M = S.ordenes ? modelo() : null, ORD = M ? M.ordenes : null;
-    if (stateBlock(el, S.ordenes && ORD, 'Todavía no hay órdenes confirmadas para aprender cómo va cada corte.')) return;
-    var total = ORD.length, top = function (m) { return Object.keys(m).sort(function (a, b) { return m[b] - m[a]; }); };
-    var lista = function (a) { return a.length > 1 ? a.slice(0, -1).join(', ') + ' y ' + a[a.length - 1] : a[0]; };
-    var A = ORDEN_CORTES.filter(function (c) { return M.cortes[c]; }).map(function (c) {
-      var C = M.cortes[c];
-      return { corte: c, grupos: Object.keys(C.g).map(function (k) {
-        var G = C.g[k], l = G.l, dias = Object.keys(G.fechas).length, ped = G.nPed, fijo = G.nFijo;
-        var uso = l.tipo === 'nosale' ? 'No se saca' : ped && fijo ? 'Pedido o resto' : ped ? 'Pedido' : (G.tipos.resto || 0) > (G.tipos.todo || 0) ? 'Resto' : G.tipos.resto ? 'Todo o resto' : 'Todo';
-        var cant = Object.keys(G.cant).map(function (u) { var a = G.cant[u], lo = Math.min.apply(null, a), hi = Math.max.apply(null, a); return (lo === hi ? n(lo) : n(lo) + '–' + n(hi)) + ' ' + u; }).join(' · ');
-        var dd = DIAS.filter(function (d) { return G.dias[d]; });
-        var cuando = dias === total ? 'Todos los días' : dias === 1 ? 'una vez, un ' + dd[0].toLowerCase() : dd.length <= 2 ? dd.map(function (d) { return G.dias[d] === M.porDia[d] ? 'todos los ' + d.toLowerCase() : d.toLowerCase() + ' (' + G.dias[d] + ' de ' + M.porDia[d] + ')'; }).join(' y ') : dd.length < 5 ? 'de ' + lista(dd.map(function (d) { return d.toLowerCase(); })) + ', nunca ' + lista(DIAS.filter(function (d) { return !G.dias[d]; }).map(function (d) { return d.toLowerCase(); })) : 'cualquier día';
-        return { prod: cap1([l.prod, top(G.env)[0]].filter(Boolean).join(', ')), estado: l.estado, destino: l.destino, cods: top(G.cods), uso: uso, dias: dias, cant: cant, cuando: cap1(cuando), nosale: l.tipo === 'nosale' };
-      }).sort(function (a, b) { return b.dias - a.dias; }) };
+  /* ---------- pedidos ---------- */
+  function pedidoVacio() { return { k: uid(), cliente: '', entrega: S.entrega || habilSiguiente(hoy()), medias: '', peso: '', cortes: [], nota: '', dudas: [], origen: 'manual' }; }
+  function aplicarPedido(p) {
+    var tareas = [], medias = +p.medias || 0;
+    if (medias > 0 && p.entrega) {
+      var fa = habilAnterior(p.entrega), lunes = lunesDe(fa), i = Math.round((fecha(fa) - fecha(lunes)) / 86400000);
+      var sem = clone(semDe(lunes) || semanaNueva(lunes)), filas = sem.dias[i].clientes, nombre = norm(p.cliente);
+      var fila = filas.filter(function (r) { return r.pedido === p.id; })[0] || filas.filter(function (r) { return !r.pedido && norm(r.cliente) === nombre; })[0];
+      if (!fila) { fila = {}; filas.push(fila); }
+      fila.cliente = String(p.cliente || '').toUpperCase().trim(); fila.cant = medias / 2; fila.pedido = p.id; fila.nota = p.peso || '';
+      var semL = limpiarSemana(sem); S.faena = poner(S.faena, lunes, semL); tareas.push(store.set('faena', lunes, semL));
+    }
+    var paraOrden = (p.cortes || []).filter(function (c) { return c.orden && c.texto; });
+    if (paraOrden.length && p.entrega) {
+      var o = prodDe(p.entrega);
+      if (!o) { var antes = S.pedidos; S.pedidos = (S.pedidos || []).filter(function (x) { return x.id !== p.id; }).concat([p]); o = armarOrden(p.entrega); S.pedidos = antes; }
+      else { o = clone(o); quitarDeOrden(o, p.id); paraOrden.forEach(function (c) { insertarLinea(o, c.corte, c.texto, p.id); }); }
+      var oL = limpiarOrden(o); S.prod = poner(S.prod, p.entrega, oL); tareas.push(store.set('produccion', p.entrega, oL));
+    }
+    return Promise.all(tareas);
+  }
+  function quitarDeOrden(o, pid) {
+    o.cortes.forEach(function (c) {
+      var antes = c.lineas.length;
+      c.lineas = c.lineas.filter(function (l) { return l.p !== pid; });
+      if (c.lineas.length !== antes) {
+        if (!c.lineas.some(function (l) { return esPedido(l.t); })) c.lineas.forEach(function (l) { l.t = sinResto(l.t); });
+        if (!c.lineas.some(function (l) { return !esPedido(l.t); })) c.colgado = true;
+      }
     });
-    var fijos = A.filter(function (c) { return c.grupos.length === 1; }), vari = A.filter(function (c) { return c.grupos.length > 1; });
-    var h = '<div class="panel"><h2>Lo que se repite en ' + total + ' órdenes</h2>'
-      + '<p class="muted">Del ' + esc(ORD[0].titulo.toLowerCase()) + ' al ' + esc(ORD[total - 1].titulo.toLowerCase()) + '. Con esto se arma cada orden nueva: primero los pedidos con cantidad y el resto al destino habitual. Cada orden que se confirma se suma a lo aprendido.</p>'
-      + '<dl class="stats">' + stat('Siempre igual', fijos.length, 'cortes') + stat('Cambian con los pedidos', vari.length, 'cortes') + '</dl></div>';
-    h += '<div class="panel"><h2>Cambian con los pedidos</h2>' + vari.map(function (c) {
-      return '<div class="block"><h3>' + esc(c.corte) + '</h3><div class="scroll"><table class="learn"><thead><tr><th>Cómo va</th><th>Destino</th><th>Uso</th><th style="text-align:right">Días</th><th>Cantidad</th><th>Cuándo</th></tr></thead><tbody>'
-        + c.grupos.map(function (g) {
-          return '<tr><td>' + (g.prod ? esc(g.prod) + ' ' : '') + estadoBadge(g.estado) + (g.cods.length ? ' <span class="badge plain">Cód. ' + esc(g.cods.join(' / ')) + '</span>' : '') + '</td>'
-            + '<td>' + (g.destino ? '<strong>' + esc(g.destino) + '</strong>' : '<span class="muted">Sin cliente indicado</span>') + '</td><td>' + esc(g.uso) + '</td>'
-            + '<td class="r"><span class="freq"><i style="width:' + Math.round(g.dias / total * 100) + '%"></i></span>' + g.dias + ' de ' + total + '</td>'
-            + '<td>' + (g.cant ? esc(g.cant) : '<span class="muted">—</span>') + '</td><td>' + esc(g.cuando) + '</td></tr>';
-        }).join('') + '</tbody></table></div></div>';
-    }).join('') + '</div>';
-    h += '<div class="panel"><h2>Siempre igual</h2><div class="scroll"><table class="learn"><thead><tr><th>Corte</th><th>Cómo va</th><th>Destino</th></tr></thead><tbody>' + fijos.map(function (c) {
-      var g = c.grupos[0];
-      return '<tr><td><strong>' + esc(c.corte) + '</strong></td><td>' + (g.nosale ? 'No se saca' : (g.prod ? esc(g.prod) + ' ' : '') + estadoBadge(g.estado) + (g.cods.length ? ' <span class="badge plain">Cód. ' + esc(g.cods.join(' / ')) + '</span>' : '')) + '</td>'
-        + '<td>' + (g.nosale ? '<span class="muted">—</span>' : g.destino ? '<strong>' + esc(g.destino) + '</strong>' : '<span class="muted">Sin cliente indicado</span>') + '</td></tr>';
-    }).join('') + '</tbody></table></div></div>';
+    o.cortes = o.cortes.filter(function (c) { return c.lineas.length || CORTES_BASE.indexOf(norm(c.corte)) >= 0 || norm(c.corte).indexOf('GRASA') === 0; });
+  }
+  function borrarPedido(p) {
+    var tareas = [store.del('pedidos', p.id)];
+    (S.faena || []).forEach(function (s) {
+      if (!s.dias.some(function (d) { return d.clientes.some(function (r) { return r.pedido === p.id; }); })) return;
+      var x = clone(s); x.dias.forEach(function (d) { d.clientes = d.clientes.filter(function (r) { return r.pedido !== p.id; }); });
+      tareas.push(store.set('faena', s.id, limpiarSemana(x)));
+    });
+    (S.prod || []).forEach(function (o) {
+      if (!o.cortes.some(function (c) { return c.lineas.some(function (l) { return l.p === p.id; }); })) return;
+      var x = clone(o); quitarDeOrden(x, p.id); tareas.push(store.set('produccion', o.id, limpiarOrden(x)));
+    });
+    return Promise.all(tareas);
+  }
+  function guardarPropuesta(q) {
+    var p = { cliente: String(q.cliente || '').toUpperCase().trim(), entrega: q.entrega || '', medias: +q.medias || 0, peso: q.peso || '', nota: q.nota || '', origen: q.origen || 'manual', creado: ahoraTxt(),
+      cortes: (q.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { corte: norm(c.corte), texto: String(c.texto).toUpperCase().replace(/\s+/g, ' ').trim(), orden: !!c.orden }; }) };
+    if (!p.cliente) return Promise.reject(new Error('Falta el cliente.'));
+    if (!p.entrega) return Promise.reject(new Error('Falta la fecha de entrega.'));
+    if (!p.medias && !p.cortes.length) return Promise.reject(new Error('El pedido no tiene medias ni cortes.'));
+    var id = 'p' + uid(), doc = clone(p); p.id = id;
+    S.em = null; S.ep = null;
+    S.pedidos = poner(S.pedidos, id, doc);
+    return store.set('pedidos', id, doc).then(function () { return aplicarPedido(p); }).then(function () { tocar(); });
+  }
+
+  /* lectura de fotos con IA */
+  function achicar(file) {
+    return new Promise(function (ok, no) {
+      var img = new Image(), url = URL.createObjectURL(file);
+      img.onload = function () {
+        var max = 1800, k = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement('canvas');
+        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+        ok(c.toDataURL('image/jpeg', 0.88).split(',')[1]);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); no(new Error('No se pudo abrir la imagen.')); };
+      img.src = url;
+    });
+  }
+  function instrucciones() {
+    var clientes = {}, ejemplos = [];
+    (S.faena || []).forEach(function (s) { s.dias.forEach(function (d) { d.clientes.forEach(function (r) { if (r.cliente) clientes[r.cliente] = 1; }); }); });
+    (S.prod || []).slice(-3).forEach(function (o) { ejemplos.push(textoOrden(o)); });
+    return 'Sos el asistente de carga de pedidos del Frigorífico Qualitá, un frigorífico de cerdo. Recibís una foto o una captura de pantalla con uno o varios pedidos de clientes y devolvés SOLO un JSON, sin texto antes ni después.\n\n'
+      + 'Hoy es ' + diaDe(hoy()) + ' ' + hoy() + '.\n\n'
+      + 'TIPOS DE IMAGEN\n'
+      + '1. Formulario manuscrito "ORDEN DE PEDIDO": el cliente está arriba y hay una "Fecha de entrega". En el renglón "18 CAPÓN" la cantidad seguida de "½" es la cantidad de MEDIAS RESES (ej.: "20 ½" = 20 medias). Los demás renglones son cortes. "Todo" al lado de un corte significa que el cliente se lleva todo lo que salga de ese corte. Puede haber renglones agregados a mano al pie, con código, y notas al margen. Una foto puede traer varios formularios: cada uno es un pedido.\n'
+      + '2. Planillas de Excel de reparto por zona o por ciudad: cada fila es un cliente; la columna "Medias" es cantidad de medias reses y las demás columnas son cortes, casi siempre en cajas. La fecha del encabezado es la fecha de entrega. Si junto al cliente dice un rango de kilos (ej. "46 a 48 kg"), es el peso pedido para las medias.\n'
+      + '3. Planillas por sucursal (ej. DINO): un solo cliente, con los kilos por corte sumados entre sucursales.\n\n'
+      + 'QUÉ DEVOLVER\n'
+      + '{"pedidos":[{"cliente":"","entrega":"AAAA-MM-DD o null","medias":0,"peso":"","cortes":[{"corte":"","texto":"","orden":true}],"nota":"","dudas":[""]}]}\n'
+      + '- cliente: en mayúsculas. Si coincide con uno de la lista de clientes conocidos, usá exactamente ese nombre.\n'
+      + '- entrega: resolvé fechas como "lun 05/10" con el año actual. Si no figura, null.\n'
+      + '- medias: cantidad de medias reses, número. 0 si no pide medias.\n'
+      + '- peso: aclaración de peso de las medias (livianas, pesadas, rango de kg), o "".\n'
+      + '- cortes: un elemento por cada corte pedido. "corte" es el rubro de la orden de producción, uno de: ' + CORTES_BASE.join(', ') + '. "texto" es la línea tal como se escribe en la orden de producción, en mayúsculas y con el estilo de los ejemplos: cantidad y unidad pegadas al principio (ej. "600KG", "50 UND", "10 CAJAS"), presentación, código si figura, y el cliente entre comillas al final. Si el cliente pide TODO el corte, la línea va sin cantidad (ej. "FRESCA EN BINES “ARGENCARNES”").\n'
+      + '- orden: true si es un corte fresco que hay que producir ese día; false si es mercadería congelada que sale de stock, o productos que no salen del desposte (chorizo, morcilla, salchicha).\n'
+      + '- nota: aclaraciones del pedido que no entran en otro campo. No copies precios.\n'
+      + '- dudas: todo lo que no se lea bien o sea ambiguo, en una frase corta cada una. Si un número no se lee con seguridad, poné tu mejor lectura y avisá acá. No inventes datos.\n\n'
+      + 'CLIENTES CONOCIDOS\n' + Object.keys(clientes).sort().join(', ') + '\n\n'
+      + 'EJEMPLOS DE ÓRDENES DE PRODUCCIÓN RECIENTES (para el estilo de las líneas)\n' + ejemplos.join('\n\n');
+  }
+  function leerImagen(file) {
+    if (window.__mock && window.__mock.ia) return Promise.resolve(window.__mock.ia(file.name));
+    return achicar(file).then(function (b64) {
+      return fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': S.ia.clave, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({ model: S.ia.modelo || IA_MODELO, max_tokens: 4096, system: instrucciones(),
+          messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } }, { type: 'text', text: 'Leé los pedidos de esta imagen y devolvé el JSON.' }] }] })
+      });
+    }).then(function (r) {
+      return r.json().then(function (j) {
+        if (!r.ok) throw new Error(r.status === 401 ? 'La clave de IA no es válida.' : (j && j.error && j.error.message) || ('Error ' + r.status));
+        var txt = (j.content || []).filter(function (b) { return b.type === 'text'; }).map(function (b) { return b.text; }).join('');
+        var a = txt.indexOf('{'), z = txt.lastIndexOf('}');
+        if (a < 0 || z < a) throw new Error('La respuesta no se pudo interpretar.');
+        return JSON.parse(txt.slice(a, z + 1));
+      });
+    });
+  }
+  function subirFotos(files) {
+    var lista = Array.prototype.slice.call(files), i = 0, errores = [];
+    function sig() {
+      if (i >= lista.length) { S.msg.fotos = errores.length ? '!' + errores.join(' ') : 'Listo. Revisá los pedidos leídos antes de guardarlos.'; renderPedidos(); return; }
+      var f = lista[i++]; S.msg.fotos = 'Leyendo ' + i + ' de ' + lista.length + '…'; pintarMsg('fotos');
+      leerImagen(f).then(function (j) {
+        (j.pedidos || []).forEach(function (p) {
+          S.prop.push({ k: uid(), cliente: p.cliente || '', entrega: p.entrega || S.entrega || habilSiguiente(hoy()), medias: +p.medias || '', peso: p.peso || '', nota: p.nota || '', origen: 'foto', foto: f.name,
+            dudas: (p.dudas || []).filter(Boolean), cortes: (p.cortes || []).map(function (c) { return { corte: norm(c.corte), texto: c.texto || '', orden: c.orden !== false }; }) });
+        });
+      }, function (e) { errores.push((f.name ? f.name + ': ' : '') + e.message); }).then(sig);
+    }
+    sig();
+  }
+
+  function propHTML(q, i) {
+    var listaCortes = CORTES_BASE.slice(); (q.cortes || []).forEach(function (c) { if (c.corte && listaCortes.indexOf(c.corte) < 0) listaCortes.push(c.corte); });
+    var h = '<div class="card' + (q.dudas && q.dudas.length ? ' duda' : '') + '">';
+    if (q.dudas && q.dudas.length) h += '<div><span class="badge warn">Para revisar</span><ul class="small" style="margin:6px 0 0;padding-left:18px">' + q.dudas.map(function (d) { return '<li>' + esc(d) + '</li>'; }).join('') + '</ul></div>';
+    h += '<div class="campos"><label class="campo"><span>Cliente</span><input type="text" id="q' + i + 'cliente" data-q="' + i + '" data-k="cliente" value="' + esc(q.cliente) + '" style="text-transform:uppercase"></label>'
+      + '<label class="campo"><span>Entrega</span><input type="date" id="q' + i + 'entrega" data-q="' + i + '" data-k="entrega" value="' + esc(q.entrega || '') + '"></label>'
+      + '<label class="campo"><span>Medias</span><input type="number" inputmode="numeric" id="q' + i + 'medias" data-q="' + i + '" data-k="medias" value="' + esc(q.medias) + '"></label>'
+      + '<label class="campo"><span>Peso o aclaración</span><input type="text" id="q' + i + 'peso" data-q="' + i + '" data-k="peso" value="' + esc(q.peso || '') + '"></label></div>';
+    if (+q.medias > 0 && q.entrega) h += '<p class="small muted">' + n(+q.medias / 2) + ' cerdos en la planilla del ' + esc(tituloDe(habilAnterior(q.entrega)).toLowerCase()) + ', que es la faena anterior a la entrega.</p>';
+    (q.cortes || []).forEach(function (c, j) {
+      h += '<div class="cl"><select id="q' + i + 'c' + j + 'corte" data-q="' + i + '" data-j="' + j + '" data-k="corte" aria-label="Corte">' + listaCortes.map(function (x) { return '<option' + (x === c.corte ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select>'
+        + '<textarea rows="2" id="q' + i + 'c' + j + 'texto" data-q="' + i + '" data-j="' + j + '" data-k="texto" aria-label="Línea para la orden" style="text-transform:uppercase">' + esc(c.texto) + '</textarea>'
+        + '<label><input type="checkbox" id="q' + i + 'c' + j + 'orden" data-q="' + i + '" data-j="' + j + '" data-k="orden"' + (c.orden ? ' checked' : '') + '> A la orden</label>'
+        + '<button class="btn x" data-act="q-quitar-corte" data-q="' + i + '" data-j="' + j + '" aria-label="Quitar corte">×</button></div>';
+    });
+    h += '<div class="acciones"><button class="btn sm" data-act="q-corte" data-q="' + i + '">+ Corte</button></div>'
+      + '<label class="campo"><span>Nota</span><input type="text" id="q' + i + 'nota" data-q="' + i + '" data-k="nota" value="' + esc(q.nota || '') + '"></label>'
+      + (q.error ? '<p class="small neg">' + esc(q.error) + '</p>' : '')
+      + '<div class="acciones"><button class="btn pri" data-act="q-guardar" data-q="' + i + '">Guardar pedido</button><button class="btn" data-act="q-descartar" data-q="' + i + '">Descartar</button></div></div>';
+    return h;
+  }
+  function renderPedidos() {
+    var el = $('view-pedidos');
+    if (!S.editor) { el.innerHTML = '<div class="panel"><p class="state">Para cargar pedidos hay que ingresar con una cuenta autorizada.</p></div>'; return; }
+    if (!S.entrega) S.entrega = habilSiguiente(hoy());
+    var conIA = !!(S.ia && S.ia.clave) || !!(window.__mock && window.__mock.ia);
+    var h = '<div class="panel"><h2>Cargar pedidos</h2>';
+    h += '<div class="acciones"><label class="btn pri" style="display:inline-flex;align-items:center' + (conIA ? '' : ';opacity:.45') + '">Subir fotos o capturas<input type="file" id="fotos" accept="image/*" multiple hidden' + (conIA ? '' : ' disabled') + '></label>'
+      + '<button class="btn" data-act="q-nuevo">Cargar a mano</button><span class="guardado" id="g-fotos"></span></div>';
+    if (!conIA) h += '<p class="small muted">Para leer fotos falta cargar la clave de IA, más abajo en Configuración. Mientras tanto se puede cargar a mano.</p>';
+    if (S.prop.length) h += S.prop.map(propHTML).join('') + (S.prop.length > 1 ? '<div class="acciones"><button class="btn pri" data-act="q-todos">Guardar todos</button></div>' : '');
+    h += '</div>';
+
+    var lista = (S.pedidos || []).filter(function (p) { return p.entrega === S.entrega; });
+    h += '<div class="panel"><div class="nav"><h2 style="flex:1 1 auto">Pedidos para entregar</h2><input type="date" id="e-fecha" value="' + esc(S.entrega) + '" aria-label="Fecha de entrega"></div>';
+    if (!lista.length) h += '<p class="muted">No hay pedidos cargados para el ' + esc(tituloDe(S.entrega).toLowerCase()) + '.</p>';
+    else {
+      var tm = lista.reduce(function (t, p) { return t + (+p.medias || 0); }, 0);
+      h += '<p class="small muted">' + lista.length + ' pedidos · ' + n(tm) + ' medias (' + n(tm / 2) + ' cerdos)</p><div class="lista">' + lista.map(function (p) {
+        return '<div class="item"><div class="cuerpo"><strong>' + esc(p.cliente) + '</strong>'
+          + (p.medias ? '<span>' + n(p.medias) + ' medias' + (p.peso ? ' · ' + esc(p.peso) : '') + '</span>' : '')
+          + (p.cortes || []).map(function (c) { return '<span class="small">' + esc(c.corte) + ': ' + esc(c.texto) + (c.orden ? '' : ' <span class="muted">(no va a la orden)</span>') + '</span>'; }).join('')
+          + (p.nota ? '<span class="small muted">' + esc(p.nota) + '</span>' : '') + '</div><button class="btn sm" data-act="ped-borrar" data-id="' + esc(p.id) + '">Quitar</button></div>';
+      }).join('') + '</div>';
+    }
+    h += '<div class="acciones"><button class="btn sm" data-act="ir-medias">Ver la planilla de medias</button><button class="btn sm" data-act="ir-orden">Ver la orden de ese día</button></div></div>';
+
+    h += '<div class="panel"><details' + (S._conf ? ' open' : '') + '><summary>Configuración</summary><div class="campos">'
+      + '<label class="campo"><span>Clave de IA (Anthropic)</span><input type="password" id="cfg-clave" autocomplete="off" placeholder="' + (S.ia && S.ia.clave ? 'Cargada. Escribí otra para cambiarla.' : 'sk-ant-…') + '"></label>'
+      + '<label class="campo"><span>Desposte habitual (medias por día)</span><input type="number" inputmode="numeric" id="cfg-desposte" value="' + esc(S.config.desposteHabitual || 750) + '"></label>'
+      + '<label class="campo"><span>Capacidad de cámaras (medias)</span><input type="number" inputmode="numeric" id="cfg-cap" value="' + esc(S.config.capacidadCamara || '') + '"></label></div>'
+      + '<div class="acciones"><button class="btn" data-act="cfg-guardar">Guardar configuración</button><span class="guardado" id="g-cfg"></span></div>'
+      + '<p class="small muted">La clave queda guardada en la base y solo la pueden leer las cuentas editoras. Las fotos se mandan a Anthropic para leerlas y no se guardan.</p></details></div>';
     el.innerHTML = h;
+    pintarMsg('fotos'); pintarMsg('cfg');
   }
 
   /* ---------- estados, sesión y navegación ---------- */
-  function stateBlock(el, data, emptyMsg) {
-    var msg = S.status === 'loading' && !data ? 'Cargando datos…'
-      : S.status === 'error' && !data ? 'No se pudieron cargar los datos. Revisá la conexión y volvé a abrir la app.'
-      : (!data || !data.length) && emptyMsg ? emptyMsg : '';
+  function cargando(el, data) {
+    var msg = S.status === 'loading' && !data ? 'Cargando…' : S.status === 'error' && !data ? 'No se pudieron cargar los datos. Revisá la conexión y volvé a abrir la app.' : '';
     if (msg) { el.innerHTML = '<div class="panel"><p class="state">' + msg + '</p></div>'; return true; }
     return false;
   }
-  function renderSesion() {
-    var e = $('sesion'); if (!e) return;
-    if (!store || !store.signIn) { e.innerHTML = ''; return; }
-    if (!S.user) e.innerHTML = '<button class="btn sm" data-act="ingresar">Ingresar para cargar</button>';
-    else e.innerHTML = '<span class="muted">' + esc(S.user.email) + (S.editor ? '' : ' · sin permiso para cargar') + '</span><button class="btn sm lnk" data-act="salir">Salir</button>';
-  }
   function render() {
     $('stamp').textContent = (S.config.actualizado ? 'Actualizado: ' + S.config.actualizado : '') + (S.fuente === 'cache' ? ' · sin conexión' : '');
-    renderSesion();
-    $('tab-cargar').hidden = !S.editor;
-    if (S.tab === 'cargar' && !S.editor) S.tab = 'ordenes';
+    var e = $('sesion');
+    if (!store || !store.signIn) e.innerHTML = '';
+    else if (!S.user) e.innerHTML = '<button class="btn sm lnk" data-act="ingresar">Ingresar para cargar</button>';
+    else e.innerHTML = '<span>' + esc(S.user.email) + (S.editor ? '' : ' · sin permiso para cargar') + '</span><button class="btn sm lnk" data-act="salir">Salir</button>';
+    $('tab-pedidos').hidden = !S.editor;
+    if (S.tab === 'pedidos' && !S.editor) S.tab = 'produccion';
     TABS.forEach(function (t) { $('view-' + t).hidden = S.tab !== t; $('tab-' + t).setAttribute('aria-selected', String(S.tab === t)); });
-    if (S.tab === 'stock') renderStock(); else if (S.tab === 'ordenes') renderOrdenes(); else if (S.tab === 'cortes') renderCortes(); else renderCargar();
+    if (S.tab === 'medias') renderMedias(); else if (S.tab === 'pedidos') renderPedidos(); else renderProduccion();
   }
-  // No redibuja la pantalla de carga mientras se escribe en ella.
-  function renderDatos() { if (S.tab === 'cargar' && S.dia) { $('stamp').textContent = S.config.actualizado ? 'Actualizado: ' + S.config.actualizado : ''; return; } if (S.tab === 'stock' && S.editSem) return; render(); }
-
-  function setSemanas(list) {
-    S.semanas = list.slice().sort(function (a, b) { return String(a.desde).localeCompare(String(b.desde)); });
-    if (!S.sem || !S.semanas.some(function (s) { return s.id === S.sem; })) {
-      var hoy = iso(new Date()), prev = S.semanas.filter(function (s) { return s.desde <= hoy; });
-      S.sem = (prev[prev.length - 1] || S.semanas[0] || {}).id || null;
-    }
-  }
-  function setOrdenes(list) {
-    S.ordenes = list.slice().sort(function (a, b) { return String(a.fecha).localeCompare(String(b.fecha)); });
-    if (!S.ord || !S.ordenes.some(function (o) { return o.id === S.ord; })) S.ord = (S.ordenes[S.ordenes.length - 1] || {}).id || null;
+  // Cuando llegan datos nuevos no se redibuja la pantalla en la que se está escribiendo.
+  function renderDatos() {
+    if (S.tab === 'medias' && S.em) return pintarSumas();
+    if (S.tab === 'produccion' && S.ep) return;
+    if (S.tab === 'pedidos' && S.prop.length) return;
+    render();
   }
   function irA(tab) { S.tab = tab; try { history.replaceState(null, '', '#' + tab); } catch (err) {} render(); window.scrollTo(0, 0); }
 
   document.querySelector('.tabs').addEventListener('click', function (e) { var b = e.target.closest('[data-tab]'); if (b) irA(b.dataset.tab); });
 
   document.addEventListener('click', function (e) {
-    var p = e.target.closest('[data-sem]');
-    if (p) { S.sem = p.dataset.sem; S.editSem = null; render(); return; }
-    var st = e.target.closest('[data-step]');
-    if (st && S.ordenes) { var i = S.ordenes.map(function (o) { return o.id; }).indexOf(S.ord) + Number(st.dataset.step); if (S.ordenes[i]) { S.ord = S.ordenes[i].id; render(); } return; }
     var b = e.target.closest('[data-act]'); if (!b) return;
-    var a = b.dataset.act, d = S.dia;
+    var a = b.dataset.act, D = b.dataset, o, c;
+    if (a !== 'p-rearmar') S._rearmar = false;
 
-    if (a === 'copiar') {
+    if (a === 'ingresar') store.signIn().catch(function () {});
+    else if (a === 'salir') store.signOut();
+    else if (a === 'copiar') {
       var ta = $('txt-orden'), msg = $('copiado'); ta.hidden = false;
       var ok = function () { msg.textContent = 'Copiado.'; }, no = function () { ta.focus(); ta.select(); msg.textContent = 'Seleccionado: copialo con Ctrl+C o manteniendo apretado.'; };
       try { navigator.clipboard.writeText(ta.value).then(ok, no); } catch (err) { no(); }
     }
-    else if (a === 'ingresar') { store.signIn().catch(function () {}); }
-    else if (a === 'salir') { store.signOut(); }
-    else if (a === 'importar') { importar(); }
-    else if (a === 'abrir-carga') { S.dia = diaDesde(b.dataset.fecha); S.form = null; S._otro = ''; S.guardado = ''; irA('cargar'); }
 
-    // semana
-    else if (a === 'sem-editar') { S.editSem = clone(S.semanas.filter(function (s) { return s.id === S.sem; })[0]); render(); }
-    else if (a === 'sem-nueva') { var nueva = semanaNueva(); S.semanas = S.semanas.concat([nueva]); S.sem = nueva.id; S.editSem = clone(nueva); S._semNueva = nueva.id; render(); }
-    else if (a === 'sem-cancelar') { if (S._semNueva === S.editSem.id) { S.semanas = S.semanas.filter(function (s) { return s.id !== S._semNueva; }); S.sem = (S.semanas[S.semanas.length - 1] || {}).id || null; } S._semNueva = null; S.editSem = null; render(); }
-    else if (a === 'sem-tipo') { S.editSem.tipo = b.dataset.v; render(); }
-    else if (a === 'sem-guardar') { S._semNueva = null; guardarSemana(); }
+    // medias
+    else if (a === 'sem') { if (S.em) guardar('medias', true); S.em = null; S.sem = mas(S.sem, +D.d); S.dia = null; render(); }
+    else if (a === 'dia') { S.dia = +D.i; var g = document.querySelector('.dias'); if (g) g.dataset.sel = D.i; document.querySelectorAll('.dtabs .btn').forEach(function (x) { x.setAttribute('aria-pressed', String(x.dataset.i === D.i)); }); }
+    else if (a === 'm-editar') { if (S.em) { guardar('medias', true); S.em = null; } else { S.em = { lunes: S.sem, doc: clone(semDe(S.sem)) }; S.msg.medias = ''; } render(); }
+    else if (a === 'm-nueva') { S.em = { lunes: S.sem, doc: semanaNueva(S.sem) }; guardar('medias', true); render(); }
+    else if (a === 'm-agregar') { S.em.doc.dias[+D.i][D.m].push(D.m === 'faena' ? { origen: '', propios: 0, usuarios: 0 } : { cliente: '', cant: 0 }); render(); var ult = S.em.doc.dias[+D.i][D.m].length - 1, foco = $((D.m === 'faena' ? 'f' : 'c') + D.i + '-' + ult + (D.m === 'faena' ? 'o' : 'c')); if (foco) foco.focus(); }
+    else if (a === 'm-quitar') { S.em.doc.dias[+D.i][D.m].splice(+D.r, 1); guardar('medias'); render(); }
 
-    // carga de pedidos
-    else if (a === 'sug') { agregarPedido(S._sug[+b.dataset.i]); guardarDia(); pintarCarga(); }
-    else if (a === 'sug-todos') { S._sug.forEach(agregarPedido); guardarDia(); pintarCarga(); }
-    else if (a === 'ped-quitar') { d.pedidos = d.pedidos.filter(function (x) { return x.id !== b.dataset.id; }); guardarDia(); pintarCarga(); }
-    else if (a === 'form-abrir') { S.form = { corte: '', unidad: 'kg', estado: 'fresco' }; pintarCarga(); }
-    else if (a === 'form-cerrar') { S.form = null; pintarCarga(); }
-    else if (a === 'form-manual') { S.form.manual = true; pintarCarga(); }
-    else if (a === 'hab') { var x = agregarPedido(S._hab[+b.dataset.i]); S.form = null; guardarDia(); pintarCarga(); var q = $('q-' + x.id); if (q) { q.focus(); q.select(); } }
-    else if (a === 'form-ok') {
-      leerForm(); var f = S.form;
-      if (f.modo === 'destino') {
-        if (!f.destino && !f.prod && !f.envase) { f.error = 'Indicá al menos el destino o cómo va el corte.'; pintarCarga(); return; }
-        d.elecciones[f.corte] = soloCampos(f); S.form = null; guardarDia(); pintarCarga();
-      } else {
-        if (!f.corte) { f.error = 'Elegí el corte.'; pintarCarga(); return; }
-        if (!(+f.cantNum > 0)) { f.error = 'Indicá la cantidad.'; pintarCarga(); return; }
-        agregarPedido(f); S.form = null; guardarDia(); pintarCarga();
-      }
+    // producción
+    else if (a === 'fecha') { if (S.ep) guardar('prod', true); S.ep = null; var x = S.fecha; do { x = mas(x, +D.d); } while (!esHabil(x)); S.fecha = x; render(); }
+    else if (a === 'p-armar') { S.ep = { fecha: S.fecha, doc: armarOrden(S.fecha) }; guardar('prod', true); render(); }
+    else if (a === 'p-editar') { if (S.ep) { guardar('prod', true); S.ep = null; } else { S.ep = { fecha: S.fecha, doc: clone(prodDe(S.fecha)) }; S.msg.prod = ''; } render(); }
+    else if (S.ep && a.indexOf('p-') === 0) {
+      o = S.ep.doc; c = D.c != null ? o.cortes[+D.c] : null;
+      if (a === 'p-estado') { o.estado = D.v; if (D.v === 'lista') o.cortes.forEach(function (x) { x.colgado = false; }); }
+      else if (a === 'p-ok') c.colgado = false;
+      else if (a === 'p-linea') c.lineas.push({ t: '' });
+      else if (a === 'p-quitar-linea') c.lineas.splice(+D.l, 1);
+      else if (a === 'p-quitar-corte') o.cortes.splice(+D.c, 1);
+      else if (a === 'p-corte') o.cortes.push({ corte: '', lineas: [{ t: '' }], colgado: false });
+      else if (a === 'p-sug') { var s = S._sug[+D.i]; insertarLinea(o, s.corte, s.t); }
+      else if (a === 'p-rearmar') { if (!S._rearmar) { S._rearmar = true; render(); return; } S._rearmar = false; var ant = S.ep; S.ep = null; var nueva = armarOrden(S.fecha); S.ep = { fecha: ant.fecha, doc: nueva }; }
+      guardar('prod', a === 'p-estado'); render();
+      if (a === 'p-linea') { var fl = $('pl' + D.c + '-' + (c.lineas.length - 1)); if (fl) fl.focus(); }
+      if (a === 'p-corte') { var fc = $('pc' + (o.cortes.length - 1)); if (fc) fc.focus(); }
     }
-    else if (a === 'elegir') { var i2 = +b.dataset.i, c = b.dataset.corte; d.elecciones[c] = i2 < 0 ? { sinResto: true } : soloCampos(S._ops[c][i2]); guardarDia(); pintarCarga(); }
-    else if (a === 'otro-destino') { S.form = { modo: 'destino', corte: b.dataset.corte, estado: 'fresco' }; pintarCarga(); var fd = $('f-destino'); if (fd) fd.focus(); }
-    else if (a === 'grasa') { d.grasaJunta = b.dataset.v === '1'; guardarDia(); pintarCarga(); }
-    else if (a === 'confirmar') { d.estado = 'confirmada'; guardarDia(true); S.ord = d.fecha; pintarCarga(); }
-    else if (a === 'reabrir') { d.estado = 'borrador'; guardarDia(true); pintarCarga(); }
+
+    // pedidos
+    else if (a === 'q-nuevo') { S.prop.push(pedidoVacio()); renderPedidos(); var fq = $('q' + (S.prop.length - 1) + 'cliente'); if (fq) fq.focus(); }
+    else if (a === 'q-corte') { S.prop[+D.q].cortes.push({ corte: CORTES_BASE[0], texto: '', orden: true }); renderPedidos(); }
+    else if (a === 'q-quitar-corte') { S.prop[+D.q].cortes.splice(+D.j, 1); renderPedidos(); }
+    else if (a === 'q-descartar') { S.prop.splice(+D.q, 1); renderPedidos(); }
+    else if (a === 'q-guardar' || a === 'q-todos') {
+      var cuales = a === 'q-todos' ? S.prop.slice() : [S.prop[+D.q]];
+      S.msg.fotos = 'Guardando…'; pintarMsg('fotos');
+      cuales.reduce(function (cad, q) {
+        return cad.then(function () { return guardarPropuesta(q).then(function () { S.entrega = q.entrega; S.prop = S.prop.filter(function (x) { return x !== q; }); }, function (err) { q.error = err.message || 'No se pudo guardar.'; }); })
+          .then(function () { return new Promise(function (r) { setTimeout(r, 30); }); });
+      }, Promise.resolve()).then(function () { S.msg.fotos = S.prop.length ? '!Quedaron pedidos sin guardar: revisalos.' : 'Guardado.'; renderPedidos(); });
+    }
+    else if (a === 'ped-borrar') { var p = (S.pedidos || []).filter(function (x) { return x.id === D.id; })[0]; if (p) borrarPedido(p).then(tocar); }
+    else if (a === 'ir-medias') { var fa = habilAnterior(S.entrega); S.em = null; S.sem = lunesDe(fa); S.dia = Math.round((fecha(fa) - fecha(S.sem)) / 86400000); irA('medias'); }
+    else if (a === 'ir-orden') { S.ep = null; S.fecha = S.entrega; irA('produccion'); }
+    else if (a === 'cfg-guardar') {
+      S._conf = true;
+      var clave = $('cfg-clave').value.trim(), cfg = clone(S.config || {}), tareas = []; delete cfg.id;
+      cfg.desposteHabitual = +$('cfg-desposte').value || 750; cfg.capacidadCamara = +$('cfg-cap').value || 0; cfg.actualizado = ahoraTxt();
+      tareas.push(store.set('config', 'general', cfg));
+      if (clave) tareas.push(store.set('privado', 'ia', { clave: clave, modelo: (S.ia && S.ia.modelo) || IA_MODELO }));
+      S.msg.cfg = 'Guardando…'; pintarMsg('cfg');
+      Promise.all(tareas).then(function () { S.msg.cfg = 'Guardado.'; if (clave) S.ia = { clave: clave, modelo: (S.ia && S.ia.modelo) || IA_MODELO }; renderPedidos(); }, function () { S.msg.cfg = '!No se pudo guardar.'; pintarMsg('cfg'); });
+    }
   });
 
-  document.addEventListener('change', function (e) {
-    var t = e.target, d = S.dia;
-    if (t.id === 'sel-orden') { S.ord = t.value; render(); }
-    else if (t.id === 'c-fecha' && t.value) { S.dia = diaDesde(t.value); S.form = null; S._otro = ''; S.guardado = ''; pintarCarga(); }
-    else if (t.id === 'c-otro') { S._otro = t.value; pintarCarga(); }
-    else if (t.id === 'f-corte') { leerForm(); S.form.corte = t.value; S.form.manual = false; pintarCarga(); }
-  });
   document.addEventListener('input', function (e) {
-    var t = e.target, d = S.dia;
-    if (t.dataset.semK) { S.editSem.dias[+t.dataset.semDia][t.dataset.semK] = t.value; refrescarSemana(); }
-    else if (t.dataset.semCampo) { S.editSem[t.dataset.semCampo] = t.value; refrescarSemana(); }
-    else if (t.id === 'c-medias') { d.medias = +t.value || 0; guardarDia(); pintarPrevia(); }
-    else if (t.id === 'c-mercado') { d.mercado = t.value; guardarDia(); pintarPrevia(); }
-    else if (t.dataset.ped) {
-      var p = d.pedidos.filter(function (x) { return x.id === t.dataset.ped; })[0]; if (!p) return;
-      p[t.dataset.k] = t.dataset.k === 'cantNum' ? (+t.value || 0) : t.value;
-      guardarDia(); pintarPrevia(null, armar(d).filter(function (c) { return c.revisar === 'definir'; }).length);
+    var t = e.target, D = t.dataset;
+    if (D.m && S.em) { S.em.doc.dias[+D.i][D.m][+D.r][D.k] = t.value; guardar('medias'); pintarSumas(); }
+    else if (t.id === 'm-stock' && S.em) { S.em.doc.stockInicial = t.value === '' ? null : t.value; guardar('medias'); pintarSumas(); }
+    else if (D.p && S.ep) {
+      var o = S.ep.doc;
+      if (D.p === 'medias' || D.p === 'mercado') o[D.p] = t.value;
+      else if (D.p === 'corte') o.cortes[+D.c].corte = t.value;
+      else if (D.p === 'linea') o.cortes[+D.c].lineas[+D.l].t = t.value;
+      guardar('prod');
     }
+    else if (D.q != null && S.prop[+D.q]) {
+      var q = S.prop[+D.q];
+      if (D.j != null) q.cortes[+D.j][D.k] = D.k === 'orden' ? t.checked : t.value; else q[D.k] = t.value;
+      q.error = '';
+    }
+  });
+  document.addEventListener('change', function (e) {
+    var t = e.target;
+    if (t.id === 'p-fecha' && t.value) { if (S.ep) guardar('prod', true); S.ep = null; S.fecha = t.value; render(); }
+    else if (t.id === 'e-fecha' && t.value) { S.entrega = t.value; renderPedidos(); }
+    else if (t.id === 'fotos' && t.files && t.files.length) { subirFotos(t.files); }
   });
 
   var h0 = (location.hash || '').slice(1); if (TABS.indexOf(h0) >= 0) S.tab = h0;
@@ -717,23 +667,25 @@
   /* ---------- datos ---------- */
   function cache(leer) {
     try {
-      if (leer) return JSON.parse(localStorage.getItem('pq-datos') || 'null');
-      localStorage.setItem('pq-datos', JSON.stringify({ semanas: S.semanas, ordenes: S.ordenes, config: S.config }));
+      if (leer) return JSON.parse(localStorage.getItem('pq-datos-2') || 'null');
+      localStorage.setItem('pq-datos-2', JSON.stringify({ faena: S.faena, produccion: S.prod, config: S.config }));
     } catch (err) { return null; }
   }
-  function aplicar(d, fuente) { S.config = d.config || {}; setSemanas(d.semanas || []); setOrdenes(d.ordenes || []); S.status = 'ready'; S.fuente = fuente; }
-  function respaldo() {
-    return fetch('datos.json?v=' + Date.now(), { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); });
+  function poner(lista, id, doc) { var x = clone(doc); x.id = id; return ordenar((lista || []).filter(function (e) { return e.id !== id; }).concat([x])); }
+  function ordenar(l) { return l.slice().sort(function (a, b) { return String(a.id).localeCompare(String(b.id)); }); }
+  function aplicar(d, fuente) {
+    S.config = d.config || {}; S.faena = ordenar((d.faena || []).map(function (x) { x.desde = x.desde || x.id; return x; }));
+    S.prod = ordenar((d.produccion || []).map(function (x) { x.fecha = x.fecha || x.id; return x; })); S.status = 'ready'; S.fuente = fuente;
   }
+  function respaldo() { return fetch('datos.json?v=' + Date.now(), { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }); }
   function importar() {
-    var msg = $('imp-msg'); if (msg) msg.textContent = 'Importando…';
-    respaldo().then(function (d) {
-      var tareas = [];
-      (d.semanas || []).forEach(function (s) { var x = clone(s), id = x.id; delete x.id; tareas.push(store.set('semanas', id, x)); });
-      (d.ordenes || []).forEach(function (o) { var x = clone(o), id = x.id; delete x.id; tareas.push(store.set('ordenes', id, x)); });
-      var c = clone(d.config || {}); c.actualizado = ahoraTxt(); tareas.push(store.set('config', 'general', c));
-      return Promise.all(tareas);
-    }).then(function () { S.dia = null; render(); }, function () { if (msg) { msg.textContent = 'No se pudo importar. Revisá la conexión y probá de nuevo.'; msg.className = 'guardado err'; } });
+    return respaldo().then(function (d) {
+      var t = [];
+      (d.faena || []).forEach(function (s) { var x = clone(s), id = x.id; delete x.id; t.push(store.set('faena', id, x)); });
+      (d.produccion || []).forEach(function (o) { var x = clone(o), id = x.id; delete x.id; t.push(store.set('produccion', id, x)); });
+      var c = clone(d.config || {}); c.actualizado = ahoraTxt(); t.push(store.set('config', 'general', c));
+      return Promise.all(t);
+    });
   }
 
   function mockStore(m) {
@@ -741,7 +693,8 @@
     function emit(c) { var docs = Object.keys(m.data[c] || {}).map(function (id) { var o = clone(m.data[c][id]); o.id = id; return o; }); (subs[c] || []).forEach(function (f) { f(docs); }); }
     return {
       sub: function (c, cb) { (subs[c] = subs[c] || []).push(cb); setTimeout(function () { emit(c); }, 0); },
-      set: function (c, id, data) { if (m.fallar) return Promise.reject(new Error('x')); m.data[c] = m.data[c] || {}; m.data[c][id] = clone(data); m.escrituras = (m.escrituras || 0) + 1; setTimeout(function () { emit(c); }, 0); return Promise.resolve(); },
+      set: function (c, id, data) { if (m.fallar) return Promise.reject(new Error('x')); m.data[c] = m.data[c] || {}; m.data[c][id] = clone(data); setTimeout(function () { emit(c); }, 0); return Promise.resolve(); },
+      del: function (c, id) { if (m.data[c]) delete m.data[c][id]; setTimeout(function () { emit(c); }, 0); return Promise.resolve(); },
       onAuth: function (cb) { authCb = cb; setTimeout(function () { cb(m.user || null); }, 0); },
       signIn: function () { m.user = { email: m.loginAs }; authCb(m.user); return Promise.resolve(); },
       signOut: function () { m.user = null; authCb(null); return Promise.resolve(); },
@@ -753,8 +706,9 @@
     return Promise.all([import(base + 'firebase-app.js'), import(base + 'firebase-firestore.js'), import(base + 'firebase-auth.js')]).then(function (m) {
       var app = m[0].initializeApp(FIREBASE.config), fs = m[1], au = m[2], db = fs.getFirestore(app), auth = au.getAuth(app);
       return {
-        sub: function (c, cb, err) { return fs.onSnapshot(fs.collection(db, c), function (snap) { cb(snap.docs.map(function (x) { var o = x.data(); o.id = x.id; return o; })); }, err); },
+        sub: function (c, cb, err) { return fs.onSnapshot(fs.collection(db, c), function (snap) { cb(snap.docs.map(function (x) { var o = x.data(); o.id = x.id; return o; })); }, err || function () {}); },
         set: function (c, id, data) { return fs.setDoc(fs.doc(db, c, id), clone(data)); },
+        del: function (c, id) { return fs.deleteDoc(fs.doc(db, c, id)); },
         onAuth: function (cb) { return au.onAuthStateChanged(auth, cb); },
         signIn: function () { return au.signInWithPopup(auth, new au.GoogleAuthProvider()); },
         signOut: function () { return au.signOut(auth); },
@@ -765,27 +719,36 @@
 
   function conectar(st) {
     store = st;
-    var got = {}, vacio = false;
+    var got = {}, vacia = false, suscripto = false, importando = false;
+    function traer() { if (importando) return; importando = true; importar().catch(function () { importando = false; }); }
     function llego(k) {
       got[k] = true;
-      if (!(got.semanas && got.ordenes)) return;
+      if (!(got.faena && got.prod)) return;
       S.status = 'ready';
-      if (!S.semanas.length && !S.ordenes.length) {
-        // Base vacía: se muestra el respaldo publicado con la web hasta que un editor importe.
-        if (!vacio) { vacio = true; S.fuente = 'vivo'; respaldo().then(function (d) { if (!S.semanas.length && !S.ordenes.length && !S.editor) { aplicar(d, 'respaldo'); render(); } }, function () {}); }
-      } else { S.fuente = 'vivo-con-datos'; cache(); }
+      if (!S.faena.length && !S.prod.length) {
+        vacia = true; S.fuente = 'vivo';
+        if (S.editor) traer();
+        else respaldo().then(function (d) { if (vacia && !S.editor) { aplicar(d, 'respaldo'); render(); } }, function () {});
+      } else { vacia = false; S.fuente = 'vivo'; cache(); }
       renderDatos();
     }
-    var fallo = function () { if (!got.semanas || !got.ordenes) { var c = cache(true); if (c && c.ordenes) aplicar(c, 'cache'); else S.status = 'error'; render(); } };
-    store.sub('semanas', function (l) { if (S.fuente === 'respaldo' && !l.length) return; setSemanas(l); llego('semanas'); }, fallo);
-    store.sub('ordenes', function (l) { if (S.fuente === 'respaldo' && !l.length) return; setOrdenes(l); llego('ordenes'); }, fallo);
-    store.sub('config', function (l) { var c = l.filter(function (x) { return x.id === 'general'; })[0]; if (c) { S.config = c; renderDatos(); } }, function () {});
+    var fallo = function () { if (!got.faena || !got.prod) { var c = cache(true); if (c && c.produccion) aplicar(c, 'cache'); else S.status = 'error'; render(); } };
+    store.sub('faena', function (l) { if (S.fuente === 'respaldo' && !l.length) return; S.faena = ordenar(l.map(function (x) { x.desde = x.desde || x.id; return x; })); llego('faena'); }, fallo);
+    store.sub('produccion', function (l) { if (S.fuente === 'respaldo' && !l.length) return; S.prod = ordenar(l.map(function (x) { x.fecha = x.fecha || x.id; return x; })); llego('prod'); }, fallo);
+    store.sub('config', function (l) { var c = l.filter(function (x) { return x.id === 'general'; })[0]; if (c) { S.config = c; renderDatos(); } });
     store.onAuth(function (u) {
       S.user = u ? { email: u.email } : null; S.editor = false;
-      if (!u) { S.dia = null; S.editSem = null; render(); return; }
+      if (!u) { S.em = null; S.ep = null; S.prop = []; render(); return; }
       store.esEditor(u.email).then(function (ok) {
         S.editor = ok;
-        if (ok && S.fuente === 'respaldo') { S.semanas = []; S.ordenes = []; S.fuente = 'vivo'; }
+        if (ok) {
+          if (S.fuente === 'respaldo' || vacia) traer();
+          if (!suscripto) {
+            suscripto = true;
+            store.sub('pedidos', function (l) { S.pedidos = ordenar(l); renderDatos(); });
+            store.sub('privado', function (l) { var c = l.filter(function (x) { return x.id === 'ia'; })[0]; if (c) { S.ia = c; if (S.tab === 'pedidos' && !S.prop.length) render(); } });
+          }
+        }
         render();
       });
     });
@@ -793,7 +756,7 @@
 
   function boot() {
     var c = cache(true);
-    if (c && c.ordenes && !window.__mock) aplicar(c, 'cache');
+    if (c && c.produccion && !window.__mock) aplicar(c, 'cache');
     render();
     if (window.__mock) { conectar(mockStore(window.__mock)); return; }
     firebaseStore().then(conectar, function () {

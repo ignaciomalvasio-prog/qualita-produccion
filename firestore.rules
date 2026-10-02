@@ -12,8 +12,12 @@ service cloud.firestore {
       allow get: if request.auth != null && request.auth.token.email == email;
       allow list, write: if false;
     }
-    match /config/{doc}  { allow read: if true; allow write: if esEditor(); }
-    match /semanas/{doc} { allow read: if true; allow write: if esEditor(); }
-    match /ordenes/{doc} { allow read: if true; allow write: if esEditor(); }
+    // Lo que ven todos: planilla de medias, orden de produccion y configuracion.
+    match /faena/{doc}      { allow read: if true; allow write: if esEditor(); }
+    match /produccion/{doc} { allow read: if true; allow write: if esEditor(); }
+    match /config/{doc}     { allow read: if true; allow write: if esEditor(); }
+    // Solo editores: pedidos cargados y la clave de IA.
+    match /pedidos/{doc}    { allow read, write: if esEditor(); }
+    match /privado/{doc}    { allow read, write: if esEditor(); }
   }
 }
