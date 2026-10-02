@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Producción Qualitá</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: tablero de planta. Tres pestañas; cada vista abre con lo que hay que revisar y debajo el detalle en tabla, como la planilla. */
+:root{
+  --bg:#eef2f5; --surface:#ffffff; --sunken:#e3e9ee; --ink:#14222c; --muted:#566874; --line:#cdd7de;
+  --accent:#0d5b78; --accent-ink:#ffffff; --accent-soft:#dcecf2;
+  --ok:#1c7446; --ok-soft:#dff1e6; --warn:#8a5600; --warn-soft:#fbeed0; --crit:#b0261d; --crit-soft:#fbe2df; --cold:#2a5ca8; --cold-soft:#e1eaf8;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif; --body:"Barlow","Segoe UI",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0e161b; --surface:#17222a; --sunken:#111b21; --ink:#e5edf2; --muted:#93a6b3; --line:#2b3a45;
+  --accent:#6fc3df; --accent-ink:#082029; --accent-soft:#143440;
+  --ok:#62cc96; --ok-soft:#143021; --warn:#e8b65c; --warn-soft:#3a2c10; --crit:#f4918a; --crit-soft:#401b19; --cold:#93b8f2; --cold-soft:#1a2b46;
+  color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#0e161b; --surface:#17222a; --sunken:#111b21; --ink:#e5edf2; --muted:#93a6b3; --line:#2b3a45;
+  --accent:#6fc3df; --accent-ink:#082029; --accent-soft:#143440;
+  --ok:#62cc96; --ok-soft:#143021; --warn:#e8b65c; --warn-soft:#3a2c10; --crit:#f4918a; --crit-soft:#401b19; --cold:#93b8f2; --cold-soft:#1a2b46;
+  color-scheme:dark }
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:16px;padding-block:20px 48px;display:flex;flex-direction:column;gap:20px}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance;letter-spacing:.01em}
+h1{font-size:30px;font-weight:700;text-transform:uppercase;line-height:1}
+h2{font-size:22px;font-weight:600;line-height:1.15}
+h3{font-size:18px;font-weight:600}
+p{margin:0}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.label{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+
+.top{display:flex;flex-wrap:wrap;gap:8px 24px;align-items:flex-end;justify-content:space-between;border-bottom:3px solid var(--accent);padding-bottom:12px}
+.top .brand{display:flex;flex-direction:column;gap:4px}
+
+.tabs{display:flex;flex-wrap:wrap;gap:6px}
+.tab{font:600 15px var(--body);color:var(--ink);background:transparent;border:1px solid var(--line);border-radius:4px;padding:8px 14px;cursor:pointer}
+.tab[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.tab:focus-visible,.pill:focus-visible,.step:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.view{display:flex;flex-direction:column;gap:20px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.state{padding:28px 16px;text-align:center;color:var(--muted)}
+
+.alerts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.alerts li{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline}
+.badge{display:inline-block;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:3px;white-space:nowrap}
+.badge.crit{background:var(--crit-soft);color:var(--crit)}
+.badge.warn{background:var(--warn-soft);color:var(--warn)}
+.badge.ok{background:var(--ok-soft);color:var(--ok)}
+.badge.cold{background:var(--cold-soft);color:var(--cold)}
+.badge.plain{background:var(--sunken);color:var(--muted)}
+.badge.accent{background:var(--accent-soft);color:var(--accent)}
+
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+.pill{font:500 14px var(--body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:6px 14px;cursor:pointer}
+.pill[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+
+.weekhead{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px 20px;margin:0}
+.stats div{display:flex;flex-direction:column;gap:2px;border-left:2px solid var(--line);padding-left:10px}
+.stats dt{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.stats dd{margin:0;font-family:var(--display);font-size:28px;font-weight:600;line-height:1.05;font-variant-numeric:tabular-nums}
+.stats dd small{font-family:var(--body);font-size:13px;font-weight:400;color:var(--muted)}
+
+.scroll{overflow-x:auto;min-width:0}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--line);vertical-align:top}
+thead th{font-family:var(--display);font-size:17px;font-weight:600;border-bottom:2px solid var(--ink);white-space:nowrap}
+thead th small{display:block;font-family:var(--body);font-size:12px;font-weight:400;color:var(--muted)}
+tbody th{text-align:left;font-weight:500;min-width:170px}
+tbody th small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+.plan th:first-child{position:sticky;left:0;background:var(--surface)}
+.plan td{min-width:104px}
+.plan tr.sum td,.plan tr.sum th{background:var(--sunken);font-weight:600}
+.plan tr.sum th:first-child{background:var(--sunken)}
+.plan tr.key td{font-family:var(--display);font-size:22px;font-weight:600}
+.plan td small{display:block;color:var(--muted);font-size:12px;font-weight:400;font-family:var(--body)}
+.neg{color:var(--crit)}
+.meter{height:6px;border-radius:3px;background:var(--sunken);margin-top:6px;overflow:hidden}
+.meter i{display:block;height:100%;background:var(--accent)}
+.meter.warn i{background:var(--warn)}
+.meter.crit i{background:var(--crit)}
+
+.picker{display:flex;gap:8px;align-items:center}
+.picker select{flex:1 1 auto;min-width:0;max-width:420px}
+.step{flex:0 0 auto}
+.step{font:600 18px var(--body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:4px;width:38px;height:38px;cursor:pointer}
+.step:disabled{opacity:.35;cursor:default}
+select{font:500 15px var(--body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:8px 10px;max-width:100%}
+
+.cortes{display:flex;flex-direction:column}
+.corte{display:grid;grid-template-columns:150px minmax(0,1fr);gap:4px 16px;padding:12px 0;border-bottom:1px solid var(--line)}
+.corte:last-child{border-bottom:0}
+.corte h3{text-transform:uppercase;font-size:17px;letter-spacing:.03em}
+.lines{display:flex;flex-direction:column;gap:10px;min-width:0}
+.line{display:grid;grid-template-columns:104px minmax(0,1fr);gap:2px 12px}
+.qty{font-weight:600;font-variant-numeric:tabular-nums}
+.qty.resto,.qty.todo{color:var(--muted);font-weight:500}
+.desc{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:baseline;min-width:0}
+.dest{font-weight:600}
+.dest::before{content:"→ ";color:var(--muted);font-weight:400}
+.note{grid-column:2;font-size:13px;color:var(--muted)}
+@media (max-width:560px){
+  .corte{grid-template-columns:minmax(0,1fr)}
+  .line{grid-template-columns:84px minmax(0,1fr)}
+}
+
+.opts{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
+.corte > div:first-child{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.copy{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+.txt{width:100%;min-height:260px;font:13px/1.5 ui-monospace,Menlo,Consolas,monospace;color:var(--ink);background:var(--sunken);border:1px solid var(--line);border-radius:4px;padding:10px}
+.learn td,.learn th{text-align:left}
+.learn td.r{text-align:right;white-space:nowrap}
+.learn thead th{font-family:var(--body);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--line)}
+.learn tbody tr:last-child td{border-bottom:0}
+.freq{display:inline-block;width:56px;height:6px;border-radius:3px;background:var(--sunken);vertical-align:middle;margin-right:8px;overflow:hidden}
+.freq i{display:block;height:100%;background:var(--accent)}
+.block{display:flex;flex-direction:column;gap:6px;min-width:0}
+.block + .block{border-top:1px solid var(--line);padding-top:14px}
+.block h3{text-transform:uppercase;letter-spacing:.03em}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>Producción Qualitá</h1>
+      <p class="muted small">Frigorífico Qualitá · faena, medias y desposte</p>
+    </div>
+    <p class="muted small" id="stamp"></p>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Vistas">
+    <button class="tab" role="tab" id="tab-stock" data-tab="stock" aria-selected="true">Stock de medias</button>
+    <button class="tab" role="tab" id="tab-ordenes" data-tab="ordenes" aria-selected="false">Órdenes de desposte</button>
+    <button class="tab" role="tab" id="tab-cortes" data-tab="cortes" aria-selected="false">Cómo va cada corte</button>
+  </nav>
+
+  <main>
+    <section class="view" id="view-stock"></section>
+    <section class="view" id="view-ordenes" hidden></section>
+    <section class="view" id="view-cortes" hidden></section>
+  </main>
+</div>
+
+<script>
+(function () {
+  var nf = new Intl.NumberFormat('es-AR');
+  var n = function (v) { return (v < 0 ? '−' : '') + nf.format(Math.abs(v)); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var SIG = { 'Lunes': 'martes', 'Martes': 'miércoles', 'Miércoles': 'jueves', 'Jueves': 'viernes', 'Viernes': 'lunes' };
+  var ORDEN_CORTES = ['Jamón', 'Paleta', 'Pecho', 'Carré', 'Solomillo', 'Matambre', 'Bondiola', 'Recorte', 'Grasa buena', 'Grasa mala', 'Grasa (sin separar)', 'Cuero', 'Tapa de paleta', 'Tapa de jamón', 'Tortuga', 'Garrón', 'Tocino', 'Churrasco', 'Papada', 'Orejas', 'Cabeza', 'Pulmón', 'Hígado', 'Patas y manos'];
+  var DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
+
+  var S = { semanas: null, ordenes: null, config: {}, status: 'loading', tab: 'stock', sem: null, ord: null };
+
+  /* ---------- cálculo del stock de medias ---------- */
+  function calc(sem) {
+    var rem = sem.remanenteInicial || 0;
+    return (sem.dias || []).map(function (d) {
+      var usuarios = d.usuarios || 0;
+      var aDesposte = (d.propios - d.venta) * 2;
+      var disponible = aDesposte + rem;
+      var remFin = disponible - d.desposteSig;
+      var camara = (d.propios + usuarios) * 2 + rem;
+      var o = { dia: d.dia, num: d.num, propios: d.propios, usuarios: usuarios, venta: d.venta, desposteSig: d.desposteSig,
+                aDesposte: aDesposte, remAnt: rem, disponible: disponible, remFin: remFin, camara: camara };
+      rem = remFin;
+      return o;
+    });
+  }
+  function diaTxt(d) { return d.dia + (d.num ? ' ' + d.num : ''); }
+
+  function alertas() {
+    var cap = S.config.capacidadCamara, out = [];
+    (S.semanas || []).forEach(function (s) {
+      calc(s).forEach(function (d) {
+        if (cap && d.camara > cap) out.push({ k: 'crit', t: 'Cámara llena', sem: s, x: diaTxt(d) + ': ' + n(d.camara) + ' medias en cámara, ' + n(d.camara - cap) + ' más que la capacidad.' });
+        if (d.remFin < 0) out.push({ k: 'crit', t: 'Falta stock', sem: s, x: diaTxt(d) + ': faltan ' + n(-d.remFin) + ' medias con un día de frío para despostar ' + n(d.desposteSig) + ' el ' + SIG[d.dia] + '.' });
+      });
+    });
+    return out;
+  }
+
+  function renderStock() {
+    var el = document.getElementById('view-stock');
+    if (stateBlock(el, S.semanas, 'Todavía no hay semanas cargadas. Aparecen acá cuando se carga la planilla de faena y ventas.')) return;
+    var sem = S.semanas.filter(function (s) { return s.id === S.sem; })[0] || S.semanas[0];
+    var dias = calc(sem), cap = S.config.capacidadCamara;
+    var al = alertas();
+    var h = '';
+
+    h += '<div class="panel"><h2>Para revisar</h2>';
+    if (!al.length) h += '<p class="muted">Sin alertas en las semanas cargadas.</p>';
+    else h += '<ul class="alerts">' + al.map(function (a) {
+      return '<li><span class="badge ' + a.k + '">' + esc(a.t) + '</span><span><strong>' + esc(a.sem.etiqueta) + '</strong> · ' + esc(a.x) + '</span></li>';
+    }).join('') + '</ul>';
+    h += '</div>';
+
+    h += '<div class="pills" role="group" aria-label="Semana">' + S.semanas.map(function (s) {
+      return '<button class="pill" data-sem="' + esc(s.id) + '" aria-pressed="' + (s.id === sem.id) + '">' + esc(s.etiqueta) + '</button>';
+    }).join('') + '</div>';
+
+    var tot = dias.reduce(function (t, d) { t.p += d.propios; t.u += d.usuarios; t.v += d.venta; t.a += d.aDesposte; return t; }, { p: 0, u: 0, v: 0, a: 0 });
+    var nd = dias.length || 1, ult = dias[dias.length - 1];
+    h += '<div class="panel">';
+    h += '<div class="weekhead"><h2>Semana ' + esc(sem.etiqueta) + '</h2><span class="badge ' + (sem.tipo === 'real' ? 'ok' : 'accent') + '">' + (sem.tipo === 'real' ? 'Real' : 'Proyección') + '</span></div>';
+    if (sem.nota) h += '<p class="small muted">' + esc(sem.nota) + '</p>';
+    h += '<dl class="stats">'
+      + stat('Faena propia', n(tot.p), 'cerdos')
+      + stat('Faena de usuarios', n(tot.u), 'cerdos')
+      + stat('Venta en medias', n(tot.v), 'cerdos')
+      + stat('A desposte', n(tot.a), 'medias')
+      + stat('A desposte por día', nf.format(Math.round(tot.a / nd * 10) / 10), 'medias')
+      + stat('Remanente final', n(ult ? ult.remFin : 0), 'medias')
+      + '</dl>';
+
+    h += '<div class="scroll"><table class="plan"><thead><tr><th></th>' + dias.map(function (d) { return '<th>' + esc(diaTxt(d)) + '<small>día de faena</small></th>'; }).join('') + '</tr></thead><tbody>';
+    h += row('Faena propia', 'cerdos', dias, function (d) { return n(d.propios); });
+    h += row('Faena de usuarios', 'cerdos, no van a desposte', dias, function (d) { return d.usuarios ? n(d.usuarios) : '<span class="muted">—</span>'; });
+    h += row('Venta en medias reses', 'cerdos', dias, function (d) { return n(d.venta) + '<small>' + n(d.venta * 2) + ' medias</small>'; });
+    h += row('Queda para desposte', 'medias', dias, function (d) { return n(d.aDesposte); }, 'sum');
+    h += row('Remanente del día anterior', 'medias', dias, function (d) { return '<span class="' + (d.remAnt < 0 ? 'neg' : '') + '">' + n(d.remAnt) + '</span>'; });
+    h += row('Disponible con un día de frío', 'medias', dias, function (d) { return n(d.disponible); }, 'sum');
+    h += row('Sale a desposte', 'al día siguiente', dias, function (d) { return n(d.desposteSig) + '<small>' + SIG[d.dia] + '</small>'; });
+    h += row('Remanente', 'medias que quedan en cámara', dias, function (d) { return '<span class="' + (d.remFin < 0 ? 'neg' : '') + '">' + n(d.remFin) + '</span>'; }, 'key');
+    h += row('Medias en cámara', cap ? 'al cierre, sobre ' + n(cap) : 'al cierre del día', dias, function (d) {
+      if (!cap) return n(d.camara);
+      var p = d.camara / cap, k = p > 1 ? 'crit' : p > 0.9 ? 'warn' : '';
+      return '<span class="' + (p > 1 ? 'neg' : '') + '">' + n(d.camara) + '</span><small>' + Math.round(p * 100) + '%</small><div class="meter ' + k + '"><i style="width:' + Math.min(100, Math.round(p * 100)) + '%"></i></div>';
+    });
+    h += '</tbody></table></div>';
+    h += '<p class="small muted">Lo faenado un día pasa un día en cámara: recién al día siguiente se entrega como media o entra a desposte. Las medias de usuarios ocupan cámara pero no cuentan para venta ni desposte.'
+      + (cap ? ' Capacidad de cámaras usada para la alerta: ' + n(cap) + ' medias' + (S.config.capacidadConfirmada ? '.' : ' (dato a confirmar).') : '') + '</p>';
+    h += '</div>';
+    el.innerHTML = h;
+  }
+  function stat(l, v, u) { return '<div><dt>' + l + '</dt><dd>' + v + ' <small>' + u + '</small></dd></div>'; }
+  function row(l, sub, dias, f, cls) { return '<tr' + (cls ? ' class="' + cls + '"' : '') + '><th>' + l + '<small>' + sub + '</small></th>' + dias.map(function (d) { return '<td>' + f(d) + '</td>'; }).join('') + '</tr>'; }
+
+  /* ---------- órdenes de desposte ---------- */
+  function envTxt(l) {
+    var e = l.envase ? 'en ' + l.envase : '';
+    if (l.extra) e += (e ? (/^de /.test(l.extra) ? ' ' : ', ') : '') + l.extra;
+    return e;
+  }
+  function descTxt(l) {
+    var p = [l.prod, envTxt(l)].filter(Boolean).join(', ');
+    return p ? p.charAt(0).toUpperCase() + p.slice(1) : '';
+  }
+  function estadoBadge(e) { return e === 'congelado' ? '<span class="badge cold">Congelado</span>' : e === 'fresco' ? '<span class="badge ok">Fresco</span>' : ''; }
+
+  function textoOrden(o) {
+    var f = String(o.fecha || '').split('-'), out = [];
+    out.push((o.dia || '').toUpperCase() + ' ' + [f[2], f[1], (f[0] || '').slice(2)].join('-'));
+    out.push(o.medias + '½ ' + String(o.mercado || '').toUpperCase());
+    (o.cortes || []).forEach(function (c) {
+      c.lineas.forEach(function (l, k) {
+        var t = [];
+        if (l.tipo === 'nosale') t.push('NO SACAR');
+        else {
+          if (l.tipo === 'pedido') t.push(String(l.cantNum) + (l.unidad === 'kg' ? 'KG' : ' ' + (l.unidad === 'unidades' ? 'UND' : l.unidad)));
+          if (l.prod) t.push(l.prod);
+          var env = l.tipo === 'pedido' && l.unidad === l.envase ? (l.estado === 'congelado' ? 'a congelar' : l.estado === 'fresco' ? 'fresco' : '') : l.envase ? (l.estado === 'congelado' ? l.envase + ' a congelar' : (l.estado === 'fresco' ? 'fresco en ' : 'en ') + l.envase) : (l.estado === 'congelado' ? 'a congelar' : l.estado === 'fresco' ? 'fresco' : '');
+          if (env) t.push(env);
+          if (l.extra) t.push(l.extra);
+          if (l.cod || l.contrato) t.push('(' + [l.cod ? 'COD ' + l.cod : '', l.contrato ? 'CONTRATO ' + l.contrato : ''].filter(Boolean).join(' – ') + ')');
+          if (l.destino) t.push('“' + l.destino + '”');
+          if (l.nota) t.push('– ' + l.nota.replace(/\.$/, ''));
+        }
+        var pre = k === 0 ? c.corte.replace(' (sin separar)', '') + ': ' : '';
+        out.push((pre + (l.tipo === 'resto' ? 'RESTO: ' : '') + t.join(' ')).toUpperCase());
+      });
+    });
+    return out.join('\n');
+  }
+
+  function renderOrdenes() {
+    var el = document.getElementById('view-ordenes');
+    if (stateBlock(el, S.ordenes, 'Todavía no hay órdenes de desposte cargadas.')) return;
+    var i = Math.max(0, S.ordenes.map(function (o) { return o.id; }).indexOf(S.ord));
+    var o = S.ordenes[i], borrador = o.estado === 'borrador';
+    var h = '<div class="picker"><button class="step" data-step="-1" aria-label="Orden anterior"' + (i === 0 ? ' disabled' : '') + '>‹</button>'
+      + '<select id="sel-orden" aria-label="Fecha de la orden">' + S.ordenes.map(function (x) { return '<option value="' + esc(x.id) + '"' + (x.id === o.id ? ' selected' : '') + '>' + esc(x.titulo) + ' · ' + n(x.medias) + ' medias' + (x.estado === 'borrador' ? ' · borrador' : '') + '</option>'; }).join('') + '</select>'
+      + '<button class="step" data-step="1" aria-label="Orden siguiente"' + (i === S.ordenes.length - 1 ? ' disabled' : '') + '>›</button></div>';
+
+    var dest = {}, sinDest = 0, pend = [];
+    (o.cortes || []).forEach(function (c) {
+      if (c.revisar) pend.push(c);
+      c.lineas.forEach(function (l) { if (l.tipo === 'nosale') return; if (l.destino) dest[l.destino] = (dest[l.destino] || 0) + 1; else sinDest++; });
+    });
+    var dl = Object.keys(dest).sort(function (a, b) { return dest[b] - dest[a]; });
+
+    if (borrador) {
+      h += '<div class="panel"><div class="weekhead"><h2>Falta definir</h2><span class="badge warn">' + pend.length + ' cortes</span></div>';
+      if (o.aviso) h += '<p class="muted">' + esc(o.aviso) + '</p>';
+      h += pend.map(function (c) {
+        return '<div class="block"><div class="weekhead"><h3>' + esc(c.corte) + '</h3><span class="badge ' + (c.revisar === 'definir' ? 'warn' : 'accent') + '">' + (c.revisar === 'definir' ? 'A definir' : 'Confirmar') + '</span></div>'
+          + (c.motivo ? '<p class="small muted">' + esc(c.motivo) + '</p>' : '')
+          + (c.opciones && c.opciones.length ? '<ul class="opts">' + c.opciones.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' : '') + '</div>';
+      }).join('') + '</div>';
+    }
+
+    h += '<div class="panel"><div class="weekhead"><h2>' + esc(o.titulo) + '</h2>' + (borrador ? '<span class="badge warn">Borrador</span>' : '') + '<span class="badge accent">' + n(o.medias) + ' medias</span><span class="badge plain">' + esc(o.mercado || '') + '</span></div>';
+    h += '<div class="pills">' + dl.map(function (d) { return '<span class="badge plain">' + esc(d) + ' · ' + dest[d] + '</span>'; }).join('') + (sinDest ? '<span class="badge plain">Sin cliente indicado · ' + sinDest + '</span>' : '') + '</div>';
+    h += '<div class="cortes">' + (o.cortes || []).map(function (c) {
+      return '<div class="corte"><div><h3>' + esc(c.corte) + '</h3>' + (c.revisar ? '<span class="badge ' + (c.revisar === 'definir' ? 'warn' : 'accent') + '">' + (c.revisar === 'definir' ? 'A definir' : 'Confirmar') + '</span>' : '') + '</div><div class="lines">' + c.lineas.map(function (l) {
+        var d = descTxt(l);
+        return '<div class="line"><span class="qty ' + esc(l.tipo) + '">' + esc(l.cant) + '</span><span class="desc">'
+          + (d ? '<span>' + esc(d) + '</span>' : '')
+          + estadoBadge(l.estado)
+          + (l.cod ? '<span class="badge plain">Cód. ' + esc(l.cod) + '</span>' : '')
+          + (l.contrato ? '<span class="badge plain">Contrato ' + esc(l.contrato) + '</span>' : '')
+          + (l.destino ? '<span class="dest">' + esc(l.destino) + '</span>' : '')
+          + '</span>' + (l.nota ? '<span class="note">' + esc(l.nota) + '</span>' : '') + '</div>';
+      }).join('') + '</div></div>';
+    }).join('') + '</div>';
+    if (!borrador) h += '<div class="copy"><button class="tab" id="btn-copiar">Copiar como texto</button><span class="small muted" id="copiado" aria-live="polite"></span></div><textarea id="txt-orden" class="txt" readonly hidden aria-label="Orden en texto">' + esc(textoOrden(o)) + '</textarea>';
+    if (o.fuente) h += '<p class="small muted">Fuente: ' + esc(o.fuente) + '</p>';
+    h += '</div>';
+    el.innerHTML = h;
+  }
+
+  /* ---------- cómo va cada corte (aprendido de las órdenes) ---------- */
+  function firmes() { return (S.ordenes || []).filter(function (o) { return o.estado !== 'borrador'; }); }
+  function aprender() {
+    var porDia = {}; DIAS.forEach(function (d) { porDia[d] = 0; });
+    var cortes = {}, ORD = firmes();
+    ORD.forEach(function (o) {
+      porDia[o.dia] = (porDia[o.dia] || 0) + 1;
+      (o.cortes || []).forEach(function (c) {
+        var C = cortes[c.corte] = cortes[c.corte] || { corte: c.corte, fechas: {}, g: {} };
+        C.fechas[o.id] = 1;
+        c.lineas.forEach(function (l) {
+          var k = [l.tipo === 'nosale' ? 'nosale' : '', l.prod, l.estado, l.destino].join('|');
+          var G = C.g[k] = C.g[k] || { l: l, fechas: {}, tipos: {}, cods: {}, env: {}, cant: {}, dias: {} };
+          G.fechas[o.id] = 1; G.tipos[l.tipo] = (G.tipos[l.tipo] || 0) + 1;
+          if (l.cod) G.cods[l.cod] = (G.cods[l.cod] || 0) + 1;
+          var e = envTxt(l); if (e) G.env[e] = (G.env[e] || 0) + 1;
+          if (l.cantNum != null) { var u = G.cant[l.unidad] = G.cant[l.unidad] || []; u.push(l.cantNum); }
+          G.dias[o.dia] = (G.dias[o.dia] || 0) + 1;
+        });
+      });
+    });
+    var top = function (m) { return Object.keys(m).sort(function (a, b) { return m[b] - m[a]; }); };
+    return ORDEN_CORTES.filter(function (c) { return cortes[c]; }).map(function (c) {
+      var C = cortes[c];
+      var grupos = Object.keys(C.g).map(function (k) {
+        var G = C.g[k], l = G.l, dias = Object.keys(G.fechas).length;
+        var ped = G.tipos.pedido || 0, fijo = (G.tipos.todo || 0) + (G.tipos.resto || 0);
+        var uso = l.tipo === 'nosale' ? 'No se saca' : ped && fijo ? 'Pedido o resto' : ped ? 'Pedido' : (G.tipos.resto || 0) > (G.tipos.todo || 0) ? 'Resto' : G.tipos.resto ? 'Todo o resto' : 'Todo';
+        var cant = Object.keys(G.cant).map(function (u) {
+          var a = G.cant[u], lo = Math.min.apply(null, a), hi = Math.max.apply(null, a);
+          return (lo === hi ? n(lo) : n(lo) + '–' + n(hi)) + ' ' + u;
+        }).join(' · ');
+        var dd = DIAS.filter(function (d) { return G.dias[d]; });
+        var lista = function (a) { return a.length > 1 ? a.slice(0, -1).join(', ') + ' y ' + a[a.length - 1] : a[0]; };
+        var cuando = dias === ORD.length ? 'Todos los días' : dias === 1 ? 'una vez, un ' + dd[0].toLowerCase() : dd.length <= 2 ? dd.map(function (d) { return G.dias[d] === porDia[d] ? 'todos los ' + d.toLowerCase() : d.toLowerCase() + ' (' + G.dias[d] + ' de ' + porDia[d] + ')'; }).join(' y ') : dd.length < 5 ? 'de ' + lista(dd.map(function (d) { return d.toLowerCase(); })) + ', nunca ' + lista(DIAS.filter(function (d) { return !G.dias[d]; }).map(function (d) { return d.toLowerCase(); })) : 'cualquier día';
+        var prod = [l.prod, top(G.env)[0]].filter(Boolean).join(', ');
+        return { prod: prod ? prod.charAt(0).toUpperCase() + prod.slice(1) : '', estado: l.estado, destino: l.destino, cods: top(G.cods), uso: uso, dias: dias, fijo: fijo, cant: cant, cuando: cuando.charAt(0).toUpperCase() + cuando.slice(1), nosale: l.tipo === 'nosale' };
+      }).sort(function (a, b) { return b.dias - a.dias; });
+      return { corte: c, dias: Object.keys(C.fechas).length, grupos: grupos };
+    });
+  }
+
+  function renderCortes() {
+    var el = document.getElementById('view-cortes');
+    var ORD = firmes();
+    if (stateBlock(el, S.ordenes && ORD, 'Todavía no hay órdenes cargadas para aprender cómo va cada corte.')) return;
+    var total = ORD.length, A = aprender();
+    var fijos = A.filter(function (c) { return c.grupos.length === 1; }), var_ = A.filter(function (c) { return c.grupos.length > 1; });
+    var h = '<div class="panel"><h2>Lo que se repite en ' + total + ' órdenes</h2>'
+      + '<p class="muted">Del ' + esc(ORD[0].titulo.toLowerCase()) + ' al ' + esc(ORD[total - 1].titulo.toLowerCase()) + '. Con esto se arma cada orden nueva: primero los pedidos con cantidad y el resto al destino habitual.</p>'
+      + '<dl class="stats">' + stat('Siempre igual', fijos.length, 'cortes') + stat('Cambian con los pedidos', var_.length, 'cortes') + '</dl></div>';
+
+    h += '<div class="panel"><h2>Cambian con los pedidos</h2>' + var_.map(function (c) {
+      return '<div class="block"><h3>' + esc(c.corte) + '</h3><div class="scroll"><table class="learn"><thead><tr><th>Cómo va</th><th>Destino</th><th>Uso</th><th style="text-align:right">Días</th><th>Cantidad</th><th>Cuándo</th></tr></thead><tbody>'
+        + c.grupos.map(function (g) {
+          return '<tr><td>' + (g.prod ? esc(g.prod) + ' ' : '') + estadoBadge(g.estado) + (g.cods.length ? ' <span class="badge plain">Cód. ' + esc(g.cods.join(' / ')) + '</span>' : '') + '</td>'
+            + '<td>' + (g.destino ? '<strong>' + esc(g.destino) + '</strong>' : '<span class="muted">Sin cliente indicado</span>') + '</td>'
+            + '<td>' + esc(g.uso) + '</td>'
+            + '<td class="r"><span class="freq"><i style="width:' + Math.round(g.dias / total * 100) + '%"></i></span>' + g.dias + ' de ' + total + '</td>'
+            + '<td>' + (g.cant ? esc(g.cant) : '<span class="muted">—</span>') + '</td>'
+            + '<td>' + esc(g.cuando) + '</td></tr>';
+        }).join('') + '</tbody></table></div></div>';
+    }).join('') + '</div>';
+
+    h += '<div class="panel"><h2>Siempre igual</h2><div class="scroll"><table class="learn"><thead><tr><th>Corte</th><th>Cómo va</th><th>Destino</th></tr></thead><tbody>' + fijos.map(function (c) {
+      var g = c.grupos[0];
+      return '<tr><td><strong>' + esc(c.corte) + '</strong></td><td>' + (g.nosale ? 'No se saca' : (g.prod ? esc(g.prod) + ' ' : '') + estadoBadge(g.estado) + (g.cods.length ? ' <span class="badge plain">Cód. ' + esc(g.cods.join(' / ')) + '</span>' : '')) + '</td>'
+        + '<td>' + (g.nosale ? '<span class="muted">—</span>' : g.destino ? '<strong>' + esc(g.destino) + '</strong>' : '<span class="muted">Sin cliente indicado</span>') + '</td></tr>';
+    }).join('') + '</tbody></table></div></div>';
+    el.innerHTML = h;
+  }
+
+  /* ---------- estados y navegación ---------- */
+  function stateBlock(el, data, emptyMsg) {
+    var msg = S.status === 'loading' && !data ? 'Cargando datos…'
+      : S.status === 'nodb' ? 'No se pudieron leer los datos de esta página. Avisale a quien la administra.'
+      : !data || !data.length ? emptyMsg : '';
+    if (msg) { el.innerHTML = '<div class="panel"><p class="state">' + msg + '</p></div>'; return true; }
+    return false;
+  }
+  function render() {
+    document.getElementById('stamp').textContent = S.config.actualizado ? 'Actualizado: ' + S.config.actualizado : '';
+    ['stock', 'ordenes', 'cortes'].forEach(function (t) {
+      document.getElementById('view-' + t).hidden = S.tab !== t;
+      document.getElementById('tab-' + t).setAttribute('aria-selected', String(S.tab === t));
+    });
+    if (S.tab === 'stock') renderStock(); else if (S.tab === 'ordenes') renderOrdenes(); else renderCortes();
+  }
+  function setSemanas(list) {
+    S.semanas = list.slice().sort(function (a, b) { return String(a.desde).localeCompare(String(b.desde)); });
+    if (!S.sem || !S.semanas.some(function (s) { return s.id === S.sem; })) {
+      var hoy = new Date(), iso = hoy.getFullYear() + '-' + String(hoy.getMonth() + 1).padStart(2, '0') + '-' + String(hoy.getDate()).padStart(2, '0');
+      var prev = S.semanas.filter(function (s) { return s.desde <= iso; });
+      S.sem = (prev[prev.length - 1] || S.semanas[0] || {}).id || null;
+    }
+  }
+  function setOrdenes(list) {
+    S.ordenes = list.slice().sort(function (a, b) { return String(a.fecha).localeCompare(String(b.fecha)); });
+    if (!S.ord || !S.ordenes.some(function (o) { return o.id === S.ord; })) S.ord = (S.ordenes[S.ordenes.length - 1] || {}).id || null;
+  }
+
+  document.querySelector('.tabs').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-tab]'); if (!b) return;
+    S.tab = b.dataset.tab; try { history.replaceState(null, '', '#' + S.tab); } catch (err) {}
+    render();
+  });
+  document.querySelector('main').addEventListener('click', function (e) {
+    var p = e.target.closest('[data-sem]'); if (p) { S.sem = p.dataset.sem; render(); return; }
+    if (e.target.id === 'btn-copiar') {
+      var ta = document.getElementById('txt-orden'), msg = document.getElementById('copiado');
+      ta.hidden = false;
+      var ok = function () { msg.textContent = 'Copiado.'; }, no = function () { ta.focus(); ta.select(); msg.textContent = 'Seleccionado: copialo con Ctrl+C o manteniendo apretado.'; };
+      try { navigator.clipboard.writeText(ta.value).then(ok, no); } catch (err) { no(); }
+      return;
+    }
+    var s = e.target.closest('[data-step]');
+    if (s && S.ordenes) {
+      var i = S.ordenes.map(function (o) { return o.id; }).indexOf(S.ord) + Number(s.dataset.step);
+      if (S.ordenes[i]) { S.ord = S.ordenes[i].id; render(); }
+    }
+  });
+  document.querySelector('main').addEventListener('change', function (e) {
+    if (e.target.id === 'sel-orden') { S.ord = e.target.value; render(); }
+  });
+  var h0 = (location.hash || '').slice(1); if (['stock', 'ordenes', 'cortes'].indexOf(h0) >= 0) S.tab = h0;
+
+  /* ---------- datos: se leen de datos.json, que está al lado de esta página ---------- */
+  function boot() {
+    render();
+    fetch('datos.json?v=' + Date.now(), { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (d) {
+      S.config = d.config || {}; setSemanas(d.semanas || []); setOrdenes(d.ordenes || []); S.status = 'ready'; render();
+    }).catch(function () { S.status = 'nodb'; render(); });
+  }
+  boot();
+})();
+</script>
+</body>
+</html>
