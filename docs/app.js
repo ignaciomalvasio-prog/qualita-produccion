@@ -1123,6 +1123,7 @@
   }
   function render() {
     $('stamp').textContent = (S.config.actualizado ? 'Actualizado: ' + S.config.actualizado : '') + (S.fuente === 'cache' ? ' · sin conexión' : '');
+    var ht = $('hoy-txt'); if (ht) ht.textContent = 'Hoy es ' + tituloDe(hoy()).toLowerCase();
     var e = $('sesion');
     if (!store || !store.signIn) e.innerHTML = '';
     else if (!S.user) e.innerHTML = '<button class="btn sm lnk" data-act="ingresar">Ingresar para cargar</button>';
