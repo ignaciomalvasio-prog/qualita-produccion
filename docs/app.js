@@ -32,7 +32,7 @@
 
   var S = {
     faena: null, prod: null, pedidos: null, config: {}, ia: {}, status: 'loading', fuente: '',
-    tab: 'inicio', mv: 'dia', fm: null, sem: null, dia: null, fecha: null, entrega: null,
+    tab: 'inicio', mv: null, fm: null, sem: null, dia: null, fecha: null, entrega: null,
     user: null, editor: false,
     em: null,   // semana en edición: { lunes, doc }
     ep: null,   // orden en edición: { fecha, doc }
@@ -155,22 +155,23 @@
   }
 
   // Lo que ve el encargado: solo los clientes del día y cuántas medias lleva cada uno.
+  function mvAct() { return S.editor ? (S.mv || 'semana') : 'dia'; }
+  function conMedias(d) { return ((d && d.clientes) || []).filter(function (r) { return +r.cant > 0; }); }
   function fmInicial() { var h = hoy(); return esHabil(h) ? h : habilSiguiente(h); }
   function diaFaena(f) {
     var lunes = lunesDe(f), sem = semDe(lunes), i = Math.round((fecha(f) - fecha(lunes)) / 86400000);
     return sem && sem.dias[i] ? { sem: sem, i: i, d: sem.dias[i] } : null;
   }
   function renderMedias() {
-    if (S.mv === 'semana' && S.editor) return renderSemana();
-    S.mv = 'dia';
+    if (mvAct() === 'semana') return renderSemana();
     var el = $('view-medias');
     if (cargando(el, S.faena)) return;
     if (!S.fm) S.fm = fmInicial();
-    var f = S.fm, x = diaFaena(f), cl = x ? (x.d.clientes || []).filter(function (r) { return r.cliente || +r.cant; }) : [];
+    var f = S.fm, x = diaFaena(f), cl = x ? conMedias(x.d) : [];
     var h = '<div class="nav"><button class="btn step" data-act="fm" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + esc(tituloDe(f)) + '</span><button class="btn step" data-act="fm" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="m-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">'
       + (cl.length ? '<button class="btn" data-act="imprimir">Imprimir</button>' : '')
-      + (S.editor ? '<button class="btn" data-act="m-editar-dia">Editar</button><button class="btn" data-act="m-semana">Planilla de la semana</button>' : '') + '</div>';
+      + (S.editor ? '<button class="btn" data-act="m-semana">Volver a la planilla de la semana</button>' : '') + '</div>';
     h += '<div class="panel"><h2>Medias para clientes</h2>';
     if (!cl.length) h += '<p class="state">No hay medias cargadas para clientes este día.</p>';
     else {
@@ -192,7 +193,7 @@
     if (S.dia == null) { var g = fecha(hoy()).getDay(); S.dia = lunesDe(hoy()) === lunes && g >= 1 && g <= 5 ? g - 1 : 0; }
     var h = '<div class="nav"><button class="btn step" data-act="sem" data-d="-7" aria-label="Semana anterior">‹</button><span class="tit">Semana del ' + esc(etiquetaSemana(lunes)) + '</span><button class="btn step" data-act="sem" data-d="7" aria-label="Semana siguiente">›</button>';
     if (sem) h += '<button class="btn" data-act="imprimir">Imprimir</button>';
-    h += '<button class="btn" data-act="m-dia">Ver por día</button>';
+    h += '<button class="btn" data-act="m-dia">Ver como la ven los demás</button>';
     if (S.editor && sem) h += '<button class="btn' + (edit ? ' pri' : '') + '" data-act="m-editar">' + (edit ? 'Listo' : 'Editar') + '</button><span class="guardado" id="g-medias"></span>';
     h += '</div>';
     if (!sem) {
@@ -293,13 +294,7 @@
     (o.cortes || []).forEach(function (c) { (c.lineas.length ? c.lineas : [{ t: '' }]).forEach(function (l, i) { out.push(((i === 0 ? c.corte + ': ' : '') + l.t).toUpperCase()); }); });
     return out.join('\n');
   }
-  function fechaProdInicial() {
-    var h = hoy(), ids = (S.prod || []).map(function (o) { return o.id; });
-    if (ids.indexOf(h) >= 0) return h;
-    var sig = habilSiguiente(h); if (ids.indexOf(sig) >= 0) return sig;
-    var prev = ids.filter(function (x) { return x <= h; }).sort().slice(-1)[0];
-    return prev || (esHabil(h) ? h : sig);
-  }
+  function fechaProdInicial() { var h = hoy(); return esHabil(h) ? h : habilSiguiente(h); }
 
   function renderProduccion() {
     var el = $('view-produccion');
@@ -402,7 +397,7 @@
   function pedidoVacio() { return { k: uid(), cliente: '', entrega: S.entrega || habilSiguiente(hoy()), medias: '', peso: '', cortes: [], nota: '', dudas: [], origen: 'manual' }; }
   function aplicarPedido(p) {
     var tareas = [], medias = +p.medias || 0;
-    if (medias > 0 && p.entrega) {
+    if ((medias > 0 || !(p.cortes || []).some(function (c) { return c.texto; })) && p.entrega) {
       var fa = habilAnterior(p.entrega), lunes = lunesDe(fa), i = Math.round((fecha(fa) - fecha(lunes)) / 86400000);
       var sem = clone(semDe(lunes) || semanaNueva(lunes)), filas = sem.dias[i].clientes, nombre = norm(p.cliente);
       var fila = filas.filter(function (r) { return r.pedido === p.id; })[0] || filas.filter(function (r) { return !r.pedido && norm(r.cliente) === nombre; })[0];
@@ -449,7 +444,6 @@
       cortes: (q.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { corte: norm(c.corte), texto: String(c.texto).toUpperCase().replace(/\s+/g, ' ').trim(), orden: !!c.orden }; }) };
     if (!p.cliente) return Promise.reject(new Error('Falta el cliente.'));
     if (!p.entrega) return Promise.reject(new Error('Falta la fecha de entrega.'));
-    if (!p.medias && !p.cortes.length) return Promise.reject(new Error('El pedido no tiene medias ni cortes.'));
     var previo = q.editaId ? (S.pedidos || []).filter(function (x) { return x.id === q.editaId; })[0] : null;
     S.em = null; S.ep = null;
     return (previo ? borrarPedido(previo) : Promise.resolve()).then(function () {
@@ -488,7 +482,7 @@
       + 'QUÉ CARGAR, POR CADA PEDIDO\n'
       + '- cliente: en mayúsculas. Si coincide con uno de la lista de clientes conocidos, usá exactamente ese nombre.\n'
       + '- entrega: en formato AAAA-MM-DD. Resolvé fechas como "lun 05/10" con el año actual. Si solo dice un día de la semana ("para el martes"), es el próximo día con ese nombre contando desde mañana. Si no figura, dejala vacía.\n'
-      + '- medias: cantidad de medias reses, número. 0 si no pide medias.\n'
+      + '- medias: cantidad de medias reses, número. 0 si no pide medias. Si un cliente figura en la planilla con 0 medias o con la cantidad en blanco, cargalo igual con medias 0: no lo saltees.\n'
       + '- peso: aclaración de peso de las medias (livianas, pesadas, rango de kg), o "".\n'
       + '- cortes: un elemento por cada corte pedido. "corte" es el rubro de la orden de producción, uno de: ' + CORTES_BASE.join(', ') + '. "texto" es la línea tal como se escribe en la orden de producción, en mayúsculas y con el estilo de los ejemplos: cantidad y unidad pegadas al principio (ej. "600KG", "50 UND", "10 CAJAS"), presentación o variante si se aclara (ej. "15 CAJAS PIERNA S/C “URCA”"), código si figura, y el cliente entre comillas al final. Si el cliente pide TODO el corte, la línea va sin cantidad (ej. "FRESCA EN BINES “ARGENCARNES”").\n'
       + '- orden: true si es un corte fresco que hay que producir ese día; false si es mercadería congelada que sale de stock, o productos que no salen del desposte (chorizo, morcilla, salchicha).\n'
@@ -667,7 +661,7 @@
     if (cargando(el, S.prod && S.faena)) return;
     var f = fechaProdInicial(), o = prodDe(f), h = hoy();
     var dp = o ? esc(o.medias) + ' medias · ' + (o.estado === 'borrador' ? 'borrador, todavía sin confirmar' : 'confirmada') : 'Todavía no hay orden cargada';
-    var fm = fmInicial(), x = diaFaena(fm), cl = x ? (x.d.clientes || []).filter(function (r) { return r.cliente || +r.cant; }) : [];
+    var fm = fmInicial(), x = diaFaena(fm), cl = x ? conMedias(x.d) : [];
     var dm = cl.length ? cl.length + (cl.length === 1 ? ' cliente · ' : ' clientes · ') + n(cl.reduce(function (t, r) { return t + (+r.cant || 0) * 2; }, 0)) + ' medias' : 'Todavía no hay medias cargadas';
     var html = '<div class="home">'
       + '<button class="tile" data-act="ir" data-tab="produccion"><b>Producción</b><span>Orden del ' + esc(tituloDe(f).toLowerCase()) + '</span><span class="dato">' + dp + '</span></button>'
@@ -679,7 +673,7 @@
     el.innerHTML = html + '</div>';
   }
   // Volver al inicio deja todo parado en el día de hoy.
-  function alInicio() { if (S.em) guardar('medias', true); if (S.ep) guardar('prod', true); S.em = null; S.ep = null; S.fechaFija = false; S.fecha = null; S.sem = null; S.dia = null; S.entrega = null; S.fm = null; S.mv = 'dia'; }
+  function alInicio() { if (S.em) guardar('medias', true); if (S.ep) guardar('prod', true); S.em = null; S.ep = null; S.fechaFija = false; S.fecha = null; S.sem = null; S.dia = null; S.entrega = null; S.fm = null; S.mv = null; }
 
   /* ---------- estados, sesión y navegación ---------- */
   function cargando(el, data) {
@@ -723,7 +717,7 @@
       render();
       var hoja = $('hoja-impresion');
       if (!hoja) { hoja = document.createElement('style'); hoja.id = 'hoja-impresion'; document.head.appendChild(hoja); }
-      hoja.textContent = '@page{size:A4 ' + (S.tab === 'medias' && S.mv === 'semana' ? 'landscape' : 'portrait') + ';margin:10mm}';
+      hoja.textContent = '@page{size:A4 ' + (S.tab === 'medias' && mvAct() === 'semana' ? 'landscape' : 'portrait') + ';margin:10mm}';
       setTimeout(function () { window.print(); }, 80);
     }
     else if (a === 'ingresar') store.signIn().catch(function () {});
@@ -796,7 +790,7 @@
       S.msg.fotos = ''; renderPedidos(); var fe = $('q' + (S.prop.length - 1) + 'cliente'); if (fe) fe.focus();
     }
     else if (a === 'ped-borrar') { var p = (S.pedidos || []).filter(function (x) { return x.id === D.id; })[0]; if (p) borrarPedido(p).then(tocar); }
-    else if (a === 'ir-medias') { S.em = null; S.mv = 'dia'; S.fm = habilAnterior(S.entrega); irA('medias'); }
+    else if (a === 'ir-medias') { S.em = null; S.mv = null; S.fm = habilAnterior(S.entrega); S.sem = lunesDe(S.fm); S.dia = Math.round((fecha(S.fm) - fecha(S.sem)) / 86400000); irA('medias'); }
     else if (a === 'ir-orden') { S.ep = null; S.fechaFija = true; S.fecha = S.entrega; irA('produccion'); }
     else if (a === 'cfg-guardar') {
       S._conf = true;
