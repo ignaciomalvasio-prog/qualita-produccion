@@ -162,6 +162,7 @@
     var sem = semDe(lunes), edit = !!(S.em && S.em.lunes === lunes);
     if (S.dia == null) { var g = fecha(hoy()).getDay(); S.dia = lunesDe(hoy()) === lunes && g >= 1 && g <= 5 ? g - 1 : 0; }
     var h = '<div class="nav"><button class="btn step" data-act="sem" data-d="-7" aria-label="Semana anterior">‹</button><span class="tit">Semana del ' + esc(etiquetaSemana(lunes)) + '</span><button class="btn step" data-act="sem" data-d="7" aria-label="Semana siguiente">›</button>';
+    if (sem) h += '<button class="btn" data-act="imprimir">Imprimir</button>';
     if (S.editor && sem) h += '<button class="btn' + (edit ? ' pri' : '') + '" data-act="m-editar">' + (edit ? 'Listo' : 'Editar') + '</button><span class="guardado" id="g-medias"></span>';
     h += '</div>';
     if (!sem) {
@@ -277,6 +278,7 @@
     var f = S.fecha, o = prodDe(f), edit = !!(S.ep && S.ep.fecha === f);
     var h = '<div class="nav"><button class="btn step" data-act="fecha" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + esc(tituloDe(f)) + '</span><button class="btn step" data-act="fecha" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="p-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">';
+    if (o) h += '<button class="btn" data-act="imprimir">Imprimir</button>';
     if (S.editor && o) h += '<button class="btn' + (edit ? ' pri' : '') + '" data-act="p-editar">' + (edit ? 'Listo' : 'Editar') + '</button><span class="guardado" id="g-prod"></span>';
     h += '</div>';
     if (!o) {
@@ -610,6 +612,16 @@
     if (S._c2 && S._c2 !== a + (D.i == null ? '' : D.i)) S._c2 = null;
 
     if (a === 'ir') irA(D.tab);
+    else if (a === 'imprimir') {
+      // Se imprime siempre la vista de lectura, no la de edición.
+      if (S.em) { guardar('medias', true); S.em = null; }
+      if (S.ep) { guardar('prod', true); S.ep = null; }
+      render();
+      var hoja = $('hoja-impresion');
+      if (!hoja) { hoja = document.createElement('style'); hoja.id = 'hoja-impresion'; document.head.appendChild(hoja); }
+      hoja.textContent = '@page{size:A4 ' + (S.tab === 'medias' ? 'landscape' : 'portrait') + ';margin:10mm}';
+      setTimeout(function () { window.print(); }, 80);
+    }
     else if (a === 'ingresar') store.signIn().catch(function () {});
     else if (a === 'salir') store.signOut();
     else if (a === 'copiar') {
