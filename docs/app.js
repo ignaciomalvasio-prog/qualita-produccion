@@ -203,9 +203,11 @@
     if (S.editor && sem) h += '<button class="btn' + (edit ? ' pri' : '') + '" data-act="m-editar">' + (edit ? 'Listo' : 'Editar') + '</button><span class="guardado" id="g-medias"></span>';
     h += '</div>';
     if (!sem) {
-      h += '<div class="panel"><p class="state">No hay faena cargada para esta semana.</p>' + (S.editor ? '<div class="acciones" style="justify-content:center"><button class="btn pri" data-act="m-nueva">Cargar la faena de esta semana</button></div>' : '') + '</div>';
+      h += '<div class="panel"><p class="state">No hay faena cargada para esta semana.</p>' + (S.editor ? cargaHTML('m-nueva', 'Subí la foto de la planilla semanal y se carga entera, con la faena y los clientes de cada día. También sirven pedidos sueltos de medias. "Cargar a mano" abre la semana vacía para escribirla.') : '') + '</div>';
+      el.innerHTML = h; pintarMsg('fotos'); return;
       el.innerHTML = h; return;
     }
+    if (S.editor && S.msg.fotos) h += '<p class="guardado" id="g-fotos"></p>';
     var st = stockSemana(lunes);
     if (edit) {
       h += '<div class="panel"><label class="campo" style="max-width:340px"><span>Medias propias en cámara al empezar el lunes</span><input type="number" inputmode="numeric" id="m-stock" value="' + esc(sem.stockInicial == null ? '' : sem.stockInicial) + '" placeholder="' + (st.deducido != null ? 'Se deduce: ' + n(st.deducido) : 'Sin dato') + '"></label>'
@@ -215,7 +217,7 @@
     h += '<div class="dtabs" role="group" aria-label="Día">' + sem.dias.map(function (d, i) { var f = mas(lunes, i); return '<button class="btn" data-act="dia" data-i="' + i + '" aria-pressed="' + (S.dia === i) + '">' + diaDe(f).slice(0, 3) + ' ' + fecha(f).getDate() + '</button>'; }).join('') + '</div>';
     h += '<div class="dias" data-sel="' + S.dia + '">' + sem.dias.map(function (d, i) { return diaHTML(sem, i, st, edit); }).join('') + '</div>';
     el.innerHTML = h;
-    pintarMsg('medias');
+    pintarMsg('medias'); pintarMsg('fotos');
   }
 
   /* ---------- orden de producción ---------- */
@@ -313,11 +315,13 @@
     if (S.editor && o) h += '<button class="btn' + (edit ? ' pri' : '') + '" data-act="p-editar">' + (edit ? 'Listo' : 'Editar') + '</button><span class="guardado" id="g-prod"></span>';
     h += '</div>';
     if (!o) {
-      h += '<div class="panel"><p class="state">No hay orden de producción cargada para este día.</p>' + (S.editor ? '<div class="acciones" style="justify-content:center"><button class="btn pri" data-act="p-armar">Armar la orden</button></div>' : '') + '</div>';
+      h += '<div class="panel"><p class="state">No hay orden de producción cargada para este día.</p>' + (S.editor ? cargaHTML('p-armar', 'Subí o pegá los pedidos de este día y la orden se arma sola. También podés pegar la orden entera copiada de Word. "Cargar a mano" arma la orden con lo habitual y la abre para escribir.') : '') + '</div>';
+      el.innerHTML = h; pintarMsg('fotos'); return;
       el.innerHTML = h; return;
     }
+    if (S.editor && S.msg.fotos) h += '<p class="guardado" id="g-fotos"></p>';
     var colg = (o.cortes || []).filter(function (c) { return c.colgado; }).length;
-    if (edit) { var od = S.ep.doc, cg = (od.cortes || []).filter(function (c) { return c.colgado; }).length; h += prodEditHTML(od, cg); el.innerHTML = h; pintarMsg('prod'); crecer($('p-doc')); return; }
+    if (edit) { var od = S.ep.doc, cg = (od.cortes || []).filter(function (c) { return c.colgado; }).length; h += prodEditHTML(od, cg); el.innerHTML = h; pintarMsg('prod'); pintarMsg('fotos'); crecer($('p-doc')); return; }
     h += '<div class="panel">';
     if (o.estado === 'borrador') h += '<p><span class="badge warn">Borrador</span> <span class="muted">Todavía no está confirmada' + (colg ? ': ' + colg + (colg === 1 ? ' corte sin definir' : ' cortes sin definir') : '') + '.</span></p>';
     h += '<article class="op"><p class="op-f">' + esc(diaDe(f)) + ' ' + esc(fechaCorta(f)) + '</p><p class="op-m">' + esc(o.medias) + '½ ' + esc(o.mercado || '') + '</p>';
@@ -326,7 +330,7 @@
       h += '<div class="op-c' + (c.colgado && o.estado === 'borrador' ? ' colg' : '') + '">' + ls.map(function (l, i) { return '<p>' + (i === 0 ? '<u>' + esc(c.corte) + '</u>: ' : '') + esc(l.t) + '</p>'; }).join('') + '</div>';
     });
     h += '</article><div class="acciones"><button class="btn" data-act="copiar">Copiar como texto</button><span class="small muted" id="copiado" aria-live="polite"></span></div><textarea id="txt-orden" class="txt" readonly hidden aria-label="Orden en texto">' + esc(textoOrden(o)) + '</textarea></div>';
-    el.innerHTML = h;
+    el.innerHTML = h; pintarMsg('fotos');
   }
   function docDeOrden(o) {
     var out = [(o.medias || '') + '½ ' + String(o.mercado || '').toUpperCase(), ''];
@@ -665,24 +669,41 @@
       ok.forEach(function (q) { fechas[q.entrega] = 1; });
       var fs = Object.keys(fechas).sort();
       if (fs.length) S.entrega = fs[0];
-      var m = ok.length ? 'Guardado: ' + ok.length + (ok.length === 1 ? ' pedido' : ' pedidos') + (tm ? ' · ' + n(tm) + ' medias' : '') + ' para entregar el ' + fs.map(function (f) { return tituloDe(f).toLowerCase(); }).join(' y el ') + '.' + (rev ? ' ' + rev + (rev === 1 ? ' quedó marcado' : ' quedaron marcados') + ' para revisar.' : '') + ' Para cambiar algo, tocá Editar en el pedido.' : '';
+      if (S.tab === 'produccion' && fs.length) { S.ep = null; S.fecha = fs[0]; S.fechaFija = true; }
+      if (S.tab === 'medias' && fs.length) { S.em = null; S.mv = null; S.fm = habilAnterior(fs[0]); S.sem = lunesDe(S.fm); S.dia = Math.round((fecha(S.fm) - fecha(S.sem)) / 86400000); }
+      var m = ok.length ? 'Guardado: ' + ok.length + (ok.length === 1 ? ' pedido' : ' pedidos') + (tm ? ' · ' + n(tm) + ' medias' : '') + ' para entregar el ' + fs.map(function (f) { return tituloDe(f).toLowerCase(); }).join(' y el ') + '.' + (rev ? ' ' + rev + (rev === 1 ? ' quedó marcado' : ' quedaron marcados') + ' para revisar.' : '') + (S.tab === 'pedidos' ? ' Para cambiar algo, tocá Editar en el pedido.' : ' Los pedidos se pueden corregir en Pedidos.') : '';
       if (faltan) m = (ok.length ? '' : '!') + (m ? m + ' ' : '') + (faltan === 1 ? 'Quedó 1 pedido sin guardar: completalo acá abajo.' : 'Quedaron ' + faltan + ' pedidos sin guardar: completalos acá abajo.');
       m = (m.charAt(0) === '!' ? '!' : '') + antes + m.replace(/^!/, '') + despues;
       if (errores.length) m = '!' + m.replace(/^!/, '') + ' ' + errores.join(' ');
-      S.msg.fotos = m; renderPedidos();
+      S.msg.fotos = m;
+      if (faltan && S.tab !== 'pedidos') { irA('pedidos'); return; }
+      renderPedidos();
     });
   }
   function agregarLeidos(j, origen, nombre) {
+    var porDefecto = S.tab === 'produccion' && S.fecha ? S.fecha : (S.entrega || habilSiguiente(hoy()));
     (j.pedidos || []).forEach(function (p) {
-      S.prop.push({ k: uid(), cliente: p.cliente || '', entrega: /^\d{4}-\d{2}-\d{2}$/.test(p.entrega || '') ? p.entrega : (S.entrega || habilSiguiente(hoy())), medias: +p.medias || '', peso: p.peso || '', nota: p.nota || '', origen: origen, foto: nombre,
+      S.prop.push({ k: uid(), cliente: p.cliente || '', entrega: /^\d{4}-\d{2}-\d{2}$/.test(p.entrega || '') ? p.entrega : porDefecto, medias: +p.medias || '', peso: p.peso || '', nota: p.nota || '', origen: origen, foto: nombre,
         dudas: (p.dudas || []).filter(Boolean), cortes: (p.cortes || []).map(function (c) { return { corte: norm(c.corte), texto: c.texto || '', orden: c.orden !== false }; }) });
     });
     return (j.pedidos || []).length;
+  }
+  function pareceOrden(txt) {
+    var k = 0; String(txt).split('\n').forEach(function (l) { var m = l.match(/^\s*([^:]{1,32}):/); if (m && CORTES_BASE.indexOf(norm(m[1])) >= 0) k++; });
+    return k >= 4;
   }
   function leerPegado() {
     var txt = String(S.pegarTxt || '').trim();
     if (!txt) { S.msg.fotos = '!Pegá primero el texto del pedido.'; pintarMsg('fotos'); return; }
     if (S.leyendo) return;
+    if (S.tab === 'produccion' && S.fecha && !prodDe(S.fecha) && pareceOrden(txt)) {
+      var base = armarOrden(S.fecha); base.cortes = [];
+      var doc = parsearOrden(txt, base), dl = limpiarOrden(doc);
+      S.pegar = false; S.pegarTxt = ''; S.pegarCli = ''; S.fechaFija = true;
+      S.prod = poner(S.prod, S.fecha, dl); S.msg.fotos = 'Orden cargada desde el texto: ' + doc.cortes.length + ' cortes. Revisala y tocá Editar para corregir.';
+      store.set('produccion', S.fecha, dl).then(tocar, function () { S.msg.fotos = '!No se pudo guardar la orden.'; render(); });
+      render(); return;
+    }
     S.leyendo = true; S.msg.fotos = 'Leyendo el texto…'; pintarMsg('fotos');
     var desde = S.prop.length;
     leerTexto(txt, String(S.pegarCli || '').toUpperCase().trim()).then(function (j) {
@@ -726,20 +747,25 @@
       + '<div class="acciones"><button class="btn pri" data-act="q-guardar" data-q="' + i + '">' + (q.editaId ? 'Guardar cambios' : 'Guardar pedido') + '</button><button class="btn" data-act="q-descartar" data-q="' + i + '">' + (q.editaId ? 'Cancelar' : 'Descartar') + '</button>' + (q.editaId ? '<button class="btn rojo" data-act="ped-borrar" data-id="' + esc(q.editaId) + '">Quitar este pedido</button>' : '') + '</div></div>';
     return h;
   }
+  // Los tres caminos de carga: fotos, texto pegado o a mano. Se usa en Pedidos y donde todavía no hay nada cargado.
+  function cargaHTML(actMano, ayuda) {
+    var conIA = !!(S.ia && S.ia.clave) || !!(window.__mock && window.__mock.ia);
+    var h = '<div class="acciones"><label class="btn pri" style="display:inline-flex;align-items:center' + (conIA ? '' : ';opacity:.45') + '">Subir fotos o capturas<input type="file" id="fotos" accept="image/*" multiple hidden' + (conIA ? '' : ' disabled') + '></label>'
+      + '<button class="btn" data-act="q-pegar"' + (conIA ? '' : ' disabled') + '>Pegar texto</button>'
+      + '<button class="btn" data-act="' + actMano + '">Cargar a mano</button><span class="guardado" id="g-fotos"></span></div>';
+    if (S.pegar && conIA) h += '<div class="pegar"><label class="campo"><span>Pegá acá el texto: un mensaje con pedidos (WhatsApp, mail)' + (S.tab === 'produccion' ? ' o la orden entera copiada de Word' : '') + '</span><textarea id="pegar-txt" rows="9" placeholder="Hola pedido de cerdo para el martes por caja…">' + esc(S.pegarTxt || '') + '</textarea></label>'
+      + '<label class="campo"><span>Cliente, si todo el mensaje es de uno solo con varias sucursales (opcional)</span><input type="text" id="pegar-cli" value="' + esc(S.pegarCli || '') + '" placeholder="Dejalo vacío si cada bloque es un cliente distinto"></label>'
+      + '<div class="acciones"><button class="btn pri" data-act="q-leer-texto">Leer</button><button class="btn" data-act="q-pegar">Cancelar</button></div></div>';
+    if (conIA && ayuda) h += '<p class="small muted">' + ayuda + '</p>';
+    if (!conIA) h += '<p class="small muted">Para leer fotos o texto pegado falta cargar la clave de IA, en Pedidos, abajo, en Configuración. Mientras tanto se puede cargar a mano.</p>';
+    return h;
+  }
   function renderPedidos() {
+    if (S.tab !== 'pedidos') return render();
     var el = $('view-pedidos');
     if (!S.editor) { el.innerHTML = '<div class="panel"><p class="state">Para cargar pedidos hay que ingresar con una cuenta autorizada.</p></div>'; return; }
     if (!S.entrega) S.entrega = habilSiguiente(hoy());
-    var conIA = !!(S.ia && S.ia.clave) || !!(window.__mock && window.__mock.ia);
-    var h = '<div class="panel"><h2>Cargar pedidos</h2>';
-    h += '<div class="acciones"><label class="btn pri" style="display:inline-flex;align-items:center' + (conIA ? '' : ';opacity:.45') + '">Subir fotos o capturas<input type="file" id="fotos" accept="image/*" multiple hidden' + (conIA ? '' : ' disabled') + '></label>'
-      + '<button class="btn" data-act="q-pegar"' + (conIA ? '' : ' disabled') + '>Pegar texto</button>'
-      + '<button class="btn" data-act="q-nuevo">Cargar a mano</button><span class="guardado" id="g-fotos"></span></div>';
-    if (S.pegar && conIA) h += '<div class="pegar"><label class="campo"><span>Pegá acá el mensaje con los pedidos (WhatsApp, mail, lo que sea)</span><textarea id="pegar-txt" rows="9" placeholder="Hola pedido de cerdo para el martes por caja…">' + esc(S.pegarTxt || '') + '</textarea></label>'
-      + '<label class="campo"><span>Cliente, si todo el mensaje es de uno solo con varias sucursales (opcional)</span><input type="text" id="pegar-cli" value="' + esc(S.pegarCli || '') + '" placeholder="Dejalo vacío si cada bloque es un cliente distinto"></label>'
-      + '<div class="acciones"><button class="btn pri" data-act="q-leer-texto">Leer pedidos</button><button class="btn" data-act="q-pegar">Cancelar</button></div></div>';
-    if (conIA) h += '<p class="small muted">Sirve para pedidos sueltos, planillas de reparto y también para la planilla semanal de faena y medias: esa se carga entera en Medias.</p>';
-    if (!conIA) h += '<p class="small muted">Para leer fotos o texto pegado falta cargar la clave de IA, más abajo en Configuración. Mientras tanto se puede cargar a mano.</p>';
+    var h = '<div class="panel"><h2>Cargar pedidos</h2>' + cargaHTML('q-nuevo', 'Sirve para pedidos sueltos, planillas de reparto y también para la planilla semanal de faena y medias: esa se carga entera en Medias.');
     var nuevas = S.prop.filter(function (x) { return !x.editaId; });
     if (nuevas.length) h += S.prop.map(function (q, i) { return q.editaId ? '' : propHTML(q, i); }).join('') + (nuevas.length > 1 ? '<div class="acciones"><button class="btn pri" data-act="q-todos">Guardar todos</button>' + botonBorrar('q-descartar-todos', null, 'Descartar todos', '') + '</div>' : '');
     h += '</div>';
@@ -836,7 +862,7 @@
     else e.innerHTML = '<span>' + esc(S.user.email) + (S.editor ? '' : ' · sin permiso para cargar') + '</span><button class="btn sm lnk" data-act="salir">Salir</button>';
     $('tab-pedidos').hidden = !S.editor;
     if (S.tab === 'pedidos' && !S.editor) S.tab = 'inicio';
-    TABS.forEach(function (t) { $('view-' + t).hidden = S.tab !== t; $('tab-' + t).setAttribute('aria-selected', String(S.tab === t)); });
+    TABS.forEach(function (t) { $('view-' + t).hidden = S.tab !== t; if (S.tab !== t) $('view-' + t).innerHTML = ''; $('tab-' + t).setAttribute('aria-selected', String(S.tab === t)); });
     if (S.tab === 'medias') renderMedias(); else if (S.tab === 'pedidos') renderPedidos(); else if (S.tab === 'produccion') renderProduccion(); else renderInicio();
   }
   // Cuando llegan datos nuevos no se redibuja la pantalla en la que se está escribiendo.
@@ -848,7 +874,7 @@
   }
   function irA(tab) { S.tab = tab; try { history.replaceState(null, '', '#' + tab); } catch (err) {} render(); window.scrollTo(0, 0); }
 
-  document.querySelector('.top').addEventListener('click', function (e) { var b = e.target.closest('[data-tab]'); if (!b) return; e.preventDefault(); if (b.dataset.tab === 'inicio') alInicio(); irA(b.dataset.tab); });
+  document.querySelector('.top').addEventListener('click', function (e) { var b = e.target.closest('[data-tab]'); if (!b) return; e.preventDefault(); if (b.dataset.tab === 'inicio') alInicio(); S.msg.fotos = ''; S.pegar = false; S.pegarTxt = ''; S.pegarCli = ''; irA(b.dataset.tab); });
 
   document.addEventListener('click', function (e) {
     var b = e.target.closest('[data-act]'); if (!b) return;
@@ -884,7 +910,7 @@
       render();
     }
     else if (a === 'm-dia') { if (S.em) guardar('medias', true); S.em = null; S.mv = 'dia'; if (S.sem && S.dia != null) S.fm = mas(S.sem, S.dia); render(); }
-    else if (a === 'sem') { if (S.em) guardar('medias', true); S.em = null; S.sem = mas(S.sem, +D.d); S.dia = null; render(); }
+    else if (a === 'sem') { S.msg.fotos = ''; if (S.em) guardar('medias', true); S.em = null; S.sem = mas(S.sem, +D.d); S.dia = null; render(); }
     else if (a === 'dia') { S.dia = +D.i; var g = document.querySelector('.dias'); if (g) g.dataset.sel = D.i; document.querySelectorAll('.dtabs .btn').forEach(function (x) { x.setAttribute('aria-pressed', String(x.dataset.i === D.i)); }); }
     else if (a === 'm-editar') { if (S.em) { guardar('medias', true); S.em = null; } else { S.em = { lunes: S.sem, doc: clone(semDe(S.sem)) }; S.msg.medias = ''; } render(); }
     else if (a === 'm-nueva') { S.em = { lunes: S.sem, doc: semanaNueva(S.sem) }; guardar('medias', true); render(); }
@@ -894,7 +920,7 @@
     else if (a === 'm-quitar') { S.em.doc.dias[+D.i][D.m].splice(+D.r, 1); guardar('medias'); render(); }
 
     // producción
-    else if (a === 'fecha') { S.fechaFija = true; if (S.ep) guardar('prod', true); S.ep = null; var x = S.fecha; do { x = mas(x, +D.d); } while (!esHabil(x)); S.fecha = x; render(); }
+    else if (a === 'fecha') { S.msg.fotos = ''; S.fechaFija = true; if (S.ep) guardar('prod', true); S.ep = null; var x = S.fecha; do { x = mas(x, +D.d); } while (!esHabil(x)); S.fecha = x; render(); }
     else if (a === 'p-armar') { S.fechaFija = true; S.ep = { fecha: S.fecha, doc: armarOrden(S.fecha) }; S.ep.base = clone(S.ep.doc); guardar('prod', true); render(); }
     else if (a === 'p-editar') { S.fechaFija = true; if (S.ep) { guardar('prod', true); S.ep = null; } else { S.ep = { fecha: S.fecha, doc: clone(prodDe(S.fecha)) }; S.ep.base = clone(S.ep.doc); S.msg.prod = ''; } render(); if (S.ep) { var pd = $('p-doc'); if (pd) { pd.focus(); pd.setSelectionRange(0, 0); window.scrollTo(0, 0); } } }
     else if (a === 'p-borrar' && S.ep) { if (!confirma('p-borrar')) { render(); return; } clearTimeout(timers.prod); var fb = S.ep.fecha; S.ep = null; S.prod = (S.prod || []).filter(function (x) { return x.id !== fb; }); store.del('produccion', fb).then(tocar, function () {}); render(); }
@@ -1070,7 +1096,7 @@
           if (!suscripto) {
             suscripto = true;
             store.sub('pedidos', function (l) { S.pedidos = ordenar(l); renderDatos(); });
-            store.sub('privado', function (l) { var c = l.filter(function (x) { return x.id === 'ia'; })[0]; if (c) { S.ia = c; if (S.tab === 'pedidos' && !S.prop.length) render(); } });
+            store.sub('privado', function (l) { var c = l.filter(function (x) { return x.id === 'ia'; })[0]; if (c) { var antes = !!(S.ia && S.ia.clave); S.ia = c; if (!antes && !S.prop.length && !S.em && !S.ep && !S.pegar) render(); } });
           }
         }
         render();
