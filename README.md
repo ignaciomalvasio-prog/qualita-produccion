@@ -3,7 +3,9 @@
 Web app del Frigorífico Qualitá. Muestra lo mismo que hoy circula por WhatsApp, en dos pantallas de lectura:
 
 - **Producción:** la orden de desposte del día, con el mismo texto que el Word.
-- **Medias:** la planilla semanal de faena, igual al Excel: faena por origen (propios y usuarios), clientes con su cantidad, total de clientes y lo que queda para desposte, más el stock de medias deducido.
+- **Medias:** por día, solo los clientes y cuántas medias reses lleva cada uno, con el total. Es lo que necesita el encargado de faena.
+
+Quien edita ve además la planilla de la semana, igual al Excel: faena por origen (propios y usuarios), clientes, total de clientes y lo que queda para desposte, más el stock de medias deducido.
 
 Cualquiera que tenga la dirección puede verla sin identificarse. Quien carga ingresa con su cuenta de Google, tiene que estar en la lista de editores y ve una tercera pantalla, **Pedidos**. Todo lo cargado se puede editar.
 

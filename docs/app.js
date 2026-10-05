@@ -32,7 +32,7 @@
 
   var S = {
     faena: null, prod: null, pedidos: null, config: {}, ia: {}, status: 'loading', fuente: '',
-    tab: 'inicio', sem: null, dia: null, fecha: null, entrega: null,
+    tab: 'inicio', mv: 'dia', fm: null, sem: null, dia: null, fecha: null, entrega: null,
     user: null, editor: false,
     em: null,   // semana en edición: { lunes, doc }
     ep: null,   // orden en edición: { fecha, doc }
@@ -154,7 +154,36 @@
     });
   }
 
+  // Lo que ve el encargado: solo los clientes del día y cuántas medias lleva cada uno.
+  function fmInicial() { var h = hoy(); return esHabil(h) ? h : habilSiguiente(h); }
+  function diaFaena(f) {
+    var lunes = lunesDe(f), sem = semDe(lunes), i = Math.round((fecha(f) - fecha(lunes)) / 86400000);
+    return sem && sem.dias[i] ? { sem: sem, i: i, d: sem.dias[i] } : null;
+  }
   function renderMedias() {
+    if (S.mv === 'semana' && S.editor) return renderSemana();
+    S.mv = 'dia';
+    var el = $('view-medias');
+    if (cargando(el, S.faena)) return;
+    if (!S.fm) S.fm = fmInicial();
+    var f = S.fm, x = diaFaena(f), cl = x ? (x.d.clientes || []).filter(function (r) { return r.cliente || +r.cant; }) : [];
+    var h = '<div class="nav"><button class="btn step" data-act="fm" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + esc(tituloDe(f)) + '</span><button class="btn step" data-act="fm" data-d="1" aria-label="Día siguiente">›</button>'
+      + '<input type="date" id="m-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">'
+      + (cl.length ? '<button class="btn" data-act="imprimir">Imprimir</button>' : '')
+      + (S.editor ? '<button class="btn" data-act="m-editar-dia">Editar</button><button class="btn" data-act="m-semana">Planilla de la semana</button>' : '') + '</div>';
+    h += '<div class="panel"><h2>Medias para clientes</h2>';
+    if (!cl.length) h += '<p class="state">No hay medias cargadas para clientes este día.</p>';
+    else {
+      var tot = cl.reduce(function (t, r) { return t + (+r.cant || 0) * 2; }, 0);
+      h += '<table class="pl cl-dia"><thead><tr><th>Cliente</th><th>Medias</th></tr></thead><tbody>' + cl.map(function (r) {
+        return '<tr><td>' + esc(r.cliente || 'Sin nombre') + (r.nota ? ' <span class="small muted" style="text-transform:none;font-weight:400">' + esc(r.nota) + '</span>' : '') + '</td><td>' + n((+r.cant || 0) * 2) + '</td></tr>';
+      }).join('') + '</tbody><tfoot><tr><th>Total</th><td>' + n(tot) + '</td></tr></tfoot></table>'
+        + '<p class="small muted">Salen de la faena del ' + esc(tituloDe(f).toLowerCase()) + ' y se entregan el ' + esc(tituloDe(habilSiguiente(f)).toLowerCase()) + '.</p>';
+    }
+    el.innerHTML = h + '</div>';
+  }
+
+  function renderSemana() {
     var el = $('view-medias');
     if (cargando(el, S.faena)) return;
     var lunes = S.sem || lunesDe(esHabil(hoy()) ? hoy() : habilSiguiente(hoy()));
@@ -163,6 +192,7 @@
     if (S.dia == null) { var g = fecha(hoy()).getDay(); S.dia = lunesDe(hoy()) === lunes && g >= 1 && g <= 5 ? g - 1 : 0; }
     var h = '<div class="nav"><button class="btn step" data-act="sem" data-d="-7" aria-label="Semana anterior">‹</button><span class="tit">Semana del ' + esc(etiquetaSemana(lunes)) + '</span><button class="btn step" data-act="sem" data-d="7" aria-label="Semana siguiente">›</button>';
     if (sem) h += '<button class="btn" data-act="imprimir">Imprimir</button>';
+    h += '<button class="btn" data-act="m-dia">Ver por día</button>';
     if (S.editor && sem) h += '<button class="btn' + (edit ? ' pri' : '') + '" data-act="m-editar">' + (edit ? 'Listo' : 'Editar') + '</button><span class="guardado" id="g-medias"></span>';
     h += '</div>';
     if (!sem) {
@@ -443,16 +473,15 @@
     var clientes = {}, ejemplos = [];
     (S.faena || []).forEach(function (s) { s.dias.forEach(function (d) { d.clientes.forEach(function (r) { if (r.cliente) clientes[r.cliente] = 1; }); }); });
     (S.prod || []).slice(-3).forEach(function (o) { ejemplos.push(textoOrden(o)); });
-    return 'Sos el asistente de carga de pedidos del Frigorífico Qualitá, un frigorífico de cerdo. Recibís una foto o una captura de pantalla con uno o varios pedidos de clientes y devolvés SOLO un JSON, sin texto antes ni después.\n\n'
+    return 'Sos el asistente de carga de pedidos del Frigorífico Qualitá, un frigorífico de cerdo. Recibís una foto o una captura de pantalla con uno o varios pedidos de clientes y los cargás con la herramienta registrar_pedidos.\n\n'
       + 'Hoy es ' + diaDe(hoy()) + ' ' + hoy() + '.\n\n'
       + 'TIPOS DE IMAGEN\n'
       + '1. Formulario manuscrito "ORDEN DE PEDIDO": el cliente está arriba y hay una "Fecha de entrega". En el renglón "18 CAPÓN" la cantidad seguida de "½" es la cantidad de MEDIAS RESES (ej.: "20 ½" = 20 medias). Los demás renglones son cortes. "Todo" al lado de un corte significa que el cliente se lleva todo lo que salga de ese corte. Puede haber renglones agregados a mano al pie, con código, y notas al margen. Una foto puede traer varios formularios: cada uno es un pedido.\n'
       + '2. Planillas de Excel de reparto por zona o por ciudad: cada fila es un cliente; la columna "Medias" es cantidad de medias reses y las demás columnas son cortes, casi siempre en cajas. La fecha del encabezado es la fecha de entrega. Si junto al cliente dice un rango de kilos (ej. "46 a 48 kg"), es el peso pedido para las medias.\n'
       + '3. Planillas por sucursal (ej. DINO): un solo cliente, con los kilos por corte sumados entre sucursales.\n\n'
-      + 'QUÉ DEVOLVER\n'
-      + '{"pedidos":[{"cliente":"","entrega":"AAAA-MM-DD o null","medias":0,"peso":"","cortes":[{"corte":"","texto":"","orden":true}],"nota":"","dudas":[""]}]}\n'
+      + 'QUÉ CARGAR, POR CADA PEDIDO\n'
       + '- cliente: en mayúsculas. Si coincide con uno de la lista de clientes conocidos, usá exactamente ese nombre.\n'
-      + '- entrega: resolvé fechas como "lun 05/10" con el año actual. Si no figura, null.\n'
+      + '- entrega: en formato AAAA-MM-DD. Resolvé fechas como "lun 05/10" con el año actual. Si no figura, dejala vacía.\n'
       + '- medias: cantidad de medias reses, número. 0 si no pide medias.\n'
       + '- peso: aclaración de peso de las medias (livianas, pesadas, rango de kg), o "".\n'
       + '- cortes: un elemento por cada corte pedido. "corte" es el rubro de la orden de producción, uno de: ' + CORTES_BASE.join(', ') + '. "texto" es la línea tal como se escribe en la orden de producción, en mayúsculas y con el estilo de los ejemplos: cantidad y unidad pegadas al principio (ej. "600KG", "50 UND", "10 CAJAS"), presentación, código si figura, y el cliente entre comillas al final. Si el cliente pide TODO el corte, la línea va sin cantidad (ej. "FRESCA EN BINES “ARGENCARNES”").\n'
@@ -468,19 +497,32 @@
       return fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-api-key': S.ia.clave, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: S.ia.modelo || IA_MODELO, max_tokens: 4096, system: instrucciones(),
-          messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } }, { type: 'text', text: 'Leé los pedidos de esta imagen y devolvé el JSON.' }] }] })
+        body: JSON.stringify({ model: S.ia.modelo || IA_MODELO, max_tokens: 8000, system: instrucciones(),
+          tools: [{ name: 'registrar_pedidos', description: 'Carga los pedidos leídos de la imagen.', input_schema: ESQUEMA_PEDIDOS }],
+          tool_choice: { type: 'tool', name: 'registrar_pedidos' },
+          messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } }, { type: 'text', text: 'Leé los pedidos de esta imagen y cargalos.' }] }] })
       });
     }).then(function (r) {
       return r.json().then(function (j) {
         if (!r.ok) throw new Error(r.status === 401 ? 'La clave de IA no es válida.' : (j && j.error && j.error.message) || ('Error ' + r.status));
-        var txt = (j.content || []).filter(function (b) { return b.type === 'text'; }).map(function (b) { return b.text; }).join('');
-        var a = txt.indexOf('{'), z = txt.lastIndexOf('}');
-        if (a < 0 || z < a) throw new Error('La respuesta no se pudo interpretar.');
-        return JSON.parse(txt.slice(a, z + 1));
+        var uso = (j.content || []).filter(function (b) { return b.type === 'tool_use'; })[0];
+        if (uso && uso.input && Array.isArray(uso.input.pedidos)) return uso.input;
+        if (j.stop_reason === 'max_tokens') throw new Error('La imagen tiene demasiados pedidos para leerla de una vez. Recortala en dos y subila de nuevo.');
+        throw new Error('No se pudieron leer pedidos en la imagen.');
       });
     });
   }
+  var ESQUEMA_PEDIDOS = {
+    type: 'object', required: ['pedidos'],
+    properties: { pedidos: { type: 'array', items: {
+      type: 'object', required: ['cliente', 'medias', 'cortes'],
+      properties: {
+        cliente: { type: 'string' }, entrega: { type: 'string', description: 'AAAA-MM-DD, o vacío si no figura' },
+        medias: { type: 'number' }, peso: { type: 'string' },
+        cortes: { type: 'array', items: { type: 'object', required: ['corte', 'texto', 'orden'], properties: { corte: { type: 'string' }, texto: { type: 'string' }, orden: { type: 'boolean' } } } },
+        nota: { type: 'string' }, dudas: { type: 'array', items: { type: 'string' } }
+      } } } }
+  };
   function subirFotos(files) {
     var lista = Array.prototype.slice.call(files), i = 0, errores = [];
     function sig() {
@@ -488,7 +530,7 @@
       var f = lista[i++]; S.msg.fotos = 'Leyendo ' + i + ' de ' + lista.length + '…'; pintarMsg('fotos');
       leerImagen(f).then(function (j) {
         (j.pedidos || []).forEach(function (p) {
-          S.prop.push({ k: uid(), cliente: p.cliente || '', entrega: p.entrega || S.entrega || habilSiguiente(hoy()), medias: +p.medias || '', peso: p.peso || '', nota: p.nota || '', origen: 'foto', foto: f.name,
+          S.prop.push({ k: uid(), cliente: p.cliente || '', entrega: /^\d{4}-\d{2}-\d{2}$/.test(p.entrega || '') ? p.entrega : (S.entrega || habilSiguiente(hoy())), medias: +p.medias || '', peso: p.peso || '', nota: p.nota || '', origen: 'foto', foto: f.name,
             dudas: (p.dudas || []).filter(Boolean), cortes: (p.cortes || []).map(function (c) { return { corte: norm(c.corte), texto: c.texto || '', orden: c.orden !== false }; }) });
         });
       }, function (e) { errores.push((f.name ? f.name + ': ' : '') + e.message); }).then(sig);
@@ -558,16 +600,12 @@
     var el = $('view-inicio');
     if (cargando(el, S.prod && S.faena)) return;
     var f = fechaProdInicial(), o = prodDe(f), h = hoy();
-    var lunes = lunesDe(esHabil(h) ? h : habilSiguiente(h)), sem = semDe(lunes), g = fecha(h).getDay();
     var dp = o ? esc(o.medias) + ' medias · ' + (o.estado === 'borrador' ? 'borrador, todavía sin confirmar' : 'confirmada') : 'Todavía no hay orden cargada';
-    var dm = 'Sin faena cargada para esta semana';
-    if (sem) {
-      var i = lunesDe(h) === lunes && g >= 1 && g <= 5 ? g - 1 : 0, s = sumas(sem.dias[i]);
-      dm = diaDe(mas(lunes, i)) + ': faena ' + n(s.propios + s.usuarios) + ' · clientes ' + n(s.clientes) + ' · a desposte ' + n(s.medias) + ' medias';
-    }
+    var fm = fmInicial(), x = diaFaena(fm), cl = x ? (x.d.clientes || []).filter(function (r) { return r.cliente || +r.cant; }) : [];
+    var dm = cl.length ? cl.length + (cl.length === 1 ? ' cliente · ' : ' clientes · ') + n(cl.reduce(function (t, r) { return t + (+r.cant || 0) * 2; }, 0)) + ' medias' : 'Todavía no hay medias cargadas';
     var html = '<div class="home">'
       + '<button class="tile" data-act="ir" data-tab="produccion"><b>Producción</b><span>Orden del ' + esc(tituloDe(f).toLowerCase()) + '</span><span class="dato">' + dp + '</span></button>'
-      + '<button class="tile" data-act="ir" data-tab="medias"><b>Medias</b><span>Semana del ' + esc(etiquetaSemana(lunes)) + '</span><span class="dato">' + esc(dm) + '</span></button>';
+      + '<button class="tile" data-act="ir" data-tab="medias"><b>Medias</b><span>Clientes del ' + esc(tituloDe(fm).toLowerCase()) + '</span><span class="dato">' + esc(dm) + '</span></button>';
     if (S.editor) {
       var sig = habilSiguiente(h), np = (S.pedidos || []).filter(function (p) { return p.entrega === sig; }).length;
       html += '<button class="tile" data-act="ir" data-tab="pedidos"><b>Pedidos</b><span>Subir fotos o cargar a mano</span><span class="dato">' + np + (np === 1 ? ' pedido cargado' : ' pedidos cargados') + ' para el ' + esc(tituloDe(sig).toLowerCase()) + '</span></button>';
@@ -575,7 +613,7 @@
     el.innerHTML = html + '</div>';
   }
   // Volver al inicio deja todo parado en el día de hoy.
-  function alInicio() { if (S.em) guardar('medias', true); if (S.ep) guardar('prod', true); S.em = null; S.ep = null; S.fechaFija = false; S.fecha = null; S.sem = null; S.dia = null; S.entrega = null; }
+  function alInicio() { if (S.em) guardar('medias', true); if (S.ep) guardar('prod', true); S.em = null; S.ep = null; S.fechaFija = false; S.fecha = null; S.sem = null; S.dia = null; S.entrega = null; S.fm = null; S.mv = 'dia'; }
 
   /* ---------- estados, sesión y navegación ---------- */
   function cargando(el, data) {
@@ -619,7 +657,7 @@
       render();
       var hoja = $('hoja-impresion');
       if (!hoja) { hoja = document.createElement('style'); hoja.id = 'hoja-impresion'; document.head.appendChild(hoja); }
-      hoja.textContent = '@page{size:A4 ' + (S.tab === 'medias' ? 'landscape' : 'portrait') + ';margin:10mm}';
+      hoja.textContent = '@page{size:A4 ' + (S.tab === 'medias' && S.mv === 'semana' ? 'landscape' : 'portrait') + ';margin:10mm}';
       setTimeout(function () { window.print(); }, 80);
     }
     else if (a === 'ingresar') store.signIn().catch(function () {});
@@ -631,6 +669,13 @@
     }
 
     // medias
+    else if (a === 'fm') { var y = S.fm; do { y = mas(y, +D.d); } while (!esHabil(y)); S.fm = y; render(); }
+    else if (a === 'm-semana' || a === 'm-editar-dia') {
+      S.mv = 'semana'; S.sem = lunesDe(S.fm); S.dia = Math.round((fecha(S.fm) - fecha(S.sem)) / 86400000);
+      if (a === 'm-editar-dia') { var ya = semDe(S.sem); S.em = { lunes: S.sem, doc: ya ? clone(ya) : semanaNueva(S.sem) }; S.msg.medias = ''; if (!ya) guardar('medias', true); }
+      render();
+    }
+    else if (a === 'm-dia') { if (S.em) guardar('medias', true); S.em = null; S.mv = 'dia'; if (S.sem && S.dia != null) S.fm = mas(S.sem, S.dia); render(); }
     else if (a === 'sem') { if (S.em) guardar('medias', true); S.em = null; S.sem = mas(S.sem, +D.d); S.dia = null; render(); }
     else if (a === 'dia') { S.dia = +D.i; var g = document.querySelector('.dias'); if (g) g.dataset.sel = D.i; document.querySelectorAll('.dtabs .btn').forEach(function (x) { x.setAttribute('aria-pressed', String(x.dataset.i === D.i)); }); }
     else if (a === 'm-editar') { if (S.em) { guardar('medias', true); S.em = null; } else { S.em = { lunes: S.sem, doc: clone(semDe(S.sem)) }; S.msg.medias = ''; } render(); }
@@ -681,7 +726,7 @@
       }, Promise.resolve()).then(function () { S.msg.fotos = S.prop.length ? '!Quedaron pedidos sin guardar: revisalos.' : 'Guardado.'; renderPedidos(); });
     }
     else if (a === 'ped-borrar') { var p = (S.pedidos || []).filter(function (x) { return x.id === D.id; })[0]; if (p) borrarPedido(p).then(tocar); }
-    else if (a === 'ir-medias') { var fa = habilAnterior(S.entrega); S.em = null; S.sem = lunesDe(fa); S.dia = Math.round((fecha(fa) - fecha(S.sem)) / 86400000); irA('medias'); }
+    else if (a === 'ir-medias') { S.em = null; S.mv = 'dia'; S.fm = habilAnterior(S.entrega); irA('medias'); }
     else if (a === 'ir-orden') { S.ep = null; S.fechaFija = true; S.fecha = S.entrega; irA('produccion'); }
     else if (a === 'cfg-guardar') {
       S._conf = true;
@@ -714,6 +759,7 @@
   document.addEventListener('change', function (e) {
     var t = e.target;
     if (t.id === 'p-fecha' && t.value) { if (S.ep) guardar('prod', true); S.ep = null; S.fechaFija = true; S.fecha = t.value; render(); }
+    else if (t.id === 'm-fecha' && t.value) { S.fm = t.value; render(); }
     else if (t.id === 'e-fecha' && t.value) { S.entrega = t.value; renderPedidos(); }
     else if (t.id === 'fotos' && t.files && t.files.length) { subirFotos(t.files); }
   });
