@@ -224,7 +224,7 @@
     if (S.editor && sem) h += '<button class="btn' + (edit ? ' pri' : '') + '" data-act="m-editar">' + (edit ? 'Listo' : 'Editar') + '</button><span class="guardado" id="g-medias"></span>';
     h += '</div>';
     if (!sem) {
-      h += '<div class="panel"><p class="state">No hay faena cargada para esta semana.</p>' + (S.editor ? cargaHTML('m-nueva', 'Subí la foto de la planilla semanal y se carga entera, con la faena y los clientes de cada día. También sirven pedidos sueltos de medias. "Cargar a mano" abre la semana con la faena de la semana anterior, para corregirla.') : '') + '</div>';
+      h += '<div class="panel"><p class="state">No hay faena cargada para esta semana.</p>' + (S.editor ? cargaHTML('m-nueva') : '') + '</div>';
       el.innerHTML = h; pintarMsg('fotos'); return;
       el.innerHTML = h; return;
     }
@@ -250,7 +250,7 @@
   function ordenCorte(nombre) { var i = CORTES_BASE.indexOf(norm(nombre)); return i < 0 ? 999 : i; }
   function prodGuardada(f) { return (S.prod || []).filter(function (o) { return o.id === f; })[0] || null; }
   function prodVacia(f) { return { fecha: f, medias: +S.config.desposteHabitual || 750, mercado: '', estado: 'borrador', cortes: [] }; }
-  // Un renglón nuevo dentro de su corte. Los que llevan cantidad van arriba; lo que queda sin cantidad pasa a ser el RESTO.
+  // Un renglón nuevo dentro de su corte. Los que llevan cantidad van arriba de los que no.
   function insertarLinea(o, corte, texto, pid, ck) {
     var c = corteDe(o, corte);
     if (!c) {
@@ -260,7 +260,6 @@
     var linea = { t: texto }, pos = c.lineas.length; if (pid) linea.p = pid; if (ck) linea.ck = ck;
     if (esPedido(texto)) for (var i = 0; i < c.lineas.length; i++) if (!esPedido(c.lineas[i].t)) { pos = i; break; }
     c.lineas.splice(pos, 0, linea);
-    if (c.lineas.some(function (x) { return esPedido(x.t); })) c.lineas.forEach(function (x) { if (!esPedido(x.t) && !/^\s*RESTO/i.test(x.t) && !/NO SACAR/i.test(x.t)) x.t = 'RESTO: ' + x.t; });
   }
   // Saca los renglones de un pedido (o de un solo corte de ese pedido) y los cortes que quedan sin nada.
   function quitarDeOrden(o, pid, ck, texto) {
@@ -271,10 +270,7 @@
         if (!ck) return false;
         return !(l.ck === ck || (!l.ck && norm(l.t) === norm(texto)));
       });
-      if (c.lineas.length !== antes) {
-        c._tocado = true;
-        if (!c.lineas.some(function (l) { return esPedido(l.t); })) c.lineas.forEach(function (l) { l.t = sinResto(l.t); });
-      }
+      if (c.lineas.length !== antes) c._tocado = true;
     });
     o.cortes = o.cortes.filter(function (c) { var t = c._tocado; delete c._tocado; return c.lineas.length || !t; });
   }
@@ -320,20 +316,19 @@
     h += '</div>';
     if (!o) {
       h += '<div class="panel"><p class="state">Todavía no hay nada en producción para este día.</p>';
-      if (S.editor) h += '<p class="small muted" style="text-align:center">La planilla se arma sumando cortes desde los pedidos. También se puede escribir a mano.</p>'
-        + '<div class="acciones" style="justify-content:center"><button class="btn pri" data-act="ir-pedidos" data-f="' + f + '">Ir a los pedidos de este día</button><button class="btn" data-act="p-nueva">Escribir a mano</button></div>';
+      if (S.editor) h += '<div class="acciones" style="justify-content:center"><button class="btn pri" data-act="ir-pedidos" data-f="' + f + '">Ir a los pedidos de este día</button><button class="btn" data-act="p-nueva">Escribir a mano</button></div>';
       el.innerHTML = h + '</div>'; return;
     }
     if (edit) { h += prodEditHTML(S.ep.doc); el.innerHTML = h; pintarMsg('prod'); crecer($('p-doc')); return; }
-    h += '<div class="panel">';
-    if (o.estado === 'borrador') h += '<p><span class="badge warn">Borrador</span> <span class="muted">Todavía no está confirmada.</span></p>';
-    h += '<article class="op"><p class="op-f">' + esc(diaDe(f)) + ' ' + esc(fechaCorta(f)) + '</p><p class="op-m">' + esc(o.medias) + '½ ' + esc(o.mercado || '') + '</p>';
-    if (!(o.cortes || []).length) h += '<p class="muted" style="text-transform:none;font-weight:400">Todavía no se sumó ningún corte.</p>';
-    (o.cortes || []).forEach(function (c) {
-      var ls = c.lineas.length ? c.lineas : [{ t: '' }];
-      h += '<div class="op-c">' + ls.map(function (l, i) { return '<p>' + (i === 0 ? '<u>' + esc(c.corte) + '</u>: ' : '') + esc(l.t) + '</p>'; }).join('') + '</div>';
-    });
-    h += '</article><div class="acciones"><button class="btn" data-act="copiar">Copiar como texto</button>' + (S.editor ? '<button class="btn" data-act="ir-pedidos" data-f="' + f + '">Sumar cortes desde los pedidos</button>' : '') + '<span class="small muted" id="copiado" aria-live="polite"></span></div><textarea id="txt-orden" class="txt" readonly hidden aria-label="Planilla en texto">' + esc(textoOrden(o)) + '</textarea></div>';
+    var nl = (o.cortes || []).reduce(function (t, c) { return t + c.lineas.length; }, 0);
+    h += '<div class="panel hoja"><header class="hoja-cab"><div><p class="hoja-sup">Planilla de producción</p><h2>' + esc(tituloDe(f)) + '</h2></div>'
+      + '<div class="hoja-dato"><b>' + n(+o.medias || 0) + '</b><span>medias' + (o.mercado ? ' · ' + esc(o.mercado) : '') + '</span></div>'
+      + (o.estado === 'borrador' ? '<span class="badge warn">Borrador</span>' : '<span class="badge ok">Confirmada</span>') + '</header>';
+    if (!nl) h += '<p class="muted">Todavía no se sumó ningún corte.</p>';
+    else h += '<div class="hoja-cortes">' + (o.cortes || []).map(function (c) {
+      return '<div class="hoja-corte"><h3>' + esc(c.corte || 'Sin corte') + '</h3><ul>' + c.lineas.map(function (l) { return '<li>' + esc(l.t) + '</li>'; }).join('') + '</ul></div>';
+    }).join('') + '</div>';
+    h += '<div class="acciones"><button class="btn" data-act="copiar">Copiar como texto</button>' + (S.editor ? '<button class="btn" data-act="ir-pedidos" data-f="' + f + '">Sumar cortes desde los pedidos</button>' : '') + '<span class="small muted" id="copiado" aria-live="polite"></span></div><textarea id="txt-orden" class="txt" readonly hidden aria-label="Planilla en texto">' + esc(textoOrden(o)) + '</textarea></div>';
     el.innerHTML = h;
   }
   function docDeOrden(o) {
@@ -386,7 +381,7 @@
       ? '<button class="btn pri" data-act="p-estado" data-v="lista">Confirmar planilla</button>'
       : '<span class="badge ok">Confirmada</span><button class="btn sm" data-act="p-estado" data-v="borrador">Volver a borrador</button>')
       + botonBorrar('p-borrar', null, 'Borrar la planilla') + '</div></div>';
-    h += '<div class="panel"><p class="small muted">Escribí directo sobre la planilla, como en Word. Cada corte empieza con su nombre y dos puntos (JAMON: …); cada renglón de abajo es una línea de ese corte. Se guarda solo.</p>'
+    h += '<div class="panel"><p class="small muted">Cada corte empieza con su nombre y dos puntos (JAMON: …); los renglones de abajo son de ese corte. Se guarda solo.</p>'
       + '<article class="op"><p class="op-f">' + esc(diaDe(o.fecha)) + ' ' + esc(fechaCorta(o.fecha)) + '</p>'
       + '<textarea id="p-doc" class="op-doc" spellcheck="false" autocapitalize="characters" aria-label="Planilla de producción">' + esc(docDeOrden(o)) + '</textarea></article></div>';
     return h;
@@ -438,7 +433,7 @@
   /* ---------- pedidos ----------
      El listado de pedidos es el centro. De ahí salen la planilla de producción (se suma cada corte
      con un clic), la logística (pedidos agrupados en camiones) y, solas, las medias de la planilla semanal. */
-  function pedidoVacio() { return { k: uid(), cliente: '', entrega: S.entrega || habilSiguiente(hoy()), medias: '', peso: '', cortes: [], nota: '', dudas: [], origen: 'manual' }; }
+  function pedidoVacio() { return { k: uid(), cliente: '', entrega: habilSiguiente(hoy()), medias: '', peso: '', cortes: [], nota: '', dudas: [], origen: 'manual' }; }
   function pedidoDe(id) { return (S.pedidos || []).filter(function (x) { return x.id === id; })[0] || null; }
   // Cortes del pedido con su clave. Los pedidos viejos no la tenían: se usa la posición.
   function cortesDe(p) { return (p.cortes || []).map(function (c, j) { if (!c.k) c.k = 'i' + j; return c; }); }
@@ -500,15 +495,43 @@
   /* ---------- logística ----------
      Los pedidos son privados; lo que ven todos es una copia por día de entrega, con los camiones
      y lo que lleva cada uno. Se vuelve a escribir cada vez que cambia un pedido o un camión de ese día. */
+  // Kilos: lo que pesa cada pedido se estima para ir descontando de la capacidad del camión.
+  function kgMedia() { return +S.config.kgMedia || 47; }
+  function kgCaja() { return +S.config.kgCaja || 20; }
+  function numero(x) { x = String(x); return /^\d{1,3}(\.\d{3})+$/.test(x) ? +x.replace(/\./g, '') : +x.replace(',', '.') || 0; }
+  function kgDeTexto(t) {
+    var s = norm(t), m = s.match(/^([\d.,]+)\s*(KGS?|KILOS?|K)\b/);
+    if (m) return { kg: numero(m[1]) };
+    m = s.match(/^([\d.,]+)\s*(CAJAS?|CJS?)\b/);
+    if (m) return { kg: numero(m[1]) * kgCaja() };
+    return { kg: 0, falta: true };
+  }
+  // Si el pedido tiene kilos cargados a mano, valen esos. Si no: medias y cajas por su peso habitual, más lo que viene en kg.
+  function kgPedido(p) {
+    if (+p.kg > 0) return { kg: +p.kg, manual: true };
+    var kg = (+p.medias || 0) * kgMedia(), falta = false;
+    (p.cortes || []).forEach(function (c) { if (!c.texto) return; var r = kgDeTexto(c.texto); kg += r.kg; if (r.falta) falta = true; });
+    return { kg: Math.round(kg), falta: falta };
+  }
+  function kgTxt(k) { return (k.manual ? '' : '≈ ') + n(k.kg) + ' kg' + (k.falta ? ' + renglones sin peso' : ''); }
+  function flota() { return (S.config.flota || []).filter(function (c) { return c && c.id; }); }
+  function cargaDe(peds, camId) { return peds.filter(function (p) { return p.camion === camId; }).reduce(function (t, p) { return t + (+p.kg || 0); }, 0); }
+  // Texto de capacidad de un camión: cargado, capacidad y lo que queda.
+  function capTxt(cam, cargado) {
+    if (!(+cam.kg > 0)) return cargado ? '≈ ' + n(cargado) + ' kg cargados' : '';
+    var libre = +cam.kg - cargado;
+    return '≈ ' + n(cargado) + ' de ' + n(+cam.kg) + ' kg · ' + (libre >= 0 ? 'quedan ' + n(libre) + ' kg' : 'se pasa por ' + n(-libre) + ' kg');
+  }
   function logDe(f) { return (S.log || {})[f] || null; }
   function camionesDe(f) { var l = logDe(f); return (l && l.camiones) || []; }
   function nombreCamion(f, id) { var c = camionesDe(f).filter(function (x) { return x.id === id; })[0]; return c ? c.nombre : ''; }
   function publicarLog(f, camiones) {
     if (!f) return Promise.resolve();
-    var cams = (camiones || camionesDe(f)).map(function (c) { return { id: c.id, nombre: c.nombre || '', nota: c.nota || '' }; }), hay = {};
+    var cams = (camiones || camionesDe(f)).map(function (c) { return { id: c.id, nombre: c.nombre || '', nota: c.nota || '', kg: +c.kg || 0 }; }), hay = {};
     cams.forEach(function (c) { hay[c.id] = 1; });
     var peds = (S.pedidos || []).filter(function (p) { return p.entrega === f; }).map(function (p) {
-      return { id: p.id, cliente: p.cliente || '', medias: +p.medias || 0, peso: p.peso || '', nota: p.nota || '', camion: p.camion && hay[p.camion] ? p.camion : '',
+      var k = kgPedido(p);
+      return { id: p.id, cliente: p.cliente || '', medias: +p.medias || 0, peso: p.peso || '', nota: p.nota || '', camion: p.camion && hay[p.camion] ? p.camion : '', kg: k.kg, kgFalta: !!k.falta, kgManual: !!k.manual,
         cortes: (p.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { corte: c.corte, texto: c.texto }; }) };
     });
     S.log = S.log || {};
@@ -524,9 +547,14 @@
     S.pedidos.forEach(function (p) { if (p.entrega && p.entrega >= desde) (porFecha[p.entrega] = porFecha[p.entrega] || []).push(p.id); });
     Object.keys(S.log || {}).forEach(function (f) { if (f >= desde && !porFecha[f]) porFecha[f] = []; });
     Object.keys(porFecha).forEach(function (f) {
-      var lg = logDe(f), a = porFecha[f].slice().sort().join(','), b = ((lg && lg.pedidos) || []).map(function (x) { return x.id; }).sort().join(',');
+      var lg = logDe(f), kgDe = {}; S.pedidos.forEach(function (p) { if (p.entrega === f) kgDe[p.id] = kgPedido(p).kg; });
+      var a = porFecha[f].slice().sort().map(function (id) { return id + ':' + kgDe[id]; }).join(','), b = ((lg && lg.pedidos) || []).map(function (x) { return x.id + ':' + (+x.kg || 0); }).sort().join(',');
       if (a !== b) publicarLog(f).then(null, function () {});
     });
+  }
+  function avisoCamion(f, camId, cuantos) {
+    var cam = camionesDe(f).filter(function (c) { return c.id === camId; })[0], lg = logDe(f), t = cam ? capTxt(cam, cargaDe((lg && lg.pedidos) || [], camId)) : '';
+    return cuantos + (cuantos === 1 ? ' pedido' : ' pedidos') + ' en "' + (cam ? cam.nombre : '') + '".' + (t ? ' ' + t.charAt(0).toUpperCase() + t.slice(1) + '.' : '');
   }
   // Pone (o saca, con cam vacío) un grupo de pedidos en un camión de ese día.
   function asignarCamion(f, ids, cam, camiones) {
@@ -538,14 +566,29 @@
     });
     return Promise.all(tareas).then(function () { return publicarLog(f, camiones); }).then(tocar);
   }
-  function crearCamion(f, nombre, nota, ids) {
-    var cams = camionesDe(f).slice(), cam = { id: 'c' + uid(), nombre: String(nombre || '').trim() || 'Camión ' + (cams.length + 1), nota: String(nota || '').trim() };
+  function crearCamion(f, nombre, nota, ids, kg, idFijo) {
+    var cams = camionesDe(f).slice(), cam = { id: idFijo || 'c' + uid(), nombre: String(nombre || '').trim() || 'Camión ' + (cams.length + 1), nota: String(nota || '').trim(), kg: +kg || 0 };
     cams.push(cam);
     return asignarCamion(f, ids || [], cam.id, cams).then(function () { return cam; });
   }
-  function cambiarCamion(f, id, nombre, nota) {
-    var cams = camionesDe(f).map(function (c) { return c.id === id ? { id: id, nombre: String(nombre || '').trim() || c.nombre, nota: String(nota || '').trim() } : c; });
+  // Usa ese día un camión del stock: si todavía no estaba en el día, lo agrega con su capacidad.
+  function usarDeFlota(f, idFlota, ids) {
+    var idDia = 'f' + idFlota, ya = camionesDe(f).filter(function (c) { return c.id === idDia; })[0], fl = flota().filter(function (c) { return c.id === idFlota; })[0];
+    if (ya) return asignarCamion(f, ids, idDia).then(function () { return ya; });
+    if (!fl) return Promise.reject(new Error('Ese camión ya no está en el stock.'));
+    return crearCamion(f, fl.nombre, fl.nota, ids, fl.kg, idDia);
+  }
+  function cambiarCamion(f, id, nombre, nota, kg) {
+    var cams = camionesDe(f).map(function (c) { return c.id === id ? { id: id, nombre: String(nombre || '').trim() || c.nombre, nota: String(nota || '').trim(), kg: +kg || 0 } : c; });
     return publicarLog(f, cams).then(tocar);
+  }
+  var tFlota = null;
+  function guardarConfig(ya) {
+    S.msg.flota = 'Guardando…'; pintarMsg('flota'); clearTimeout(tFlota);
+    tFlota = setTimeout(function () {
+      var c = clone(S.config || {}); delete c.id; c.actualizado = ahoraTxt();
+      store.set('config', 'general', c).then(function () { S.msg.flota = 'Guardado ' + ahoraTxt().split(', ')[1]; pintarMsg('flota'); }, function () { S.msg.flota = '!No se pudo guardar. Revisá la conexión.'; pintarMsg('flota'); });
+    }, ya ? 0 : 700);
   }
   function borrarCamion(f, id) {
     var cams = camionesDe(f).filter(function (c) { return c.id !== id; });
@@ -584,7 +627,7 @@
   function guardarPropuesta(q, auto) {
     var previo = q.editaId ? pedidoDe(q.editaId) : null, entrega = q.entrega || '';
     var p = { cliente: String(q.cliente || '').toUpperCase().trim(), entrega: entrega, medias: +q.medias || 0, peso: q.peso || '', nota: q.nota || '', origen: q.origen || 'manual',
-      creado: previo && previo.creado ? previo.creado : ahoraTxt(), dudas: auto ? (q.dudas || []).filter(Boolean) : [],
+      creado: previo && previo.creado ? previo.creado : ahoraTxt(), kg: +q.kg > 0 ? +q.kg : '',
       camion: previo && previo.entrega === entrega ? (previo.camion || '') : '',
       cortes: (q.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { k: c.k || uid(), corte: norm(c.corte), texto: String(c.texto).toUpperCase().replace(/\s+/g, ' ').trim(), orden: c.orden !== false }; }) };
     if (!p.cliente) return Promise.reject(new Error('Falta el cliente.'));
@@ -786,13 +829,14 @@
       return guardarVarios(nuevos, true);
     }).then(function (ok) {
       var aca = S.tab === ctx.tab && !escribiendo();
-      var tm = ok.reduce(function (t, q) { return t + (+q.medias || 0); }, 0), fechas = {}, rev = ok.filter(function (q) { return q.dudas && q.dudas.length; }).length, faltan = nuevos.length - ok.length;
+      var fechas = {}, faltan = nuevos.length - ok.length;
       ok.forEach(function (q) { fechas[q.entrega] = 1; });
       var fs = Object.keys(fechas).sort(), partes = [];
       hechas.forEach(function (r) { partes.push('Planilla de la semana del ' + etiquetaSemana(r.lunes) + ' cargada: ' + r.dias + (r.dias === 1 ? ' día' : ' días') + ', ' + r.clientes + ' clientes.'); });
-      if (ok.length) partes.push('Guardado: ' + ok.length + (ok.length === 1 ? ' pedido' : ' pedidos') + (tm ? ' · ' + n(tm) + ' medias' : '') + ' para entregar el ' + fs.map(function (f) { return tituloDe(f).toLowerCase(); }).join(' y el ') + '.' + (rev ? ' ' + rev + (rev === 1 ? ' quedó marcado' : ' quedaron marcados') + ' para revisar.' : ''));
+      if (ok.length) partes.push('Guardado: ' + ok.length + (ok.length === 1 ? ' pedido.' : ' pedidos.'));
       if (txtRep) partes.push(txtRep.trim());
       if (faltan) partes.push((faltan === 1 ? 'Quedó 1 pedido sin guardar: completalo' : 'Quedaron ' + faltan + ' pedidos sin guardar: completalos') + ' en Pedidos.');
+      if (ok.length && fs.length) S.pedDia = fs[0];
       if (preguntar) partes.push('Falta elegir en qué semana va la planilla: está en Medias.');
       if (errores.length) partes.push(errores.join(' '));
       var m = (errores.length || (faltan && !ok.length) ? '!' : '') + partes.join(' ');
@@ -838,13 +882,12 @@
 
   function propHTML(q, i) {
     var listaCortes = CORTES_BASE.slice(); (q.cortes || []).forEach(function (c) { if (c.corte && listaCortes.indexOf(c.corte) < 0) listaCortes.push(c.corte); });
-    var h = '<div class="card' + (q.dudas && q.dudas.length ? ' duda' : '') + '">';
-    if (q.dudas && q.dudas.length) h += '<div><span class="badge warn">Para revisar</span><ul class="small" style="margin:6px 0 0;padding-left:18px">' + q.dudas.map(function (d) { return '<li>' + esc(d) + '</li>'; }).join('') + '</ul></div>';
+    var h = '<div class="card">';
     h += '<div class="campos"><label class="campo"><span>Cliente</span><input type="text" id="q' + i + 'cliente" data-q="' + i + '" data-k="cliente" value="' + esc(q.cliente) + '" style="text-transform:uppercase"></label>'
       + '<label class="campo"><span>Entrega</span><input type="date" id="q' + i + 'entrega" data-q="' + i + '" data-k="entrega" value="' + esc(q.entrega || '') + '"></label>'
       + '<label class="campo"><span>Medias</span><input type="number" inputmode="numeric" id="q' + i + 'medias" data-q="' + i + '" data-k="medias" value="' + esc(q.medias) + '"></label>'
-      + '<label class="campo"><span>Peso o aclaración</span><input type="text" id="q' + i + 'peso" data-q="' + i + '" data-k="peso" value="' + esc(q.peso || '') + '"></label></div>';
-    if (+q.medias > 0 && q.entrega) h += '<p class="small muted">' + n(+q.medias / 2) + ' cerdos en la planilla del ' + esc(tituloDe(habilAnterior(q.entrega)).toLowerCase()) + ', que es la faena anterior a la entrega.</p>';
+      + '<label class="campo"><span>Peso o aclaración</span><input type="text" id="q' + i + 'peso" data-q="' + i + '" data-k="peso" value="' + esc(q.peso || '') + '"></label>'
+      + '<label class="campo"><span>Kilos (opcional)</span><input type="number" inputmode="numeric" id="q' + i + 'kg" data-q="' + i + '" data-k="kg" value="' + esc(q.kg || '') + '"></label></div>';
     (q.cortes || []).forEach(function (c, j) {
       h += '<div class="cl"><select id="q' + i + 'c' + j + 'corte" data-q="' + i + '" data-j="' + j + '" data-k="corte" aria-label="Corte">' + listaCortes.map(function (x) { return '<option' + (x === c.corte ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select>'
         + '<textarea rows="2" id="q' + i + 'c' + j + 'texto" data-q="' + i + '" data-j="' + j + '" data-k="texto" aria-label="Qué pide de este corte" style="text-transform:uppercase">' + esc(c.texto) + '</textarea>'
@@ -857,16 +900,15 @@
     return h;
   }
   // Los tres caminos de carga: fotos, texto pegado o a mano.
-  function cargaHTML(actMano, ayuda) {
+  function cargaHTML(actMano) {
     var conIA = !!(S.ia && S.ia.clave) || !!(window.__mock && window.__mock.ia);
     var h = '<div class="acciones"><label class="btn pri" style="display:inline-flex;align-items:center' + (conIA ? '' : ';opacity:.45') + '">Subir fotos o capturas<input type="file" id="fotos" accept="image/*" multiple hidden' + (conIA ? '' : ' disabled') + '></label>'
       + '<button class="btn" data-act="q-pegar"' + (conIA ? '' : ' disabled') + '>Pegar texto</button>'
       + '<button class="btn" data-act="' + actMano + '">Cargar a mano</button><span class="guardado" id="g-fotos"></span></div>';
-    if (S.pegar && conIA) h += '<div class="pegar"><label class="campo"><span>Pegá acá el mensaje con los pedidos (WhatsApp, mail, lo que sea)</span><textarea id="pegar-txt" rows="9" placeholder="Hola pedido de cerdo para el martes por caja…">' + esc(S.pegarTxt || '') + '</textarea></label>'
-      + '<label class="campo"><span>Cliente, si todo el mensaje es de uno solo con varias sucursales (opcional)</span><input type="text" id="pegar-cli" value="' + esc(S.pegarCli || '') + '" placeholder="Dejalo vacío si cada bloque es un cliente distinto"></label>'
+    if (S.pegar && conIA) h += '<div class="pegar"><label class="campo"><span>Mensaje con los pedidos</span><textarea id="pegar-txt" rows="9">' + esc(S.pegarTxt || '') + '</textarea></label>'
+      + '<label class="campo"><span>Cliente, si todo el mensaje es de uno solo con varias sucursales (opcional)</span><input type="text" id="pegar-cli" value="' + esc(S.pegarCli || '') + '"></label>'
       + '<div class="acciones"><button class="btn pri" data-act="q-leer-texto">Leer</button><button class="btn" data-act="q-pegar">Cancelar</button></div></div>';
-    if (conIA && ayuda) h += '<p class="small muted">' + ayuda + '</p>';
-    if (!conIA) h += '<p class="small muted">Para leer fotos o texto pegado falta cargar la clave de IA, en Pedidos, abajo, en Configuración. Mientras tanto se puede cargar a mano.</p>';
+    if (!conIA) h += '<p class="small muted">Para leer fotos o texto falta cargar la clave de IA, en Pedidos, abajo, en Configuración.</p>';
     return h;
   }
   function cuandoEs(f) { return f === mas(hoy(), 1) ? 'mañana' : f === hoy() ? 'hoy' : 'el ' + tituloDe(f).toLowerCase(); }
@@ -876,89 +918,119 @@
     var ab = !!S.abierto[p.id], sel = !!S.sel[p.id], cam = nombreCamion(p.entrega, p.camion), res = [], id = esc(p.id);
     if (+p.medias) res.push(n(+p.medias) + (+p.medias === 1 ? ' media' : ' medias') + (p.peso ? ' ' + esc(p.peso) : ''));
     if (cs.length) res.push(cs.length + (cs.length === 1 ? ' corte' : ' cortes'));
-    if (!res.length) res.push('sin cantidades');
     var h = '<div class="ped' + (ab ? ' abierto' : '') + (sel ? ' sel' : '') + '"><div class="ped-cab">'
-      + '<label class="chk" title="Tildar para armar un camión"><input type="checkbox" data-sel="' + id + '"' + (sel ? ' checked' : '') + ' aria-label="Tildar el pedido de ' + esc(p.cliente) + '"></label>'
-      + '<button class="ped-tit" data-act="ped-abrir" data-id="' + id + '" aria-expanded="' + ab + '"><span class="nom">' + esc(p.cliente || 'Sin cliente') + '</span><span class="res">' + res.join(' · ') + '</span><span class="marcas">'
-      + (p.dudas && p.dudas.length ? '<span class="badge warn">Para revisar</span>' : '')
-      + (cam ? '<span class="badge plain">' + esc(cam) + '</span>' : '')
-      + (cs.length ? '<span class="badge ' + (enP === cs.length ? 'ok' : 'plain') + '">' + enP + '/' + cs.length + ' en producción</span>' : '')
-      + '</span><span class="chev" aria-hidden="true">' + (ab ? '▴' : '▾') + '</span></button></div>';
+      + '<label class="chk"><input type="checkbox" data-sel="' + id + '"' + (sel ? ' checked' : '') + ' aria-label="Tildar el pedido de ' + esc(p.cliente) + ' para un camión"></label>'
+      + '<button class="ped-tit" data-act="ped-abrir" data-id="' + id + '" aria-expanded="' + ab + '"><span class="nom">' + esc(p.cliente || 'Sin cliente') + '</span><span class="res">' + res.join(' · ') + '</span>'
+      + (cam ? '<span class="marcas"><span class="badge plain">' + esc(cam) + '</span></span>' : '') + '<span class="chev" aria-hidden="true">' + (ab ? '▴' : '▾') + '</span></button></div>';
     if (!ab) return h + '</div>';
-    h += '<div class="ped-det">';
-    if (p.dudas && p.dudas.length) h += '<ul class="small aviso" style="margin:0;padding-left:18px">' + p.dudas.map(function (d) { return '<li>' + esc(d) + '</li>'; }).join('') + '</ul>';
-    h += '<article class="op op-ped">';
-    if (+p.medias || !cs.length) h += '<p class="lp"><span><u>Medias</u>: ' + n(+p.medias || 0) + (p.peso ? ' ' + esc(p.peso) : '') + '</span><span class="small muted nota-lp">van solas a la planilla de medias del ' + esc(tituloDe(habilAnterior(p.entrega)).toLowerCase()) + '</span></p>';
+    h += '<div class="ped-det"><div class="op-ped">';
+    if (+p.medias) h += '<p class="lp"><span><b>Medias</b> ' + n(+p.medias) + (p.peso ? ' ' + esc(p.peso) : '') + '</span></p>';
     cs.forEach(function (c) {
       var f = fechaProdDe(m, p, c);
-      h += '<p class="lp"><span><u>' + esc(c.corte) + '</u>: ' + esc(c.texto) + '</span>' + (f
-        ? '<span class="en"><span class="badge ok">En producción' + (f !== p.entrega ? ' del ' + esc(fechaCorta(f)) : '') + '</span><button class="btn sm" data-act="c-quitar" data-id="' + id + '" data-k="' + esc(c.k) + '">Quitar</button></span>'
+      h += '<p class="lp"><span><b>' + esc(c.corte) + '</b> ' + esc(c.texto) + '</span>' + (f
+        ? '<span class="en"><span class="badge ok">En producción</span><button class="btn sm" data-act="c-quitar" data-id="' + id + '" data-k="' + esc(c.k) + '">Quitar</button></span>'
         : '<button class="btn sm pri" data-act="c-sumar" data-id="' + id + '" data-k="' + esc(c.k) + '">Sumar a producción</button>') + '</p>';
     });
-    h += '</article>';
+    h += '</div>';
     if (p.nota) h += '<p class="small muted">' + esc(p.nota) + '</p>';
-    h += '<div class="acciones">' + (cs.length - enP > 1 ? '<button class="btn sm" data-act="c-todos" data-id="' + id + '">Sumar a producción los ' + (cs.length - enP) + ' que faltan</button>' : '')
-      + '<button class="btn sm" data-act="ped-editar" data-id="' + id + '">Editar pedido</button>'
-      + '<button class="btn sm rojo" data-act="ped-borrar" data-id="' + id + '" data-i="' + id + '">' + (S._c2 === 'ped-borrar' + p.id ? 'Tocá de nuevo para confirmar' : 'Quitar pedido') + '</button></div>';
+    h += '<div class="acciones">' + (cs.length - enP > 1 ? '<button class="btn sm" data-act="c-todos" data-id="' + id + '">Sumar todos a producción</button>' : '')
+      + '<button class="btn sm" data-act="ped-editar" data-id="' + id + '">Editar</button>'
+      + '<button class="btn sm rojo" data-act="ped-borrar" data-id="' + id + '" data-i="' + id + '">' + (S._c2 === 'ped-borrar' + p.id ? 'Tocá de nuevo para confirmar' : 'Quitar') + '</button></div>';
     return h + '</div></div>';
+  }
+  // Barra para mandar los pedidos tildados a un camión.
+  function barraCamionHTML(f, tild) {
+    var cams = camionesDe(f), lg = logDe(f), pubs = (lg && lg.pedidos) || [], fl = flota();
+    var pesoT = tild.reduce(function (t, p) { return t + kgPedido(p).kg; }, 0);
+    var libres = fl.filter(function (c) { return !cams.some(function (d) { return d.id === 'f' + c.id; }); }), escribir = S.camOtro || (!cams.length && !fl.length);
+    var h = '<div class="cam-barra"><strong>' + tild.length + (tild.length === 1 ? ' tildado' : ' tildados') + ' · ≈ ' + n(pesoT) + ' kg</strong>';
+    if (cams.length || fl.length) h += '<select id="cam-a" aria-label="Elegir el camión"><option value="">Elegí el camión…</option>'
+      + cams.map(function (c) { var t = capTxt(c, cargaDe(pubs, c.id)); return '<option value="d:' + esc(c.id) + '">' + esc(c.nombre) + (t ? ' — ' + esc(t) : '') + '</option>'; }).join('')
+      + libres.map(function (c) { return '<option value="f:' + esc(c.id) + '">' + esc(c.nombre) + (+c.kg ? ' — ' + n(+c.kg) + ' kg libres' : '') + '</option>'; }).join('')
+      + '<option value="nuevo">Otro camión…</option></select>';
+    if (escribir) h += '<input type="text" id="cam-nombre" value="' + esc(S.camNombre || '') + '" placeholder="Nombre del camión" aria-label="Nombre del camión">'
+      + '<input type="number" inputmode="numeric" id="cam-kg" class="n" value="' + esc(S.camKg || '') + '" placeholder="Capacidad kg" aria-label="Capacidad en kilos">'
+      + '<input type="text" id="cam-nota" value="' + esc(S.camNota || '') + '" placeholder="Nota" aria-label="Nota del camión">'
+      + '<button class="btn pri" data-act="cam-crear">Armar camión</button>';
+    return h + (tild.some(function (p) { return p.camion; }) ? '<button class="btn" data-act="cam-sacar">Sacar del camión</button>' : '')
+      + '<button class="btn lnk" data-act="sel-nada">Destildar</button></div>';
   }
   function renderPedidos() {
     if (S.tab !== 'pedidos') return render();
     var el = $('view-pedidos');
     if (!S.editor) { el.innerHTML = '<div class="panel"><p class="state">Para cargar pedidos hay que ingresar con una cuenta autorizada.</p></div>'; return; }
-    if (!S.entrega) S.entrega = habilSiguiente(hoy());
-    var ent = S.entrega, cuando = cuandoEs(ent);
-    var h = '<div class="panel"><h2>Cargar pedidos</h2>' + cargaHTML('q-nuevo', 'Subí acá todo lo que te llega, en el formato que sea. Los pedidos que aclaran fecha van a esa fecha; los que no, al día siguiente.');
+    var h = '<div class="panel carga"><h2>Cargar pedidos</h2>' + cargaHTML('q-nuevo');
     var nuevas = S.prop.filter(function (x) { return !x.editaId; });
     if (nuevas.length) h += S.prop.map(function (q, i) { return q.editaId ? '' : propHTML(q, i); }).join('') + (nuevas.length > 1 ? '<div class="acciones"><button class="btn pri" data-act="q-todos">Guardar todos</button>' + botonBorrar('q-descartar-todos', null, 'Descartar todos', '') + '</div>' : '');
     h += '</div>';
 
-    h += '<div class="nav nav-ped"><button class="btn step" data-act="e-dia" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">Para entregar ' + (cuando === 'mañana' || cuando === 'hoy' ? cuando + ' · ' + esc(tituloDe(ent).toLowerCase()) : esc(cuando)) + '</span><button class="btn step" data-act="e-dia" data-d="1" aria-label="Día siguiente">›</button>'
-      + '<input type="date" id="e-fecha" value="' + esc(ent) + '" aria-label="Fecha de entrega"></div>';
+    S.prop.forEach(function (q, k) { if (q.editaId) h += '<div class="panel"><h3>Editando: ' + esc(q.cliente || 'pedido') + '</h3>' + propHTML(q, k) + '</div>'; });
 
-    S.prop.forEach(function (q, k) { if (q.editaId) h += '<div class="panel"><h3>Editando el pedido de ' + esc(q.cliente || 'cliente sin nombre') + '</h3>' + propHTML(q, k) + '</div>'; });
-
-    var lista = (S.pedidos || []).filter(function (p) { return p.entrega === ent; }), cams = camionesDe(ent), m = enProduccion();
-    var tild = lista.filter(function (p) { return S.sel[p.id]; });
-    h += '<div class="panel"><h2>Listado de pedidos</h2>';
-    if (!lista.length) h += '<p class="muted">No hay pedidos cargados para entregar ' + esc(cuando) + '.</p>';
-    else {
-      var tm = lista.reduce(function (t, p) { return t + (+p.medias || 0); }, 0);
-      h += '<p class="small muted">' + lista.length + (lista.length === 1 ? ' pedido' : ' pedidos') + (tm ? ' · ' + n(tm) + ' medias' : '') + (cams.length ? ' · ' + cams.length + (cams.length === 1 ? ' camión' : ' camiones') : '') + '. Tocá un pedido para ver sus cortes y sumarlos a producción.</p>';
-      if (!tild.length) h += '<p class="small muted">Para armar un camión, tildá los pedidos que van juntos.</p>';
-      else {
-        h += '<div class="cam-barra"><strong>' + tild.length + (tild.length === 1 ? ' pedido tildado' : ' pedidos tildados') + '</strong>'
-          + '<input type="text" id="cam-nombre" value="' + esc(S.camNombre || '') + '" placeholder="Nombre del camión (ej. San Juan)" aria-label="Nombre del camión">'
-          + '<input type="text" id="cam-nota" value="' + esc(S.camNota || '') + '" placeholder="Nota: chofer, hora… (opcional)" aria-label="Nota del camión">'
-          + '<button class="btn pri" data-act="cam-crear">Armar camión</button>'
-          + (cams.length ? '<select id="cam-a" aria-label="Agregar a un camión que ya existe"><option value="">Agregar a un camión que ya existe…</option>' + cams.map(function (c) { return '<option value="' + esc(c.id) + '">' + esc(c.nombre) + '</option>'; }).join('') + '</select>' : '')
-          + (tild.some(function (p) { return p.camion; }) ? '<button class="btn" data-act="cam-sacar">Sacar del camión</button>' : '')
-          + '<button class="btn lnk" data-act="sel-nada">Destildar</button></div>';
-      }
-      h += '<div class="peds">' + lista.map(function (p) { return pedidoHTML(p, m); }).join('') + '</div>';
-    }
-    h += '<div class="acciones"><button class="btn sm" data-act="ir-orden">Ver producción de ese día</button><button class="btn sm" data-act="ir-log">Ver logística de ese día</button><button class="btn sm" data-act="ir-medias">Ver planilla de medias</button></div></div>';
-
-    if ((S.pedidos || []).length) h += '<div class="acciones">' + (lista.length ? botonBorrar('ped-borrar-todos', null, 'Quitar todos los pedidos de este día (' + lista.length + ')') : '')
-      + botonBorrar('ped-borrar-total', null, 'Quitar todos los pedidos, de todos los días (' + S.pedidos.length + ')') + '</div>';
+    // Un día debajo del otro, desde hoy.
+    var hy = hoy(), dias = {}, m = enProduccion();
+    if (esHabil(hy)) dias[hy] = 1;
+    dias[habilSiguiente(hy)] = 1;
+    (S.pedidos || []).forEach(function (p) { if (p.entrega && p.entrega >= hy) dias[p.entrega] = 1; });
+    if (S.pedDia) dias[S.pedDia] = 1;
+    Object.keys(dias).sort().forEach(function (f) {
+      var lista = (S.pedidos || []).filter(function (p) { return p.entrega === f; }), tild = S.selDia === f ? lista.filter(function (p) { return S.sel[p.id]; }) : [];
+      h += '<section class="dia-ped" id="dia-' + f + '"><div class="dia-cab"><h2 class="dia-tit">' + esc(tituloDe(f)) + (f === hy ? ' <span class="tag">hoy</span>' : f === mas(hy, 1) ? ' <span class="tag">mañana</span>' : '') + '</h2>'
+        + (lista.length ? botonBorrar('ped-borrar-todos', f, 'Eliminar todos los pedidos') : '') + '</div>';
+      if (tild.length) h += barraCamionHTML(f, tild);
+      h += lista.length ? '<div class="peds">' + lista.map(function (p) { return pedidoHTML(p, m); }).join('') + '</div>' : '<p class="muted sin">Sin pedidos.</p>';
+      h += '</section>';
+    });
 
     h += '<div class="panel"><details' + (S._conf ? ' open' : '') + '><summary>Configuración</summary><div class="campos">'
       + '<label class="campo"><span>Clave de IA (Anthropic)</span><input type="password" id="cfg-clave" autocomplete="off" placeholder="' + (S.ia && S.ia.clave ? 'Cargada. Escribí otra para cambiarla.' : 'sk-ant-…') + '"></label>'
       + '<label class="campo"><span>Desposte habitual (medias por día)</span><input type="number" inputmode="numeric" id="cfg-desposte" value="' + esc(S.config.desposteHabitual || 750) + '"></label>'
       + '<label class="campo"><span>Capacidad de cámaras (medias)</span><input type="number" inputmode="numeric" id="cfg-cap" value="' + esc(S.config.capacidadCamara || '') + '"></label></div>'
-      + '<div class="acciones"><button class="btn" data-act="cfg-guardar">Guardar configuración</button><span class="guardado" id="g-cfg"></span></div>'
-      + '<p class="small muted">La clave queda guardada en la base y solo la pueden leer las cuentas editoras. Las fotos se mandan a Anthropic para leerlas y no se guardan.</p></details></div>';
+      + '<div class="acciones"><button class="btn" data-act="cfg-guardar">Guardar configuración</button><span class="guardado" id="g-cfg"></span>'
+      + ((S.pedidos || []).length ? botonBorrar('ped-borrar-total', null, 'Quitar todos los pedidos (' + S.pedidos.length + ')') : '') + '</div></details></div>';
     el.innerHTML = h;
     pintarMsg('fotos'); pintarMsg('cfg');
+    if (S.pedDia) { var d = $('dia-' + S.pedDia); S.pedDia = null; if (d && d.scrollIntoView) d.scrollIntoView(); }
   }
 
   /* ---------- logística ---------- */
+  // Lista para pasar un pedido a un camión: los del día y los del stock que todavía no se usaron.
+  function opcionesCamion(p, cams) {
+    var libres = flota().filter(function (c) { return !cams.some(function (d) { return d.id === 'f' + c.id; }); });
+    if (!cams.length && !libres.length) return '';
+    return '<select data-pasar="' + esc(p.id) + '" aria-label="Pasar ' + esc(p.cliente) + ' a un camión"><option value="">Pasar a un camión…</option>'
+      + cams.map(function (c) { return '<option value="d:' + esc(c.id) + '">' + esc(c.nombre) + '</option>'; }).join('')
+      + libres.map(function (c) { return '<option value="f:' + esc(c.id) + '">' + esc(c.nombre) + (+c.kg ? ' (' + n(+c.kg) + ' kg)' : '') + '</option>'; }).join('') + '</select>';
+  }
+  // Stock de camiones: los disponibles, con su capacidad y cuánto llevan cargado ese día.
+  function stockCamionesHTML(f, peds, cams) {
+    var fl = flota(), ed = S.editor && S.ef, h = '<div class="panel"><div class="cam-cab"><h2>Stock de camiones</h2><span class="small muted">' + (fl.length ? fl.length + (fl.length === 1 ? ' camión disponible' : ' camiones disponibles') : 'sin camiones cargados') + '</span>'
+      + (S.editor ? '<span class="log-acc"><span class="guardado" id="g-flota"></span><button class="btn sm' + (ed ? ' pri' : '') + '" data-act="fl-editar">' + (ed ? 'Listo' : 'Editar') + '</button></span>' : '') + '</div>';
+    if (ed) {
+      h += '<table class="pl stk-cam"><thead><tr><th>Camión</th><th>Capacidad kg</th><th>Nota</th><th></th></tr></thead><tbody>' + fl.map(function (c, i) {
+        return '<tr><td><input type="text" id="fl' + i + 'nombre" data-fl="' + i + '" data-k="nombre" value="' + esc(c.nombre || '') + '" aria-label="Nombre del camión"></td>'
+          + '<td><input type="number" inputmode="numeric" class="n" id="fl' + i + 'kg" data-fl="' + i + '" data-k="kg" value="' + esc(c.kg || '') + '" aria-label="Capacidad en kilos"></td>'
+          + '<td><input type="text" id="fl' + i + 'nota" data-fl="' + i + '" data-k="nota" value="' + esc(c.nota || '') + '" placeholder="Patente, chofer…" aria-label="Nota"></td>'
+          + '<td class="xq"><button class="btn x" data-act="fl-quitar" data-i="' + i + '" aria-label="Quitar camión">×</button></td></tr>';
+      }).join('') + '</tbody></table><div class="acciones"><button class="btn sm" data-act="fl-agregar">+ Camión</button></div>'
+        + '<div class="campos"><label class="campo"><span>Peso estimado de una media (kg)</span><input type="number" inputmode="numeric" id="cfg-kgmedia" value="' + esc(kgMedia()) + '"></label>'
+        + '<label class="campo"><span>Peso estimado de una caja (kg)</span><input type="number" inputmode="numeric" id="cfg-kgcaja" value="' + esc(kgCaja()) + '"></label></div>'
+        ;
+      return h + '</div>';
+    }
+    if (!fl.length) return h + '<p class="muted">Sin camiones cargados.</p></div>';
+    h += '<table class="pl stk-cam"><thead><tr><th>Camión</th><th>Capacidad</th><th>Cargado</th><th>Queda</th></tr></thead><tbody>' + fl.map(function (c) {
+      var dia = cams.filter(function (d) { return d.id === 'f' + c.id; })[0], cap = dia && +dia.kg ? +dia.kg : +c.kg || 0, car = dia ? cargaDe(peds, dia.id) : 0, libre = cap - car;
+      return '<tr><td>' + esc(c.nombre) + (c.nota ? ' <span class="small muted" style="text-transform:none;font-weight:400">' + esc(c.nota) + '</span>' : '') + '</td><td>' + (cap ? n(cap) : '—') + '</td><td>' + (car ? n(car) : '') + '</td><td' + (cap && libre < 0 ? ' class="neg"' : '') + '>' + (cap ? n(libre) : '—') + '</td></tr>';
+    }).join('') + '</tbody></table>';
+    return h + '</div>';
+  }
   function logPedidoHTML(p, cam, cams) {
     var h = '<div class="log-ped"><div class="log-cab"><strong>' + esc(p.cliente || 'Sin cliente') + '</strong>'
-      + (+p.medias ? '<span class="med">' + n(+p.medias) + (+p.medias === 1 ? ' media' : ' medias') + (p.peso ? ' <span class="small muted">' + esc(p.peso) + '</span>' : '') + '</span>' : '');
+      + (+p.medias ? '<span class="med">' + n(+p.medias) + (+p.medias === 1 ? ' media' : ' medias') + (p.peso ? ' <span class="small muted">' + esc(p.peso) + '</span>' : '') + '</span>' : '')
+      + '<span class="small muted">' + esc(kgTxt({ kg: +p.kg || 0, falta: p.kgFalta, manual: p.kgManual })) + '</span>';
     if (S.editor) h += '<span class="log-acc">' + (cam
       ? '<button class="btn sm" data-act="cam-quitar-ped" data-id="' + esc(p.id) + '">Sacar</button>'
-      : (cams.length ? '<select data-pasar="' + esc(p.id) + '" aria-label="Pasar ' + esc(p.cliente) + ' a un camión"><option value="">Pasar a un camión…</option>' + cams.map(function (c) { return '<option value="' + esc(c.id) + '">' + esc(c.nombre) + '</option>'; }).join('') + '</select>' : '')) + '</span>';
+      : opcionesCamion(p, cams)) + '</span>';
     h += '</div>';
     if ((p.cortes || []).length) h += '<div class="log-cortes">' + p.cortes.map(function (c) { return '<p><u>' + esc(c.corte) + '</u>: ' + esc(c.texto) + '</p>'; }).join('') + '</div>';
     if (p.nota) h += '<p class="small muted">' + esc(p.nota) + '</p>';
@@ -976,27 +1048,30 @@
     var h = '<div class="nav"><button class="btn step" data-act="fl" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + esc(tituloDe(f)) + '</span><button class="btn step" data-act="fl" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="l-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">'
       + (peds.length ? '<button class="btn" data-act="imprimir">Imprimir</button>' : '')
-      + (S.editor ? '<button class="btn" data-act="cam-nuevo">+ Camión</button><span class="guardado" id="g-log"></span>' : '') + '</div>';
+      + (S.editor ? '<button class="btn" data-act="cam-nuevo">+ Camión para este día</button><span class="guardado" id="g-log"></span>' : '') + '</div>';
     if (!peds.length && !cams.length) {
       h += '<div class="panel"><p class="state">No hay pedidos para entregar este día.</p>' + (S.editor ? '<div class="acciones" style="justify-content:center"><button class="btn pri" data-act="ir-pedidos" data-f="' + f + '">Ir a los pedidos de este día</button></div>' : '') + '</div>';
-      el.innerHTML = h; pintarMsg('log'); return;
+      if (S.editor || flota().length) h += stockCamionesHTML(f, peds, cams);
+      el.innerHTML = h; pintarMsg('log'); pintarMsg('flota'); return;
     }
     h += '<p class="muted">Para entregar ' + esc(cuandoEs(f)) + ': ' + resumenLog(peds) + (cams.length ? ' · ' + cams.length + (cams.length === 1 ? ' camión' : ' camiones') : '') + '.</p>';
     cams.forEach(function (cam) {
       var suyos = peds.filter(function (p) { return p.camion === cam.id; }), ed = S.ec === cam.id;
+      var car = cargaDe(peds, cam.id), ct = capTxt(cam, car), pasa = +cam.kg > 0 && car > +cam.kg;
       h += '<div class="panel cam"><div class="cam-cab"><h2>' + esc(cam.nombre) + '</h2><span class="small muted">' + (suyos.length ? resumenLog(suyos) : 'sin pedidos') + '</span>'
         + (S.editor && !ed ? '<span class="log-acc"><button class="btn sm" data-act="cam-editar" data-id="' + esc(cam.id) + '">Editar</button>' + botonBorrar('cam-borrar', cam.id, 'Borrar camión') + '</span>' : '') + '</div>';
-      if (ed) h += '<div class="campos"><label class="campo"><span>Nombre</span><input type="text" id="cam-e-nombre" value="' + esc(S.ecNombre || '') + '"></label><label class="campo"><span>Nota (chofer, hora…)</span><input type="text" id="cam-e-nota" value="' + esc(S.ecNota || '') + '"></label></div>'
+      if (ct) h += '<p class="cam-cap' + (pasa ? ' neg' : '') + '">' + esc(ct) + '</p>' + (+cam.kg > 0 ? '<div class="medidor' + (pasa ? ' pasa' : '') + '" role="img" aria-label="' + esc(ct) + '"><i style="width:' + Math.min(100, Math.round(car / +cam.kg * 100)) + '%"></i></div>' : '');
+      if (ed) h += '<div class="campos"><label class="campo"><span>Nombre</span><input type="text" id="cam-e-nombre" value="' + esc(S.ecNombre || '') + '"></label><label class="campo"><span>Capacidad kg</span><input type="number" inputmode="numeric" id="cam-e-kg" value="' + esc(S.ecKg || '') + '"></label><label class="campo"><span>Nota (chofer, hora…)</span><input type="text" id="cam-e-nota" value="' + esc(S.ecNota || '') + '"></label></div>'
         + '<div class="acciones"><button class="btn pri" data-act="cam-guardar">Guardar</button><button class="btn" data-act="cam-cancelar">Cancelar</button></div>';
       else if (cam.nota) h += '<p class="cam-nota">' + esc(cam.nota) + '</p>';
-      h += suyos.length ? '<div class="log-lista">' + suyos.map(function (p) { return logPedidoHTML(p, cam, cams); }).join('') + '</div>' : '<p class="muted">Todavía no tiene pedidos.' + (S.editor ? ' Pasale pedidos desde "Sin camión", acá abajo, o tildándolos en Pedidos.' : '') + '</p>';
+      h += suyos.length ? '<div class="log-lista">' + suyos.map(function (p) { return logPedidoHTML(p, cam, cams); }).join('') + '</div>' : '<p class="muted">Sin pedidos.</p>';
       h += '</div>';
     });
     var sueltos = peds.filter(function (p) { return !p.camion; });
     if (sueltos.length) h += '<div class="panel cam"><div class="cam-cab"><h2>' + (cams.length ? 'Sin camión' : 'Pedidos del día') + '</h2><span class="small muted">' + resumenLog(sueltos) + '</span></div>'
-      + (S.editor && !cams.length ? '<p class="small muted">Todavía no hay camiones. Creá uno con "+ Camión", o tildá pedidos en Pedidos y tocá "Armar camión".</p>' : '')
       + '<div class="log-lista">' + sueltos.map(function (p) { return logPedidoHTML(p, null, cams); }).join('') + '</div></div>';
-    el.innerHTML = h; pintarMsg('log');
+    if (S.editor || flota().length) h += stockCamionesHTML(f, peds, cams);
+    el.innerHTML = h; pintarMsg('log'); pintarMsg('flota');
   }
 
   /* ---------- inicio ---------- */
@@ -1020,7 +1095,7 @@
     el.innerHTML = html + '</div>';
   }
   // Volver al inicio deja todo parado en el día de hoy.
-  function alInicio() { asentarEdicion(); S.em = null; S.ep = null; S.fechaFija = false; S.fecha = null; S.sem = null; S.dia = null; S.entrega = null; S.fm = null; S.mv = null; S.fl = null; S.ec = null; }
+  function alInicio() { asentarEdicion(); S.em = null; S.ep = null; S.fechaFija = false; S.fecha = null; S.sem = null; S.dia = null; S.entrega = null; S.fm = null; S.mv = null; S.fl = null; S.ec = null; S.ef = false; }
 
   /* ---------- estados, sesión y navegación ---------- */
   function cargando(el, data) {
@@ -1044,7 +1119,7 @@
     if (S.tab === 'medias' && S.em) return pintarSumas();
     if (S.tab === 'produccion' && S.ep) return;
     if (S.tab === 'pedidos' && (S.prop.length || escribiendo())) return;
-    if (S.tab === 'logistica' && S.ec) return;
+    if (S.tab === 'logistica' && (S.ec || S.ef)) return;
     render();
   }
   function irA(tab) { S.tab = tab; try { history.replaceState(null, '', '#' + tab); } catch (err) {} render(); window.scrollTo(0, 0); }
@@ -1126,7 +1201,7 @@
     }
 
     // pedidos: listado
-    else if (a === 'ped-abrir') { S.abierto[D.id] = !S.abierto[D.id]; renderPedidos(); }
+    else if (a === 'ped-abrir') { S.abierto[D.id] = !S.abierto[D.id]; S.pedDia = null; renderPedidos(); }
     else if (a === 'c-sumar' || a === 'c-quitar' || a === 'c-todos') {
       var pc = pedidoDe(D.id); if (!pc || S._ocup) return;
       var cc = cortesDe(pc), uno = cc.filter(function (c) { return c.k === D.k; })[0];
@@ -1136,7 +1211,7 @@
     }
     else if (a === 'ped-editar') {
       var pe = pedidoDe(D.id);
-      if (pe && !S.prop.some(function (x) { return x.editaId === pe.id; })) S.prop.push({ k: uid(), editaId: pe.id, cliente: pe.cliente || '', entrega: pe.entrega || '', medias: pe.medias || '', peso: pe.peso || '', nota: pe.nota || '', origen: pe.origen || 'manual', dudas: (pe.dudas || []).slice(), cortes: clone(cortesDe(pe)) });
+      if (pe && !S.prop.some(function (x) { return x.editaId === pe.id; })) S.prop.push({ k: uid(), editaId: pe.id, cliente: pe.cliente || '', entrega: pe.entrega || '', medias: pe.medias || '', peso: pe.peso || '', nota: pe.nota || '', kg: pe.kg || '', origen: pe.origen || 'manual', dudas: (pe.dudas || []).slice(), cortes: clone(cortesDe(pe)) });
       S.msg.fotos = ''; renderPedidos(); var fe = $('q' + (S.prop.length - 1) + 'cliente'); if (fe) fe.focus();
     }
     else if (a === 'ped-borrar') {
@@ -1146,8 +1221,8 @@
       renderPedidos();
     }
     else if (a === 'ped-borrar-todos') {
-      if (!confirma('ped-borrar-todos')) { renderPedidos(); return; }
-      borrarPedidos((S.pedidos || []).filter(function (x) { return x.entrega === S.entrega; })).then(function () { tocar(); renderPedidos(); }, function () { S.msg.fotos = '!No se pudieron quitar todos.'; renderPedidos(); });
+      if (!confirma('ped-borrar-todos' + D.i)) { renderPedidos(); return; }
+      borrarPedidos((S.pedidos || []).filter(function (x) { return x.entrega === D.i; })).then(function () { tocar(); refrescar(); }, function () { S.msg.fotos = '!No se pudieron eliminar todos.'; refrescar(); });
       renderPedidos();
     }
     else if (a === 'ped-borrar-total') {
@@ -1161,22 +1236,27 @@
 
     // camiones
     else if (a === 'cam-crear' || a === 'cam-sacar') {
-      var idsT = (S.pedidos || []).filter(function (p) { return p.entrega === S.entrega && S.sel[p.id]; }).map(function (p) { return p.id; });
+      var idsT = (S.pedidos || []).filter(function (p) { return p.entrega === S.selDia && S.sel[p.id]; }).map(function (p) { return p.id; });
       if (!idsT.length) return;
       var hecho = function () { S.sel = {}; S.camNombre = ''; S.camNota = ''; renderPedidos(); }, mal = function () { S.msg.fotos = '!No se pudo guardar el camión. Revisá la conexión.'; renderPedidos(); };
-      if (a === 'cam-crear') crearCamion(S.entrega, S.camNombre, S.camNota, idsT).then(function (cam) { S.msg.fotos = 'Camión "' + cam.nombre + '" armado con ' + idsT.length + (idsT.length === 1 ? ' pedido.' : ' pedidos.'); hecho(); }, mal);
-      else asignarCamion(S.entrega, idsT, '').then(hecho, mal);
+      if (a === 'cam-crear') crearCamion(S.selDia, S.camNombre, S.camNota, idsT, S.camKg).then(function (cam) { S.msg.fotos = avisoCamion(S.selDia, cam.id, idsT.length); S.camKg = ''; S.camOtro = false; hecho(); }, mal);
+      else asignarCamion(S.selDia, idsT, '').then(hecho, mal);
     }
     else if (a === 'fl') { var yl = S.fl; do { yl = mas(yl, +D.d); } while (!esHabil(yl)); S.fl = yl; S.ec = null; S.msg.log = ''; render(); }
-    else if (a === 'cam-nuevo') { crearCamion(S.fl, '', '', []).then(function (cam) { S.ec = cam.id; S.ecNombre = cam.nombre; S.ecNota = ''; render(); var fn = $('cam-e-nombre'); if (fn) { fn.focus(); fn.select(); } }, function () { S.msg.log = '!No se pudo crear el camión.'; pintarMsg('log'); }); }
-    else if (a === 'cam-editar') { var ce = camionesDe(S.fl).filter(function (c) { return c.id === D.id; })[0]; if (ce) { S.ec = ce.id; S.ecNombre = ce.nombre; S.ecNota = ce.nota || ''; render(); var fn2 = $('cam-e-nombre'); if (fn2) fn2.focus(); } }
+    else if (a === 'cam-nuevo') { crearCamion(S.fl, '', '', []).then(function (cam) { S.ec = cam.id; S.ecNombre = cam.nombre; S.ecNota = ''; S.ecKg = ''; render(); var fn = $('cam-e-nombre'); if (fn) { fn.focus(); fn.select(); } }, function () { S.msg.log = '!No se pudo crear el camión.'; pintarMsg('log'); }); }
+    else if (a === 'cam-editar') { var ce = camionesDe(S.fl).filter(function (c) { return c.id === D.id; })[0]; if (ce) { S.ec = ce.id; S.ecNombre = ce.nombre; S.ecNota = ce.nota || ''; S.ecKg = ce.kg || ''; render(); var fn2 = $('cam-e-nombre'); if (fn2) fn2.focus(); } }
     else if (a === 'cam-cancelar') { S.ec = null; render(); }
-    else if (a === 'cam-guardar') { var idc = S.ec; S.ec = null; cambiarCamion(S.fl, idc, S.ecNombre, S.ecNota).then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); render(); }
+    else if (a === 'cam-guardar') { var idc = S.ec; S.ec = null; cambiarCamion(S.fl, idc, S.ecNombre, S.ecNota, S.ecKg).then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); render(); }
     else if (a === 'cam-borrar') { if (!confirma('cam-borrar' + D.i)) { render(); return; } S.ec = null; borrarCamion(S.fl, D.i).then(render, function () { S.msg.log = '!No se pudo borrar.'; render(); }); render(); }
     else if (a === 'cam-quitar-ped') { asignarCamion(S.fl, [D.id], '').then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); }
 
+    // stock de camiones
+    else if (a === 'fl-editar') { if (S.ef) { guardarConfig(true); S.ef = false; } else { S.ef = true; S.msg.flota = ''; if (!flota().length) S.config.flota = [{ id: 'k' + uid(), nombre: '', kg: '', nota: '' }]; } render(); if (S.ef) { var ff = $('fl' + (flota().length - 1) + 'nombre'); if (ff && !ff.value) ff.focus(); } }
+    else if (a === 'fl-agregar') { S.config.flota = flota().concat([{ id: 'k' + uid(), nombre: '', kg: '', nota: '' }]); guardarConfig(); render(); var fa2 = $('fl' + (flota().length - 1) + 'nombre'); if (fa2) fa2.focus(); }
+    else if (a === 'fl-quitar') { var fq3 = flota(); fq3.splice(+D.i, 1); S.config.flota = fq3; guardarConfig(); render(); }
+
     // saltos entre pantallas
-    else if (a === 'ir-pedidos') { S.entrega = D.f || S.entrega; S.sel = {}; irA('pedidos'); }
+    else if (a === 'ir-pedidos') { S.pedDia = D.f || null; S.sel = {}; irA('pedidos'); }
     else if (a === 'ir-medias') { S.em = null; S.mv = null; S.fm = habilAnterior(S.entrega); S.sem = lunesDe(S.fm); S.dia = Math.round((fecha(S.fm) - fecha(S.sem)) / 86400000); irA('medias'); }
     else if (a === 'ir-orden') { S.ep = null; S.fechaFija = true; S.fecha = S.entrega; irA('produccion'); }
     else if (a === 'ir-log') { S.fl = S.entrega; S.ec = null; irA('logistica'); }
@@ -1197,6 +1277,10 @@
     if (t.id === 'pegar-txt') { S.pegarTxt = t.value; if (S.msg.fotos) { S.msg.fotos = ''; pintarMsg('fotos'); } return; }
     if (t.id === 'cam-nombre') { S.camNombre = t.value; return; }
     if (t.id === 'cam-nota') { S.camNota = t.value; return; }
+    if (t.id === 'cam-kg') { S.camKg = t.value; return; }
+    if (t.id === 'cam-e-kg') { S.ecKg = t.value; return; }
+    if (D.fl != null && S.ef) { var ft = flota(); if (ft[+D.fl]) { ft[+D.fl][D.k] = D.k === 'kg' ? (t.value === '' ? '' : +t.value || 0) : t.value; S.config.flota = ft; guardarConfig(); } return; }
+    if (t.id === 'cfg-kgmedia' || t.id === 'cfg-kgcaja') { S.config[t.id === 'cfg-kgmedia' ? 'kgMedia' : 'kgCaja'] = +t.value || 0; guardarConfig(); return; }
     if (t.id === 'cam-e-nombre') { S.ecNombre = t.value; return; }
     if (t.id === 'cam-e-nota') { S.ecNota = t.value; return; }
     if (D.m && S.em) { S.em.doc.dias[+D.i][D.m][+D.r][D.k] = t.value; guardar('medias'); pintarSumas(); }
@@ -1208,6 +1292,8 @@
       q.error = '';
     }
   });
+  // Configuración queda abierta o cerrada como la dejó quien la usa, aunque se redibuje la pantalla.
+  document.addEventListener('toggle', function (e) { if (e.target && e.target.tagName === 'DETAILS') S._conf = e.target.open; }, true);
   document.addEventListener('change', function (e) {
     var t = e.target, D = t.dataset;
     if (t.id === 'p-fecha' && t.value) { if (S.ep) guardar('prod', true); S.ep = null; S.fechaFija = true; S.fecha = t.value; render(); }
@@ -1215,12 +1301,18 @@
     else if (t.id === 'e-fecha' && t.value) { S.entrega = t.value; S.sel = {}; renderPedidos(); }
     else if (t.id === 'l-fecha' && t.value) { S.fl = t.value; S.ec = null; render(); }
     else if (t.id === 'fotos' && t.files && t.files.length) { subirFotos(t.files); try { t.value = ''; } catch (err) {} }
-    else if (D.sel) { if (t.checked) S.sel[D.sel] = true; else delete S.sel[D.sel]; renderPedidos(); }
-    else if (t.id === 'cam-a' && t.value) {
-      var ids = (S.pedidos || []).filter(function (p) { return p.entrega === S.entrega && S.sel[p.id]; }).map(function (p) { return p.id; }), cam = t.value;
-      asignarCamion(S.entrega, ids, cam).then(function () { S.msg.fotos = ids.length + (ids.length === 1 ? ' pedido agregado' : ' pedidos agregados') + ' a "' + nombreCamion(S.entrega, cam) + '".'; S.sel = {}; renderPedidos(); }, function () { S.msg.fotos = '!No se pudo guardar. Revisá la conexión.'; renderPedidos(); });
+    else if (D.sel) {
+      var ps = pedidoDe(D.sel);
+      if (t.checked && ps) { if (S.selDia !== ps.entrega) { S.sel = {}; S.selDia = ps.entrega; S.camOtro = false; } S.sel[D.sel] = true; } else delete S.sel[D.sel];
+      renderPedidos();
     }
-    else if (D.pasar && t.value) { asignarCamion(S.fl, [D.pasar], t.value).then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); }
+    else if (t.id === 'cam-a' && t.value) {
+      if (t.value === 'nuevo') { S.camOtro = true; renderPedidos(); var fnn = $('cam-nombre'); if (fnn) fnn.focus(); return; }
+      var ids = (S.pedidos || []).filter(function (p) { return p.entrega === S.selDia && S.sel[p.id]; }).map(function (p) { return p.id; }), v = t.value.slice(2), f = S.selDia;
+      (t.value.charAt(0) === 'f' ? usarDeFlota(f, v, ids) : asignarCamion(f, ids, v).then(function () { return { id: v }; }))
+        .then(function (cam) { S.msg.fotos = avisoCamion(f, cam.id, ids.length); S.sel = {}; S.camOtro = false; renderPedidos(); }, function (e) { S.msg.fotos = '!' + ((e && e.message) || 'No se pudo guardar. Revisá la conexión.'); renderPedidos(); });
+    }
+    else if (D.pasar && t.value) { (t.value.charAt(0) === 'f' ? usarDeFlota(S.fl, t.value.slice(2), [D.pasar]) : asignarCamion(S.fl, [D.pasar], t.value.slice(2))).then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); }
   });
 
   var h0 = (location.hash || '').slice(1); if (TABS.indexOf(h0) >= 0) S.tab = h0;
@@ -1299,6 +1391,8 @@
     store.sub('config', function (l) {
       var c = l.filter(function (x) { return x.id === 'general'; })[0], lg = {};
       l.forEach(function (x) { if (String(x.id).indexOf('log-') === 0) lg[x.id.slice(4)] = x; });
+      // Mientras se edita el stock de camiones, lo que se está escribiendo no se pisa con lo que llega.
+      if (c && S.ef) { c.flota = S.config.flota; c.kgMedia = S.config.kgMedia; c.kgCaja = S.config.kgCaja; }
       S.log = lg; S.logListo = true; if (c) S.config = c;
       conciliarLog(); renderDatos();
     });
