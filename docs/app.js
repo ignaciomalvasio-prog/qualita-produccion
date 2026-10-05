@@ -381,14 +381,14 @@
     if (st != null) h += '<p class="small ' + (st < +o.medias ? 'neg' : 'muted') + '">Hay ' + n(st) + ' medias con un día de frío para este día.</p>';
     h += '<div class="acciones">' + (o.estado === 'borrador'
       ? '<button class="btn pri" data-act="p-estado" data-v="lista">Confirmar orden</button>'
-      : '<span class="badge ok">Confirmada</span><button class="btn sm" data-act="p-estado" data-v="borrador">Volver a borrador</button>') + '</div>';
+      : '<span class="badge ok">Confirmada</span><button class="btn sm" data-act="p-estado" data-v="borrador">Volver a borrador</button>')
+      + '<button class="btn lnk" data-act="p-rearmar">' + (S._rearmar ? 'Tocá de nuevo para rearmar: se pierden los cambios hechos a mano' : 'Volver a armar desde cero') + '</button>' + botonBorrar('p-borrar', null, 'Borrar la orden') + '</div>';
     if (colg) h += '<div class="colgados"><span class="badge warn">' + colg + ' sin definir</span>' + (o.cortes || []).map(function (c, ci) { return c.colgado ? '<span class="chip">' + esc(c.corte || 'Sin nombre') + ' <button class="btn sm" data-act="p-ok" data-c="' + ci + '">Está bien así</button></span>' : ''; }).join('') + '</div>';
     h += '</div>';
 
     h += '<div class="panel"><p class="small muted">Escribí directo sobre la orden, como en Word. Cada corte empieza con su nombre y dos puntos (JAMON: …); cada renglón de abajo es una línea de ese corte. Se guarda solo.</p>'
       + '<article class="op"><p class="op-f">' + esc(diaDe(o.fecha)) + ' ' + esc(fechaCorta(o.fecha)) + '</p>'
-      + '<textarea id="p-doc" class="op-doc" spellcheck="false" autocapitalize="characters" aria-label="Orden de producción">' + esc(docDeOrden(o)) + '</textarea></article>'
-      + '<div class="acciones"><button class="btn lnk" data-act="p-rearmar">' + (S._rearmar ? 'Tocá de nuevo para rearmar: se pierden los cambios hechos a mano' : 'Volver a armar desde cero') + '</button>' + botonBorrar('p-borrar', null, 'Borrar la orden') + '</div></div>';
+      + '<textarea id="p-doc" class="op-doc" spellcheck="false" autocapitalize="characters" aria-label="Orden de producción">' + esc(docDeOrden(o)) + '</textarea></article></div>';
 
     var sug = habitualesDia(o); S._sug = sug;
     if (sug.length) h += '<div class="panel"><h3>Suele ir los ' + esc(diaDe(o.fecha).toLowerCase()) + '</h3><div class="lista">' + sug.map(function (x, i) {
