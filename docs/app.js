@@ -302,7 +302,12 @@
     (o.cortes || []).forEach(function (c) { (c.lineas.length ? c.lineas : [{ t: '' }]).forEach(function (l, i) { out.push(((i === 0 ? c.corte + ': ' : '') + l.t).toUpperCase()); }); });
     return out.join('\n');
   }
-  function fechaProdInicial() { var h = hoy(); return esHabil(h) ? h : habilSiguiente(h); }
+  // Producción abre en el próximo día hábil: la orden se carga el día anterior. Quien solo mira y todavía no tiene la de mañana, ve la de hoy.
+  function fechaProdInicial() {
+    var h = hoy(), sig = habilSiguiente(h);
+    if (S.editor || prodDe(sig) || !esHabil(h) || !prodDe(h)) return sig;
+    return h;
+  }
 
   function renderProduccion() {
     var el = $('view-produccion');
@@ -315,7 +320,7 @@
     if (S.editor && o) h += '<button class="btn' + (edit ? ' pri' : '') + '" data-act="p-editar">' + (edit ? 'Listo' : 'Editar') + '</button><span class="guardado" id="g-prod"></span>';
     h += '</div>';
     if (!o) {
-      h += '<div class="panel"><p class="state">No hay orden de producción cargada para este día.</p>' + (S.editor ? cargaHTML('p-armar', 'Subí o pegá los pedidos de este día y la orden se arma sola. También podés pegar la orden entera copiada de Word. "Cargar a mano" arma la orden con lo habitual y la abre para escribir.') : '') + '</div>';
+      h += '<div class="panel"><p class="state">No hay orden de producción cargada para este día.</p>' + (S.editor ? cargaHTML('p-armar', 'Subí o pegá los pedidos de este día y la orden se arma sola. También podés pegar la orden entera copiada de Word. "Cargar a mano" arma la orden con los cortes de siempre y la abre para escribir.') : '') + '</div>';
       el.innerHTML = h; pintarMsg('fotos'); return;
       el.innerHTML = h; return;
     }
@@ -390,10 +395,6 @@
       + '<article class="op"><p class="op-f">' + esc(diaDe(o.fecha)) + ' ' + esc(fechaCorta(o.fecha)) + '</p>'
       + '<textarea id="p-doc" class="op-doc" spellcheck="false" autocapitalize="characters" aria-label="Orden de producción">' + esc(docDeOrden(o)) + '</textarea></article></div>';
 
-    var sug = habitualesDia(o); S._sug = sug;
-    if (sug.length) h += '<div class="panel"><h3>Suele ir los ' + esc(diaDe(o.fecha).toLowerCase()) + '</h3><div class="lista">' + sug.map(function (x, i) {
-      return '<div class="item"><div class="cuerpo"><strong>' + esc(x.corte) + '</strong><span style="text-transform:uppercase">' + esc(x.t) + '</span><span class="small muted">' + x.veces + ' de ' + x.total + ' ' + esc(diaDe(o.fecha).toLowerCase()) + ' anteriores</span></div><button class="btn sm" data-act="p-sug" data-i="' + i + '">Agregar</button></div>';
-    }).join('') + '</div></div>';
     return h;
   }
   function stockParaFecha(f) {
