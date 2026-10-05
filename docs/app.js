@@ -317,7 +317,7 @@
       el.innerHTML = h; return;
     }
     var colg = (o.cortes || []).filter(function (c) { return c.colgado; }).length;
-    if (edit) { h += prodEditHTML(o, colg); el.innerHTML = h; pintarMsg('prod'); return; }
+    if (edit) { var od = S.ep.doc, cg = (od.cortes || []).filter(function (c) { return c.colgado; }).length; h += prodEditHTML(od, cg); el.innerHTML = h; pintarMsg('prod'); crecer($('p-doc')); return; }
     h += '<div class="panel">';
     if (o.estado === 'borrador') h += '<p><span class="badge warn">Borrador</span> <span class="muted">Todavía no está confirmada' + (colg ? ': ' + colg + (colg === 1 ? ' corte sin definir' : ' cortes sin definir') : '') + '.</span></p>';
     h += '<article class="op"><p class="op-f">' + esc(diaDe(f)) + ' ' + esc(fechaCorta(f)) + '</p><p class="op-m">' + esc(o.medias) + '½ ' + esc(o.mercado || '') + '</p>';
@@ -328,31 +328,68 @@
     h += '</article><div class="acciones"><button class="btn" data-act="copiar">Copiar como texto</button><span class="small muted" id="copiado" aria-live="polite"></span></div><textarea id="txt-orden" class="txt" readonly hidden aria-label="Orden en texto">' + esc(textoOrden(o)) + '</textarea></div>';
     el.innerHTML = h;
   }
+  function docDeOrden(o) {
+    var out = [(o.medias || '') + '½ ' + String(o.mercado || '').toUpperCase(), ''];
+    (o.cortes || []).forEach(function (c) {
+      out.push(String(c.corte || '').toUpperCase() + ':' + (c.lineas.length ? ' ' + String(c.lineas[0].t || '').toUpperCase() : ''));
+      c.lineas.slice(1).forEach(function (l) { out.push(String(l.t || '').toUpperCase()); });
+      out.push('');
+    });
+    return out.join('\n').replace(/\n+$/, '');
+  }
+  var NO_TITULO = ['RESTO', 'TODO', 'IMPORTANTE', 'NOTA', 'OBS', 'OBSERVACION', 'OBSERVACIONES', 'ATENCION', 'OJO', 'URGENTE', 'CLIENTE', 'COD', 'CODIGO', 'DESTINO', 'ENTREGA', 'ACLARACION'];
+  function parsearOrden(texto, base) {
+    var o = clone(base), conocidos = {}, cortes = [], cur = null, cab = false;
+    CORTES_BASE.forEach(function (x) { conocidos[x] = 1; });
+    (base.cortes || []).forEach(function (c) { if (c.corte) conocidos[norm(c.corte)] = 1; });
+    String(texto || '').replace(/\r/g, '').split('\n').forEach(function (raw) {
+      var l = raw.replace(/\s+/g, ' ').trim();
+      if (!l) return;
+      if (!cur && !cab) {
+        if (/^(LUNES|MARTES|MIERCOLES|JUEVES|VIERNES|SABADO|DOMINGO)\b/.test(norm(l))) return;
+        var m = l.match(/^(\d+(?:[.,]\d+)?)\s*(?:½|1\/2|MEDIAS\b)\s*(.*)$/i);
+        if (m) { o.medias = +m[1].replace(',', '.') || 0; o.mercado = m[2].trim(); cab = true; return; }
+      }
+      var t = l.match(/^([^:]{1,32}):\s*(.*)$/), pre = t ? norm(t[1]) : '';
+      var esTit = t && (conocidos[pre] || (NO_TITULO.indexOf(pre) < 0 && !/\d/.test(pre) && pre.split(' ').length <= 4));
+      if (!esTit && !t && conocidos[norm(l)]) { esTit = true; t = [l, l, '']; }
+      if (esTit) { cur = { corte: t[1].trim().toUpperCase(), lineas: [], colgado: false }; cortes.push(cur); if (t[2]) cur.lineas.push({ t: t[2] }); return; }
+      if (!cur) { cur = { corte: '', lineas: [], colgado: true }; cortes.push(cur); }
+      cur.lineas.push({ t: l });
+    });
+    var usados = {};
+    cortes.forEach(function (c) {
+      var k = norm(c.corte), prev = (base.cortes || []).filter(function (x, i) { return norm(x.corte) === k && !usados[i]; })[0];
+      if (!prev) { if (!c.lineas.length && c.corte) c.colgado = true; return; }
+      usados[base.cortes.indexOf(prev)] = 1;
+      var igual = prev.lineas.length === c.lineas.length && prev.lineas.every(function (l, i) { return norm(l.t) === norm(c.lineas[i].t); });
+      if (prev.lineas.length === c.lineas.length) c.lineas.forEach(function (l, i) { if (prev.lineas[i].p) l.p = prev.lineas[i].p; });
+      else c.lineas.forEach(function (l) { var mm = prev.lineas.filter(function (x) { return x.p && norm(x.t) === norm(l.t); })[0]; if (mm) l.p = mm.p; });
+      c.colgado = igual ? !!prev.colgado : false;
+    });
+    o.cortes = cortes;
+    return o;
+  }
+  function crecer(e) { if (!e) return; e.style.height = 'auto'; e.style.height = (e.scrollHeight + 4) + 'px'; }
   function prodEditHTML(o, colg) {
-    var h = '<div class="panel"><div class="campos"><label class="campo"><span>Medias</span><input type="number" inputmode="numeric" class="n" id="p-medias" data-p="medias" value="' + esc(o.medias) + '"></label>'
-      + '<label class="campo"><span>Mercado</span><input type="text" id="p-mercado" data-p="mercado" value="' + esc(o.mercado || '') + '"></label></div>';
+    var h = '<div class="panel">';
     var st = stockParaFecha(o.fecha);
     if (st != null) h += '<p class="small ' + (st < +o.medias ? 'neg' : 'muted') + '">Hay ' + n(st) + ' medias con un día de frío para este día.</p>';
     h += '<div class="acciones">' + (o.estado === 'borrador'
-      ? '<button class="btn pri" data-act="p-estado" data-v="lista">Confirmar orden</button>' + (colg ? '<span class="small"><span class="badge warn">' + colg + ' sin definir</span></span>' : '')
-      : '<span class="badge ok">Confirmada</span><button class="btn sm" data-act="p-estado" data-v="borrador">Volver a borrador</button>') + '</div></div>';
+      ? '<button class="btn pri" data-act="p-estado" data-v="lista">Confirmar orden</button>'
+      : '<span class="badge ok">Confirmada</span><button class="btn sm" data-act="p-estado" data-v="borrador">Volver a borrador</button>') + '</div>';
+    if (colg) h += '<div class="colgados"><span class="badge warn">' + colg + ' sin definir</span>' + (o.cortes || []).map(function (c, ci) { return c.colgado ? '<span class="chip">' + esc(c.corte || 'Sin nombre') + ' <button class="btn sm" data-act="p-ok" data-c="' + ci + '">Está bien así</button></span>' : ''; }).join('') + '</div>';
+    h += '</div>';
+
+    h += '<div class="panel"><p class="small muted">Escribí directo sobre la orden, como en Word. Cada corte empieza con su nombre y dos puntos (JAMON: …); cada renglón de abajo es una línea de ese corte. Se guarda solo.</p>'
+      + '<article class="op"><p class="op-f">' + esc(diaDe(o.fecha)) + ' ' + esc(fechaCorta(o.fecha)) + '</p>'
+      + '<textarea id="p-doc" class="op-doc" spellcheck="false" autocapitalize="characters" aria-label="Orden de producción">' + esc(docDeOrden(o)) + '</textarea></article>'
+      + '<div class="acciones"><button class="btn lnk" data-act="p-rearmar">' + (S._rearmar ? 'Tocá de nuevo para rearmar: se pierden los cambios hechos a mano' : 'Volver a armar desde cero') + '</button>' + botonBorrar('p-borrar', null, 'Borrar la orden') + '</div></div>';
 
     var sug = habitualesDia(o); S._sug = sug;
     if (sug.length) h += '<div class="panel"><h3>Suele ir los ' + esc(diaDe(o.fecha).toLowerCase()) + '</h3><div class="lista">' + sug.map(function (x, i) {
       return '<div class="item"><div class="cuerpo"><strong>' + esc(x.corte) + '</strong><span style="text-transform:uppercase">' + esc(x.t) + '</span><span class="small muted">' + x.veces + ' de ' + x.total + ' ' + esc(diaDe(o.fecha).toLowerCase()) + ' anteriores</span></div><button class="btn sm" data-act="p-sug" data-i="' + i + '">Agregar</button></div>';
     }).join('') + '</div></div>';
-
-    h += '<div class="panel">';
-    (o.cortes || []).forEach(function (c, ci) {
-      h += '<div class="ed-corte' + (c.colgado ? ' colg' : '') + '"><div class="cab"><input type="text" id="pc' + ci + '" data-p="corte" data-c="' + ci + '" value="' + esc(c.corte) + '" aria-label="Corte">'
-        + (c.colgado ? '<span class="badge warn">Sin definir</span><button class="btn sm" data-act="p-ok" data-c="' + ci + '">Está bien así</button>' : '')
-        + '<button class="btn x" data-act="p-quitar-corte" data-c="' + ci + '" aria-label="Quitar corte">×</button></div>';
-      c.lineas.forEach(function (l, li) {
-        h += '<div class="ed-linea"><textarea rows="2" id="pl' + ci + '-' + li + '" data-p="linea" data-c="' + ci + '" data-l="' + li + '" aria-label="Línea de ' + esc(c.corte) + '">' + esc(l.t) + '</textarea><button class="btn x" data-act="p-quitar-linea" data-c="' + ci + '" data-l="' + li + '" aria-label="Quitar línea">×</button></div>';
-      });
-      h += '<div class="acciones"><button class="btn sm" data-act="p-linea" data-c="' + ci + '">+ Línea</button></div></div>';
-    });
-    h += '<div class="acciones"><button class="btn" data-act="p-corte">+ Corte</button><button class="btn lnk" data-act="p-rearmar">' + (S._rearmar ? 'Tocá de nuevo para rearmar: se pierden los cambios hechos a mano' : 'Volver a armar desde cero') + '</button>' + botonBorrar('p-borrar', null, 'Borrar la orden') + '</div></div>';
     return h;
   }
   function stockParaFecha(f) {
@@ -829,8 +866,8 @@
 
     // producción
     else if (a === 'fecha') { S.fechaFija = true; if (S.ep) guardar('prod', true); S.ep = null; var x = S.fecha; do { x = mas(x, +D.d); } while (!esHabil(x)); S.fecha = x; render(); }
-    else if (a === 'p-armar') { S.fechaFija = true; S.ep = { fecha: S.fecha, doc: armarOrden(S.fecha) }; guardar('prod', true); render(); }
-    else if (a === 'p-editar') { S.fechaFija = true; if (S.ep) { guardar('prod', true); S.ep = null; } else { S.ep = { fecha: S.fecha, doc: clone(prodDe(S.fecha)) }; S.msg.prod = ''; } render(); }
+    else if (a === 'p-armar') { S.fechaFija = true; S.ep = { fecha: S.fecha, doc: armarOrden(S.fecha) }; S.ep.base = clone(S.ep.doc); guardar('prod', true); render(); }
+    else if (a === 'p-editar') { S.fechaFija = true; if (S.ep) { guardar('prod', true); S.ep = null; } else { S.ep = { fecha: S.fecha, doc: clone(prodDe(S.fecha)) }; S.ep.base = clone(S.ep.doc); S.msg.prod = ''; } render(); if (S.ep) { var pd = $('p-doc'); if (pd) { pd.focus(); pd.setSelectionRange(0, 0); window.scrollTo(0, 0); } } }
     else if (a === 'p-borrar' && S.ep) { if (!confirma('p-borrar')) { render(); return; } clearTimeout(timers.prod); var fb = S.ep.fecha; S.ep = null; S.prod = (S.prod || []).filter(function (x) { return x.id !== fb; }); store.del('produccion', fb).then(tocar, function () {}); render(); }
     else if (S.ep && a.indexOf('p-') === 0) {
       o = S.ep.doc; c = D.c != null ? o.cortes[+D.c] : null;
@@ -842,6 +879,7 @@
       else if (a === 'p-corte') o.cortes.push({ corte: '', lineas: [{ t: '' }], colgado: false });
       else if (a === 'p-sug') { var s = S._sug[+D.i]; insertarLinea(o, s.corte, s.t); }
       else if (a === 'p-rearmar') { if (!S._rearmar) { S._rearmar = true; render(); return; } S._rearmar = false; var ant = S.ep; S.ep = null; var nueva = armarOrden(S.fecha); S.ep = { fecha: ant.fecha, doc: nueva }; }
+      if (S.ep) S.ep.base = clone(S.ep.doc);
       guardar('prod', a === 'p-estado'); render();
       if (a === 'p-linea') { var fl = $('pl' + D.c + '-' + (c.lineas.length - 1)); if (fl) fl.focus(); }
       if (a === 'p-corte') { var fc = $('pc' + (o.cortes.length - 1)); if (fc) fc.focus(); }
@@ -896,6 +934,7 @@
     var t = e.target, D = t.dataset;
     if (D.m && S.em) { S.em.doc.dias[+D.i][D.m][+D.r][D.k] = t.value; guardar('medias'); pintarSumas(); }
     else if (t.id === 'm-stock' && S.em) { S.em.doc.stockInicial = t.value === '' ? null : t.value; guardar('medias'); pintarSumas(); }
+    else if (t.id === 'p-doc' && S.ep) { S.ep.doc = parsearOrden(t.value, S.ep.base || S.ep.doc); crecer(t); guardar('prod'); }
     else if (D.p && S.ep) {
       var o = S.ep.doc;
       if (D.p === 'medias' || D.p === 'mercado') o[D.p] = t.value;

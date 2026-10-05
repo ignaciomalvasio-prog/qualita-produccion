@@ -2,7 +2,7 @@
 
 Web app del Frigorífico Qualitá. Muestra lo mismo que hoy circula por WhatsApp, en dos pantallas de lectura:
 
-- **Producción:** la orden de desposte del día, con el mismo texto que el Word.
+- **Producción:** la orden de desposte del día, con el mismo texto que el Word. Al editar es un solo texto, como en Word: cada corte empieza con su nombre y dos puntos, y los renglones de abajo son sus líneas. Se puede pegar una orden entera.
 - **Medias:** por día, solo los clientes y cuántas medias reses lleva cada uno, con el total. Es lo que necesita el encargado de faena. Quien edita ve en cambio la planilla de la semana completa (faena, clientes, desposte y stock), editable. Los clientes cargados con 0 solo aparecen en la planilla semanal.
 - La foto de la planilla semanal de faena y medias (Excel) no se lee como pedidos: reemplaza la faena y los clientes de esa semana, en cerdos y por día de faena, tal cual figura. Volver a subirla no duplica.
 - Un pedido leído que ya estaba cargado igual (mismo cliente, entrega, medias y cortes) no se repite.
