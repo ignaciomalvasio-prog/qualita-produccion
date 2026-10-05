@@ -23,6 +23,7 @@ Los kilos de cada pedido se estiman: medias y cajas por un peso habitual que se 
 Otros comportamientos:
 
 - La foto de la planilla semanal de faena y medias (Excel) no se lee como pedidos: reemplaza la faena y los clientes de esa semana. Si sus fechas no son las de la semana que se está cargando, la app pregunta dónde ponerla.
+- Las planillas por sucursal (por ejemplo DINO) y los mensajes de un cliente con varias sucursales se cargan como un pedido por sucursal, no como uno solo sumado, porque cada sucursal puede ir en un camión distinto.
 - Las lecturas corren en segundo plano y un cartel avisa qué se está leyendo y qué se guardó.
 - Un pedido leído que ya estaba cargado igual no se repite.
 - Al editar un pedido, los cortes que ya estaban en producción siguen ahí con el texto nuevo; al borrarlo salen de producción, de logística y de la planilla de medias.
