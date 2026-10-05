@@ -162,9 +162,20 @@
     var lunes = lunesDe(f), sem = semDe(lunes), i = Math.round((fecha(f) - fecha(lunes)) / 86400000);
     return sem && sem.dias[i] ? { sem: sem, i: i, d: sem.dias[i] } : null;
   }
+  function elegirSemanaHTML(pp) {
+    var nd = pp.dias.filter(function (d) { return (d.faena || []).length || (d.clientes || []).length; }).length, nc = pp.dias.reduce(function (t, d) { return t + (d.clientes || []).length; }, 0);
+    var ops = [pp.esperada]; if (ops.indexOf(semanaActual()) < 0) ops.push(semanaActual());
+    return '<div class="panel"><h2>¿En qué semana cargo la planilla?</h2>'
+      + '<p>La planilla que subiste (' + nd + ' días, ' + nc + ' clientes) tiene fechas de la <strong>semana del ' + esc(etiquetaSemana(pp.leida)) + '</strong>, que no es la que estás cargando.</p>'
+      + '<div class="acciones">' + ops.map(function (l, k) { return '<button class="btn' + (k === 0 ? ' pri' : '') + '" data-act="pl-elegir" data-l="' + l + '">' + (l === semanaActual() ? 'En esta semana · ' : 'En la semana del ') + esc(etiquetaSemana(l)) + '</button>'; }).join('')
+      + '<button class="btn" data-act="pl-elegir" data-l="' + pp.leida + '">En la que dice la planilla · ' + esc(etiquetaSemana(pp.leida)) + '</button>'
+      + '<button class="btn lnk" data-act="pl-cancelar">No cargarla</button><span class="guardado" id="g-medias"></span></div>'
+      + '<p class="small muted">Se reemplazan la faena y los clientes de la semana que elijas. Lo demás no se toca.</p></div>';
+  }
   function renderMedias() {
-    if (mvAct() === 'semana') return renderSemana();
     var el = $('view-medias');
+    if (S.editor && S.planPend && S.planPend.length) { el.innerHTML = elegirSemanaHTML(S.planPend[0]); pintarMsg('medias'); return; }
+    if (mvAct() === 'semana') return renderSemana();
     if (cargando(el, S.faena)) return;
     if (!S.fm) S.fm = fmInicial();
     var f = S.fm, x = diaFaena(f), cl = x ? conMedias(x.d) : [];
@@ -172,6 +183,11 @@
       + '<input type="date" id="m-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">'
       + (cl.length ? '<button class="btn" data-act="imprimir">Imprimir</button>' : '')
       + (S.editor ? '<button class="btn" data-act="m-semana">Volver a la planilla de la semana</button>' : '') + '</div>';
+    var lu = lunesDe(f);
+    h += '<div class="semtabs" role="group" aria-label="Días de la semana">' + [0, 1, 2, 3, 4].map(function (k) {
+      var fk = mas(lu, k), xk = diaFaena(fk), tk = xk ? conMedias(xk.d).reduce(function (t, r) { return t + (+r.cant || 0) * 2; }, 0) : 0;
+      return '<button class="btn" data-act="fm-ir" data-f="' + fk + '" aria-pressed="' + (fk === f) + '"><b>' + diaDe(fk).slice(0, 3) + ' ' + fecha(fk).getDate() + '</b><span>' + (tk ? n(tk) + ' medias' : 'sin medias') + '</span></button>';
+    }).join('') + '</div>';
     h += '<div class="panel"><h2>Medias para clientes</h2>';
     if (!cl.length) {
       var con = []; (S.faena || []).forEach(function (sm) { sm.dias.forEach(function (d, k) { if (conMedias(d).length) con.push(mas(sm.id, k)); }); });
@@ -487,14 +503,19 @@
     S.pedidos = (S.pedidos || []).filter(function (x) { return !ids[x.id]; });
     return Promise.all(tareas);
   }
-  function aplicarPlanilla(dias) {
-    var DN = ['LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES'], votos = {}, lunes = null, max = 0;
+  function semanaLeida(dias) {
+    var votos = {}, lunes = null, max = 0;
     dias.forEach(function (d) { if (/^\d{4}-\d{2}-\d{2}$/.test(d.fecha || '') && esHabil(d.fecha)) { var l = lunesDe(d.fecha); votos[l] = (votos[l] || 0) + 1; if (votos[l] > max) { max = votos[l]; lunes = l; } } });
-    if (!lunes) lunes = S.sem || lunesDe(esHabil(hoy()) ? hoy() : habilSiguiente(hoy()));
+    return lunes;
+  }
+  function semanaActual() { return lunesDe(esHabil(hoy()) ? hoy() : habilSiguiente(hoy())); }
+  function aplicarPlanilla(dias, elegida) {
+    var DN = ['LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES'], leida = semanaLeida(dias);
+    var lunes = elegida || leida || S.sem || semanaActual();
     var sem = clone(semDe(lunes) || semanaNueva(lunes)), nd = 0, nc = 0;
     dias.forEach(function (d) {
       var i = DN.indexOf(norm(d.dia));
-      if (i < 0 && /^\d{4}-\d{2}-\d{2}$/.test(d.fecha || '')) i = Math.round((fecha(d.fecha) - fecha(lunes)) / 86400000);
+      if (i < 0 && leida && /^\d{4}-\d{2}-\d{2}$/.test(d.fecha || '')) i = Math.round((fecha(d.fecha) - fecha(leida)) / 86400000);
       if (i < 0 || i > 4) return;
       var dia = sem.dias[i];
       var fa = (d.faena || []).filter(function (r) { return r.origen || +r.propios || +r.usuarios; }).map(function (r) { return { origen: String(r.origen || '').toUpperCase().trim(), propios: +r.propios || 0, usuarios: +r.usuarios || 0 }; });
@@ -649,7 +670,14 @@
     var txtRep = repetidos ? (repetidos === 1 ? ' 1 pedido ya estaba cargado y no se repitió.' : ' ' + repetidos + ' pedidos ya estaban cargados y no se repitieron.') : '';
     if (!nuevos.length && !planillas.length) { S.msg.fotos = (errores.length ? '!' + errores.join(' ') : repetidos ? txtRep.trim() : '!No se encontraron pedidos para leer.'); renderPedidos(); return Promise.resolve(); }
     S.msg.fotos = 'Guardando…'; pintarMsg('fotos');
-    var hechas = [];
+    var hechas = [], esperada = S.tab === 'medias' && S.sem ? S.sem : semanaActual(), directas = [];
+    planillas.forEach(function (pl) {
+      var leida = semanaLeida(pl);
+      if (!leida || leida === esperada) directas.push(pl);
+      else (S.planPend = S.planPend || []).push({ dias: pl, leida: leida, esperada: esperada });
+    });
+    planillas = directas;
+    if (S.planPend && S.planPend.length && !planillas.length && !nuevos.length && !errores.length) { S.msg.fotos = ''; irA('medias'); return Promise.resolve(); }
     return planillas.reduce(function (cad, pl) { return cad.then(function () { return aplicarPlanilla(pl); }).then(function (r) { if (r) hechas.push(r); }, function () { errores.push('No se pudo guardar la planilla.'); }); }, Promise.resolve()).then(function () {
       var txtPl = hechas.map(function (r) { return 'Planilla de la semana del ' + etiquetaSemana(r.lunes) + ' cargada: ' + r.dias + (r.dias === 1 ? ' día' : ' días') + ', ' + r.clientes + ' clientes.'; }).join(' ');
       if (hechas.length && !nuevos.length && !errores.length) {
@@ -672,6 +700,7 @@
       m = (m.charAt(0) === '!' ? '!' : '') + antes + m.replace(/^!/, '') + despues;
       if (errores.length) m = '!' + m.replace(/^!/, '') + ' ' + errores.join(' ');
       S.msg.fotos = m;
+      if (S.planPend && S.planPend.length && !faltan) { irA('medias'); return; }
       if (faltan && S.tab !== 'pedidos') { irA('pedidos'); return; }
       renderPedidos();
     });
@@ -899,6 +928,17 @@
 
     // medias
     else if (a === 'fm-ir') { S.fm = D.f; render(); }
+    else if (a === 'pl-cancelar') { S.planPend.shift(); S.msg.medias = ''; render(); }
+    else if (a === 'pl-elegir') {
+      var pp = S.planPend[0]; if (!pp || S._plOcupado) return;
+      S._plOcupado = true; S.msg.medias = 'Guardando…'; pintarMsg('medias');
+      aplicarPlanilla(pp.dias, D.l).then(function (r) {
+        S._plOcupado = false; S.planPend.shift();
+        if (r) { S.sem = r.lunes; S.dia = null; S.mv = null; S.msg.medias = 'Planilla cargada en la semana del ' + etiquetaSemana(r.lunes) + ': ' + r.dias + (r.dias === 1 ? ' día' : ' días') + ', ' + r.clientes + ' clientes. Revisala y tocá Editar para corregir lo que haga falta.'; }
+        else S.msg.medias = '!La planilla no traía datos para cargar.';
+        render();
+      }, function () { S._plOcupado = false; S.msg.medias = '!No se pudo guardar la planilla. Revisá la conexión.'; pintarMsg('medias'); });
+    }
     else if (a === 'fm') { var y = S.fm; do { y = mas(y, +D.d); } while (!esHabil(y)); S.fm = y; render(); }
     else if (a === 'm-semana' || a === 'm-editar-dia') {
       S.mv = 'semana'; S.sem = lunesDe(S.fm); S.dia = Math.round((fecha(S.fm) - fecha(S.sem)) / 86400000);
@@ -906,7 +946,7 @@
       render();
     }
     else if (a === 'm-dia') { if (S.em) guardar('medias', true); S.em = null; S.mv = 'dia'; if (S.sem && S.dia != null) S.fm = mas(S.sem, S.dia); render(); }
-    else if (a === 'sem') { S.msg.fotos = ''; if (S.em) guardar('medias', true); S.em = null; S.sem = mas(S.sem, +D.d); S.dia = null; render(); }
+    else if (a === 'sem') { S.msg.fotos = ''; S.msg.medias = ''; if (S.em) guardar('medias', true); S.em = null; S.sem = mas(S.sem, +D.d); S.dia = null; render(); }
     else if (a === 'dia') { S.dia = +D.i; var g = document.querySelector('.dias'); if (g) g.dataset.sel = D.i; document.querySelectorAll('.dtabs .btn').forEach(function (x) { x.setAttribute('aria-pressed', String(x.dataset.i === D.i)); }); }
     else if (a === 'm-editar') { if (S.em) { guardar('medias', true); S.em = null; } else { S.em = { lunes: S.sem, doc: clone(semDe(S.sem)) }; S.msg.medias = ''; } render(); }
     else if (a === 'm-nueva') { S.em = { lunes: S.sem, doc: semanaNueva(S.sem) }; guardar('medias', true); render(); }

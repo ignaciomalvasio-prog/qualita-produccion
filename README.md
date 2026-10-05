@@ -3,8 +3,8 @@
 Web app del Frigorífico Qualitá. Muestra lo mismo que hoy circula por WhatsApp, en dos pantallas de lectura:
 
 - **Producción:** la orden de desposte del día, con el mismo texto que el Word. Al editar es un solo texto, como en Word: cada corte empieza con su nombre y dos puntos, y los renglones de abajo son sus líneas. Se puede pegar una orden entera.
-- **Medias:** por día, solo los clientes y cuántas medias reses lleva cada uno, con el total. Es lo que necesita el encargado de faena. Quien edita ve en cambio la planilla de la semana completa (faena, clientes, desposte y stock), editable. Los clientes cargados con 0 solo aparecen en la planilla semanal.
-- La foto de la planilla semanal de faena y medias (Excel) no se lee como pedidos: reemplaza la faena y los clientes de esa semana, en cerdos y por día de faena, tal cual figura. Volver a subirla no duplica.
+- **Medias:** por día, solo los clientes y cuántas medias reses lleva cada uno, con el total. Arriba hay una pestaña por cada día de la semana, con las medias de ese día, para pasar de uno a otro. Es lo que necesita el encargado de faena. Quien edita ve en cambio la planilla de la semana completa (faena, clientes, desposte y stock), editable. Los clientes cargados con 0 solo aparecen en la planilla semanal.
+- La foto de la planilla semanal de faena y medias (Excel) no se lee como pedidos: reemplaza la faena y los clientes de esa semana, en cerdos y por día de faena, tal cual figura. Volver a subirla no duplica. Si las fechas de la planilla no son las de la semana que se está cargando, la app pregunta en qué semana ponerla antes de tocar nada.
 - Un pedido leído que ya estaba cargado igual (mismo cliente, entrega, medias y cortes) no se repite.
 - Cuando no hay orden para un día o no hay faena para una semana, quien edita ve ahí mismo las tres formas de cargar: subir fotos, pegar texto o cargar a mano. En Producción, si el texto pegado es una orden entera (copiada de Word), se carga tal cual.
 - Producción y Medias abren siempre en el día de hoy (sábado y domingo, en el lunes), haya o no algo cargado. Pedidos abre en lo que se entrega mañana.
