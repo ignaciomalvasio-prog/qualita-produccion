@@ -251,13 +251,13 @@
   function prodGuardada(f) { return (S.prod || []).filter(function (o) { return o.id === f; })[0] || null; }
   function prodVacia(f) { return { fecha: f, medias: +S.config.desposteHabitual || 750, mercado: '', estado: 'borrador', cortes: [] }; }
   // Un renglón nuevo dentro de su corte. Los que llevan cantidad van arriba de los que no.
-  function insertarLinea(o, corte, texto, pid, ck) {
+  function insertarLinea(o, corte, texto, pid, ck, frio) {
     var c = corteDe(o, corte);
     if (!c) {
       c = { corte: norm(corte) || 'SIN UBICAR', lineas: [] }; o.cortes.push(c);
       o.cortes = o.cortes.map(function (x, i) { return [x, i]; }).sort(function (a, b) { return ordenCorte(a[0].corte) - ordenCorte(b[0].corte) || a[1] - b[1]; }).map(function (x) { return x[0]; });
     }
-    var linea = { t: texto }, pos = c.lineas.length; if (pid) linea.p = pid; if (ck) linea.ck = ck;
+    var linea = { t: texto }, pos = c.lineas.length; if (pid) linea.p = pid; if (ck) linea.ck = ck; if (frio) linea.f = frio;
     if (esPedido(texto)) for (var i = 0; i < c.lineas.length; i++) if (!esPedido(c.lineas[i].t)) { pos = i; break; }
     c.lineas.splice(pos, 0, linea);
   }
@@ -288,7 +288,7 @@
   }
   function sumarCortes(p, cuales) {
     var f = p.entrega, o = clone(prodGuardada(f) || prodVacia(f)), m = enProduccion();
-    cuales.forEach(function (c) { if (c.texto && !fechaProdDe(m, p, c)) insertarLinea(o, c.corte, c.texto, p.id, c.k); });
+    cuales.forEach(function (c) { if (c.texto && !fechaProdDe(m, p, c)) insertarLinea(o, c.corte, c.texto, p.id, c.k, p.frio); });
     return guardarOrden(f, o).then(tocar);
   }
   function quitarCorte(p, c) {
@@ -308,10 +308,10 @@
     });
     return orden.filter(function (u) { return t[u]; }).map(function (u) { return n(t[u]) + ' ' + (u === 'cajas' && t[u] === 1 ? 'caja' : u === 'bines' && t[u] === 1 ? 'bin' : u); }).join(' · ');
   }
-  function textoOrden(o) {
+  function textoOrden(o, sinFrio) {
     var out = [diaDe(o.fecha).toUpperCase() + ' ' + fechaCorta(o.fecha), (o.medias || '') + '½ ' + String(o.mercado || '').toUpperCase()];
     (o.cortes || []).forEach(function (c) {
-      (c.lineas.length ? c.lineas : [{ t: '' }]).forEach(function (l, i) { out.push(((i === 0 ? c.corte + ': ' : '') + l.t).toUpperCase()); });
+      (c.lineas.length ? c.lineas : [{ t: '' }]).forEach(function (l, i) { out.push(((i === 0 ? c.corte + ': ' : '') + l.t + (l.f && !sinFrio ? ' (' + l.f + ')' : '')).toUpperCase()); });
       var tot = totalCorte(c); if (tot && c.lineas.length > 1) out.push('TOTAL ' + c.corte + ': ' + tot.toUpperCase());
     });
     return out.join('\n');
@@ -341,7 +341,7 @@
     if (!nl) h += '<p class="muted">Todavía no se sumó ningún corte.</p>';
     else h += '<div class="hoja-cortes">' + (o.cortes || []).map(function (c) {
       var tot = totalCorte(c);
-      return '<div class="hoja-corte"><div class="hoja-nom"><h3>' + esc(c.corte || 'Sin corte') + '</h3>' + (tot ? '<p class="hoja-tot"><span>Total</span> ' + esc(tot) + '</p>' : '') + '</div><ul>' + c.lineas.map(function (l) { return '<li>' + esc(l.t) + '</li>'; }).join('') + '</ul></div>';
+      return '<div class="hoja-corte"><div class="hoja-nom"><h3>' + esc(c.corte || 'Sin corte') + '</h3>' + (tot ? '<p class="hoja-tot"><span>Total</span> ' + esc(tot) + '</p>' : '') + '</div><ul>' + c.lineas.map(function (l) { return '<li>' + esc(l.t) + (l.f ? ' ' + frioBadge(l.f) : '') + '</li>'; }).join('') + '</ul></div>';
     }).join('') + '</div>';
     h += '<div class="acciones"><button class="btn" data-act="copiar">Copiar como texto</button>' + (S.editor ? '<button class="btn" data-act="ir-pedidos" data-f="' + f + '">Sumar cortes desde los pedidos</button>' : '') + '<span class="small muted" id="copiado" aria-live="polite"></span></div><textarea id="txt-orden" class="txt" readonly hidden aria-label="Planilla en texto">' + esc(textoOrden(o)) + '</textarea></div>';
     el.innerHTML = h;
@@ -377,7 +377,7 @@
       if (!cur) { cur = { corte: '', lineas: [] }; cortes.push(cur); }
       cur.lineas.push({ t: l });
     });
-    var usados = {}, lleva = function (de, a) { if (de.p) a.p = de.p; if (de.ck) a.ck = de.ck; };
+    var usados = {}, lleva = function (de, a) { if (de.p) a.p = de.p; if (de.ck) a.ck = de.ck; if (de.f) a.f = de.f; };
     cortes.forEach(function (c) {
       var k = norm(c.corte), prev = (base.cortes || []).filter(function (x, i) { return norm(x.corte) === k && !usados[i]; })[0];
       if (!prev) return;
@@ -449,7 +449,10 @@
   /* ---------- pedidos ----------
      El listado de pedidos es el centro. De ahí salen la planilla de producción (se suma cada corte
      con un clic), la logística (pedidos agrupados en camiones) y, solas, las medias de la planilla semanal. */
-  function pedidoVacio() { return { k: uid(), cliente: '', entrega: habilSiguiente(hoy()), medias: '', peso: '', cortes: [], nota: '', dudas: [], origen: 'manual' }; }
+  function pedidoVacio() { return { k: uid(), cliente: '', entrega: habilSiguiente(hoy()), medias: '', peso: '', frio: '', cortes: [], nota: '', dudas: [], origen: 'manual' }; }
+  // Fresco o congelado, si el pedido lo aclara.
+  function frioDe(x) { var t = norm(x); return /CONG/.test(t) ? 'CONGELADO' : /FRESC/.test(t) ? 'FRESCO' : ''; }
+  function frioBadge(f) { return f ? '<span class="badge ' + (f === 'CONGELADO' ? 'cong' : 'fresco') + '">' + esc(f) + '</span>' : ''; }
   function pedidoDe(id) { return (S.pedidos || []).filter(function (x) { return x.id === id; })[0] || null; }
   // Cortes del pedido con su clave. Los pedidos viejos no la tenían: se usa la posición.
   function cortesDe(p) { return (p.cortes || []).map(function (c, j) { if (!c.k) c.k = 'i' + j; return c; }); }
@@ -467,7 +470,7 @@
       var sem = cambios[lunes] || clone(semDe(lunes) || semanaNueva(lunes)), filas = sem.dias[i].clientes, nombre = norm(p.cliente);
       var fila = filas.filter(function (r) { return r.pedido === p.id; })[0] || filas.filter(function (r) { return !r.pedido && norm(r.cliente) === nombre; })[0];
       if (!fila) { fila = {}; filas.push(fila); }
-      fila.cliente = String(p.cliente || '').toUpperCase().trim(); fila.cant = medias / 2; fila.pedido = p.id; fila.nota = p.peso || '';
+      fila.cliente = String(p.cliente || '').toUpperCase().trim(); fila.cant = medias / 2; fila.pedido = p.id; fila.nota = [p.peso, p.frio].filter(Boolean).join(' · ');
       cambios[lunes] = sem;
     }
     return Promise.all(Object.keys(cambios).map(function (l) { var sl = limpiarSemana(cambios[l]); S.faena = poner(S.faena, l, sl); return store.set('faena', l, sl); }));
@@ -483,7 +486,7 @@
     (p.cortes || []).forEach(function (c) {
       if (!estaban[c.k] || !c.texto) return;
       var x = tocadas[p.entrega] || clone(prodGuardada(p.entrega) || prodVacia(p.entrega));
-      insertarLinea(x, c.corte, c.texto, p.id, c.k); tocadas[p.entrega] = x;
+      insertarLinea(x, c.corte, c.texto, p.id, c.k, p.frio); tocadas[p.entrega] = x;
     });
     return Promise.all(Object.keys(tocadas).map(function (f) { return guardarOrden(f, tocadas[f], true); }));
   }
@@ -547,7 +550,7 @@
     cams.forEach(function (c) { hay[c.id] = 1; });
     var peds = (S.pedidos || []).filter(function (p) { return p.entrega === f; }).map(function (p) {
       var k = kgPedido(p);
-      return { id: p.id, cliente: p.cliente || '', medias: +p.medias || 0, peso: p.peso || '', nota: p.nota || '', camion: p.camion && hay[p.camion] ? p.camion : '', kg: k.kg, kgFalta: !!k.falta, kgManual: !!k.manual,
+      return { id: p.id, cliente: p.cliente || '', medias: +p.medias || 0, peso: p.peso || '', frio: p.frio || '', nota: p.nota || '', camion: p.camion && hay[p.camion] ? p.camion : '', kg: k.kg, kgFalta: !!k.falta, kgManual: !!k.manual,
         cortes: (p.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { corte: c.corte, texto: c.texto }; }) };
     });
     S.log = S.log || {};
@@ -564,7 +567,7 @@
     Object.keys(S.log || {}).forEach(function (f) { if (f >= desde && !porFecha[f]) porFecha[f] = []; });
     Object.keys(porFecha).forEach(function (f) {
       var lg = logDe(f), kgDe = {}; S.pedidos.forEach(function (p) { if (p.entrega === f) kgDe[p.id] = kgPedido(p).kg; });
-      var a = porFecha[f].slice().sort().map(function (id) { return id + ':' + kgDe[id]; }).join(','), b = ((lg && lg.pedidos) || []).map(function (x) { return x.id + ':' + (+x.kg || 0); }).sort().join(',');
+      var a = porFecha[f].slice().sort().map(function (id) { return id + ':' + kgDe[id] + ':' + ((pedidoDe(id) || {}).frio || ''); }).join(','), b = ((lg && lg.pedidos) || []).map(function (x) { return x.id + ':' + (+x.kg || 0) + ':' + (x.frio || ''); }).sort().join(',');
       if (a !== b) publicarLog(f).then(null, function () {});
     });
   }
@@ -642,7 +645,7 @@
   }
   function guardarPropuesta(q, auto) {
     var previo = q.editaId ? pedidoDe(q.editaId) : null, entrega = q.entrega || '';
-    var p = { cliente: String(q.cliente || '').toUpperCase().trim(), entrega: entrega, medias: +q.medias || 0, peso: q.peso || '', nota: q.nota || '', origen: q.origen || 'manual',
+    var p = { cliente: String(q.cliente || '').toUpperCase().trim(), entrega: entrega, medias: +q.medias || 0, peso: q.peso || '', frio: frioDe(q.frio), nota: q.nota || '', origen: q.origen || 'manual',
       creado: previo && previo.creado ? previo.creado : ahoraTxt(), kg: +q.kg > 0 ? +q.kg : '',
       camion: previo && previo.entrega === entrega ? (previo.camion || '') : '',
       cortes: (q.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { k: c.k || uid(), corte: norm(c.corte), texto: String(c.texto).toUpperCase().replace(/\s+/g, ' ').trim(), orden: c.orden !== false }; }) };
@@ -675,7 +678,7 @@
   function instrucciones() {
     var clientes = {}, ejemplos = [];
     (S.faena || []).forEach(function (s) { s.dias.forEach(function (d) { d.clientes.forEach(function (r) { if (r.cliente) clientes[r.cliente] = 1; }); }); });
-    (S.prod || []).slice(-3).forEach(function (o) { ejemplos.push(textoOrden(o)); });
+    (S.prod || []).slice(-3).forEach(function (o) { ejemplos.push(textoOrden(o, true)); });
     return 'Sos el asistente de carga de pedidos del Frigorífico Qualitá, un frigorífico de cerdo. Recibís una foto, una captura de pantalla o un texto pegado (por ejemplo de WhatsApp) con uno o varios pedidos de clientes y devolvés los pedidos leídos como datos estructurados, sin texto adicional.\n\n'
       + 'Hoy es ' + diaDe(hoy()) + ' ' + hoy() + '.\n\n'
       + 'PRIMERO MIRÁ SI ES LA PLANILLA SEMANAL\n'
@@ -696,6 +699,7 @@
       + '- entrega: en formato AAAA-MM-DD. Resolvé fechas como "lun 05/10" con el año actual. Si solo dice un día de la semana ("para el martes"), es el próximo día con ese nombre contando desde mañana. Si no figura, dejala vacía.\n'
       + '- medias: cantidad de medias reses, número. 0 si no pide medias. Si un cliente figura en la planilla con 0 medias o con la cantidad en blanco, cargalo igual con medias 0: no lo saltees.\n'
       + '- peso: aclaración de peso de las medias (livianas, pesadas, rango de kg), o "".\n'
+      + '- frio: "FRESCO" o "CONGELADO" cuando en cualquier parte de la imagen o del mensaje dice que la mercadería es fresca o congelada: en el título, el encabezado, el nombre de la planilla o de la hoja, una columna, una nota al margen, al lado del cliente o en la frase inicial de un mensaje. También valen las abreviaturas ("CONG.", "CGDO", "FCO", "FRESC."). Si lo dice una sola vez en general, vale para TODOS los pedidos de esa imagen o mensaje: ponelo en cada uno. Si no lo dice en ningún lado, "" (no lo supongas). Si en un mismo pedido hay cortes frescos y cortes congelados, dejá frio en "" y escribí FRESCO o CONGELADO dentro del texto de cada corte.\n'
       + '- cortes: un elemento por cada corte pedido. "corte" es el rubro de la orden de producción, uno de: ' + CORTES_BASE.join(', ') + '. "texto" es la línea tal como se escribe en la orden de producción, en mayúsculas y con el estilo de los ejemplos: cantidad y unidad pegadas al principio (ej. "600KG", "50 UND", "10 CAJAS"), presentación o variante si se aclara (ej. "15 CAJAS PIERNA S/C “URCA”"), código si figura, y el cliente entre comillas al final. Si el cliente pide TODO el corte, la línea va sin cantidad (ej. "FRESCA EN BINES “ARGENCARNES”").\n'
       + '- orden: true si es un corte fresco que hay que producir ese día; false si es mercadería congelada que sale de stock, o productos que no salen del desposte (chorizo, morcilla, salchicha).\n'
       + '- nota: aclaraciones del pedido que no entran en otro campo. No copies precios.\n'
@@ -740,10 +744,10 @@
     type: 'object', additionalProperties: false, required: ['pedidos', 'planilla'],
     properties: {
       pedidos: { type: 'array', items: {
-        type: 'object', additionalProperties: false, required: ['cliente', 'entrega', 'medias', 'peso', 'cortes', 'nota', 'dudas'],
+        type: 'object', additionalProperties: false, required: ['cliente', 'entrega', 'medias', 'peso', 'frio', 'cortes', 'nota', 'dudas'],
         properties: {
           cliente: { type: 'string' }, entrega: { type: 'string', description: 'AAAA-MM-DD, o vacío si no figura' },
-          medias: { type: 'number', description: 'Cantidad de medias reses; 0 si no pide' }, peso: { type: 'string' },
+          medias: { type: 'number', description: 'Cantidad de medias reses; 0 si no pide' }, peso: { type: 'string' }, frio: { type: 'string', enum: ['', 'FRESCO', 'CONGELADO'], description: 'Si el pedido aclara fresco o congelado; vacío si no lo dice' },
           cortes: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['corte', 'texto', 'orden'], properties: { corte: { type: 'string' }, texto: { type: 'string' }, orden: { type: 'boolean' } } } },
           nota: { type: 'string' }, dudas: { type: 'array', items: { type: 'string' } }
         } } },
@@ -815,14 +819,20 @@
     asentarEdicion();
     leidos.forEach(function (x) {
       (x.j.pedidos || []).forEach(function (p) {
-        nuevos.push({ k: uid(), cliente: p.cliente || '', entrega: /^\d{4}-\d{2}-\d{2}$/.test(p.entrega || '') ? p.entrega : ctx.porDefecto, medias: +p.medias || '', peso: p.peso || '', nota: p.nota || '', origen: x.origen, foto: x.nombre,
+        nuevos.push({ k: uid(), cliente: p.cliente || '', entrega: /^\d{4}-\d{2}-\d{2}$/.test(p.entrega || '') ? p.entrega : ctx.porDefecto, medias: +p.medias || '', peso: p.peso || '', frio: frioDe(p.frio), nota: p.nota || '', origen: x.origen, foto: x.nombre,
           dudas: (p.dudas || []).filter(Boolean), cortes: (p.cortes || []).map(function (c) { return { corte: norm(c.corte), texto: c.texto || '', orden: c.orden !== false }; }) });
       });
       if (x.j.planilla && x.j.planilla.length) planillas.push(x.j.planilla);
     });
     nuevos = nuevos.filter(function (q) {
       var prev = (S.pedidos || []).filter(function (x) { return x.entrega === q.entrega && norm(x.cliente) === norm(q.cliente) && norm(q.cliente); });
-      if (prev.some(function (x) { return mismoPedido(x, q); })) { repetidos++; return false; }
+      var igual = prev.filter(function (x) { return mismoPedido(x, q); })[0];
+      if (igual) {
+        // Mismo pedido que ya estaba: no se repite, pero si ahora trae fresco o congelado se le agrega.
+        if (!q.frio || (igual.frio || '') === q.frio) { repetidos++; return false; }
+        q.editaId = igual.id; q.cortes = clone(cortesDe(igual)); q.peso = igual.peso || q.peso; q.nota = igual.nota || q.nota; q.kg = igual.kg || ''; q.origen = igual.origen || q.origen;
+        return true;
+      }
       var soloMedias = prev.filter(function (x) { return !(x.cortes || []).length; })[0];
       if (soloMedias && !(q.cortes || []).some(function (c) { return c.texto; })) q.editaId = soloMedias.id;
       return true;
@@ -903,6 +913,7 @@
       + '<label class="campo"><span>Entrega</span><input type="date" id="q' + i + 'entrega" data-q="' + i + '" data-k="entrega" value="' + esc(q.entrega || '') + '"></label>'
       + '<label class="campo"><span>Medias</span><input type="number" inputmode="numeric" id="q' + i + 'medias" data-q="' + i + '" data-k="medias" value="' + esc(q.medias) + '"></label>'
       + '<label class="campo"><span>Peso o aclaración</span><input type="text" id="q' + i + 'peso" data-q="' + i + '" data-k="peso" value="' + esc(q.peso || '') + '"></label>'
+      + '<label class="campo"><span>Fresco o congelado</span><select id="q' + i + 'frio" data-q="' + i + '" data-k="frio">' + ['', 'FRESCO', 'CONGELADO'].map(function (x) { return '<option value="' + x + '"' + ((q.frio || '') === x ? ' selected' : '') + '>' + (x ? x.charAt(0) + x.slice(1).toLowerCase() : 'Sin aclarar') + '</option>'; }).join('') + '</select></label>'
       + '<label class="campo"><span>Kilos (opcional)</span><input type="number" inputmode="numeric" id="q' + i + 'kg" data-q="' + i + '" data-k="kg" value="' + esc(q.kg || '') + '"></label></div>';
     (q.cortes || []).forEach(function (c, j) {
       h += '<div class="cl"><select id="q' + i + 'c' + j + 'corte" data-q="' + i + '" data-j="' + j + '" data-k="corte" aria-label="Corte">' + listaCortes.map(function (x) { return '<option' + (x === c.corte ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select>'
@@ -936,7 +947,7 @@
     if (cs.length) res.push(cs.length + (cs.length === 1 ? ' corte' : ' cortes'));
     var h = '<div class="ped' + (ab ? ' abierto' : '') + (sel ? ' sel' : '') + '"><div class="ped-cab">'
       + '<label class="chk"><input type="checkbox" data-sel="' + id + '"' + (sel ? ' checked' : '') + ' aria-label="Tildar el pedido de ' + esc(p.cliente) + ' para un camión"></label>'
-      + '<button class="ped-tit" data-act="ped-abrir" data-id="' + id + '" aria-expanded="' + ab + '"><span class="nom">' + esc(p.cliente || 'Sin cliente') + '</span><span class="res">' + res.join(' · ') + '</span>'
+      + '<button class="ped-tit" data-act="ped-abrir" data-id="' + id + '" aria-expanded="' + ab + '"><span class="nom">' + esc(p.cliente || 'Sin cliente') + '</span><span class="res">' + res.join(' · ') + (p.frio ? ' ' + frioBadge(p.frio) : '') + '</span>'
       + (cam ? '<span class="marcas"><span class="badge plain">' + esc(cam) + '</span></span>' : '') + '<span class="chev" aria-hidden="true">' + (ab ? '▴' : '▾') + '</span></button></div>';
     if (!ab) return h + '</div>';
     h += '<div class="ped-det"><div class="op-ped">';
@@ -1043,6 +1054,7 @@
   function logPedidoHTML(p, cam, cams) {
     var h = '<div class="log-ped"><div class="log-cab"><strong>' + esc(p.cliente || 'Sin cliente') + '</strong>'
       + (+p.medias ? '<span class="med">' + n(+p.medias) + (+p.medias === 1 ? ' media' : ' medias') + (p.peso ? ' <span class="small muted">' + esc(p.peso) + '</span>' : '') + '</span>' : '')
+      + frioBadge(p.frio)
       + '<span class="small muted">' + esc(kgTxt({ kg: +p.kg || 0, falta: p.kgFalta, manual: p.kgManual })) + '</span>';
     if (S.editor) h += '<span class="log-acc">' + (cam
       ? '<button class="btn sm" data-act="cam-quitar-ped" data-id="' + esc(p.id) + '">Sacar</button>'
@@ -1230,7 +1242,7 @@
     }
     else if (a === 'ped-editar') {
       var pe = pedidoDe(D.id);
-      if (pe && !S.prop.some(function (x) { return x.editaId === pe.id; })) S.prop.push({ k: uid(), editaId: pe.id, cliente: pe.cliente || '', entrega: pe.entrega || '', medias: pe.medias || '', peso: pe.peso || '', nota: pe.nota || '', kg: pe.kg || '', origen: pe.origen || 'manual', dudas: (pe.dudas || []).slice(), cortes: clone(cortesDe(pe)) });
+      if (pe && !S.prop.some(function (x) { return x.editaId === pe.id; })) S.prop.push({ k: uid(), editaId: pe.id, cliente: pe.cliente || '', entrega: pe.entrega || '', medias: pe.medias || '', peso: pe.peso || '', frio: pe.frio || '', nota: pe.nota || '', kg: pe.kg || '', origen: pe.origen || 'manual', dudas: (pe.dudas || []).slice(), cortes: clone(cortesDe(pe)) });
       S.msg.fotos = ''; renderPedidos(); var fe = $('q' + (S.prop.length - 1) + 'cliente'); if (fe) fe.focus();
     }
     else if (a === 'ped-borrar') {
