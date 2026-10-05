@@ -173,7 +173,13 @@
       + (cl.length ? '<button class="btn" data-act="imprimir">Imprimir</button>' : '')
       + (S.editor ? '<button class="btn" data-act="m-semana">Volver a la planilla de la semana</button>' : '') + '</div>';
     h += '<div class="panel"><h2>Medias para clientes</h2>';
-    if (!cl.length) h += '<p class="state">No hay medias cargadas para clientes este día.</p>';
+    if (!cl.length) {
+      var con = []; (S.faena || []).forEach(function (sm) { sm.dias.forEach(function (d, k) { if (conMedias(d).length) con.push(mas(sm.id, k)); }); });
+      con.sort();
+      var ant = con.filter(function (z) { return z < f; }).slice(-1)[0], pos = con.filter(function (z) { return z > f; })[0];
+      h += '<p class="state">No hay medias cargadas para clientes este día.</p>';
+      if (ant || pos) h += '<div class="acciones" style="justify-content:center">' + [ant, pos].filter(Boolean).map(function (z) { return '<button class="btn" data-act="fm-ir" data-f="' + z + '">Ver el ' + esc(tituloDe(z).toLowerCase()) + '</button>'; }).join('') + '</div>';
+    }
     else {
       var tot = cl.reduce(function (t, r) { return t + (+r.cant || 0) * 2; }, 0);
       h += '<table class="pl cl-dia"><thead><tr><th>Cliente</th><th>Medias</th></tr></thead><tbody>' + cl.map(function (r) {
@@ -425,19 +431,48 @@
     });
     o.cortes = o.cortes.filter(function (c) { return c.lineas.length || CORTES_BASE.indexOf(norm(c.corte)) >= 0 || norm(c.corte).indexOf('GRASA') === 0; });
   }
-  function borrarPedido(p) {
-    var tareas = [store.del('pedidos', p.id)];
+  function borrarPedido(p) { return borrarPedidos([p]); }
+  function borrarPedidos(lista) {
+    var ids = {}, tareas = [];
+    lista.forEach(function (p) { ids[p.id] = 1; });
     (S.faena || []).slice().forEach(function (s) {
-      if (!s.dias.some(function (d) { return d.clientes.some(function (r) { return r.pedido === p.id; }); })) return;
-      var x = clone(s); x.dias.forEach(function (d) { d.clientes = d.clientes.filter(function (r) { return r.pedido !== p.id; }); });
+      if (!s.dias.some(function (d) { return d.clientes.some(function (r) { return r.pedido && ids[r.pedido]; }); })) return;
+      var x = clone(s); x.dias.forEach(function (d) { d.clientes = d.clientes.filter(function (r) { return !(r.pedido && ids[r.pedido]); }); });
       var xl = limpiarSemana(x); S.faena = poner(S.faena, s.id, xl); tareas.push(store.set('faena', s.id, xl));
     });
     (S.prod || []).slice().forEach(function (o) {
-      if (!o.cortes.some(function (c) { return c.lineas.some(function (l) { return l.p === p.id; }); })) return;
-      var x = clone(o); quitarDeOrden(x, p.id); var ol = limpiarOrden(x); S.prod = poner(S.prod, o.id, ol); tareas.push(store.set('produccion', o.id, ol));
+      var usados = {}; o.cortes.forEach(function (c) { c.lineas.forEach(function (l) { if (l.p && ids[l.p]) usados[l.p] = 1; }); });
+      if (!Object.keys(usados).length) return;
+      var x = clone(o); Object.keys(usados).forEach(function (id) { quitarDeOrden(x, id); });
+      var ol = limpiarOrden(x); S.prod = poner(S.prod, o.id, ol); tareas.push(store.set('produccion', o.id, ol));
     });
-    S.pedidos = (S.pedidos || []).filter(function (x) { return x.id !== p.id; });
+    lista.forEach(function (p) { tareas.push(store.del('pedidos', p.id)); });
+    S.pedidos = (S.pedidos || []).filter(function (x) { return !ids[x.id]; });
     return Promise.all(tareas);
+  }
+  function aplicarPlanilla(dias) {
+    var DN = ['LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES'], votos = {}, lunes = null, max = 0;
+    dias.forEach(function (d) { if (/^\d{4}-\d{2}-\d{2}$/.test(d.fecha || '') && esHabil(d.fecha)) { var l = lunesDe(d.fecha); votos[l] = (votos[l] || 0) + 1; if (votos[l] > max) { max = votos[l]; lunes = l; } } });
+    if (!lunes) lunes = S.sem || lunesDe(esHabil(hoy()) ? hoy() : habilSiguiente(hoy()));
+    var sem = clone(semDe(lunes) || semanaNueva(lunes)), nd = 0, nc = 0;
+    dias.forEach(function (d) {
+      var i = DN.indexOf(norm(d.dia));
+      if (i < 0 && /^\d{4}-\d{2}-\d{2}$/.test(d.fecha || '')) i = Math.round((fecha(d.fecha) - fecha(lunes)) / 86400000);
+      if (i < 0 || i > 4) return;
+      var dia = sem.dias[i];
+      var fa = (d.faena || []).filter(function (r) { return r.origen || +r.propios || +r.usuarios; }).map(function (r) { return { origen: String(r.origen || '').toUpperCase().trim(), propios: +r.propios || 0, usuarios: +r.usuarios || 0 }; });
+      var cl = (d.clientes || []).filter(function (r) { return r.cliente || +r.cerdos; }).map(function (r) { return { cliente: String(r.cliente || '').toUpperCase().replace(/\s+/g, ' ').trim(), cant: +r.cerdos || 0 }; });
+      if (!fa.length && !cl.length) return;
+      if (fa.length) dia.faena = fa;
+      (dia.clientes || []).filter(function (v) { return v.pedido; }).forEach(function (v) {
+        var m = cl.filter(function (x) { return !x.pedido && x.cliente && norm(x.cliente) === norm(v.cliente); })[0];
+        if (m) { m.pedido = v.pedido; if (v.nota) m.nota = v.nota; } else cl.push(v);
+      });
+      dia.clientes = cl; nd++; nc += cl.length;
+    });
+    if (!nd) return Promise.resolve(null);
+    var sl = limpiarSemana(sem); S.em = null; S.faena = poner(S.faena, lunes, sl);
+    return store.set('faena', lunes, sl).then(function () { tocar(); return { lunes: lunes, dias: nd, clientes: nc }; });
   }
   function guardarPropuesta(q, auto) {
     var p = { cliente: String(q.cliente || '').toUpperCase().trim(), entrega: q.entrega || '', medias: +q.medias || 0, peso: q.peso || '', nota: q.nota || '', origen: q.origen || 'manual', creado: ahoraTxt(), dudas: auto ? (q.dudas || []).filter(Boolean) : [],
@@ -473,6 +508,13 @@
     (S.prod || []).slice(-3).forEach(function (o) { ejemplos.push(textoOrden(o)); });
     return 'Sos el asistente de carga de pedidos del Frigorífico Qualitá, un frigorífico de cerdo. Recibís una foto, una captura de pantalla o un texto pegado (por ejemplo de WhatsApp) con uno o varios pedidos de clientes y devolvés los pedidos leídos como datos estructurados, sin texto adicional.\n\n'
       + 'Hoy es ' + diaDe(hoy()) + ' ' + hoy() + '.\n\n'
+      + 'PRIMERO MIRÁ SI ES LA PLANILLA SEMANAL\n'
+      + 'La planilla semanal de faena y medias es una grilla de Excel con una columna por día ("Lunes 28", "Martes 29", … "Viernes 2"), a veces con "SEMANA" y un número en la esquina. Arriba, en cada día, están las filas de FAENA: un origen (LA COLORADA, CANDELARIA, EL CEBIL, AG…) con columnas PROPIOS, USUARIOS y TOTAL. Debajo, en cada día, la lista de CLIENTES con una cantidad al lado. Al pie hay filas TOTAL y DESPOSTE. Las celdas suelen estar pintadas de verde, rojo o naranja: los colores no importan.\n'
+      + 'Si la imagen es esa planilla, NO son pedidos: dejá "pedidos" vacío y cargá "planilla" con un elemento por cada día. En cada día:\n'
+      + '- dia: el nombre del día en mayúsculas y sin acento. fecha: la fecha de esa columna en AAAA-MM-DD, tal cual figura (no la corras un día). Los cinco días son consecutivos de lunes a viernes; si la semana cruza de mes (… 30, 1, 2) seguí con el mes siguiente. Si solo hay números de día, elegí la semana más cercana a hoy.\n'
+      + '- faena: un renglón por cada fila de faena de ese día, en el mismo orden, repitiendo las filas iguales (cuatro filas "CANDELARIA 160" son cuatro renglones). propios y usuarios son los números de esas columnas (0 si está vacío). Si una fila tiene un número sin nombre, origen "". Respetá los negativos. No copies la columna TOTAL ni la fila TOTAL.\n'
+      + '- clientes: un renglón por cada cliente de ese día, en el mismo orden, con la cantidad tal cual figura (no la multipliques ni la dividas). Incluí los que figuran con 0. Si hay una cantidad sin nombre de cliente, cliente "". No copies las filas TOTAL ni DESPOSTE.\n'
+      + 'Si un día no tiene nada, devolvelo igual con las listas vacías. Si no es la planilla semanal, dejá "planilla" vacía y cargá "pedidos" como sigue.\n\n'
       + 'CÓMO LLEGAN LOS PEDIDOS\n'
       + '1. Formulario manuscrito "ORDEN DE PEDIDO": el cliente está arriba y hay una "Fecha de entrega". En el renglón "18 CAPÓN" la cantidad seguida de "½" es la cantidad de MEDIAS RESES (ej.: "20 ½" = 20 medias). Los demás renglones son cortes. "Todo" al lado de un corte significa que el cliente se lleva todo lo que salga de ese corte. Puede haber renglones agregados a mano al pie, con código, y notas al margen. Una foto puede traer varios formularios: cada uno es un pedido.\n'
       + '2. Planillas de Excel de reparto por zona o por ciudad: cada fila es un cliente; la columna "Medias" es cantidad de medias reses y las demás columnas son cortes, casi siempre en cajas. La fecha del encabezado es la fecha de entrega. Si junto al cliente dice un rango de kilos (ej. "46 a 48 kg"), es el peso pedido para las medias.\n'
@@ -525,15 +567,25 @@
     });
   }
   var ESQUEMA_PEDIDOS = {
-    type: 'object', additionalProperties: false, required: ['pedidos'],
-    properties: { pedidos: { type: 'array', items: {
-      type: 'object', additionalProperties: false, required: ['cliente', 'entrega', 'medias', 'peso', 'cortes', 'nota', 'dudas'],
-      properties: {
-        cliente: { type: 'string' }, entrega: { type: 'string', description: 'AAAA-MM-DD, o vacío si no figura' },
-        medias: { type: 'number', description: 'Cantidad de medias reses; 0 si no pide' }, peso: { type: 'string' },
-        cortes: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['corte', 'texto', 'orden'], properties: { corte: { type: 'string' }, texto: { type: 'string' }, orden: { type: 'boolean' } } } },
-        nota: { type: 'string' }, dudas: { type: 'array', items: { type: 'string' } }
-      } } } }
+    type: 'object', additionalProperties: false, required: ['pedidos', 'planilla'],
+    properties: {
+      pedidos: { type: 'array', items: {
+        type: 'object', additionalProperties: false, required: ['cliente', 'entrega', 'medias', 'peso', 'cortes', 'nota', 'dudas'],
+        properties: {
+          cliente: { type: 'string' }, entrega: { type: 'string', description: 'AAAA-MM-DD, o vacío si no figura' },
+          medias: { type: 'number', description: 'Cantidad de medias reses; 0 si no pide' }, peso: { type: 'string' },
+          cortes: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['corte', 'texto', 'orden'], properties: { corte: { type: 'string' }, texto: { type: 'string' }, orden: { type: 'boolean' } } } },
+          nota: { type: 'string' }, dudas: { type: 'array', items: { type: 'string' } }
+        } } },
+      planilla: { type: 'array', description: 'Solo para la planilla semanal de faena y medias: un elemento por día. En cualquier otro caso, lista vacía.', items: {
+        type: 'object', additionalProperties: false, required: ['dia', 'fecha', 'faena', 'clientes'],
+        properties: {
+          dia: { type: 'string', description: 'LUNES, MARTES, MIERCOLES, JUEVES o VIERNES' },
+          fecha: { type: 'string', description: 'Fecha de esa columna, AAAA-MM-DD' },
+          faena: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['origen', 'propios', 'usuarios'], properties: { origen: { type: 'string' }, propios: { type: 'number' }, usuarios: { type: 'number' } } } },
+          clientes: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['cliente', 'cerdos'], properties: { cliente: { type: 'string' }, cerdos: { type: 'number', description: 'La cantidad tal cual figura en la planilla' } } } }
+        } } }
+    }
   };
   function guardarVarios(cuales, auto) {
     var ok = [];
@@ -542,17 +594,43 @@
         .then(function () { return new Promise(function (r) { setTimeout(r, 30); }); });
     }, Promise.resolve()).then(function () { return ok; });
   }
-  function guardarLeidos(desde, errores) {
-    var nuevos = S.prop.slice(desde);
-    if (!nuevos.length) { S.msg.fotos = '!' + (errores.length ? errores.join(' ') : 'No se encontraron pedidos para leer.'); renderPedidos(); return Promise.resolve(); }
+  function mismoPedido(a, q) {
+    var ca = (a.cortes || []).map(function (c) { return norm(c.corte) + '|' + norm(c.texto); }).sort().join('~');
+    var cq = (q.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return norm(c.corte) + '|' + norm(c.texto); }).sort().join('~');
+    return (+a.medias || 0) === (+q.medias || 0) && ca === cq;
+  }
+  function guardarLeidos(desde, errores, planillas) {
+    var nuevos = S.prop.slice(desde), repetidos = 0;
+    planillas = planillas || [];
+    nuevos = nuevos.filter(function (q) {
+      var prev = (S.pedidos || []).filter(function (x) { return x.entrega === q.entrega && norm(x.cliente) === norm(q.cliente) && norm(q.cliente); });
+      if (prev.some(function (x) { return mismoPedido(x, q); })) { repetidos++; S.prop = S.prop.filter(function (x) { return x !== q; }); return false; }
+      var soloMedias = prev.filter(function (x) { return !(x.cortes || []).length; })[0];
+      if (soloMedias && !(q.cortes || []).some(function (c) { return c.texto; })) q.editaId = soloMedias.id;
+      return true;
+    });
+    var txtRep = repetidos ? (repetidos === 1 ? ' 1 pedido ya estaba cargado y no se repitió.' : ' ' + repetidos + ' pedidos ya estaban cargados y no se repitieron.') : '';
+    if (!nuevos.length && !planillas.length) { S.msg.fotos = (errores.length ? '!' + errores.join(' ') : repetidos ? txtRep.trim() : '!No se encontraron pedidos para leer.'); renderPedidos(); return Promise.resolve(); }
     S.msg.fotos = 'Guardando…'; pintarMsg('fotos');
-    return guardarVarios(nuevos, true).then(function (ok) {
+    var hechas = [];
+    return planillas.reduce(function (cad, pl) { return cad.then(function () { return aplicarPlanilla(pl); }).then(function (r) { if (r) hechas.push(r); }, function () { errores.push('No se pudo guardar la planilla.'); }); }, Promise.resolve()).then(function () {
+      var txtPl = hechas.map(function (r) { return 'Planilla de la semana del ' + etiquetaSemana(r.lunes) + ' cargada: ' + r.dias + (r.dias === 1 ? ' día' : ' días') + ', ' + r.clientes + ' clientes.'; }).join(' ');
+      if (hechas.length && !nuevos.length && !errores.length) {
+        S.sem = hechas[hechas.length - 1].lunes; S.dia = null; S.mv = null; S.msg.fotos = ''; S.msg.medias = txtPl + ' Revisala y tocá Editar para corregir lo que haga falta.';
+        irA('medias'); return;
+      }
+      return guardarVarios(nuevos, true).then(function (ok) { return finLeidos(nuevos, ok, errores, (txtPl ? txtPl + ' ' : ''), txtRep); });
+    });
+  }
+  function finLeidos(nuevos, ok, errores, antes, despues) {
+    return Promise.resolve(ok).then(function (ok) {
       var tm = ok.reduce(function (t, q) { return t + (+q.medias || 0); }, 0), fechas = {}, rev = ok.filter(function (q) { return q.dudas && q.dudas.length; }).length, faltan = nuevos.length - ok.length;
       ok.forEach(function (q) { fechas[q.entrega] = 1; });
       var fs = Object.keys(fechas).sort();
       if (fs.length) S.entrega = fs[0];
       var m = ok.length ? 'Guardado: ' + ok.length + (ok.length === 1 ? ' pedido' : ' pedidos') + (tm ? ' · ' + n(tm) + ' medias' : '') + ' para entregar el ' + fs.map(function (f) { return tituloDe(f).toLowerCase(); }).join(' y el ') + '.' + (rev ? ' ' + rev + (rev === 1 ? ' quedó marcado' : ' quedaron marcados') + ' para revisar.' : '') + ' Para cambiar algo, tocá Editar en el pedido.' : '';
       if (faltan) m = (ok.length ? '' : '!') + (m ? m + ' ' : '') + (faltan === 1 ? 'Quedó 1 pedido sin guardar: completalo acá abajo.' : 'Quedaron ' + faltan + ' pedidos sin guardar: completalos acá abajo.');
+      m = (m.charAt(0) === '!' ? '!' : '') + antes + m.replace(/^!/, '') + despues;
       if (errores.length) m = '!' + m.replace(/^!/, '') + ' ' + errores.join(' ');
       S.msg.fotos = m; renderPedidos();
     });
@@ -573,17 +651,18 @@
     leerTexto(txt, String(S.pegarCli || '').toUpperCase().trim()).then(function (j) {
       var c = agregarLeidos(j, 'texto', '');
       S.leyendo = false;
-      if (!c) { S.msg.fotos = '!No se encontraron pedidos en el texto.'; renderPedidos(); return; }
+      var pl = j.planilla && j.planilla.length ? [j.planilla] : [];
+      if (!c && !pl.length) { S.msg.fotos = '!No se encontraron pedidos en el texto.'; renderPedidos(); return; }
       S.pegar = false; S.pegarTxt = ''; S.pegarCli = '';
-      return guardarLeidos(desde, []);
+      return guardarLeidos(desde, [], pl);
     }, function (e) { S.leyendo = false; S.msg.fotos = '!' + e.message; renderPedidos(); });
   }
   function subirFotos(files) {
-    var lista = Array.prototype.slice.call(files), i = 0, errores = [], desde = S.prop.length;
+    var lista = Array.prototype.slice.call(files), i = 0, errores = [], desde = S.prop.length, planillas = [];
     function sig() {
-      if (i >= lista.length) { guardarLeidos(desde, errores); return; }
+      if (i >= lista.length) { guardarLeidos(desde, errores, planillas); return; }
       var f = lista[i++]; S.msg.fotos = 'Leyendo ' + i + ' de ' + lista.length + '…'; pintarMsg('fotos');
-      leerImagen(f).then(function (j) { agregarLeidos(j, 'foto', f.name);
+      leerImagen(f).then(function (j) { agregarLeidos(j, 'foto', f.name); if (j.planilla && j.planilla.length) planillas.push(j.planilla);
       }, function (e) { errores.push((f.name ? f.name + ': ' : '') + e.message); }).then(sig);
     }
     sig();
@@ -622,6 +701,7 @@
     if (S.pegar && conIA) h += '<div class="pegar"><label class="campo"><span>Pegá acá el mensaje con los pedidos (WhatsApp, mail, lo que sea)</span><textarea id="pegar-txt" rows="9" placeholder="Hola pedido de cerdo para el martes por caja…">' + esc(S.pegarTxt || '') + '</textarea></label>'
       + '<label class="campo"><span>Cliente, si todo el mensaje es de uno solo con varias sucursales (opcional)</span><input type="text" id="pegar-cli" value="' + esc(S.pegarCli || '') + '" placeholder="Dejalo vacío si cada bloque es un cliente distinto"></label>'
       + '<div class="acciones"><button class="btn pri" data-act="q-leer-texto">Leer pedidos</button><button class="btn" data-act="q-pegar">Cancelar</button></div></div>';
+    if (conIA) h += '<p class="small muted">Sirve para pedidos sueltos, planillas de reparto y también para la planilla semanal de faena y medias: esa se carga entera en Medias.</p>';
     if (!conIA) h += '<p class="small muted">Para leer fotos o texto pegado falta cargar la clave de IA, más abajo en Configuración. Mientras tanto se puede cargar a mano.</p>';
     var nuevas = S.prop.filter(function (x) { return !x.editaId; });
     if (nuevas.length) h += S.prop.map(function (q, i) { return q.editaId ? '' : propHTML(q, i); }).join('') + (nuevas.length > 1 ? '<div class="acciones"><button class="btn pri" data-act="q-todos">Guardar todos</button>' + botonBorrar('q-descartar-todos', null, 'Descartar todos', '') + '</div>' : '');
@@ -643,7 +723,8 @@
           + '</div><div class="botones"><button class="btn sm" data-act="ped-editar" data-id="' + esc(p.id) + '">Editar</button><button class="btn sm" data-act="ped-borrar" data-id="' + esc(p.id) + '">Quitar</button></div></div>';
       }).join('') + '</div>';
     }
-    h += '<div class="acciones"><button class="btn sm" data-act="ir-medias">Ver la planilla de medias</button><button class="btn sm" data-act="ir-orden">Ver la orden de ese día</button>' + (lista.length ? botonBorrar('ped-borrar-todos', null, 'Quitar todos los de este día') : '') + '</div></div>';
+    h += '<div class="acciones"><button class="btn sm" data-act="ir-medias">Ver la planilla de medias</button><button class="btn sm" data-act="ir-orden">Ver la orden de ese día</button>' + (lista.length ? botonBorrar('ped-borrar-todos', null, 'Quitar todos los de este día') : '')
+      + ((S.pedidos || []).length ? botonBorrar('ped-borrar-total', null, 'Quitar todos los pedidos, de todos los días (' + S.pedidos.length + ')') : '') + '</div></div>';
 
     h += '<div class="panel"><details' + (S._conf ? ' open' : '') + '><summary>Configuración</summary><div class="campos">'
       + '<label class="campo"><span>Clave de IA (Anthropic)</span><input type="password" id="cfg-clave" autocomplete="off" placeholder="' + (S.ia && S.ia.clave ? 'Cargada. Escribí otra para cambiarla.' : 'sk-ant-…') + '"></label>'
@@ -729,6 +810,7 @@
     }
 
     // medias
+    else if (a === 'fm-ir') { S.fm = D.f; render(); }
     else if (a === 'fm') { var y = S.fm; do { y = mas(y, +D.d); } while (!esHabil(y)); S.fm = y; render(); }
     else if (a === 'm-semana' || a === 'm-editar-dia') {
       S.mv = 'semana'; S.sem = lunesDe(S.fm); S.dia = Math.round((fecha(S.fm) - fecha(S.sem)) / 86400000);
@@ -774,9 +856,14 @@
     else if (a === 'q-descartar-todos') { if (!confirma('q-descartar-todos')) { renderPedidos(); return; } S.prop = S.prop.filter(function (x) { return x.editaId; }); S.msg.fotos = ''; renderPedidos(); }
     else if (a === 'ped-borrar-todos') {
       if (!confirma('ped-borrar-todos')) { renderPedidos(); return; }
-      (S.pedidos || []).filter(function (x) { return x.entrega === S.entrega; }).reduce(function (cad, x) {
-        return cad.then(function () { return borrarPedido(x); }).then(function () { return new Promise(function (r) { setTimeout(r, 40); }); });
-      }, Promise.resolve()).then(tocar);
+      borrarPedidos((S.pedidos || []).filter(function (x) { return x.entrega === S.entrega; })).then(function () { tocar(); renderPedidos(); }, function () { S.msg.fotos = '!No se pudieron quitar todos.'; renderPedidos(); });
+      renderPedidos();
+    }
+    else if (a === 'ped-borrar-total') {
+      if (!confirma('ped-borrar-total')) { renderPedidos(); return; }
+      S.prop = [];
+      borrarPedidos((S.pedidos || []).slice()).then(function () { tocar(); S.msg.fotos = 'Se quitaron todos los pedidos.'; renderPedidos(); }, function () { S.msg.fotos = '!No se pudieron quitar todos.'; renderPedidos(); });
+      renderPedidos();
     }
     else if (a === 'q-descartar') { S.prop.splice(+D.q, 1); renderPedidos(); }
     else if (a === 'q-guardar' || a === 'q-todos') {
