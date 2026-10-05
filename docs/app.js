@@ -517,6 +517,17 @@
     S.log[f] = clone(doc); S.log[f].id = 'log-' + f;
     return store.set('config', 'log-' + f, doc);
   }
+  // Si lo publicado no coincide con los pedidos (por ejemplo, pedidos cargados antes de que existiera Logística), se vuelve a publicar.
+  function conciliarLog() {
+    if (!S.editor || !S.pedidos || !S.logListo) return;
+    var desde = habilAnterior(hoy()), porFecha = {};
+    S.pedidos.forEach(function (p) { if (p.entrega && p.entrega >= desde) (porFecha[p.entrega] = porFecha[p.entrega] || []).push(p.id); });
+    Object.keys(S.log || {}).forEach(function (f) { if (f >= desde && !porFecha[f]) porFecha[f] = []; });
+    Object.keys(porFecha).forEach(function (f) {
+      var lg = logDe(f), a = porFecha[f].slice().sort().join(','), b = ((lg && lg.pedidos) || []).map(function (x) { return x.id; }).sort().join(',');
+      if (a !== b) publicarLog(f).then(null, function () {});
+    });
+  }
   // Pone (o saca, con cam vacío) un grupo de pedidos en un camión de ese día.
   function asignarCamion(f, ids, cam, camiones) {
     var tareas = [];
@@ -1288,8 +1299,8 @@
     store.sub('config', function (l) {
       var c = l.filter(function (x) { return x.id === 'general'; })[0], lg = {};
       l.forEach(function (x) { if (String(x.id).indexOf('log-') === 0) lg[x.id.slice(4)] = x; });
-      S.log = lg; if (c) S.config = c;
-      renderDatos();
+      S.log = lg; S.logListo = true; if (c) S.config = c;
+      conciliarLog(); renderDatos();
     });
     store.onAuth(function (u) {
       S.user = u ? { email: u.email } : null; S.editor = false;
@@ -1300,7 +1311,7 @@
           if (S.fuente === 'respaldo' || vacia) traer();
           if (!suscripto) {
             suscripto = true;
-            store.sub('pedidos', function (l) { S.pedidos = ordenar(l); renderDatos(); });
+            store.sub('pedidos', function (l) { S.pedidos = ordenar(l); conciliarLog(); renderDatos(); });
             store.sub('privado', function (l) { var c = l.filter(function (x) { return x.id === 'ia'; })[0]; if (c) { var antes = !!(S.ia && S.ia.clave); S.ia = c; if (!antes && !S.prop.length && !S.em && !S.ep && !S.pegar) render(); } });
           }
         }
