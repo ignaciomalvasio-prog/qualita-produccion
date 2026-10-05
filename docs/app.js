@@ -473,18 +473,20 @@
     var clientes = {}, ejemplos = [];
     (S.faena || []).forEach(function (s) { s.dias.forEach(function (d) { d.clientes.forEach(function (r) { if (r.cliente) clientes[r.cliente] = 1; }); }); });
     (S.prod || []).slice(-3).forEach(function (o) { ejemplos.push(textoOrden(o)); });
-    return 'Sos el asistente de carga de pedidos del Frigorífico Qualitá, un frigorífico de cerdo. Recibís una foto o una captura de pantalla con uno o varios pedidos de clientes y devolvés los pedidos leídos como datos estructurados, sin texto adicional.\n\n'
+    return 'Sos el asistente de carga de pedidos del Frigorífico Qualitá, un frigorífico de cerdo. Recibís una foto, una captura de pantalla o un texto pegado (por ejemplo de WhatsApp) con uno o varios pedidos de clientes y devolvés los pedidos leídos como datos estructurados, sin texto adicional.\n\n'
       + 'Hoy es ' + diaDe(hoy()) + ' ' + hoy() + '.\n\n'
-      + 'TIPOS DE IMAGEN\n'
+      + 'CÓMO LLEGAN LOS PEDIDOS\n'
       + '1. Formulario manuscrito "ORDEN DE PEDIDO": el cliente está arriba y hay una "Fecha de entrega". En el renglón "18 CAPÓN" la cantidad seguida de "½" es la cantidad de MEDIAS RESES (ej.: "20 ½" = 20 medias). Los demás renglones son cortes. "Todo" al lado de un corte significa que el cliente se lleva todo lo que salga de ese corte. Puede haber renglones agregados a mano al pie, con código, y notas al margen. Una foto puede traer varios formularios: cada uno es un pedido.\n'
       + '2. Planillas de Excel de reparto por zona o por ciudad: cada fila es un cliente; la columna "Medias" es cantidad de medias reses y las demás columnas son cortes, casi siempre en cajas. La fecha del encabezado es la fecha de entrega. Si junto al cliente dice un rango de kilos (ej. "46 a 48 kg"), es el peso pedido para las medias.\n'
-      + '3. Planillas por sucursal (ej. DINO): un solo cliente, con los kilos por corte sumados entre sucursales.\n\n'
+      + '3. Planillas por sucursal (ej. DINO): un solo cliente, con los kilos por corte sumados entre sucursales.\n'
+      + '4. Lista escrita a mano en una hoja suelta: cada renglón es un cliente seguido de una cantidad con "½" (ej.: "Molina 100 ½" = 100 medias reses para MOLINA). Un título subrayado arriba (ej. "San Juan") es la zona o el destino, no un cliente: ponelo en la nota de cada pedido. Los importes con "$" son precios: no los copies. Una aclaración entre paréntesis como "(grandes)" va en peso. Un número rodeado con un círculo al pie es el total de medias de la hoja: no es un pedido; si la suma de los renglones no coincide con ese total, avisalo en dudas del primer pedido. Marcas como "ok" o rayas no son pedidos.\n'
+      + '5. Texto pegado de WhatsApp u otro mensaje: suele empezar con una frase general (ej. "pedido de cerdo para el martes por caja") que da la fecha de entrega y la unidad para todo el mensaje, y sigue con bloques separados por una línea en blanco: la primera línea de cada bloque es el cliente o la sucursal y las siguientes son "cantidad corte". Cada bloque es un pedido. Aplicá la unidad general a cada renglón ("por caja": "2 matambre" = 2 CAJAS). Si no se dice la unidad, escribí la cantidad sola y avisalo en dudas. "Pierna" es el rubro JAMON; conservá abreviaturas como "S/C" tal como vienen. Ignorá saludos y texto que no sea pedido.\n\n'
       + 'QUÉ CARGAR, POR CADA PEDIDO\n'
       + '- cliente: en mayúsculas. Si coincide con uno de la lista de clientes conocidos, usá exactamente ese nombre.\n'
-      + '- entrega: en formato AAAA-MM-DD. Resolvé fechas como "lun 05/10" con el año actual. Si no figura, dejala vacía.\n'
+      + '- entrega: en formato AAAA-MM-DD. Resolvé fechas como "lun 05/10" con el año actual. Si solo dice un día de la semana ("para el martes"), es el próximo día con ese nombre contando desde mañana. Si no figura, dejala vacía.\n'
       + '- medias: cantidad de medias reses, número. 0 si no pide medias.\n'
       + '- peso: aclaración de peso de las medias (livianas, pesadas, rango de kg), o "".\n'
-      + '- cortes: un elemento por cada corte pedido. "corte" es el rubro de la orden de producción, uno de: ' + CORTES_BASE.join(', ') + '. "texto" es la línea tal como se escribe en la orden de producción, en mayúsculas y con el estilo de los ejemplos: cantidad y unidad pegadas al principio (ej. "600KG", "50 UND", "10 CAJAS"), presentación, código si figura, y el cliente entre comillas al final. Si el cliente pide TODO el corte, la línea va sin cantidad (ej. "FRESCA EN BINES “ARGENCARNES”").\n'
+      + '- cortes: un elemento por cada corte pedido. "corte" es el rubro de la orden de producción, uno de: ' + CORTES_BASE.join(', ') + '. "texto" es la línea tal como se escribe en la orden de producción, en mayúsculas y con el estilo de los ejemplos: cantidad y unidad pegadas al principio (ej. "600KG", "50 UND", "10 CAJAS"), presentación o variante si se aclara (ej. "15 CAJAS PIERNA S/C “URCA”"), código si figura, y el cliente entre comillas al final. Si el cliente pide TODO el corte, la línea va sin cantidad (ej. "FRESCA EN BINES “ARGENCARNES”").\n'
       + '- orden: true si es un corte fresco que hay que producir ese día; false si es mercadería congelada que sale de stock, o productos que no salen del desposte (chorizo, morcilla, salchicha).\n'
       + '- nota: aclaraciones del pedido que no entran en otro campo. No copies precios.\n'
       + '- dudas: todo lo que no se lea bien o sea ambiguo, en una frase corta cada una. Si un número no se lee con seguridad, poné tu mejor lectura y avisá acá. No inventes datos.\n\n'
@@ -494,18 +496,25 @@
   function leerImagen(file) {
     if (window.__mock && window.__mock.ia) return Promise.resolve(window.__mock.ia(file.name));
     return achicar(file).then(function (b64) {
-      return fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-api-key': S.ia.clave, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: S.ia.modelo || IA_MODELO, max_tokens: 16000, system: instrucciones(),
-          output_config: { format: { type: 'json_schema', schema: ESQUEMA_PEDIDOS } },
-          messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } }, { type: 'text', text: 'Leé los pedidos de esta imagen y cargalos.' }] }] })
-      });
+      return pedirIA([{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } }, { type: 'text', text: 'Leé los pedidos de esta imagen y cargalos.' }]);
+    });
+  }
+  function leerTexto(txt) {
+    if (window.__mock && window.__mock.ia) return Promise.resolve(window.__mock.ia('texto', txt));
+    return pedirIA([{ type: 'text', text: 'Este es un mensaje pegado con pedidos. Leelos y cargalos.\n\n<mensaje>\n' + txt + '\n</mensaje>' }]);
+  }
+  function pedirIA(contenido) {
+    return fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': S.ia.clave, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+      body: JSON.stringify({ model: S.ia.modelo || IA_MODELO, max_tokens: 16000, system: instrucciones(),
+        output_config: { format: { type: 'json_schema', schema: ESQUEMA_PEDIDOS } },
+        messages: [{ role: 'user', content: contenido }] })
     }).then(function (r) {
       return r.json().then(function (j) {
         if (!r.ok) throw new Error(r.status === 401 ? 'La clave de IA no es válida.' : (j && j.error && j.error.message) || ('Error ' + r.status));
-        if (j.stop_reason === 'max_tokens') throw new Error('La imagen tiene demasiados pedidos para leerla de una vez. Recortala en dos y subila de nuevo.');
-        if (j.stop_reason === 'refusal') throw new Error('La IA no pudo leer esta imagen. Cargá el pedido a mano.');
+        if (j.stop_reason === 'max_tokens') throw new Error('Son demasiados pedidos para leerlos de una vez. Partilo en dos y probá de nuevo.');
+        if (j.stop_reason === 'refusal') throw new Error('La IA no pudo leerlo. Cargá el pedido a mano.');
         var texto = (j.content || []).filter(function (b) { return b.type === 'text'; }).map(function (b) { return b.text; }).join('').trim();
         var datos = null;
         try { datos = JSON.parse(texto); } catch (e) {
@@ -513,7 +522,7 @@
           if (a >= 0 && z > a) { try { datos = JSON.parse(texto.slice(a, z + 1)); } catch (e2) { datos = null; } }
         }
         if (datos && Array.isArray(datos.pedidos)) return datos;
-        throw new Error('No se pudieron leer pedidos en la imagen.');
+        throw new Error('No se encontraron pedidos para leer.');
       });
     });
   }
@@ -528,16 +537,32 @@
         nota: { type: 'string' }, dudas: { type: 'array', items: { type: 'string' } }
       } } } }
   };
+  function agregarLeidos(j, origen, nombre) {
+    (j.pedidos || []).forEach(function (p) {
+      S.prop.push({ k: uid(), cliente: p.cliente || '', entrega: /^\d{4}-\d{2}-\d{2}$/.test(p.entrega || '') ? p.entrega : (S.entrega || habilSiguiente(hoy())), medias: +p.medias || '', peso: p.peso || '', nota: p.nota || '', origen: origen, foto: nombre,
+        dudas: (p.dudas || []).filter(Boolean), cortes: (p.cortes || []).map(function (c) { return { corte: norm(c.corte), texto: c.texto || '', orden: c.orden !== false }; }) });
+    });
+    return (j.pedidos || []).length;
+  }
+  function leerPegado() {
+    var txt = String(S.pegarTxt || '').trim();
+    if (!txt) { S.msg.fotos = '!Pegá primero el texto del pedido.'; pintarMsg('fotos'); return; }
+    if (S.leyendo) return;
+    S.leyendo = true; S.msg.fotos = 'Leyendo el texto…'; pintarMsg('fotos');
+    leerTexto(txt).then(function (j) {
+      var c = agregarLeidos(j, 'texto', '');
+      S.leyendo = false;
+      if (c) { S.pegar = false; S.pegarTxt = ''; S.msg.fotos = 'Listo. Revisá los pedidos leídos antes de guardarlos.'; }
+      else S.msg.fotos = '!No se encontraron pedidos en el texto.';
+      renderPedidos();
+    }, function (e) { S.leyendo = false; S.msg.fotos = '!' + e.message; renderPedidos(); });
+  }
   function subirFotos(files) {
     var lista = Array.prototype.slice.call(files), i = 0, errores = [];
     function sig() {
       if (i >= lista.length) { S.msg.fotos = errores.length ? '!' + errores.join(' ') : 'Listo. Revisá los pedidos leídos antes de guardarlos.'; renderPedidos(); return; }
       var f = lista[i++]; S.msg.fotos = 'Leyendo ' + i + ' de ' + lista.length + '…'; pintarMsg('fotos');
-      leerImagen(f).then(function (j) {
-        (j.pedidos || []).forEach(function (p) {
-          S.prop.push({ k: uid(), cliente: p.cliente || '', entrega: /^\d{4}-\d{2}-\d{2}$/.test(p.entrega || '') ? p.entrega : (S.entrega || habilSiguiente(hoy())), medias: +p.medias || '', peso: p.peso || '', nota: p.nota || '', origen: 'foto', foto: f.name,
-            dudas: (p.dudas || []).filter(Boolean), cortes: (p.cortes || []).map(function (c) { return { corte: norm(c.corte), texto: c.texto || '', orden: c.orden !== false }; }) });
-        });
+      leerImagen(f).then(function (j) { agregarLeidos(j, 'foto', f.name);
       }, function (e) { errores.push((f.name ? f.name + ': ' : '') + e.message); }).then(sig);
     }
     sig();
@@ -571,8 +596,11 @@
     var conIA = !!(S.ia && S.ia.clave) || !!(window.__mock && window.__mock.ia);
     var h = '<div class="panel"><h2>Cargar pedidos</h2>';
     h += '<div class="acciones"><label class="btn pri" style="display:inline-flex;align-items:center' + (conIA ? '' : ';opacity:.45') + '">Subir fotos o capturas<input type="file" id="fotos" accept="image/*" multiple hidden' + (conIA ? '' : ' disabled') + '></label>'
+      + '<button class="btn" data-act="q-pegar"' + (conIA ? '' : ' disabled') + '>Pegar texto</button>'
       + '<button class="btn" data-act="q-nuevo">Cargar a mano</button><span class="guardado" id="g-fotos"></span></div>';
-    if (!conIA) h += '<p class="small muted">Para leer fotos falta cargar la clave de IA, más abajo en Configuración. Mientras tanto se puede cargar a mano.</p>';
+    if (S.pegar && conIA) h += '<div class="pegar"><label class="campo"><span>Pegá acá el mensaje con los pedidos (WhatsApp, mail, lo que sea)</span><textarea id="pegar-txt" rows="9" placeholder="Hola pedido de cerdo para el martes por caja…">' + esc(S.pegarTxt || '') + '</textarea></label>'
+      + '<div class="acciones"><button class="btn pri" data-act="q-leer-texto">Leer pedidos</button><button class="btn" data-act="q-pegar">Cancelar</button></div></div>';
+    if (!conIA) h += '<p class="small muted">Para leer fotos o texto pegado falta cargar la clave de IA, más abajo en Configuración. Mientras tanto se puede cargar a mano.</p>';
     if (S.prop.length) h += S.prop.map(propHTML).join('') + (S.prop.length > 1 ? '<div class="acciones"><button class="btn pri" data-act="q-todos">Guardar todos</button>' + botonBorrar('q-descartar-todos', null, 'Descartar todos', '') + '</div>' : '');
     h += '</div>';
 
@@ -711,6 +739,8 @@
     }
 
     // pedidos
+    else if (a === 'q-pegar') { S.pegar = !S.pegar; if (!S.pegar) S.pegarTxt = ''; S.msg.fotos = ''; renderPedidos(); var ft = $('pegar-txt'); if (ft) ft.focus(); }
+    else if (a === 'q-leer-texto') { leerPegado(); }
     else if (a === 'q-nuevo') { S.prop.push(pedidoVacio()); renderPedidos(); var fq = $('q' + (S.prop.length - 1) + 'cliente'); if (fq) fq.focus(); }
     else if (a === 'q-corte') { S.prop[+D.q].cortes.push({ corte: CORTES_BASE[0], texto: '', orden: true }); renderPedidos(); }
     else if (a === 'q-quitar-corte') { S.prop[+D.q].cortes.splice(+D.j, 1); renderPedidos(); }
@@ -745,6 +775,7 @@
   });
 
   document.addEventListener('input', function (e) {
+    if (e.target && e.target.id === 'pegar-txt') { S.pegarTxt = e.target.value; if (S.msg.fotos) { S.msg.fotos = ''; pintarMsg('fotos'); } return; }
     var t = e.target, D = t.dataset;
     if (D.m && S.em) { S.em.doc.dias[+D.i][D.m][+D.r][D.k] = t.value; guardar('medias'); pintarSumas(); }
     else if (t.id === 'm-stock' && S.em) { S.em.doc.stockInicial = t.value === '' ? null : t.value; guardar('medias'); pintarSumas(); }

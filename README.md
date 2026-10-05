@@ -14,7 +14,7 @@ Dirección: https://qualita-produccion.web.app
 ## Cómo se usa
 
 1. **Lunes:** en Medias se carga la faena de la semana. La primera vez también el stock de medias en cámara; después se deduce solo de la semana anterior, y siempre se puede corregir.
-2. **Cada día:** en Pedidos se suben fotos o capturas de los pedidos (o se cargan a mano). Cada pedido se revisa antes de guardar.
+2. **Cada día:** en Pedidos se suben fotos o capturas de los pedidos, se pega el texto de un mensaje (WhatsApp) o se cargan a mano. Cada pedido se revisa antes de guardar.
    - Las medias van a la planilla, en el día de faena anterior a la entrega, convertidas a cerdos (20 medias = 10 cerdos).
    - Los cortes van a la orden de producción del día de entrega.
 3. **Orden de producción:** si no existe, se arma sola: los pedidos del día y, para el resto de cada corte, el destino de las últimas órdenes. Si las últimas cinco no coinciden, el corte queda marcado "sin definir" para que el editor lo resuelva. También propone los pedidos que suelen repetirse ese día de la semana.
