@@ -27,12 +27,12 @@
 
   var SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
   var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-  var TABS = ['produccion', 'medias', 'pedidos'];
+  var TABS = ['inicio', 'produccion', 'medias', 'pedidos'];
   var CORTES_BASE = ['JAMON', 'PALETA', 'PECHO', 'CARRE', 'SOLOMILLO', 'MATAMBRE', 'BONDIOLA', 'RECORTE', 'GRASA BUENA', 'GRASA MALA', 'CUERO', 'TAPA DE PALETA', 'TAPA DE JAMON', 'TORTUGA', 'GARRON', 'TOCINO', 'CHURRASCO', 'PAPADA', 'OREJAS', 'CABEZA', 'PULMON', 'HIGADO', 'PATAS Y MANOS'];
 
   var S = {
     faena: null, prod: null, pedidos: null, config: {}, ia: {}, status: 'loading', fuente: '',
-    tab: 'produccion', sem: null, dia: null, fecha: null, entrega: null,
+    tab: 'inicio', sem: null, dia: null, fecha: null, entrega: null,
     user: null, editor: false,
     em: null,   // semana en edición: { lunes, doc }
     ep: null,   // orden en edición: { fecha, doc }
@@ -543,6 +543,30 @@
     pintarMsg('fotos'); pintarMsg('cfg');
   }
 
+  /* ---------- inicio ---------- */
+  function renderInicio() {
+    var el = $('view-inicio');
+    if (cargando(el, S.prod && S.faena)) return;
+    var f = fechaProdInicial(), o = prodDe(f), h = hoy();
+    var lunes = lunesDe(esHabil(h) ? h : habilSiguiente(h)), sem = semDe(lunes), g = fecha(h).getDay();
+    var dp = o ? esc(o.medias) + ' medias · ' + (o.estado === 'borrador' ? 'borrador, todavía sin confirmar' : 'confirmada') : 'Todavía no hay orden cargada';
+    var dm = 'Sin faena cargada para esta semana';
+    if (sem) {
+      var i = lunesDe(h) === lunes && g >= 1 && g <= 5 ? g - 1 : 0, s = sumas(sem.dias[i]);
+      dm = diaDe(mas(lunes, i)) + ': faena ' + n(s.propios + s.usuarios) + ' · clientes ' + n(s.clientes) + ' · a desposte ' + n(s.medias) + ' medias';
+    }
+    var html = '<div class="home">'
+      + '<button class="tile" data-act="ir" data-tab="produccion"><b>Producción</b><span>Orden del ' + esc(tituloDe(f).toLowerCase()) + '</span><span class="dato">' + dp + '</span></button>'
+      + '<button class="tile" data-act="ir" data-tab="medias"><b>Medias</b><span>Semana del ' + esc(etiquetaSemana(lunes)) + '</span><span class="dato">' + esc(dm) + '</span></button>';
+    if (S.editor) {
+      var sig = habilSiguiente(h), np = (S.pedidos || []).filter(function (p) { return p.entrega === sig; }).length;
+      html += '<button class="tile" data-act="ir" data-tab="pedidos"><b>Pedidos</b><span>Subir fotos o cargar a mano</span><span class="dato">' + np + (np === 1 ? ' pedido cargado' : ' pedidos cargados') + ' para el ' + esc(tituloDe(sig).toLowerCase()) + '</span></button>';
+    }
+    el.innerHTML = html + '</div>';
+  }
+  // Volver al inicio deja todo parado en el día de hoy.
+  function alInicio() { if (S.em) guardar('medias', true); if (S.ep) guardar('prod', true); S.em = null; S.ep = null; S.fechaFija = false; S.fecha = null; S.sem = null; S.dia = null; S.entrega = null; }
+
   /* ---------- estados, sesión y navegación ---------- */
   function cargando(el, data) {
     var msg = S.status === 'loading' && !data ? 'Cargando…' : S.status === 'error' && !data ? 'No se pudieron cargar los datos. Revisá la conexión y volvé a abrir la app.' : '';
@@ -556,9 +580,9 @@
     else if (!S.user) e.innerHTML = '<button class="btn sm lnk" data-act="ingresar">Ingresar para cargar</button>';
     else e.innerHTML = '<span>' + esc(S.user.email) + (S.editor ? '' : ' · sin permiso para cargar') + '</span><button class="btn sm lnk" data-act="salir">Salir</button>';
     $('tab-pedidos').hidden = !S.editor;
-    if (S.tab === 'pedidos' && !S.editor) S.tab = 'produccion';
+    if (S.tab === 'pedidos' && !S.editor) S.tab = 'inicio';
     TABS.forEach(function (t) { $('view-' + t).hidden = S.tab !== t; $('tab-' + t).setAttribute('aria-selected', String(S.tab === t)); });
-    if (S.tab === 'medias') renderMedias(); else if (S.tab === 'pedidos') renderPedidos(); else renderProduccion();
+    if (S.tab === 'medias') renderMedias(); else if (S.tab === 'pedidos') renderPedidos(); else if (S.tab === 'produccion') renderProduccion(); else renderInicio();
   }
   // Cuando llegan datos nuevos no se redibuja la pantalla en la que se está escribiendo.
   function renderDatos() {
@@ -569,14 +593,15 @@
   }
   function irA(tab) { S.tab = tab; try { history.replaceState(null, '', '#' + tab); } catch (err) {} render(); window.scrollTo(0, 0); }
 
-  document.querySelector('.tabs').addEventListener('click', function (e) { var b = e.target.closest('[data-tab]'); if (b) irA(b.dataset.tab); });
+  document.querySelector('.top').addEventListener('click', function (e) { var b = e.target.closest('[data-tab]'); if (!b) return; e.preventDefault(); if (b.dataset.tab === 'inicio') alInicio(); irA(b.dataset.tab); });
 
   document.addEventListener('click', function (e) {
     var b = e.target.closest('[data-act]'); if (!b) return;
     var a = b.dataset.act, D = b.dataset, o, c;
     if (a !== 'p-rearmar') S._rearmar = false;
 
-    if (a === 'ingresar') store.signIn().catch(function () {});
+    if (a === 'ir') irA(D.tab);
+    else if (a === 'ingresar') store.signIn().catch(function () {});
     else if (a === 'salir') store.signOut();
     else if (a === 'copiar') {
       var ta = $('txt-orden'), msg = $('copiado'); ta.hidden = false;
