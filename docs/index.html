@@ -97,7 +97,7 @@ input.n{width:76px;text-align:right;font-variant-numeric:tabular-nums}
 
 /* planilla de medias, como el Excel */
 .dtabs{display:flex;gap:6px;flex-wrap:wrap}
-.toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:50;max-width:min(680px,calc(100vw - 24px));background:var(--ink);color:var(--bg);font:500 14px/1.4 var(--body);padding:10px 16px;border-radius:6px;box-shadow:0 6px 24px rgba(0,0,0,.25)}
+.toast{position:fixed;left:12px;right:12px;bottom:16px;margin-inline:auto;width:fit-content;z-index:50;max-width:min(680px,calc(100vw - 24px));background:var(--ink);color:var(--bg);font:500 14px/1.4 var(--body);padding:10px 16px;border-radius:6px;box-shadow:0 6px 24px rgba(0,0,0,.25)}
 .toast.err{background:var(--crit);color:#fff}
 .toast[hidden]{display:none}
 .semtabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
@@ -150,6 +150,41 @@ h1 a{color:inherit;text-decoration:none}
 .item:last-child{border-bottom:0}
 .item .cuerpo{flex:1 1 220px;min-width:0;display:flex;flex-direction:column;gap:2px}
 .item .botones{display:flex;gap:6px;flex:0 0 auto}.aviso{color:var(--warn)}.lista>.card{margin:10px 0}
+/* listado de pedidos */
+.peds{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.ped{border-bottom:1px solid var(--line)}
+.ped.sel{background:var(--accent-soft)}
+.ped-cab{display:flex;align-items:stretch}
+.ped .chk{display:flex;align-items:center;padding:0 10px 0 6px;cursor:pointer}
+.ped .chk input{width:20px;height:20px;accent-color:var(--accent);cursor:pointer}
+.ped-tit{flex:1 1 auto;min-width:0;display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;padding:12px 6px;background:transparent;border:0;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.ped-tit:hover .nom{text-decoration:underline}
+.ped-tit .nom{font:700 18px var(--display);text-transform:uppercase;letter-spacing:.02em}
+.ped-tit .res{color:var(--muted);font-size:15px}
+.ped-tit .marcas{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto}
+.ped-tit .chev{color:var(--muted);width:16px;text-align:center}
+.ped-det{display:flex;flex-direction:column;gap:10px;padding:4px 6px 16px 42px}
+.op-ped{font-size:15px;gap:8px}
+.op-ped p.lp{align-items:center}
+.op-ped .en{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto}
+.op-ped .nota-lp{text-transform:none;font-weight:400;text-align:right}
+.cam-barra{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;border:1px solid var(--accent);border-radius:6px;background:var(--accent-soft)}
+.cam-barra input[type=text]{flex:1 1 180px}
+.cam-barra select{flex:0 1 260px}
+/* logística */
+.cam-cab{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px}
+.cam-cab h2{text-transform:uppercase}
+.cam-nota{font-weight:600}
+.log-acc{margin-left:auto;display:inline-flex;gap:6px;align-items:center}
+.log-lista{display:flex;flex-direction:column;border-top:2px solid var(--ink)}
+.log-ped{padding:10px 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:4px}
+.log-ped:last-child{border-bottom:0}
+.log-cab{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px}
+.log-cab strong{font-size:17px;text-transform:uppercase}
+.log-cab .med{font-weight:600}
+.log-cortes{font-weight:600;text-transform:uppercase;font-size:15px;line-height:1.4;overflow-wrap:anywhere}
+.log-cortes p{margin:0}
+@media (max-width:560px){ .ped-det{padding-left:8px} .ped-tit .res{flex:1 1 auto} .ped-tit .chev{order:2} .ped-tit .marcas{order:3;margin-left:0;flex-basis:100%} .op-ped p.lp{flex-direction:column;align-items:flex-start;gap:6px} .op-ped .nota-lp{text-align:left} }
 details > summary{cursor:pointer;font-weight:600;color:var(--accent)}
 details[open] > summary{margin-bottom:10px}
 .pie{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;justify-content:space-between}
@@ -159,7 +194,7 @@ details[open] > summary{margin-bottom:10px}
   :root:root:root{--bg:#fff;--surface:#fff;--sunken:#fff;--ink:#000;--muted:#333;--line:#888;--accent:#000;--accent-ink:#000;--accent-soft:#fff;--warn:#000;--warn-soft:#fff;--crit:#000;--crit-soft:#fff;--ok:#000;--ok-soft:#fff;color-scheme:light}
   body{font-size:12px}
   .wrap{max-width:none;padding:0;gap:8px}
-  .toast,.tabs,.pie,.btn,.dtabs,.semtabs,.acciones,input,select,textarea,.guardado,#copiado{display:none!important}
+  .toast,.tabs,.pie,.btn,.dtabs,.semtabs,.log-acc,.acciones,input,select,textarea,.guardado,#copiado{display:none!important}
   .top{border-bottom:2px solid #000;padding-bottom:4px}
   h1{font-size:14px}
   .nav .tit{font-size:20px}
@@ -193,16 +228,18 @@ details[open] > summary{margin-bottom:10px}
     <h1><a href="#inicio" data-tab="inicio" id="logo">Producción Qualitá</a></h1>
     <nav class="tabs" role="tablist" aria-label="Vistas">
       <button class="tab" role="tab" id="tab-inicio" data-tab="inicio" aria-selected="true">Inicio</button>
-      <button class="tab" role="tab" id="tab-produccion" data-tab="produccion" aria-selected="false">Producción</button>
-      <button class="tab" role="tab" id="tab-medias" data-tab="medias" aria-selected="false">Medias</button>
       <button class="tab" role="tab" id="tab-pedidos" data-tab="pedidos" aria-selected="false" hidden>Pedidos</button>
+      <button class="tab" role="tab" id="tab-produccion" data-tab="produccion" aria-selected="false">Producción</button>
+      <button class="tab" role="tab" id="tab-logistica" data-tab="logistica" aria-selected="false">Logística</button>
+      <button class="tab" role="tab" id="tab-medias" data-tab="medias" aria-selected="false">Medias</button>
     </nav>
   </header>
   <main>
     <section class="view" id="view-inicio"></section>
-    <section class="view" id="view-produccion" hidden></section>
-    <section class="view" id="view-medias" hidden></section>
     <section class="view" id="view-pedidos" hidden></section>
+    <section class="view" id="view-produccion" hidden></section>
+    <section class="view" id="view-logistica" hidden></section>
+    <section class="view" id="view-medias" hidden></section>
   </main>
   <footer class="pie small muted"><span id="stamp"></span><span id="sesion" class="acciones"></span></footer>
 </div>
