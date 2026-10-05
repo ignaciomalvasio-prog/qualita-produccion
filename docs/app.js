@@ -157,6 +157,7 @@
   // Lo que ve el encargado: solo los clientes del día y cuántas medias lleva cada uno.
   function mvAct() { return S.editor ? (S.mv || 'semana') : 'dia'; }
   function conMedias(d) { return ((d && d.clientes) || []).filter(function (r) { return +r.cant > 0; }); }
+  function animales(v) { return n(v) + (v === 1 ? ' animal' : ' animales'); }
   function fmInicial() { var h = hoy(); return esHabil(h) ? h : habilSiguiente(h); }
   function diaFaena(f) {
     var lunes = lunesDe(f), sem = semDe(lunes), i = Math.round((fecha(f) - fecha(lunes)) / 86400000);
@@ -185,23 +186,23 @@
       + (S.editor ? '<button class="btn" data-act="m-semana">Volver a la planilla de la semana</button>' : '') + '</div>';
     var lu = lunesDe(f);
     h += '<div class="semtabs" role="group" aria-label="Días de la semana">' + [0, 1, 2, 3, 4].map(function (k) {
-      var fk = mas(lu, k), xk = diaFaena(fk), tk = xk ? conMedias(xk.d).reduce(function (t, r) { return t + (+r.cant || 0) * 2; }, 0) : 0;
-      return '<button class="btn" data-act="fm-ir" data-f="' + fk + '" aria-pressed="' + (fk === f) + '"><b>' + diaDe(fk).slice(0, 3) + ' ' + fecha(fk).getDate() + '</b><span>' + (tk ? n(tk) + ' medias' : 'sin medias') + '</span></button>';
+      var fk = mas(lu, k), xk = diaFaena(fk), tk = xk ? conMedias(xk.d).reduce(function (t, r) { return t + (+r.cant || 0); }, 0) : 0;
+      return '<button class="btn" data-act="fm-ir" data-f="' + fk + '" aria-pressed="' + (fk === f) + '"><b>' + diaDe(fk).slice(0, 3) + ' ' + fecha(fk).getDate() + '</b><span>' + (tk ? animales(tk) : 'sin ventas') + '</span></button>';
     }).join('') + '</div>';
-    h += '<div class="panel"><h2>Medias para clientes</h2>';
+    h += '<div class="panel"><h2>Animales para clientes</h2>';
     if (!cl.length) {
       var con = []; (S.faena || []).forEach(function (sm) { sm.dias.forEach(function (d, k) { if (conMedias(d).length) con.push(mas(sm.id, k)); }); });
       con.sort();
       var ant = con.filter(function (z) { return z < f; }).slice(-1)[0], pos = con.filter(function (z) { return z > f; })[0];
-      h += '<p class="state">No hay medias cargadas para clientes este día.</p>';
+      h += '<p class="state">No hay ventas a clientes cargadas para este día.</p>';
       if (ant || pos) h += '<div class="acciones" style="justify-content:center">' + [ant, pos].filter(Boolean).map(function (z) { return '<button class="btn" data-act="fm-ir" data-f="' + z + '">Ver el ' + esc(tituloDe(z).toLowerCase()) + '</button>'; }).join('') + '</div>';
     }
     else {
-      var tot = cl.reduce(function (t, r) { return t + (+r.cant || 0) * 2; }, 0);
-      h += '<table class="pl cl-dia"><thead><tr><th>Cliente</th><th>Medias</th></tr></thead><tbody>' + cl.map(function (r) {
-        return '<tr><td>' + esc(r.cliente || 'Sin nombre') + (r.nota ? ' <span class="small muted" style="text-transform:none;font-weight:400">' + esc(r.nota) + '</span>' : '') + '</td><td>' + n((+r.cant || 0) * 2) + '</td></tr>';
+      var tot = cl.reduce(function (t, r) { return t + (+r.cant || 0); }, 0);
+      h += '<table class="pl cl-dia"><thead><tr><th>Cliente</th><th>Animales</th></tr></thead><tbody>' + cl.map(function (r) {
+        return '<tr><td>' + esc(r.cliente || 'Sin nombre') + (r.nota ? ' <span class="small muted" style="text-transform:none;font-weight:400">' + esc(r.nota) + '</span>' : '') + '</td><td>' + n(+r.cant || 0) + '</td></tr>';
       }).join('') + '</tbody><tfoot><tr><th>Total</th><td>' + n(tot) + '</td></tr></tfoot></table>'
-        + '<p class="small muted">Salen de la faena del ' + esc(tituloDe(f).toLowerCase()) + ' y se entregan el ' + esc(tituloDe(habilSiguiente(f)).toLowerCase()) + '.</p>';
+        + '<p class="small muted">Cantidades en animales enteros (un animal son dos medias). Salen de la faena del ' + esc(tituloDe(f).toLowerCase()) + ' y se entregan el ' + esc(tituloDe(habilSiguiente(f)).toLowerCase()) + '.</p>';
     }
     el.innerHTML = h + '</div>';
   }
@@ -905,7 +906,7 @@
     var f = fechaProdInicial(), o = prodDe(f), h = hoy();
     var dp = o ? esc(o.medias) + ' medias · ' + (o.estado === 'borrador' ? 'borrador, todavía sin confirmar' : 'confirmada') : 'Todavía no hay orden cargada';
     var fm = fmInicial(), x = diaFaena(fm), cl = x ? conMedias(x.d) : [];
-    var dm = cl.length ? cl.length + (cl.length === 1 ? ' cliente · ' : ' clientes · ') + n(cl.reduce(function (t, r) { return t + (+r.cant || 0) * 2; }, 0)) + ' medias' : 'Todavía no hay medias cargadas';
+    var dm = cl.length ? cl.length + (cl.length === 1 ? ' cliente · ' : ' clientes · ') + animales(cl.reduce(function (t, r) { return t + (+r.cant || 0); }, 0)) : 'Todavía no hay ventas cargadas';
     var html = '<div class="home">'
       + '<button class="tile" data-act="ir" data-tab="produccion"><b>Producción</b><span>Orden del ' + esc(tituloDe(f).toLowerCase()) + '</span><span class="dato">' + dp + '</span></button>'
       + '<button class="tile" data-act="ir" data-tab="medias"><b>Medias</b><span>Clientes del ' + esc(tituloDe(fm).toLowerCase()) + '</span><span class="dato">' + esc(dm) + '</span></button>';
