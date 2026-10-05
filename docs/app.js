@@ -473,7 +473,7 @@
     var clientes = {}, ejemplos = [];
     (S.faena || []).forEach(function (s) { s.dias.forEach(function (d) { d.clientes.forEach(function (r) { if (r.cliente) clientes[r.cliente] = 1; }); }); });
     (S.prod || []).slice(-3).forEach(function (o) { ejemplos.push(textoOrden(o)); });
-    return 'Sos el asistente de carga de pedidos del Frigorífico Qualitá, un frigorífico de cerdo. Recibís una foto o una captura de pantalla con uno o varios pedidos de clientes y los cargás con la herramienta registrar_pedidos.\n\n'
+    return 'Sos el asistente de carga de pedidos del Frigorífico Qualitá, un frigorífico de cerdo. Recibís una foto o una captura de pantalla con uno o varios pedidos de clientes y devolvés los pedidos leídos como datos estructurados, sin texto adicional.\n\n'
       + 'Hoy es ' + diaDe(hoy()) + ' ' + hoy() + '.\n\n'
       + 'TIPOS DE IMAGEN\n'
       + '1. Formulario manuscrito "ORDEN DE PEDIDO": el cliente está arriba y hay una "Fecha de entrega". En el renglón "18 CAPÓN" la cantidad seguida de "½" es la cantidad de MEDIAS RESES (ej.: "20 ½" = 20 medias). Los demás renglones son cortes. "Todo" al lado de un corte significa que el cliente se lleva todo lo que salga de ese corte. Puede haber renglones agregados a mano al pie, con código, y notas al margen. Una foto puede traer varios formularios: cada uno es un pedido.\n'
@@ -497,29 +497,34 @@
       return fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-api-key': S.ia.clave, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: S.ia.modelo || IA_MODELO, max_tokens: 8000, system: instrucciones(),
-          tools: [{ name: 'registrar_pedidos', description: 'Carga los pedidos leídos de la imagen.', input_schema: ESQUEMA_PEDIDOS }],
-          tool_choice: { type: 'tool', name: 'registrar_pedidos' },
+        body: JSON.stringify({ model: S.ia.modelo || IA_MODELO, max_tokens: 16000, system: instrucciones(),
+          output_config: { format: { type: 'json_schema', schema: ESQUEMA_PEDIDOS } },
           messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } }, { type: 'text', text: 'Leé los pedidos de esta imagen y cargalos.' }] }] })
       });
     }).then(function (r) {
       return r.json().then(function (j) {
         if (!r.ok) throw new Error(r.status === 401 ? 'La clave de IA no es válida.' : (j && j.error && j.error.message) || ('Error ' + r.status));
-        var uso = (j.content || []).filter(function (b) { return b.type === 'tool_use'; })[0];
-        if (uso && uso.input && Array.isArray(uso.input.pedidos)) return uso.input;
         if (j.stop_reason === 'max_tokens') throw new Error('La imagen tiene demasiados pedidos para leerla de una vez. Recortala en dos y subila de nuevo.');
+        if (j.stop_reason === 'refusal') throw new Error('La IA no pudo leer esta imagen. Cargá el pedido a mano.');
+        var texto = (j.content || []).filter(function (b) { return b.type === 'text'; }).map(function (b) { return b.text; }).join('').trim();
+        var datos = null;
+        try { datos = JSON.parse(texto); } catch (e) {
+          var a = texto.indexOf('{'), z = texto.lastIndexOf('}');
+          if (a >= 0 && z > a) { try { datos = JSON.parse(texto.slice(a, z + 1)); } catch (e2) { datos = null; } }
+        }
+        if (datos && Array.isArray(datos.pedidos)) return datos;
         throw new Error('No se pudieron leer pedidos en la imagen.');
       });
     });
   }
   var ESQUEMA_PEDIDOS = {
-    type: 'object', required: ['pedidos'],
+    type: 'object', additionalProperties: false, required: ['pedidos'],
     properties: { pedidos: { type: 'array', items: {
-      type: 'object', required: ['cliente', 'medias', 'cortes'],
+      type: 'object', additionalProperties: false, required: ['cliente', 'entrega', 'medias', 'peso', 'cortes', 'nota', 'dudas'],
       properties: {
         cliente: { type: 'string' }, entrega: { type: 'string', description: 'AAAA-MM-DD, o vacío si no figura' },
-        medias: { type: 'number' }, peso: { type: 'string' },
-        cortes: { type: 'array', items: { type: 'object', required: ['corte', 'texto', 'orden'], properties: { corte: { type: 'string' }, texto: { type: 'string' }, orden: { type: 'boolean' } } } },
+        medias: { type: 'number', description: 'Cantidad de medias reses; 0 si no pide' }, peso: { type: 'string' },
+        cortes: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['corte', 'texto', 'orden'], properties: { corte: { type: 'string' }, texto: { type: 'string' }, orden: { type: 'boolean' } } } },
         nota: { type: 'string' }, dudas: { type: 'array', items: { type: 'string' } }
       } } } }
   };
