@@ -723,7 +723,7 @@
     h += '<div class="acciones"><button class="btn sm" data-act="q-corte" data-q="' + i + '">+ Corte</button></div>'
       + '<label class="campo"><span>Nota</span><input type="text" id="q' + i + 'nota" data-q="' + i + '" data-k="nota" value="' + esc(q.nota || '') + '"></label>'
       + (q.error ? '<p class="small neg">' + esc(q.error) + '</p>' : '')
-      + '<div class="acciones"><button class="btn pri" data-act="q-guardar" data-q="' + i + '">' + (q.editaId ? 'Guardar cambios' : 'Guardar pedido') + '</button><button class="btn" data-act="q-descartar" data-q="' + i + '">' + (q.editaId ? 'Cancelar' : 'Descartar') + '</button></div></div>';
+      + '<div class="acciones"><button class="btn pri" data-act="q-guardar" data-q="' + i + '">' + (q.editaId ? 'Guardar cambios' : 'Guardar pedido') + '</button><button class="btn" data-act="q-descartar" data-q="' + i + '">' + (q.editaId ? 'Cancelar' : 'Descartar') + '</button>' + (q.editaId ? '<button class="btn rojo" data-act="ped-borrar" data-id="' + esc(q.editaId) + '">Quitar este pedido</button>' : '') + '</div></div>';
     return h;
   }
   function renderPedidos() {
@@ -745,23 +745,52 @@
     h += '</div>';
 
     var lista = (S.pedidos || []).filter(function (p) { return p.entrega === S.entrega; });
-    h += '<div class="panel"><div class="nav"><h2 style="flex:1 1 auto">Pedidos para entregar</h2><input type="date" id="e-fecha" value="' + esc(S.entrega) + '" aria-label="Fecha de entrega"></div>';
-    if (!lista.length) h += '<p class="muted">No hay pedidos cargados para el ' + esc(tituloDe(S.entrega).toLowerCase()) + '.</p>';
+    var ent = S.entrega, cuando = ent === mas(hoy(), 1) ? 'mañana' : ent === hoy() ? 'hoy' : 'el ' + tituloDe(ent).toLowerCase();
+    var porId = {}; lista.forEach(function (p) { porId[p.id] = p; });
+    var editando = function (id) { return S.prop.some(function (x) { return x.editaId === id; }); };
+    var btnEd = function (id) { return editando(id) ? '<span class="small muted" style="text-transform:none;font-weight:400">editando</span>' : '<button class="btn sm" data-act="ped-editar" data-id="' + esc(id) + '">Editar</button>'; };
+
+    h += '<div class="nav nav-ped"><button class="btn step" data-act="e-dia" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">Para entregar ' + (cuando === 'mañana' || cuando === 'hoy' ? cuando + ' · ' + esc(tituloDe(ent).toLowerCase()) : esc(cuando)) + '</span><button class="btn step" data-act="e-dia" data-d="1" aria-label="Día siguiente">›</button>'
+      + '<input type="date" id="e-fecha" value="' + esc(ent) + '" aria-label="Fecha de entrega"></div>';
+
+    // pedidos que se están editando y los que quedaron para revisar
+    S.prop.forEach(function (q, k) { if (q.editaId) h += '<div class="panel"><h3>Editando el pedido de ' + esc(q.cliente || 'cliente sin nombre') + '</h3>' + propHTML(q, k) + '</div>'; });
+    var rev = lista.filter(function (p) { return p.dudas && p.dudas.length && !editando(p.id); });
+    if (rev.length) h += '<div class="panel"><h3><span class="badge warn">Para revisar</span></h3><div class="lista">' + rev.map(function (p) {
+      return '<div class="item"><div class="cuerpo"><strong>' + esc(p.cliente) + '</strong>' + p.dudas.map(function (d) { return '<span class="small aviso">' + esc(d) + '</span>'; }).join('') + '</div><div class="botones">' + btnEd(p.id) + '</div></div>';
+    }).join('') + '</div></div>';
+
+    // 1) medias reses: lo mismo que ve el encargado de faena
+    var fa = habilAnterior(ent), xf = diaFaena(fa), filas = xf ? (xf.d.clientes || []).filter(function (r) { return r.cliente || +r.cant; }).map(function (r) { return { cliente: r.cliente, medias: (+r.cant || 0) * 2, nota: r.nota, id: r.pedido && porId[r.pedido] ? r.pedido : null }; }) : [];
+    lista.forEach(function (p) { if (!(p.cortes || []).length || +p.medias) { if (!filas.some(function (r) { return r.id === p.id; })) filas.push({ cliente: p.cliente, medias: +p.medias || 0, nota: p.peso, id: p.id, fuera: true }); } });
+    h += '<div class="panel"><h2>Medias reses para entregar ' + esc(cuando) + '</h2>';
+    if (!filas.length) h += '<p class="muted">No hay medias cargadas para entregar ' + esc(cuando) + '.</p>';
     else {
-      var tm = lista.reduce(function (t, p) { return t + (+p.medias || 0); }, 0);
-      h += '<p class="small muted">' + lista.length + ' pedidos · ' + n(tm) + ' medias (' + n(tm / 2) + ' cerdos)</p><div class="lista">' + lista.map(function (p) {
-        var ie = -1; S.prop.forEach(function (x, k) { if (x.editaId === p.id) ie = k; });
-        if (ie >= 0) return propHTML(S.prop[ie], ie);
-        return '<div class="item"><div class="cuerpo"><strong>' + esc(p.cliente) + (p.dudas && p.dudas.length ? ' <span class="badge warn">Para revisar</span>' : '') + '</strong>'
-          + (p.medias ? '<span>' + n(p.medias) + ' medias' + (p.peso ? ' · ' + esc(p.peso) : '') + '</span>' : '')
-          + (p.cortes || []).map(function (c) { return '<span class="small">' + esc(c.corte) + ': ' + esc(c.texto) + (c.orden ? '' : ' <span class="muted">(no va a la orden)</span>') + '</span>'; }).join('')
-          + (p.nota ? '<span class="small muted">' + esc(p.nota) + '</span>' : '')
-          + (p.dudas || []).map(function (d) { return '<span class="small aviso">' + esc(d) + '</span>'; }).join('')
-          + '</div><div class="botones"><button class="btn sm" data-act="ped-editar" data-id="' + esc(p.id) + '">Editar</button><button class="btn sm" data-act="ped-borrar" data-id="' + esc(p.id) + '">Quitar</button></div></div>';
-      }).join('') + '</div>';
+      var tm = filas.reduce(function (t, r) { return t + r.medias; }, 0);
+      h += '<table class="pl cl-dia cl-ped"><thead><tr><th>Cliente</th><th>Medias</th><th></th></tr></thead><tbody>' + filas.map(function (r) {
+        return '<tr' + (r.medias ? '' : ' class="cero"') + '><td>' + esc(r.cliente || 'Sin nombre') + (r.nota ? ' <span class="small muted" style="text-transform:none;font-weight:400">' + esc(r.nota) + '</span>' : '') + (r.fuera ? ' <span class="small aviso" style="text-transform:none;font-weight:400">no está en la planilla</span>' : '') + '</td><td>' + n(r.medias) + '</td><td class="ac">' + (r.id ? btnEd(r.id) : '') + '</td></tr>';
+      }).join('') + '</tbody><tfoot><tr><th>Total</th><td>' + n(tm) + '</td><td></td></tr></tfoot></table>'
+        + '<p class="small muted">Salen de la faena del ' + esc(tituloDe(fa).toLowerCase()) + '. Los que no tienen "Editar" vienen de la planilla semanal y se cambian ahí.</p>';
     }
-    h += '<div class="acciones"><button class="btn sm" data-act="ir-medias">Ver la planilla de medias</button><button class="btn sm" data-act="ir-orden">Ver la orden de ese día</button>' + (lista.length ? botonBorrar('ped-borrar-todos', null, 'Quitar todos los de este día') : '')
-      + ((S.pedidos || []).length ? botonBorrar('ped-borrar-total', null, 'Quitar todos los pedidos, de todos los días (' + S.pedidos.length + ')') : '') + '</div></div>';
+    h += '<div class="acciones"><button class="btn sm" data-act="ir-medias">Abrir la planilla de medias</button></div></div>';
+
+    // 2) pedidos de desposte: agrupados por corte, como la orden
+    var grupos = {}, fuera = [];
+    lista.forEach(function (p) { (p.cortes || []).forEach(function (c) { if (!c.texto) return; if (c.orden === false) { fuera.push({ corte: c.corte, t: c.texto, id: p.id }); return; } var k = norm(c.corte); (grupos[k] = grupos[k] || []).push({ t: c.texto, id: p.id }); }); });
+    var claves = Object.keys(grupos).sort(function (a, b) { var ia = CORTES_BASE.indexOf(a), ib = CORTES_BASE.indexOf(b); return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) || (a < b ? -1 : 1); });
+    h += '<div class="panel"><h2>Pedidos de desposte para ' + esc(cuando) + '</h2>';
+    if (!claves.length && !fuera.length) h += '<p class="muted">No hay pedidos de cortes cargados para ' + esc(cuando) + '.</p>';
+    else {
+      h += '<article class="op op-ped">' + claves.map(function (k) {
+        return '<div class="op-c">' + grupos[k].map(function (l, i2) { return '<p class="lp"><span>' + (i2 === 0 ? '<u>' + esc(k) + '</u>: ' : '') + esc(l.t) + '</span>' + btnEd(l.id) + '</p>'; }).join('') + '</div>';
+      }).join('');
+      if (fuera.length) h += '<div class="op-c"><p class="small muted" style="text-transform:none;font-weight:400">No van a la orden de desposte (congelado de stock u otro sector):</p>' + fuera.map(function (l) { return '<p class="lp"><span><u>' + esc(l.corte) + '</u>: ' + esc(l.t) + '</span>' + btnEd(l.id) + '</p>'; }).join('') + '</div>';
+      h += '</article>';
+    }
+    h += '<div class="acciones"><button class="btn sm" data-act="ir-orden">Ver la orden completa de ese día</button></div></div>';
+
+    if ((S.pedidos || []).length) h += '<div class="acciones">' + (lista.length ? botonBorrar('ped-borrar-todos', null, 'Quitar todos los pedidos de este día (' + lista.length + ')') : '')
+      + botonBorrar('ped-borrar-total', null, 'Quitar todos los pedidos, de todos los días (' + S.pedidos.length + ')') + '</div>';
 
     h += '<div class="panel"><details' + (S._conf ? ' open' : '') + '><summary>Configuración</summary><div class="campos">'
       + '<label class="campo"><span>Clave de IA (Anthropic)</span><input type="password" id="cfg-clave" autocomplete="off" placeholder="' + (S.ia && S.ia.clave ? 'Cargada. Escribí otra para cambiarla.' : 'sk-ant-…') + '"></label>'
@@ -914,7 +943,8 @@
       if (pe && !S.prop.some(function (x) { return x.editaId === pe.id; })) S.prop.push({ k: uid(), editaId: pe.id, cliente: pe.cliente || '', entrega: pe.entrega || '', medias: pe.medias || '', peso: pe.peso || '', nota: pe.nota || '', origen: pe.origen || 'manual', dudas: (pe.dudas || []).slice(), cortes: clone(pe.cortes || []) });
       S.msg.fotos = ''; renderPedidos(); var fe = $('q' + (S.prop.length - 1) + 'cliente'); if (fe) fe.focus();
     }
-    else if (a === 'ped-borrar') { var p = (S.pedidos || []).filter(function (x) { return x.id === D.id; })[0]; if (p) borrarPedido(p).then(tocar); }
+    else if (a === 'ped-borrar') { var p = (S.pedidos || []).filter(function (x) { return x.id === D.id; })[0]; S.prop = S.prop.filter(function (x) { return x.editaId !== D.id; }); if (p) borrarPedido(p).then(tocar); renderPedidos(); }
+    else if (a === 'e-dia') { var ye = S.entrega; do { ye = mas(ye, +D.d); } while (!esHabil(ye)); S.entrega = ye; renderPedidos(); }
     else if (a === 'ir-medias') { S.em = null; S.mv = null; S.fm = habilAnterior(S.entrega); S.sem = lunesDe(S.fm); S.dia = Math.round((fecha(S.fm) - fecha(S.sem)) / 86400000); irA('medias'); }
     else if (a === 'ir-orden') { S.ep = null; S.fechaFija = true; S.fecha = S.entrega; irA('produccion'); }
     else if (a === 'cfg-guardar') {
