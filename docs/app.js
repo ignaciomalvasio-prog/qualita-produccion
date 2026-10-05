@@ -297,9 +297,23 @@
     var x = clone(o); quitarDeOrden(x, p.id, c.k, c.texto);
     return guardarOrden(f, x, true).then(tocar);
   }
+  // Total de un corte, sumando la cantidad con la que empieza cada renglón, por unidad.
+  function totalCorte(c) {
+    var t = {}, orden = ['kg', 'cajas', 'und', 'bines'];
+    (c.lineas || []).forEach(function (l) {
+      var m = norm(l.t).match(/^([\d.,]+)\s*(KGS?|KILOS?|K|CAJAS?|CJS?|UND|UNIDAD(?:ES)?|UNID|U|BINES?)\b/);
+      if (!m) return;
+      var u = /^K/.test(m[2]) ? 'kg' : /^C/.test(m[2]) ? 'cajas' : /^B/.test(m[2]) ? 'bines' : 'und';
+      t[u] = (t[u] || 0) + numero(m[1]);
+    });
+    return orden.filter(function (u) { return t[u]; }).map(function (u) { return n(t[u]) + ' ' + (u === 'cajas' && t[u] === 1 ? 'caja' : u === 'bines' && t[u] === 1 ? 'bin' : u); }).join(' · ');
+  }
   function textoOrden(o) {
     var out = [diaDe(o.fecha).toUpperCase() + ' ' + fechaCorta(o.fecha), (o.medias || '') + '½ ' + String(o.mercado || '').toUpperCase()];
-    (o.cortes || []).forEach(function (c) { (c.lineas.length ? c.lineas : [{ t: '' }]).forEach(function (l, i) { out.push(((i === 0 ? c.corte + ': ' : '') + l.t).toUpperCase()); }); });
+    (o.cortes || []).forEach(function (c) {
+      (c.lineas.length ? c.lineas : [{ t: '' }]).forEach(function (l, i) { out.push(((i === 0 ? c.corte + ': ' : '') + l.t).toUpperCase()); });
+      var tot = totalCorte(c); if (tot && c.lineas.length > 1) out.push('TOTAL ' + c.corte + ': ' + tot.toUpperCase());
+    });
     return out.join('\n');
   }
   function fechaProdInicial() { var h = hoy(); return esHabil(h) ? h : habilSiguiente(h); }
@@ -326,7 +340,8 @@
       + (o.estado === 'borrador' ? '<span class="badge warn">Borrador</span>' : '<span class="badge ok">Confirmada</span>') + '</header>';
     if (!nl) h += '<p class="muted">Todavía no se sumó ningún corte.</p>';
     else h += '<div class="hoja-cortes">' + (o.cortes || []).map(function (c) {
-      return '<div class="hoja-corte"><h3>' + esc(c.corte || 'Sin corte') + '</h3><ul>' + c.lineas.map(function (l) { return '<li>' + esc(l.t) + '</li>'; }).join('') + '</ul></div>';
+      var tot = totalCorte(c);
+      return '<div class="hoja-corte"><div class="hoja-nom"><h3>' + esc(c.corte || 'Sin corte') + '</h3>' + (tot ? '<p class="hoja-tot"><span>Total</span> ' + esc(tot) + '</p>' : '') + '</div><ul>' + c.lineas.map(function (l) { return '<li>' + esc(l.t) + '</li>'; }).join('') + '</ul></div>';
     }).join('') + '</div>';
     h += '<div class="acciones"><button class="btn" data-act="copiar">Copiar como texto</button>' + (S.editor ? '<button class="btn" data-act="ir-pedidos" data-f="' + f + '">Sumar cortes desde los pedidos</button>' : '') + '<span class="small muted" id="copiado" aria-live="polite"></span></div><textarea id="txt-orden" class="txt" readonly hidden aria-label="Planilla en texto">' + esc(textoOrden(o)) + '</textarea></div>';
     el.innerHTML = h;
@@ -354,6 +369,7 @@
         var m = l.match(/^(\d+(?:[.,]\d+)?)\s*(?:½|1\/2|MEDIAS\b)\s*(.*)$/i);
         if (m) { o.medias = +m[1].replace(',', '.') || 0; o.mercado = m[2].trim(); cab = true; return; }
       }
+      if (/^TOTAL\b[^:]*:/.test(norm(l))) return;   // los totales se calculan solos
       var t = l.match(/^([^:]{1,32}):\s*(.*)$/), pre = t ? norm(t[1]) : '';
       var esTit = t && (conocidos[pre] || (NO_TITULO.indexOf(pre) < 0 && !/\d/.test(pre) && pre.split(' ').length <= 4));
       if (!esTit && !t && conocidos[norm(l)]) { esTit = true; t = [l, l, '']; }

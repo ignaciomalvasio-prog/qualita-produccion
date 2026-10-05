@@ -174,9 +174,12 @@ h1 a{color:inherit;text-decoration:none}
 .hoja-corte:nth-child(even){background:var(--bg)}
 .hoja-corte:last-child{border-bottom:0}
 .hoja-corte h3{font-size:19px;font-weight:700;color:var(--accent);letter-spacing:.02em;overflow-wrap:anywhere}
+.hoja-nom{display:flex;flex-direction:column;gap:4px;min-width:0}
+.hoja-tot{margin:0;font:700 20px var(--display);line-height:1.1}
+.hoja-tot span{font:700 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:block}
 .hoja-corte ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
 .hoja-corte li{font-weight:600;font-size:17px;line-height:1.3;text-transform:uppercase;overflow-wrap:anywhere}
-@media (max-width:560px){ .hoja-corte{grid-template-columns:minmax(0,1fr)} .hoja-dato{margin-left:0} .hoja-cab h2{font-size:24px} }
+@media (max-width:560px){ .hoja-corte{grid-template-columns:minmax(0,1fr)} .hoja-nom{flex-direction:row;align-items:baseline;justify-content:space-between;gap:12px} .hoja-tot span{display:inline;margin-right:4px} .hoja-dato{margin-left:0} .hoja-cab h2{font-size:24px} }
 /* listado de pedidos */
 .peds{display:flex;flex-direction:column;border-top:1px solid var(--line)}
 .ped{border-bottom:1px solid var(--line)}
@@ -248,7 +251,7 @@ details[open] > summary{margin-bottom:10px}
   h1{font-size:14px}
   .nav .tit{font-size:20px}
   #view-produccion .nav{display:none}
-  .hoja-cab h2{font-size:22px}.hoja-dato b{font-size:26px}.hoja-corte{padding:6px 2px}.hoja-corte:nth-child(even){background:none}.hoja-corte h3{font-size:15px;color:#000}.hoja-corte li{font-size:14px}
+  .hoja-cab h2{font-size:22px}.hoja-dato b{font-size:26px}.hoja-corte{padding:6px 2px}.hoja-corte:nth-child(even){background:none}.hoja-corte h3{font-size:15px;color:#000}.hoja-tot{font-size:15px}.hoja-corte li{font-size:14px}
   .panel.carga{border:0;background:none}
   .cam{border:1.5px solid #000;border-radius:0;margin-bottom:8px}.cam>.cam-cab,.cam.pasa>.cam-cab,.cam.suelto>.cam-cab{background:none;color:#000;border-bottom:2px solid #000;padding:6px 8px}.cam>.cam-cab h2{font-size:18px}.cam-datos{background:none;padding:4px 8px}.cam-res b{font-size:18px}.cam-cuerpo{padding:0 8px 6px}.medidor{display:none}
   .panel{border:0;padding:0}
