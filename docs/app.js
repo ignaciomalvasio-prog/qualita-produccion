@@ -128,7 +128,7 @@
         : '<tr><td>' + esc(r.cliente) + (r.nota ? ' <span class="small muted" style="text-transform:none;font-weight:400">' + esc(r.nota) + '</span>' : '') + '</td><td>' + n(+r.cant || 0) + '</td></tr>';
     });
     h += '</tbody><tfoot><tr><th>Total clientes</th><td id="sc' + i + '">' + n(s.clientes) + '</td>' + (edit ? '<td></td>' : '') + '</tr></tfoot></table>';
-    if (edit) h += '<div class="acciones"><button class="btn sm" data-act="m-agregar" data-m="clientes" data-i="' + i + '">+ Cliente</button></div>';
+    if (edit) h += '<div class="acciones"><button class="btn sm" data-act="m-agregar" data-m="clientes" data-i="' + i + '">+ Cliente</button>' + botonBorrar('m-vaciar', i, 'Vaciar este día') + '</div>';
 
     h += '<div class="desp" id="sd' + i + '">' + despHTML(s) + '</div>';
     h += '<dl class="stk" id="sk' + i + '">' + stockHTML(k, sig) + '</dl></section>';
@@ -171,7 +171,8 @@
     var st = stockSemana(lunes);
     if (edit) {
       h += '<div class="panel"><label class="campo" style="max-width:340px"><span>Medias propias en cámara al empezar el lunes</span><input type="number" inputmode="numeric" id="m-stock" value="' + esc(sem.stockInicial == null ? '' : sem.stockInicial) + '" placeholder="' + (st.deducido != null ? 'Se deduce: ' + n(st.deducido) : 'Sin dato') + '"></label>'
-        + '<p class="small muted">Dejalo vacío para que se deduzca de la semana anterior. Cada cambio se guarda solo.</p></div>';
+        + '<p class="small muted">Dejalo vacío para que se deduzca de la semana anterior. Cada cambio se guarda solo.</p>'
+        + '<div class="acciones">' + botonBorrar('m-borrar-semana', null, 'Borrar toda la semana') + '</div></div>';
     }
     h += '<div class="dtabs" role="group" aria-label="Día">' + sem.dias.map(function (d, i) { var f = mas(lunes, i); return '<button class="btn" data-act="dia" data-i="' + i + '" aria-pressed="' + (S.dia === i) + '">' + diaDe(f).slice(0, 3) + ' ' + fecha(f).getDate() + '</button>'; }).join('') + '</div>';
     h += '<div class="dias" data-sel="' + S.dia + '">' + sem.dias.map(function (d, i) { return diaHTML(sem, i, st, edit); }).join('') + '</div>';
@@ -318,13 +319,20 @@
       });
       h += '<div class="acciones"><button class="btn sm" data-act="p-linea" data-c="' + ci + '">+ Línea</button></div></div>';
     });
-    h += '<div class="acciones"><button class="btn" data-act="p-corte">+ Corte</button><button class="btn lnk" data-act="p-rearmar">' + (S._rearmar ? 'Tocá de nuevo para rearmar: se pierden los cambios hechos a mano' : 'Volver a armar desde cero') + '</button></div></div>';
+    h += '<div class="acciones"><button class="btn" data-act="p-corte">+ Corte</button><button class="btn lnk" data-act="p-rearmar">' + (S._rearmar ? 'Tocá de nuevo para rearmar: se pierden los cambios hechos a mano' : 'Volver a armar desde cero') + '</button>' + botonBorrar('p-borrar', null, 'Borrar la orden') + '</div></div>';
     return h;
   }
   function stockParaFecha(f) {
     var st = stockSemana(lunesDe(f)); if (!st) return null;
     var i = Math.round((fecha(f) - fecha(lunesDe(f))) / 86400000);
     return st.dias[i] ? st.dias[i].disponibleHoy : null;
+  }
+
+  /* ---------- borrar, con confirmación en dos toques ---------- */
+  function confirma(k) { if (S._c2 === k) { S._c2 = null; return true; } S._c2 = k; return false; }
+  function botonBorrar(act, i, texto, cls) {
+    var k = act + (i == null ? '' : i);
+    return '<button class="btn ' + (cls || 'sm') + ' rojo" data-act="' + act + '"' + (i == null ? '' : ' data-i="' + i + '"') + '>' + (S._c2 === k ? 'Tocá de nuevo para confirmar' : texto) + '</button>';
   }
 
   /* ---------- guardado ---------- */
@@ -516,7 +524,7 @@
     h += '<div class="acciones"><label class="btn pri" style="display:inline-flex;align-items:center' + (conIA ? '' : ';opacity:.45') + '">Subir fotos o capturas<input type="file" id="fotos" accept="image/*" multiple hidden' + (conIA ? '' : ' disabled') + '></label>'
       + '<button class="btn" data-act="q-nuevo">Cargar a mano</button><span class="guardado" id="g-fotos"></span></div>';
     if (!conIA) h += '<p class="small muted">Para leer fotos falta cargar la clave de IA, más abajo en Configuración. Mientras tanto se puede cargar a mano.</p>';
-    if (S.prop.length) h += S.prop.map(propHTML).join('') + (S.prop.length > 1 ? '<div class="acciones"><button class="btn pri" data-act="q-todos">Guardar todos</button></div>' : '');
+    if (S.prop.length) h += S.prop.map(propHTML).join('') + (S.prop.length > 1 ? '<div class="acciones"><button class="btn pri" data-act="q-todos">Guardar todos</button>' + botonBorrar('q-descartar-todos', null, 'Descartar todos', '') + '</div>' : '');
     h += '</div>';
 
     var lista = (S.pedidos || []).filter(function (p) { return p.entrega === S.entrega; });
@@ -531,7 +539,7 @@
           + (p.nota ? '<span class="small muted">' + esc(p.nota) + '</span>' : '') + '</div><button class="btn sm" data-act="ped-borrar" data-id="' + esc(p.id) + '">Quitar</button></div>';
       }).join('') + '</div>';
     }
-    h += '<div class="acciones"><button class="btn sm" data-act="ir-medias">Ver la planilla de medias</button><button class="btn sm" data-act="ir-orden">Ver la orden de ese día</button></div></div>';
+    h += '<div class="acciones"><button class="btn sm" data-act="ir-medias">Ver la planilla de medias</button><button class="btn sm" data-act="ir-orden">Ver la orden de ese día</button>' + (lista.length ? botonBorrar('ped-borrar-todos', null, 'Quitar todos los de este día') : '') + '</div></div>';
 
     h += '<div class="panel"><details' + (S._conf ? ' open' : '') + '><summary>Configuración</summary><div class="campos">'
       + '<label class="campo"><span>Clave de IA (Anthropic)</span><input type="password" id="cfg-clave" autocomplete="off" placeholder="' + (S.ia && S.ia.clave ? 'Cargada. Escribí otra para cambiarla.' : 'sk-ant-…') + '"></label>'
@@ -599,6 +607,7 @@
     var b = e.target.closest('[data-act]'); if (!b) return;
     var a = b.dataset.act, D = b.dataset, o, c;
     if (a !== 'p-rearmar') S._rearmar = false;
+    if (S._c2 && S._c2 !== a + (D.i == null ? '' : D.i)) S._c2 = null;
 
     if (a === 'ir') irA(D.tab);
     else if (a === 'ingresar') store.signIn().catch(function () {});
@@ -615,12 +624,15 @@
     else if (a === 'm-editar') { if (S.em) { guardar('medias', true); S.em = null; } else { S.em = { lunes: S.sem, doc: clone(semDe(S.sem)) }; S.msg.medias = ''; } render(); }
     else if (a === 'm-nueva') { S.em = { lunes: S.sem, doc: semanaNueva(S.sem) }; guardar('medias', true); render(); }
     else if (a === 'm-agregar') { S.em.doc.dias[+D.i][D.m].push(D.m === 'faena' ? { origen: '', propios: 0, usuarios: 0 } : { cliente: '', cant: 0 }); render(); var ult = S.em.doc.dias[+D.i][D.m].length - 1, foco = $((D.m === 'faena' ? 'f' : 'c') + D.i + '-' + ult + (D.m === 'faena' ? 'o' : 'c')); if (foco) foco.focus(); }
+    else if (a === 'm-vaciar') { if (!confirma('m-vaciar' + D.i)) { render(); return; } var dv = S.em.doc.dias[+D.i]; dv.faena = [{ origen: '', propios: 0, usuarios: 0 }]; dv.clientes = []; guardar('medias'); render(); }
+    else if (a === 'm-borrar-semana') { if (!confirma('m-borrar-semana')) { render(); return; } clearTimeout(timers.medias); var lb = S.em.lunes; S.em = null; S.faena = (S.faena || []).filter(function (x) { return x.id !== lb; }); store.del('faena', lb).then(tocar, function () {}); render(); }
     else if (a === 'm-quitar') { S.em.doc.dias[+D.i][D.m].splice(+D.r, 1); guardar('medias'); render(); }
 
     // producción
     else if (a === 'fecha') { S.fechaFija = true; if (S.ep) guardar('prod', true); S.ep = null; var x = S.fecha; do { x = mas(x, +D.d); } while (!esHabil(x)); S.fecha = x; render(); }
     else if (a === 'p-armar') { S.fechaFija = true; S.ep = { fecha: S.fecha, doc: armarOrden(S.fecha) }; guardar('prod', true); render(); }
     else if (a === 'p-editar') { S.fechaFija = true; if (S.ep) { guardar('prod', true); S.ep = null; } else { S.ep = { fecha: S.fecha, doc: clone(prodDe(S.fecha)) }; S.msg.prod = ''; } render(); }
+    else if (a === 'p-borrar' && S.ep) { if (!confirma('p-borrar')) { render(); return; } clearTimeout(timers.prod); var fb = S.ep.fecha; S.ep = null; S.prod = (S.prod || []).filter(function (x) { return x.id !== fb; }); store.del('produccion', fb).then(tocar, function () {}); render(); }
     else if (S.ep && a.indexOf('p-') === 0) {
       o = S.ep.doc; c = D.c != null ? o.cortes[+D.c] : null;
       if (a === 'p-estado') { o.estado = D.v; if (D.v === 'lista') o.cortes.forEach(function (x) { x.colgado = false; }); }
@@ -640,6 +652,13 @@
     else if (a === 'q-nuevo') { S.prop.push(pedidoVacio()); renderPedidos(); var fq = $('q' + (S.prop.length - 1) + 'cliente'); if (fq) fq.focus(); }
     else if (a === 'q-corte') { S.prop[+D.q].cortes.push({ corte: CORTES_BASE[0], texto: '', orden: true }); renderPedidos(); }
     else if (a === 'q-quitar-corte') { S.prop[+D.q].cortes.splice(+D.j, 1); renderPedidos(); }
+    else if (a === 'q-descartar-todos') { if (!confirma('q-descartar-todos')) { renderPedidos(); return; } S.prop = []; S.msg.fotos = ''; renderPedidos(); }
+    else if (a === 'ped-borrar-todos') {
+      if (!confirma('ped-borrar-todos')) { renderPedidos(); return; }
+      (S.pedidos || []).filter(function (x) { return x.entrega === S.entrega; }).reduce(function (cad, x) {
+        return cad.then(function () { return borrarPedido(x); }).then(function () { return new Promise(function (r) { setTimeout(r, 40); }); });
+      }, Promise.resolve()).then(tocar);
+    }
     else if (a === 'q-descartar') { S.prop.splice(+D.q, 1); renderPedidos(); }
     else if (a === 'q-guardar' || a === 'q-todos') {
       var cuales = a === 'q-todos' ? S.prop.slice() : [S.prop[+D.q]];
