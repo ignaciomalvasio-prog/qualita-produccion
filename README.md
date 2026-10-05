@@ -7,7 +7,7 @@ Web app del Frigorífico Qualitá. Muestra lo mismo que hoy circula por WhatsApp
 - La foto de la planilla semanal de faena y medias (Excel) no se lee como pedidos: reemplaza la faena y los clientes de esa semana, en cerdos y por día de faena, tal cual figura. Volver a subirla no duplica.
 - Un pedido leído que ya estaba cargado igual (mismo cliente, entrega, medias y cortes) no se repite.
 - Cuando no hay orden para un día o no hay faena para una semana, quien edita ve ahí mismo las tres formas de cargar: subir fotos, pegar texto o cargar a mano. En Producción, si el texto pegado es una orden entera (copiada de Word), se carga tal cual.
-- Producción abre en el próximo día hábil (la orden se carga el día anterior); quien solo mira y todavía no tiene la de mañana, ve la de hoy. Medias abre en el día de hoy, que es la faena que se entrega mañana.
+- Producción y Medias abren siempre en el día de hoy (sábado y domingo, en el lunes), haya o no algo cargado. Pedidos abre en lo que se entrega mañana.
 
 Quien edita ve además la planilla de la semana, igual al Excel: faena por origen (propios y usuarios), clientes, total de clientes y lo que queda para desposte, más el stock de medias deducido.
 

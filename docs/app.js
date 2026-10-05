@@ -302,12 +302,7 @@
     (o.cortes || []).forEach(function (c) { (c.lineas.length ? c.lineas : [{ t: '' }]).forEach(function (l, i) { out.push(((i === 0 ? c.corte + ': ' : '') + l.t).toUpperCase()); }); });
     return out.join('\n');
   }
-  // Producción abre en el próximo día hábil: la orden se carga el día anterior. Quien solo mira y todavía no tiene la de mañana, ve la de hoy.
-  function fechaProdInicial() {
-    var h = hoy(), sig = habilSiguiente(h);
-    if (S.editor || prodDe(sig) || !esHabil(h) || !prodDe(h)) return sig;
-    return h;
-  }
+  function fechaProdInicial() { var h = hoy(); return esHabil(h) ? h : habilSiguiente(h); }
 
   function renderProduccion() {
     var el = $('view-produccion');
