@@ -199,16 +199,31 @@ h1 a{color:inherit;text-decoration:none}
 .cam-barra{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;border:1px solid var(--accent);border-radius:6px;background:var(--accent-soft)}
 .cam-barra input[type=text]{flex:1 1 180px}
 .cam-barra select{flex:0 1 260px}
-/* logística */
-.cam-cab{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px}
-.cam-cab h2{text-transform:uppercase}
-.cam-nota{font-weight:600}
-.cam-cap{font-weight:700;font-size:16px}
-.medidor{height:10px;border-radius:5px;background:var(--sunken);border:1px solid var(--line);overflow:hidden;max-width:520px}
+/* logística: cada camión es un bloque con su franja de color */
+.cam{background:var(--surface);border:2px solid var(--accent);border-radius:8px;overflow:hidden;display:flex;flex-direction:column;min-width:0;break-inside:avoid}
+.cam + .cam{margin-top:6px}
+.cam>.cam-cab{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;background:var(--accent);color:var(--accent-ink);padding:12px 16px}
+.cam>.cam-cab h2{font-size:26px;text-transform:uppercase;line-height:1.05}
+.cam-num{font:700 12px var(--body);letter-spacing:.08em;text-transform:uppercase;border:1px solid currentColor;border-radius:3px;padding:2px 7px;opacity:.9}
+.cam>.cam-cab .cam-nota{font-weight:600;opacity:.92}
+.cam.pasa{border-color:var(--crit)} .cam.pasa>.cam-cab{background:var(--crit);color:#fff}
+.cam.suelto{border:2px dashed var(--muted)} .cam.suelto>.cam-cab{background:var(--sunken);color:var(--ink)}
+.cam-datos{display:flex;flex-wrap:wrap;align-items:center;gap:8px 28px;padding:12px 16px;background:var(--accent-soft);border-bottom:1px solid var(--line)}
+.cam-res{display:flex;align-items:baseline;gap:6px}
+.cam-res b{font:700 30px var(--display);line-height:1}
+.cam-res span{font-weight:700;text-transform:uppercase;letter-spacing:.04em;font-size:13px}
+.cam-carga{flex:1 1 260px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.cam-cap{margin:0;font-weight:700;font-size:16px}
+.cam-cuerpo{padding:4px 16px 12px;display:flex;flex-direction:column;gap:10px}
+.cam .log-lista{border-top:0}
+.medidor{height:10px;border-radius:5px;background:var(--surface);border:1px solid var(--line);overflow:hidden;max-width:520px}
 .medidor i{display:block;height:100%;background:var(--accent)}
 .medidor.pasa i{background:var(--crit)}
 .stk-cam{max-width:760px}.stk-cam td input{width:100%}.stk-cam td input.n{width:110px}
 .cam-barra input.n{flex:0 1 130px}
+/* stock de camiones (panel común) */
+.panel>.cam-cab{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px}
+.panel>.cam-cab h2{text-transform:uppercase}
 .log-acc{margin-left:auto;display:inline-flex;gap:6px;align-items:center}
 .log-lista{display:flex;flex-direction:column;border-top:2px solid var(--ink)}
 .log-ped{padding:10px 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:4px}
@@ -235,6 +250,7 @@ details[open] > summary{margin-bottom:10px}
   #view-produccion .nav{display:none}
   .hoja-cab h2{font-size:22px}.hoja-dato b{font-size:26px}.hoja-corte{padding:6px 2px}.hoja-corte:nth-child(even){background:none}.hoja-corte h3{font-size:15px;color:#000}.hoja-corte li{font-size:14px}
   .panel.carga{border:0;background:none}
+  .cam{border:1.5px solid #000;border-radius:0;margin-bottom:8px}.cam>.cam-cab,.cam.pasa>.cam-cab,.cam.suelto>.cam-cab{background:none;color:#000;border-bottom:2px solid #000;padding:6px 8px}.cam>.cam-cab h2{font-size:18px}.cam-datos{background:none;padding:4px 8px}.cam-res b{font-size:18px}.cam-cuerpo{padding:0 8px 6px}.medidor{display:none}
   .panel{border:0;padding:0}
   .op{font-size:14px;line-height:1.3;gap:7px}
   .op .op-f,.op .op-m{font-size:17px}

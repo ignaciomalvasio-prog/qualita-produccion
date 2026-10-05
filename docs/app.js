@@ -1055,21 +1055,23 @@
       el.innerHTML = h; pintarMsg('log'); pintarMsg('flota'); return;
     }
     h += '<p class="muted">Para entregar ' + esc(cuandoEs(f)) + ': ' + resumenLog(peds) + (cams.length ? ' · ' + cams.length + (cams.length === 1 ? ' camión' : ' camiones') : '') + '.</p>';
-    cams.forEach(function (cam) {
+    cams.forEach(function (cam, k) {
       var suyos = peds.filter(function (p) { return p.camion === cam.id; }), ed = S.ec === cam.id;
       var car = cargaDe(peds, cam.id), ct = capTxt(cam, car), pasa = +cam.kg > 0 && car > +cam.kg;
-      h += '<div class="panel cam"><div class="cam-cab"><h2>' + esc(cam.nombre) + '</h2><span class="small muted">' + (suyos.length ? resumenLog(suyos) : 'sin pedidos') + '</span>'
-        + (S.editor && !ed ? '<span class="log-acc"><button class="btn sm" data-act="cam-editar" data-id="' + esc(cam.id) + '">Editar</button>' + botonBorrar('cam-borrar', cam.id, 'Borrar camión') + '</span>' : '') + '</div>';
-      if (ct) h += '<p class="cam-cap' + (pasa ? ' neg' : '') + '">' + esc(ct) + '</p>' + (+cam.kg > 0 ? '<div class="medidor' + (pasa ? ' pasa' : '') + '" role="img" aria-label="' + esc(ct) + '"><i style="width:' + Math.min(100, Math.round(car / +cam.kg * 100)) + '%"></i></div>' : '');
+      h += '<section class="cam' + (pasa ? ' pasa' : '') + '"><header class="cam-cab"><span class="cam-num">Camión ' + (k + 1) + '</span><h2>' + esc(cam.nombre) + '</h2>'
+        + (cam.nota && !ed ? '<span class="cam-nota">' + esc(cam.nota) + '</span>' : '')
+        + (S.editor && !ed ? '<span class="log-acc"><button class="btn sm" data-act="cam-editar" data-id="' + esc(cam.id) + '">Editar</button>' + botonBorrar('cam-borrar', cam.id, 'Borrar camión') + '</span>' : '') + '</header>';
+      h += '<div class="cam-datos"><div class="cam-res"><b>' + suyos.length + '</b><span>' + (suyos.length === 1 ? 'pedido' : 'pedidos') + '</span></div>'
+        + (ct ? '<div class="cam-carga"><p class="cam-cap' + (pasa ? ' neg' : '') + '">' + esc(ct) + '</p>' + (+cam.kg > 0 ? '<div class="medidor' + (pasa ? ' pasa' : '') + '" role="img" aria-label="' + esc(ct) + '"><i style="width:' + Math.min(100, Math.round(car / +cam.kg * 100)) + '%"></i></div>' : '') + '</div>' : '') + '</div>';
+      h += '<div class="cam-cuerpo">';
       if (ed) h += '<div class="campos"><label class="campo"><span>Nombre</span><input type="text" id="cam-e-nombre" value="' + esc(S.ecNombre || '') + '"></label><label class="campo"><span>Capacidad kg</span><input type="number" inputmode="numeric" id="cam-e-kg" value="' + esc(S.ecKg || '') + '"></label><label class="campo"><span>Nota (chofer, hora…)</span><input type="text" id="cam-e-nota" value="' + esc(S.ecNota || '') + '"></label></div>'
         + '<div class="acciones"><button class="btn pri" data-act="cam-guardar">Guardar</button><button class="btn" data-act="cam-cancelar">Cancelar</button></div>';
-      else if (cam.nota) h += '<p class="cam-nota">' + esc(cam.nota) + '</p>';
       h += suyos.length ? '<div class="log-lista">' + suyos.map(function (p) { return logPedidoHTML(p, cam, cams); }).join('') + '</div>' : '<p class="muted">Sin pedidos.</p>';
-      h += '</div>';
+      h += '</div></section>';
     });
     var sueltos = peds.filter(function (p) { return !p.camion; });
-    if (sueltos.length) h += '<div class="panel cam"><div class="cam-cab"><h2>' + (cams.length ? 'Sin camión' : 'Pedidos del día') + '</h2><span class="small muted">' + resumenLog(sueltos) + '</span></div>'
-      + '<div class="log-lista">' + sueltos.map(function (p) { return logPedidoHTML(p, null, cams); }).join('') + '</div></div>';
+    if (sueltos.length) h += '<section class="cam suelto"><header class="cam-cab"><h2>' + (cams.length ? 'Sin camión' : 'Pedidos del día') + '</h2><span class="cam-nota">' + esc(resumenLog(sueltos)) + '</span></header>'
+      + '<div class="cam-cuerpo"><div class="log-lista">' + sueltos.map(function (p) { return logPedidoHTML(p, null, cams); }).join('') + '</div></div></section>';
     if (S.editor || flota().length) h += stockCamionesHTML(f, peds, cams);
     el.innerHTML = h; pintarMsg('log'); pintarMsg('flota');
   }
