@@ -97,6 +97,9 @@ input.n{width:76px;text-align:right;font-variant-numeric:tabular-nums}
 
 /* planilla de medias, como el Excel */
 .dtabs{display:flex;gap:6px;flex-wrap:wrap}
+.toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:50;max-width:min(680px,calc(100vw - 24px));background:var(--ink);color:var(--bg);font:500 14px/1.4 var(--body);padding:10px 16px;border-radius:6px;box-shadow:0 6px 24px rgba(0,0,0,.25)}
+.toast.err{background:var(--crit);color:#fff}
+.toast[hidden]{display:none}
 .semtabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
 .semtabs .btn{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;min-width:0}
 .semtabs .btn b{font:700 15px var(--display);text-transform:uppercase;letter-spacing:.02em}
@@ -156,7 +159,7 @@ details[open] > summary{margin-bottom:10px}
   :root:root:root{--bg:#fff;--surface:#fff;--sunken:#fff;--ink:#000;--muted:#333;--line:#888;--accent:#000;--accent-ink:#000;--accent-soft:#fff;--warn:#000;--warn-soft:#fff;--crit:#000;--crit-soft:#fff;--ok:#000;--ok-soft:#fff;color-scheme:light}
   body{font-size:12px}
   .wrap{max-width:none;padding:0;gap:8px}
-  .tabs,.pie,.btn,.dtabs,.semtabs,.acciones,input,select,textarea,.guardado,#copiado{display:none!important}
+  .toast,.tabs,.pie,.btn,.dtabs,.semtabs,.acciones,input,select,textarea,.guardado,#copiado{display:none!important}
   .top{border-bottom:2px solid #000;padding-bottom:4px}
   h1{font-size:14px}
   .nav .tit{font-size:20px}
@@ -204,5 +207,6 @@ details[open] > summary{margin-bottom:10px}
   <footer class="pie small muted"><span id="stamp"></span><span id="sesion" class="acciones"></span></footer>
 </div>
 <script src="app.js"></script>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 </body>
 </html>

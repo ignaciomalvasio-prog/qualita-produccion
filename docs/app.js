@@ -335,7 +335,7 @@
       el.innerHTML = h; pintarMsg('fotos'); return;
       el.innerHTML = h; return;
     }
-    if (S.editor && S.msg.fotos) h += '<p class="guardado" id="g-fotos"></p>';
+    if (S.editor && S.msg.fotos && !edit) h += '<p class="guardado" id="g-fotos"></p>';
     var colg = (o.cortes || []).filter(function (c) { return c.colgado; }).length;
     if (edit) { var od = S.ep.doc, cg = (od.cortes || []).filter(function (c) { return c.colgado; }).length; h += prodEditHTML(od, cg); el.innerHTML = h; pintarMsg('prod'); pintarMsg('fotos'); crecer($('p-doc')); return; }
     h += '<div class="panel">';
@@ -399,6 +399,7 @@
       ? '<button class="btn pri" data-act="p-estado" data-v="lista">Confirmar orden</button>'
       : '<span class="badge ok">Confirmada</span><button class="btn sm" data-act="p-estado" data-v="borrador">Volver a borrador</button>')
       + '<button class="btn lnk" data-act="p-rearmar">' + (S._rearmar ? 'Tocá de nuevo para rearmar: se pierden los cambios hechos a mano' : 'Volver a armar desde cero') + '</button>' + botonBorrar('p-borrar', null, 'Borrar la orden') + '</div>';
+    h += '<h3 style="margin-top:6px">Agregar pedido</h3>' + cargaHTML('q-nuevo-prod', 'Lo que se lea entra solo en esta orden, arriba del RESTO de cada corte. "Cargar a mano" abre un pedido en blanco para este día.');
     if (colg) h += '<div class="colgados"><span class="badge warn">' + colg + ' sin definir</span>' + (o.cortes || []).map(function (c, ci) { return c.colgado ? '<span class="chip">' + esc(c.corte || 'Sin nombre') + ' <button class="btn sm" data-act="p-ok" data-c="' + ci + '">Está bien así</button></span>' : ''; }).join('') + '</div>';
     h += '</div>';
 
@@ -538,7 +539,7 @@
     if (!p.cliente) return Promise.reject(new Error('Falta el cliente.'));
     if (!p.entrega) return Promise.reject(new Error('Falta la fecha de entrega.'));
     var previo = q.editaId ? (S.pedidos || []).filter(function (x) { return x.id === q.editaId; })[0] : null;
-    S.em = null; S.ep = null;
+    if (!auto) { S.em = null; S.ep = null; }
     return (previo ? borrarPedido(previo) : Promise.resolve()).then(function () {
       var id = 'p' + uid(), doc = clone(p); p.id = id;
       S.pedidos = poner(S.pedidos, id, doc);
@@ -648,7 +649,7 @@
   function guardarVarios(cuales, auto) {
     var ok = [];
     return cuales.reduce(function (cad, q) {
-      return cad.then(function () { return guardarPropuesta(q, auto).then(function () { ok.push(q); S.entrega = q.entrega; S.prop = S.prop.filter(function (x) { return x !== q; }); }, function (err) { q.error = err.message || 'No se pudo guardar.'; }); })
+      return cad.then(function () { return guardarPropuesta(q, auto).then(function () { ok.push(q); if (!auto) S.entrega = q.entrega; S.prop = S.prop.filter(function (x) { return x !== q; }); }, function (err) { q.error = err.message || 'No se pudo guardar.'; }); })
         .then(function () { return new Promise(function (r) { setTimeout(r, 30); }); });
     }, Promise.resolve()).then(function () { return ok; });
   }
@@ -657,61 +658,103 @@
     var cq = (q.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return norm(c.corte) + '|' + norm(c.texto); }).sort().join('~');
     return (+a.medias || 0) === (+q.medias || 0) && ca === cq;
   }
-  function guardarLeidos(desde, errores, planillas) {
-    var nuevos = S.prop.slice(desde), repetidos = 0;
-    planillas = planillas || [];
+  /* ---------- cargas en segundo plano ----------
+     Cada carga (fotos o texto) recuerda desde qué pantalla se pidió. Las lecturas pueden correr a la vez;
+     el guardado va en fila, de a un lote, para que dos cargas no se pisen. */
+  var cargas = { activas: 0, cola: Promise.resolve() }, tAviso = null;
+  function avisar(txt, ms) {
+    var e = $('toast'); if (!e) return;
+    clearTimeout(tAviso);
+    if (!txt) { e.hidden = true; return; }
+    var err = txt.charAt(0) === '!'; e.textContent = err ? txt.slice(1) : txt; e.className = 'toast' + (err ? ' err' : ''); e.hidden = false;
+    if (ms) tAviso = setTimeout(function () { e.hidden = true; }, ms);
+  }
+  function estadoCarga() {
+    if (cargas.activas > 0) avisar('Leyendo ' + (cargas.activas === 1 ? '1 archivo' : cargas.activas + ' archivos') + '… Podés seguir trabajando en otra pantalla.');
+  }
+  function ctxCarga() {
+    return { tab: S.tab, porDefecto: S.tab === 'produccion' && S.fecha ? S.fecha : (S.entrega || habilSiguiente(hoy())), esperada: S.tab === 'medias' && S.sem ? S.sem : semanaActual() };
+  }
+  function escribiendo() {
+    var a = document.activeElement, t = a && a.tagName;
+    return !!(S.ep || S.em) || t === 'TEXTAREA' || t === 'SELECT' || (t === 'INPUT' && a.type !== 'file' && a.type !== 'checkbox');
+  }
+  // Redibuja sin interrumpir a quien está escribiendo.
+  function refrescar() { if (escribiendo()) pintarMsg('fotos'); else render(); }
+  function encolar(ctx, leidos, errores) {
+    cargas.cola = cargas.cola.then(function () { return procesarLote(ctx, leidos, errores); }).then(null, function () { S.msg.fotos = '!No se pudo guardar lo leído. Revisá la conexión y probá de nuevo.'; avisar(S.msg.fotos, 9000); refrescar(); });
+    return cargas.cola;
+  }
+  // Si hay una edición abierta, primero se guarda tal como está y al final se vuelve a leer,
+  // para que lo que entra por una carga no quede pisado por lo que se estaba escribiendo.
+  function asentarEdicion() {
+    if (S.ep) { var dl = limpiarOrden(S.ep.doc); clearTimeout(timers.prod); S.prod = poner(S.prod, S.ep.fecha, dl); store.set('produccion', S.ep.fecha, dl).then(null, function () {}); }
+    if (S.em) { var sl = limpiarSemana(S.em.doc); clearTimeout(timers.medias); S.faena = poner(S.faena, S.em.lunes, sl); store.set('faena', S.em.lunes, sl).then(null, function () {}); }
+  }
+  function releerEdicion() {
+    if (S.ep) {
+      var fe = S.ep.fecha, cur = (S.prod || []).filter(function (o) { return o.id === fe; })[0];
+      if (cur) { S.ep.doc = clone(cur); S.ep.base = clone(cur); var pd = $('p-doc'); if (pd) { var a = pd.selectionStart, b = pd.selectionEnd; pd.value = docDeOrden(S.ep.doc); try { pd.setSelectionRange(a, b); } catch (err) {} crecer(pd); } }
+    }
+    if (S.em) { var le = S.em.lunes, cs = (S.faena || []).filter(function (x) { return x.id === le; })[0]; if (cs) { S.em.doc = clone(cs); if (S.tab === 'medias') render(); } }
+  }
+  function procesarLote(ctx, leidos, errores) {
+    var nuevos = [], planillas = [], repetidos = 0, hechas = [];
+    asentarEdicion();
+    leidos.forEach(function (x) {
+      (x.j.pedidos || []).forEach(function (p) {
+        nuevos.push({ k: uid(), cliente: p.cliente || '', entrega: /^\d{4}-\d{2}-\d{2}$/.test(p.entrega || '') ? p.entrega : ctx.porDefecto, medias: +p.medias || '', peso: p.peso || '', nota: p.nota || '', origen: x.origen, foto: x.nombre,
+          dudas: (p.dudas || []).filter(Boolean), cortes: (p.cortes || []).map(function (c) { return { corte: norm(c.corte), texto: c.texto || '', orden: c.orden !== false }; }) });
+      });
+      if (x.j.planilla && x.j.planilla.length) planillas.push(x.j.planilla);
+    });
     nuevos = nuevos.filter(function (q) {
       var prev = (S.pedidos || []).filter(function (x) { return x.entrega === q.entrega && norm(x.cliente) === norm(q.cliente) && norm(q.cliente); });
-      if (prev.some(function (x) { return mismoPedido(x, q); })) { repetidos++; S.prop = S.prop.filter(function (x) { return x !== q; }); return false; }
+      if (prev.some(function (x) { return mismoPedido(x, q); })) { repetidos++; return false; }
       var soloMedias = prev.filter(function (x) { return !(x.cortes || []).length; })[0];
       if (soloMedias && !(q.cortes || []).some(function (c) { return c.texto; })) q.editaId = soloMedias.id;
       return true;
     });
     var txtRep = repetidos ? (repetidos === 1 ? ' 1 pedido ya estaba cargado y no se repitió.' : ' ' + repetidos + ' pedidos ya estaban cargados y no se repitieron.') : '';
-    if (!nuevos.length && !planillas.length) { S.msg.fotos = (errores.length ? '!' + errores.join(' ') : repetidos ? txtRep.trim() : '!No se encontraron pedidos para leer.'); renderPedidos(); return Promise.resolve(); }
-    S.msg.fotos = 'Guardando…'; pintarMsg('fotos');
-    var hechas = [], esperada = S.tab === 'medias' && S.sem ? S.sem : semanaActual(), directas = [];
+    var directas = [], preguntar = 0;
     planillas.forEach(function (pl) {
       var leida = semanaLeida(pl);
-      if (!leida || leida === esperada) directas.push(pl);
-      else (S.planPend = S.planPend || []).push({ dias: pl, leida: leida, esperada: esperada });
+      if (!leida || leida === ctx.esperada) directas.push(pl);
+      else { (S.planPend = S.planPend || []).push({ dias: pl, leida: leida, esperada: ctx.esperada }); preguntar++; }
     });
-    planillas = directas;
-    if (S.planPend && S.planPend.length && !planillas.length && !nuevos.length && !errores.length) { S.msg.fotos = ''; irA('medias'); return Promise.resolve(); }
-    return planillas.reduce(function (cad, pl) { return cad.then(function () { return aplicarPlanilla(pl); }).then(function (r) { if (r) hechas.push(r); }, function () { errores.push('No se pudo guardar la planilla.'); }); }, Promise.resolve()).then(function () {
-      var txtPl = hechas.map(function (r) { return 'Planilla de la semana del ' + etiquetaSemana(r.lunes) + ' cargada: ' + r.dias + (r.dias === 1 ? ' día' : ' días') + ', ' + r.clientes + ' clientes.'; }).join(' ');
-      if (hechas.length && !nuevos.length && !errores.length) {
-        S.sem = hechas[hechas.length - 1].lunes; S.dia = null; S.mv = null; S.msg.fotos = ''; S.msg.medias = txtPl + ' Revisala y tocá Editar para corregir lo que haga falta.';
-        irA('medias'); return;
-      }
-      return guardarVarios(nuevos, true).then(function (ok) { return finLeidos(nuevos, ok, errores, (txtPl ? txtPl + ' ' : ''), txtRep); });
-    });
-  }
-  function finLeidos(nuevos, ok, errores, antes, despues) {
-    return Promise.resolve(ok).then(function (ok) {
+    if (!nuevos.length && !planillas.length) {
+      S.msg.fotos = errores.length ? '!' + errores.join(' ') : repetidos ? txtRep.trim() : '!No se encontraron pedidos para leer.';
+      avisar(S.msg.fotos, 9000); refrescar(); return Promise.resolve();
+    }
+    return directas.reduce(function (cad, pl) {
+      return cad.then(function () { return aplicarPlanilla(pl, ctx.esperada); }).then(function (r) { if (r) hechas.push(r); }, function () { errores.push('No se pudo guardar la planilla.'); });
+    }, Promise.resolve()).then(function () {
+      S.prop = S.prop.concat(nuevos);
+      return guardarVarios(nuevos, true);
+    }).then(function (ok) {
+      var aca = S.tab === ctx.tab && !escribiendo();
       var tm = ok.reduce(function (t, q) { return t + (+q.medias || 0); }, 0), fechas = {}, rev = ok.filter(function (q) { return q.dudas && q.dudas.length; }).length, faltan = nuevos.length - ok.length;
       ok.forEach(function (q) { fechas[q.entrega] = 1; });
-      var fs = Object.keys(fechas).sort();
-      if (fs.length) S.entrega = fs[0];
-      if (S.tab === 'produccion' && fs.length) { S.ep = null; S.fecha = fs[0]; S.fechaFija = true; }
-      if (S.tab === 'medias' && fs.length) { S.em = null; S.mv = null; S.fm = habilAnterior(fs[0]); S.sem = lunesDe(S.fm); S.dia = Math.round((fecha(S.fm) - fecha(S.sem)) / 86400000); }
-      var m = ok.length ? 'Guardado: ' + ok.length + (ok.length === 1 ? ' pedido' : ' pedidos') + (tm ? ' · ' + n(tm) + ' medias' : '') + ' para entregar el ' + fs.map(function (f) { return tituloDe(f).toLowerCase(); }).join(' y el ') + '.' + (rev ? ' ' + rev + (rev === 1 ? ' quedó marcado' : ' quedaron marcados') + ' para revisar.' : '') + (S.tab === 'pedidos' ? ' Para cambiar algo, tocá Editar en el pedido.' : ' Los pedidos se pueden corregir en Pedidos.') : '';
-      if (faltan) m = (ok.length ? '' : '!') + (m ? m + ' ' : '') + (faltan === 1 ? 'Quedó 1 pedido sin guardar: completalo acá abajo.' : 'Quedaron ' + faltan + ' pedidos sin guardar: completalos acá abajo.');
-      m = (m.charAt(0) === '!' ? '!' : '') + antes + m.replace(/^!/, '') + despues;
-      if (errores.length) m = '!' + m.replace(/^!/, '') + ' ' + errores.join(' ');
-      S.msg.fotos = m;
-      if (S.planPend && S.planPend.length && !faltan) { irA('medias'); return; }
-      if (faltan && S.tab !== 'pedidos') { irA('pedidos'); return; }
-      renderPedidos();
+      var fs = Object.keys(fechas).sort(), partes = [];
+      hechas.forEach(function (r) { partes.push('Planilla de la semana del ' + etiquetaSemana(r.lunes) + ' cargada: ' + r.dias + (r.dias === 1 ? ' día' : ' días') + ', ' + r.clientes + ' clientes.'); });
+      if (ok.length) partes.push('Guardado: ' + ok.length + (ok.length === 1 ? ' pedido' : ' pedidos') + (tm ? ' · ' + n(tm) + ' medias' : '') + ' para entregar el ' + fs.map(function (f) { return tituloDe(f).toLowerCase(); }).join(' y el ') + '.' + (rev ? ' ' + rev + (rev === 1 ? ' quedó marcado' : ' quedaron marcados') + ' para revisar.' : ''));
+      if (txtRep) partes.push(txtRep.trim());
+      if (faltan) partes.push((faltan === 1 ? 'Quedó 1 pedido sin guardar: completalo' : 'Quedaron ' + faltan + ' pedidos sin guardar: completalos') + ' en Pedidos.');
+      if (preguntar) partes.push('Falta elegir en qué semana va la planilla: está en Medias.');
+      if (errores.length) partes.push(errores.join(' '));
+      var m = (errores.length || (faltan && !ok.length) ? '!' : '') + partes.join(' ');
+      S.msg.fotos = m; avisar(m, 10000);
+      if (aca) {
+        if (fs.length) S.entrega = fs[0];
+        if (ctx.tab === 'produccion' && fs.length) { S.fecha = fs[0]; S.fechaFija = true; }
+        if (ctx.tab === 'medias' && fs.length) { S.mv = null; S.fm = habilAnterior(fs[0]); S.sem = lunesDe(S.fm); S.dia = Math.round((fecha(S.fm) - fecha(S.sem)) / 86400000); }
+        if (preguntar) { irA('medias'); return; }
+        if (faltan && S.tab !== 'pedidos') { irA('pedidos'); return; }
+        if (hechas.length && !ok.length && !faltan) { S.sem = hechas[hechas.length - 1].lunes; S.dia = null; S.mv = null; S.msg.medias = partes[0] + ' Revisala y tocá Editar para corregir lo que haga falta.'; S.msg.fotos = ''; irA('medias'); return; }
+      }
+      releerEdicion();
+      refrescar();
     });
-  }
-  function agregarLeidos(j, origen, nombre) {
-    var porDefecto = S.tab === 'produccion' && S.fecha ? S.fecha : (S.entrega || habilSiguiente(hoy()));
-    (j.pedidos || []).forEach(function (p) {
-      S.prop.push({ k: uid(), cliente: p.cliente || '', entrega: /^\d{4}-\d{2}-\d{2}$/.test(p.entrega || '') ? p.entrega : porDefecto, medias: +p.medias || '', peso: p.peso || '', nota: p.nota || '', origen: origen, foto: nombre,
-        dudas: (p.dudas || []).filter(Boolean), cortes: (p.cortes || []).map(function (c) { return { corte: norm(c.corte), texto: c.texto || '', orden: c.orden !== false }; }) });
-    });
-    return (j.pedidos || []).length;
   }
   function pareceOrden(txt) {
     var k = 0; String(txt).split('\n').forEach(function (l) { var m = l.match(/^\s*([^:]{1,32}):/); if (m && CORTES_BASE.indexOf(norm(m[1])) >= 0) k++; });
@@ -729,26 +772,28 @@
       store.set('produccion', S.fecha, dl).then(tocar, function () { S.msg.fotos = '!No se pudo guardar la orden.'; render(); });
       render(); return;
     }
-    S.leyendo = true; S.msg.fotos = 'Leyendo el texto…'; pintarMsg('fotos');
-    var desde = S.prop.length;
-    leerTexto(txt, String(S.pegarCli || '').toUpperCase().trim()).then(function (j) {
-      var c = agregarLeidos(j, 'texto', '');
-      S.leyendo = false;
-      var pl = j.planilla && j.planilla.length ? [j.planilla] : [];
-      if (!c && !pl.length) { S.msg.fotos = '!No se encontraron pedidos en el texto.'; renderPedidos(); return; }
-      S.pegar = false; S.pegarTxt = ''; S.pegarCli = '';
-      return guardarLeidos(desde, [], pl);
-    }, function (e) { S.leyendo = false; S.msg.fotos = '!' + e.message; renderPedidos(); });
+    var ctx = ctxCarga(), cli = String(S.pegarCli || '').toUpperCase().trim();
+    S.leyendo = true; S.pegar = false; S.msg.fotos = 'Leyendo el texto…'; cargas.activas++; estadoCarga(); render();
+    leerTexto(txt, cli).then(function (j) {
+      S.leyendo = false; cargas.activas--; S.pegarTxt = ''; S.pegarCli = '';
+      return encolar(ctx, [{ j: j, origen: 'texto', nombre: '' }], []);
+    }, function (e) {
+      // Si falla la lectura, el texto pegado no se pierde.
+      S.leyendo = false; cargas.activas--; S.msg.fotos = '!' + e.message; avisar(S.msg.fotos, 9000);
+      if (S.tab === ctx.tab && !escribiendo()) { S.pegar = true; render(); } else refrescar();
+    });
   }
   function subirFotos(files) {
-    var lista = Array.prototype.slice.call(files), i = 0, errores = [], desde = S.prop.length, planillas = [];
-    function sig() {
-      if (i >= lista.length) { guardarLeidos(desde, errores, planillas); return; }
-      var f = lista[i++]; S.msg.fotos = 'Leyendo ' + i + ' de ' + lista.length + '…'; pintarMsg('fotos');
-      leerImagen(f).then(function (j) { agregarLeidos(j, 'foto', f.name); if (j.planilla && j.planilla.length) planillas.push(j.planilla);
-      }, function (e) { errores.push((f.name ? f.name + ': ' : '') + e.message); }).then(sig);
-    }
-    sig();
+    var lista = Array.prototype.slice.call(files), ctx = ctxCarga(), leidos = [], errores = [], i = 0;
+    if (!lista.length) return;
+    cargas.activas += lista.length; estadoCarga();
+    S.msg.fotos = 'Leyendo ' + (lista.length === 1 ? 'la foto' : lista.length + ' fotos') + '…'; pintarMsg('fotos');
+    (function sig() {
+      if (i >= lista.length) { encolar(ctx, leidos, errores); return; }
+      var f = lista[i++];
+      leerImagen(f).then(function (j) { leidos.push({ j: j, origen: 'foto', nombre: f.name }); }, function (e) { errores.push((f.name ? f.name + ': ' : '') + e.message); })
+        .then(function () { cargas.activas--; estadoCarga(); sig(); });
+    })();
   }
 
   function propHTML(q, i) {
@@ -899,7 +944,7 @@
   }
   function irA(tab) { S.tab = tab; try { history.replaceState(null, '', '#' + tab); } catch (err) {} render(); window.scrollTo(0, 0); }
 
-  document.querySelector('.top').addEventListener('click', function (e) { var b = e.target.closest('[data-tab]'); if (!b) return; e.preventDefault(); if (b.dataset.tab === 'inicio') alInicio(); S.msg.fotos = ''; S.pegar = false; S.pegarTxt = ''; S.pegarCli = ''; irA(b.dataset.tab); });
+  document.querySelector('.top').addEventListener('click', function (e) { var b = e.target.closest('[data-tab]'); if (!b) return; e.preventDefault(); if (b.dataset.tab === 'inicio') alInicio(); S.msg.fotos = ''; S.pegar = false; if (!S.leyendo) { S.pegarTxt = ''; S.pegarCli = ''; } irA(b.dataset.tab); });
 
   document.addEventListener('click', function (e) {
     var b = e.target.closest('[data-act]'); if (!b) return;
@@ -979,6 +1024,7 @@
     // pedidos
     else if (a === 'q-pegar') { S.pegar = !S.pegar; if (!S.pegar) { S.pegarTxt = ''; S.pegarCli = ''; } S.msg.fotos = ''; renderPedidos(); var ft = $('pegar-txt'); if (ft) ft.focus(); }
     else if (a === 'q-leer-texto') { leerPegado(); }
+    else if (a === 'q-nuevo-prod') { var fp = S.fecha; if (S.ep) guardar('prod', true); S.ep = null; S.entrega = fp; var pv = pedidoVacio(); pv.entrega = fp; S.prop.push(pv); S.msg.fotos = ''; irA('pedidos'); var fq2 = $('q' + (S.prop.length - 1) + 'cliente'); if (fq2) fq2.focus(); }
     else if (a === 'q-nuevo') { S.prop.push(pedidoVacio()); renderPedidos(); var fq = $('q' + (S.prop.length - 1) + 'cliente'); if (fq) fq.focus(); }
     else if (a === 'q-corte') { S.prop[+D.q].cortes.push({ corte: CORTES_BASE[0], texto: '', orden: true }); renderPedidos(); }
     else if (a === 'q-quitar-corte') { S.prop[+D.q].cortes.splice(+D.j, 1); renderPedidos(); }
@@ -1045,7 +1091,7 @@
     if (t.id === 'p-fecha' && t.value) { if (S.ep) guardar('prod', true); S.ep = null; S.fechaFija = true; S.fecha = t.value; render(); }
     else if (t.id === 'm-fecha' && t.value) { S.fm = t.value; render(); }
     else if (t.id === 'e-fecha' && t.value) { S.entrega = t.value; renderPedidos(); }
-    else if (t.id === 'fotos' && t.files && t.files.length) { subirFotos(t.files); }
+    else if (t.id === 'fotos' && t.files && t.files.length) { subirFotos(t.files); try { t.value = ''; } catch (err) {} }
   });
 
   var h0 = (location.hash || '').slice(1); if (TABS.indexOf(h0) >= 0) S.tab = h0;
