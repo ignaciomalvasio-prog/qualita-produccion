@@ -203,7 +203,7 @@
     if (S.editor && sem) h += '<button class="btn' + (edit ? ' pri' : '') + '" data-act="m-editar">' + (edit ? 'Listo' : 'Editar') + '</button><span class="guardado" id="g-medias"></span>';
     h += '</div>';
     if (!sem) {
-      h += '<div class="panel"><p class="state">No hay faena cargada para esta semana.</p>' + (S.editor ? cargaHTML('m-nueva', 'Subí la foto de la planilla semanal y se carga entera, con la faena y los clientes de cada día. También sirven pedidos sueltos de medias. "Cargar a mano" abre la semana vacía para escribirla.') : '') + '</div>';
+      h += '<div class="panel"><p class="state">No hay faena cargada para esta semana.</p>' + (S.editor ? cargaHTML('m-nueva', 'Subí la foto de la planilla semanal y se carga entera, con la faena y los clientes de cada día. También sirven pedidos sueltos de medias. "Cargar a mano" abre la semana con la faena de la semana anterior, para corregirla.') : '') + '</div>';
       el.innerHTML = h; pintarMsg('fotos'); return;
       el.innerHTML = h; return;
     }
