@@ -167,19 +167,8 @@
     var lunes = lunesDe(f), sem = semDe(lunes), i = Math.round((fecha(f) - fecha(lunes)) / 86400000);
     return sem && sem.dias[i] ? { sem: sem, i: i, d: sem.dias[i] } : null;
   }
-  function elegirSemanaHTML(pp) {
-    var nd = pp.dias.filter(function (d) { return (d.faena || []).length || (d.clientes || []).length; }).length, nc = pp.dias.reduce(function (t, d) { return t + (d.clientes || []).length; }, 0);
-    var ops = [pp.esperada]; if (ops.indexOf(semanaActual()) < 0) ops.push(semanaActual());
-    return '<div class="panel"><h2>¿En qué semana cargo la planilla?</h2>'
-      + '<p>La planilla que subiste (' + nd + ' días, ' + nc + ' clientes) tiene fechas de la <strong>semana del ' + esc(etiquetaSemana(pp.leida)) + '</strong>, que no es la que estás cargando.</p>'
-      + '<div class="acciones">' + ops.map(function (l, k) { return '<button class="btn' + (k === 0 ? ' pri' : '') + '" data-act="pl-elegir" data-l="' + l + '">' + (l === semanaActual() ? 'En esta semana · ' : 'En la semana del ') + esc(etiquetaSemana(l)) + '</button>'; }).join('')
-      + '<button class="btn" data-act="pl-elegir" data-l="' + pp.leida + '">En la que dice la planilla · ' + esc(etiquetaSemana(pp.leida)) + '</button>'
-      + '<button class="btn lnk" data-act="pl-cancelar">No cargarla</button><span class="guardado" id="g-medias"></span></div>'
-      + '<p class="small muted">Se reemplazan la faena y los clientes de la semana que elijas. Lo demás no se toca.</p></div>';
-  }
   function renderMedias() {
     var el = $('view-medias');
-    if (S.editor && S.planPend && S.planPend.length) { el.innerHTML = elegirSemanaHTML(S.planPend[0]); pintarMsg('medias'); return; }
     if (mvAct() === 'semana') return renderSemana();
     if (cargando(el, S.faena)) return;
     if (!S.fm) S.fm = fmInicial();
@@ -490,6 +479,28 @@
     });
     return Promise.all(Object.keys(tocadas).map(function (f) { return guardarOrden(f, tocadas[f], true); }));
   }
+  // Pasa un pedido a otro día: se mueven sus medias y sus cortes en producción, y sale del camión que tenía.
+  function moverPedido(p, f) {
+    if (!p || !f || f === p.entrega) return Promise.resolve();
+    S.prop.forEach(function (x) { if (x.editaId === p.id) x.entrega = f; });
+    return guardarPropuesta({ editaId: p.id, cliente: p.cliente, entrega: f, medias: p.medias, peso: p.peso, frio: p.frio, nota: p.nota, kg: p.kg, origen: p.origen, cortes: clone(cortesDe(p)) });
+  }
+  function diaCorto(f) { var x = String(f).split('-'); return diaDe(f) + ' ' + (+x[2]) + '/' + (+x[1]); }
+  function opcionesDia(p) {
+    var f = hoy(), ops = [];
+    if (!esHabil(f)) f = habilSiguiente(f);
+    while (ops.length < 8) { if (f !== p.entrega) ops.push(f); f = habilSiguiente(f); }
+    return '<select class="mover" data-mover="' + esc(p.id) + '" aria-label="Cambiar de día el pedido de ' + esc(p.cliente) + '"><option value="">Cambiar de día…</option>'
+      + ops.map(function (x) { return '<option value="' + x + '">' + esc(diaCorto(x)) + (x === hoy() ? ' (hoy)' : x === mas(hoy(), 1) ? ' (mañana)' : '') + '</option>'; }).join('')
+      + '<option value="otra">Otra fecha…</option></select>';
+  }
+  function editarPedido(id, campo) {
+    var pe = pedidoDe(id);
+    if (pe && !S.prop.some(function (x) { return x.editaId === pe.id; })) S.prop.push({ k: uid(), editaId: pe.id, cliente: pe.cliente || '', entrega: pe.entrega || '', medias: pe.medias || '', peso: pe.peso || '', frio: pe.frio || '', nota: pe.nota || '', kg: pe.kg || '', origen: pe.origen || 'manual', dudas: (pe.dudas || []).slice(), cortes: clone(cortesDe(pe)) });
+    S.msg.fotos = ''; renderPedidos();
+    var k = -1; S.prop.forEach(function (x, i) { if (x.editaId === id) k = i; });
+    var fe = $('q' + k + (campo || 'cliente')); if (fe) { fe.focus(); if (fe.scrollIntoView) fe.scrollIntoView({ block: 'center' }); }
+  }
   function borrarPedido(p) { return borrarPedidos([p]); }
   function borrarPedidos(lista) {
     var ids = {}, fechas = {}, tareas = [];
@@ -620,26 +631,31 @@
     return lunes;
   }
   function semanaActual() { return lunesDe(esHabil(hoy()) ? hoy() : habilSiguiente(hoy())); }
+  // La planilla que se sube reemplaza a la que había en esa semana: faena y clientes de los cinco días.
+  // Solo quedan el stock inicial y las medias que vienen de pedidos cargados en la app.
   function aplicarPlanilla(dias, elegida) {
     var DN = ['LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES'], leida = semanaLeida(dias);
     var lunes = elegida || leida || S.sem || semanaActual();
-    var sem = clone(semDe(lunes) || semanaNueva(lunes)), nd = 0, nc = 0;
+    var sem = clone(semDe(lunes) || semanaNueva(lunes)), nd = 0, nc = 0, nuevo = {};
     dias.forEach(function (d) {
       var i = DN.indexOf(norm(d.dia));
       if (i < 0 && leida && /^\d{4}-\d{2}-\d{2}$/.test(d.fecha || '')) i = Math.round((fecha(d.fecha) - fecha(leida)) / 86400000);
       if (i < 0 || i > 4) return;
-      var dia = sem.dias[i];
       var fa = (d.faena || []).filter(function (r) { return r.origen || +r.propios || +r.usuarios; }).map(function (r) { return { origen: String(r.origen || '').toUpperCase().trim(), propios: +r.propios || 0, usuarios: +r.usuarios || 0 }; });
       var cl = (d.clientes || []).filter(function (r) { return r.cliente || +r.cerdos; }).map(function (r) { return { cliente: String(r.cliente || '').toUpperCase().replace(/\s+/g, ' ').trim(), cant: +r.cerdos || 0 }; });
       if (!fa.length && !cl.length) return;
-      if (fa.length) dia.faena = fa;
-      (dia.clientes || []).filter(function (v) { return v.pedido; }).forEach(function (v) {
-        var m = cl.filter(function (x) { return !x.pedido && x.cliente && norm(x.cliente) === norm(v.cliente); })[0];
-        if (m) { m.pedido = v.pedido; if (v.nota) m.nota = v.nota; } else cl.push(v);
-      });
-      dia.clientes = cl; nd++; nc += cl.length;
+      nuevo[i] = { fa: fa, cl: cl }; nd++;
     });
     if (!nd) return Promise.resolve(null);
+    sem.dias.forEach(function (dia, i) {
+      var x = nuevo[i] || { fa: [], cl: [] }, cl = x.cl;
+      (dia.clientes || []).filter(function (v) { return v.pedido; }).forEach(function (v) {
+        var m = cl.filter(function (y) { return !y.pedido && y.cliente && norm(y.cliente) === norm(v.cliente); })[0];
+        if (m) { m.pedido = v.pedido; if (v.nota) m.nota = v.nota; } else cl.push(v);
+      });
+      dia.faena = x.fa.length ? x.fa : [{ origen: '', propios: 0, usuarios: 0 }];
+      dia.clientes = cl; nc += cl.length;
+    });
     var sl = limpiarSemana(sem); S.em = null; S.faena = poner(S.faena, lunes, sl);
     return store.set('faena', lunes, sl).then(function () { tocar(); return { lunes: lunes, dias: nd, clientes: nc }; });
   }
@@ -838,18 +854,15 @@
       return true;
     });
     var txtRep = repetidos ? (repetidos === 1 ? ' 1 pedido ya estaba cargado y no se repitió.' : ' ' + repetidos + ' pedidos ya estaban cargados y no se repitieron.') : '';
-    var directas = [], preguntar = 0;
-    planillas.forEach(function (pl) {
-      var leida = semanaLeida(pl);
-      if (!leida || leida === ctx.esperada) directas.push(pl);
-      else { (S.planPend = S.planPend || []).push({ dias: pl, leida: leida, esperada: ctx.esperada }); preguntar++; }
-    });
+    // La planilla va a la semana que dice, sin preguntar. Si las fechas leídas son de una semana ya pasada,
+    // es una mala lectura: va a la semana que se está cargando.
+    var directas = planillas.map(function (pl) { var leida = semanaLeida(pl); return { dias: pl, lunes: leida && leida >= semanaActual() ? leida : ctx.esperada }; });
     if (!nuevos.length && !planillas.length) {
       S.msg.fotos = errores.length ? '!' + errores.join(' ') : repetidos ? txtRep.trim() : '!No se encontraron pedidos para leer.';
       avisar(S.msg.fotos, 9000); refrescar(); return Promise.resolve();
     }
     return directas.reduce(function (cad, pl) {
-      return cad.then(function () { return aplicarPlanilla(pl, ctx.esperada); }).then(function (r) { if (r) hechas.push(r); }, function () { errores.push('No se pudo guardar la planilla.'); });
+      return cad.then(function () { return aplicarPlanilla(pl.dias, pl.lunes); }).then(function (r) { if (r) hechas.push(r); }, function () { errores.push('No se pudo guardar la planilla.'); });
     }, Promise.resolve()).then(function () {
       S.prop = S.prop.concat(nuevos);
       return guardarVarios(nuevos, true);
@@ -863,14 +876,12 @@
       if (txtRep) partes.push(txtRep.trim());
       if (faltan) partes.push((faltan === 1 ? 'Quedó 1 pedido sin guardar: completalo' : 'Quedaron ' + faltan + ' pedidos sin guardar: completalos') + ' en Pedidos.');
       if (ok.length && fs.length) S.pedDia = fs[0];
-      if (preguntar) partes.push('Falta elegir en qué semana va la planilla: está en Medias.');
       if (errores.length) partes.push(errores.join(' '));
       var m = (errores.length || (faltan && !ok.length) ? '!' : '') + partes.join(' ');
       S.msg.fotos = m; avisar(m, 10000);
       if (aca) {
         if (fs.length) S.entrega = fs[0];
         if (ctx.tab === 'medias' && fs.length) { S.mv = null; S.fm = habilAnterior(fs[0]); S.sem = lunesDe(S.fm); S.dia = Math.round((fecha(S.fm) - fecha(S.sem)) / 86400000); }
-        if (preguntar) { irA('medias'); return; }
         if (faltan && S.tab !== 'pedidos') { irA('pedidos'); return; }
         if (hechas.length && !ok.length && !faltan) { S.sem = hechas[hechas.length - 1].lunes; S.dia = null; S.mv = null; S.msg.medias = partes[0] + ' Revisala y tocá Editar para corregir lo que haga falta.'; S.msg.fotos = ''; irA('medias'); return; }
       }
@@ -961,7 +972,7 @@
     h += '</div>';
     if (p.nota) h += '<p class="small muted">' + esc(p.nota) + '</p>';
     h += '<div class="acciones">' + (cs.length - enP > 1 ? '<button class="btn sm" data-act="c-todos" data-id="' + id + '">Sumar todos a producción</button>' : '')
-      + '<button class="btn sm" data-act="ped-editar" data-id="' + id + '">Editar</button>'
+      + '<button class="btn sm" data-act="ped-editar" data-id="' + id + '">Editar</button>' + opcionesDia(p)
       + '<button class="btn sm rojo" data-act="ped-borrar" data-id="' + id + '" data-i="' + id + '">' + (S._c2 === 'ped-borrar' + p.id ? 'Tocá de nuevo para confirmar' : 'Quitar') + '</button></div>';
     return h + '</div></div>';
   }
@@ -1183,18 +1194,6 @@
 
     // medias
     else if (a === 'fm-ir') { S.fm = D.f; render(); }
-    else if (a === 'pl-cancelar') { S.planPend.shift(); S.msg.medias = ''; render(); }
-    else if (a === 'pl-elegir') {
-      var pp = S.planPend[0]; if (!pp || S._plOcupado) return;
-      S._plOcupado = true; S.msg.medias = 'Guardando…'; pintarMsg('medias');
-      aplicarPlanilla(pp.dias, D.l).then(function (r) {
-        S._plOcupado = false; S.planPend.shift();
-        if (r) { S.sem = r.lunes; S.dia = null; S.mv = null; S.msg.medias = 'Planilla cargada en la semana del ' + etiquetaSemana(r.lunes) + ': ' + r.dias + (r.dias === 1 ? ' día' : ' días') + ', ' + r.clientes + ' clientes. Revisala y tocá Editar para corregir lo que haga falta.'; }
-        else S.msg.medias = '!La planilla no traía datos para cargar.';
-        render();
-      }, function () { S._plOcupado = false; S.msg.medias = '!No se pudo guardar la planilla. Revisá la conexión.'; pintarMsg('medias'); });
-    }
-    else if (a === 'fm') { var y = S.fm; do { y = mas(y, +D.d); } while (!esHabil(y)); S.fm = y; render(); }
     else if (a === 'm-semana' || a === 'm-editar-dia') {
       S.mv = 'semana'; S.sem = lunesDe(S.fm); S.dia = Math.round((fecha(S.fm) - fecha(S.sem)) / 86400000);
       if (a === 'm-editar-dia') { var ya = semDe(S.sem); S.em = { lunes: S.sem, doc: ya ? clone(ya) : semanaNueva(S.sem) }; S.msg.medias = ''; if (!ya) guardar('medias', true); }
@@ -1240,11 +1239,7 @@
       (a === 'c-quitar' ? quitarCorte(pc, uno) : sumarCortes(pc, a === 'c-todos' ? cc : [uno])).then(function () { S._ocup = false; renderPedidos(); }, function () { S._ocup = false; S.msg.fotos = '!No se pudo guardar. Revisá la conexión.'; renderPedidos(); });
       renderPedidos();
     }
-    else if (a === 'ped-editar') {
-      var pe = pedidoDe(D.id);
-      if (pe && !S.prop.some(function (x) { return x.editaId === pe.id; })) S.prop.push({ k: uid(), editaId: pe.id, cliente: pe.cliente || '', entrega: pe.entrega || '', medias: pe.medias || '', peso: pe.peso || '', frio: pe.frio || '', nota: pe.nota || '', kg: pe.kg || '', origen: pe.origen || 'manual', dudas: (pe.dudas || []).slice(), cortes: clone(cortesDe(pe)) });
-      S.msg.fotos = ''; renderPedidos(); var fe = $('q' + (S.prop.length - 1) + 'cliente'); if (fe) fe.focus();
-    }
+    else if (a === 'ped-editar') editarPedido(D.id);
     else if (a === 'ped-borrar') {
       if (!confirma('ped-borrar' + D.id)) { renderPedidos(); return; }
       var pb = pedidoDe(D.id); S.prop = S.prop.filter(function (x) { return x.editaId !== D.id; });
@@ -1336,6 +1331,14 @@
       var ps = pedidoDe(D.sel);
       if (t.checked && ps) { if (S.selDia !== ps.entrega) { S.sel = {}; S.selDia = ps.entrega; S.camOtro = false; } S.sel[D.sel] = true; } else delete S.sel[D.sel];
       renderPedidos();
+    }
+    else if (D.mover && t.value) {
+      var pm = pedidoDe(D.mover), fm = t.value;
+      if (fm === 'otra') { editarPedido(D.mover, 'entrega'); return; }
+      if (!pm || S._ocup) return;
+      S._ocup = true; delete S.sel[pm.id]; S.pedDia = fm;
+      moverPedido(pm, fm).then(function () { S._ocup = false; S.msg.fotos = 'Pedido de ' + pm.cliente + ' pasado al ' + diaCorto(fm).toLowerCase() + '.'; avisar(S.msg.fotos, 6000); renderPedidos(); },
+        function () { S._ocup = false; S.pedDia = null; S.msg.fotos = '!No se pudo cambiar de día. Revisá la conexión.'; renderPedidos(); });
     }
     else if (t.id === 'cam-a' && t.value) {
       if (t.value === 'nuevo') { S.camOtro = true; renderPedidos(); var fnn = $('cam-nombre'); if (fnn) fnn.focus(); return; }
