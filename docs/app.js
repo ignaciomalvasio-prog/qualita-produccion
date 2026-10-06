@@ -1116,23 +1116,51 @@
   }
 
   /* ---------- inicio ---------- */
+  /* ---------- inicio ----------
+     Una tarjeta por pestaña, todas con el mismo orden: el día, los números del día y qué hay para el día siguiente. */
+  function plural(k, uno, muchos) { return k === 1 ? uno : muchos; }
+  function tarjeta(tab, titulo, dia, datos, vacio, marca, sigue) {
+    return '<button class="tile" data-act="ir" data-tab="' + tab + '"><span class="t-cab"><b>' + titulo + '</b>' + (marca || '') + '</span>'
+      + '<span class="t-dia">' + esc(dia) + '</span>'
+      + (datos.length ? '<span class="t-nums">' + datos.map(function (d, k) { return '<strong' + (k === 0 ? ' class="g"' : '') + '>' + n(d[0]) + '</strong><span>' + esc(d[1]) + '</span>'; }).join('') + '</span>' : '<span class="t-vacio">' + esc(vacio) + '</span>')
+      + (sigue ? '<span class="t-sig">' + sigue + '</span>' : '') + '</button>';
+  }
   function renderInicio() {
     var el = $('view-inicio');
     if (cargando(el, S.prod && S.faena)) return;
-    var h = hoy(), f = fechaProdInicial(), o = prodDe(f), sig = habilSiguiente(h), html = '<div class="home">';
+    var h = hoy(), f = fechaProdInicial(), sig = habilSiguiente(f), html = '<div class="home">';
+    var rot = function (d) { return (d === h ? 'Hoy · ' : d === mas(h, 1) ? 'Mañana · ' : '') + tituloDe(d); };
+    var neg = function (k, uno, muchos) { return '<strong>' + n(k) + '</strong> ' + plural(k, uno, muchos); };
+    var pie = function (txt) { return '<span class="t-dia">' + esc(rot(sig)) + '</span><span>' + txt + '</span>'; };
     if (S.editor) {
-      var np = (S.pedidos || []).filter(function (p) { return p.entrega === sig; }).length;
-      html += '<button class="tile" data-act="ir" data-tab="pedidos"><b>Pedidos</b><span>Cargar pedidos, sumar cortes y armar camiones</span><span class="dato">' + np + (np === 1 ? ' pedido' : ' pedidos') + ' para el ' + esc(tituloDe(sig).toLowerCase()) + '</span></button>';
+      var deDia = function (d) { return (S.pedidos || []).filter(function (p) { return p.entrega === d; }); };
+      var ph = deDia(f), ps = deDia(sig), mas2 = (S.pedidos || []).filter(function (p) { return p.entrega > sig; }).length;
+      var pm = ph.reduce(function (t, p) { return t + (+p.medias || 0); }, 0), pc = ph.reduce(function (t, p) { return t + (p.cortes || []).length; }, 0);
+      var dp = ph.length ? [[ph.length, plural(ph.length, 'pedido', 'pedidos')]] : [];
+      if (pm) dp.push([pm, plural(pm, 'media', 'medias')]);
+      if (pc) dp.push([pc, plural(pc, 'renglón de cortes', 'renglones de cortes')]);
+      html += tarjeta('pedidos', 'Pedidos', rot(f), dp, 'Sin pedidos cargados', '',
+        pie(ps.length ? neg(ps.length, 'pedido', 'pedidos') : 'Sin pedidos') + (mas2 ? '<span>Más adelante: ' + neg(mas2, 'pedido', 'pedidos') + '</span>' : ''));
     }
-    var nl = o ? (o.cortes || []).reduce(function (t, c) { return t + c.lineas.length; }, 0) : 0;
-    var dp = o ? (nl ? nl + (nl === 1 ? ' renglón' : ' renglones') + ' · ' : '') + (o.estado === 'borrador' ? 'borrador, todavía sin confirmar' : 'confirmada') : 'Todavía no hay nada cargado';
-    html += '<button class="tile" data-act="ir" data-tab="produccion"><b>Producción</b><span>Planilla del ' + esc(tituloDe(f).toLowerCase()) + '</span><span class="dato">' + esc(dp) + '</span></button>';
-    var lg = logDe(f), lp = (lg && lg.pedidos) || [], lc = (lg && lg.camiones) || [];
-    var dl = lp.length ? lp.length + (lp.length === 1 ? ' pedido' : ' pedidos') + (lc.length ? ' en ' + lc.length + (lc.length === 1 ? ' camión' : ' camiones') : ', sin camiones armados') : 'Todavía no hay pedidos para entregar';
-    html += '<button class="tile" data-act="ir" data-tab="logistica"><b>Logística</b><span>Camiones del ' + esc(tituloDe(f).toLowerCase()) + '</span><span class="dato">' + esc(dl) + '</span></button>';
-    var fm = fmInicial(), x = diaFaena(fm), cl = x ? conMedias(x.d) : [];
-    var dm = cl.length ? cl.length + (cl.length === 1 ? ' cliente · ' : ' clientes · ') + animales(cl.reduce(function (t, r) { return t + (+r.cant || 0); }, 0)) : 'Todavía no hay ventas cargadas';
-    html += '<button class="tile" data-act="ir" data-tab="medias"><b>Medias</b><span>Clientes del ' + esc(tituloDe(fm).toLowerCase()) + '</span><span class="dato">' + esc(dm) + '</span></button>';
+    var prodNum = function (d) {
+      var o = prodDe(d), ids = {}, nl = 0;
+      if (o) (o.cortes || []).forEach(function (c) { c.lineas.forEach(function (l) { nl++; if (l.p) ids[l.p] = 1; }); });
+      return { o: o, nl: nl, peds: Object.keys(ids).length };
+    };
+    var a = prodNum(f), b = prodNum(sig), da = [];
+    if (a.nl) { da.push([a.nl, plural(a.nl, 'renglón', 'renglones')]); if (a.peds) da.push([a.peds, plural(a.peds, 'pedido', 'pedidos')]); if (+a.o.medias) da.push([+a.o.medias, 'medias a despostar']); }
+    html += tarjeta('produccion', 'Producción', rot(f), da, 'Todavía no hay nada cargado',
+      a.nl ? '<span class="badge ' + (a.o.estado === 'borrador' ? 'warn">Borrador' : 'ok">Confirmada') + '</span>' : '',
+      pie(b.nl ? neg(b.nl, 'renglón', 'renglones') + (b.o.estado === 'borrador' ? ' · borrador' : ' · confirmada') : 'Sin cargar'));
+    var logNum = function (d) { var lg = logDe(d), lp = (lg && lg.pedidos) || [], lc = (lg && lg.camiones) || []; return { p: lp.length, c: lc.length, s: lp.filter(function (x) { return !x.camion; }).length }; };
+    var la = logNum(f), lb = logNum(sig), dl = [];
+    if (la.p) { dl.push([la.p, plural(la.p, 'pedido', 'pedidos')]); dl.push([la.c, plural(la.c, 'camión armado', 'camiones armados')]); if (la.s) dl.push([la.s, 'sin camión']); }
+    html += tarjeta('logistica', 'Logística', rot(f), dl, 'Sin pedidos para entregar', '',
+      pie(lb.p ? neg(lb.p, 'pedido', 'pedidos') + ' · ' + neg(lb.c, 'camión', 'camiones') : 'Sin pedidos'));
+    var medNum = function (d) { var x = diaFaena(d), cl = x ? conMedias(x.d) : []; return { c: cl.length, a: cl.reduce(function (t, r) { return t + (+r.cant || 0); }, 0) }; };
+    var ma = medNum(f), mb = medNum(sig);
+    html += tarjeta('medias', 'Medias', rot(f), ma.c ? [[ma.c, plural(ma.c, 'cliente', 'clientes')], [ma.a, plural(ma.a, 'animal', 'animales')]] : [], 'Sin ventas cargadas', '',
+      pie(mb.c ? neg(mb.c, 'cliente', 'clientes') + ' · ' + neg(mb.a, 'animal', 'animales') : 'Sin ventas cargadas'));
     el.innerHTML = html + '</div>';
   }
   // Volver al inicio deja todo parado en el día de hoy.
