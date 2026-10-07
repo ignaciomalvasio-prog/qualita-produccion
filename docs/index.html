@@ -62,6 +62,7 @@ html,body{overflow-x:clip}
   .marca img{height:50px;margin-bottom:0}
   .marca-nom{font-size:19px}
   .tabs{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);width:100%;gap:3px}
+  .tabs.muchas{grid-auto-flow:row;grid-template-columns:repeat(3,minmax(0,1fr))}
   .tab{padding:8px 2px;min-height:40px;font-size:clamp(12.5px,3.7vw,16px);letter-spacing:.01em;background:var(--sunken)}
 }
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -235,6 +236,11 @@ select.mover{font-weight:600;padding:6px 8px}
 .lp-der{display:inline-flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:8px;flex:0 0 auto}
 .precio{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--muted);text-transform:none;white-space:nowrap}
 .precio input{width:104px;text-align:right;font-weight:700;color:var(--ink)}
+.cta{font-size:13px;font-weight:700;color:var(--muted);white-space:nowrap;letter-spacing:.02em}
+.pl.cli{width:100%;max-width:760px}.pl.cli th,.pl.cli td{text-align:left}.pl.cli td:first-child{width:150px}.pl.cli td:last-child{width:40px;text-align:right}.pl.cli input{width:100%}
+#cli-buscar{width:100%;max-width:760px;margin:10px 0}
+.cli-alta{max-width:760px}
+@media (max-width:560px){ .pl.cli td:first-child{width:100px} }
 .cam-flete{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--surface)}
 .cam-flete .fl-tit{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .cam-flete .fl-res{flex:1 1 240px;color:var(--muted)} .cam-flete .fl-res strong{color:var(--ink)}
@@ -322,12 +328,13 @@ details[open] > summary{margin-bottom:10px}
 <div class="wrap">
   <header class="top">
     <h1 class="marca"><a href="#inicio" data-tab="inicio" id="logo"><img src="logo.png" alt="Qualitá" width="61" height="78"><span class="marca-txt"><span class="marca-nom">Producción y logística</span><span class="marca-dia" id="hoy-txt"></span></span></a></h1>
-    <nav class="tabs" role="tablist" aria-label="Vistas">
+    <nav class="tabs" id="tabs" role="tablist" aria-label="Vistas">
       <button class="tab" role="tab" id="tab-inicio" data-tab="inicio" aria-selected="true">Inicio</button>
       <button class="tab" role="tab" id="tab-pedidos" data-tab="pedidos" aria-selected="false" hidden>Pedidos</button>
       <button class="tab" role="tab" id="tab-produccion" data-tab="produccion" aria-selected="false">Producción</button>
       <button class="tab" role="tab" id="tab-logistica" data-tab="logistica" aria-selected="false">Logística</button>
       <button class="tab" role="tab" id="tab-medias" data-tab="medias" aria-selected="false">Medias</button>
+      <button class="tab" role="tab" id="tab-clientes" data-tab="clientes" aria-selected="false" hidden>Clientes</button>
     </nav>
   </header>
   <main>
@@ -336,6 +343,7 @@ details[open] > summary{margin-bottom:10px}
     <section class="view" id="view-produccion" hidden></section>
     <section class="view" id="view-logistica" hidden></section>
     <section class="view" id="view-medias" hidden></section>
+    <section class="view" id="view-clientes" hidden></section>
   </main>
   <footer class="pie small muted"><span id="stamp"></span><span id="sesion" class="acciones"></span></footer>
 </div>

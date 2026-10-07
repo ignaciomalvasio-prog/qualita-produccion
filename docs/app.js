@@ -27,7 +27,7 @@
 
   var SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
   var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-  var TABS = ['inicio', 'pedidos', 'produccion', 'logistica', 'medias'];
+  var TABS = ['inicio', 'pedidos', 'produccion', 'logistica', 'medias', 'clientes'];
   var CORTES_BASE = ['JAMON', 'PALETA', 'PECHO', 'CARRE', 'SOLOMILLO', 'MATAMBRE', 'BONDIOLA', 'RECORTE', 'GRASA BUENA', 'GRASA MALA', 'CUERO', 'TAPA DE PALETA', 'TAPA DE JAMON', 'TORTUGA', 'GARRON', 'TOCINO', 'CHURRASCO', 'PAPADA', 'OREJAS', 'CABEZA', 'PULMON', 'HIGADO', 'PATAS Y MANOS'];
 
   var S = {
@@ -450,6 +450,93 @@
   }
   // En producción sí va el cliente, porque ahí se juntan renglones de varios pedidos.
   function textoProd(p, c) { return sinCliente(c.texto, p.cliente) + ' “' + String(p.cliente || '').toUpperCase().trim() + '”'; }
+  /* ---------- clientes ----------
+     Base de clientes con su número de cuenta. Es privada (privado/clientes): la ve y la cambia quien ingresa.
+     Cada pedido muestra el número de su cliente; si se escribe otro en el pedido, vale ese. */
+  function clientes() { return S.clientes || []; }
+  function cuentaDe(cliente) {
+    var c = norm(cliente), l = clientes(); if (!c) return '';
+    var ex = l.filter(function (x) { return norm(x.n) === c; })[0];
+    if (ex && ex.c) return ex.c;
+    // Una sucursal ("DINO ALTA GRACIA") toma el número del cliente ("DINO") si no tiene uno propio.
+    var pre = l.filter(function (x) { var k = norm(x.n); return k && x.c && c.indexOf(k + ' ') === 0; }).sort(function (a, b) { return norm(b.n).length - norm(a.n).length; })[0];
+    return pre ? pre.c : '';
+  }
+  function cuentaPedido(p) { return String(p.cuenta || '').trim() || cuentaDe(p.cliente); }
+  function ctaHTML(c) { return c ? '<span class="cta">N° ' + esc(c) + '</span>' : ''; }
+  function escribirClientes(l) {
+    S.clientes = l;
+    return store.set('privado', 'clientes', { lista: l, actualizado: ahoraTxt() }).then(function () { conciliarLog(); });
+  }
+  // Suma o cambia clientes; si el nombre ya estaba, queda lo nuevo. Un número vacío no pisa uno cargado.
+  function sumarClientes(nuevos) {
+    var l = clone(clientes()), pos = {}, altas = 0, cambios = 0;
+    l.forEach(function (x, i) { pos[norm(x.n)] = i; });
+    nuevos.forEach(function (x) {
+      var nombre = String(x.n || '').toUpperCase().replace(/\s+/g, ' ').trim(), k = norm(nombre), cta = String(x.c == null ? '' : x.c).trim();
+      if (!k) return;
+      if (pos[k] == null) { pos[k] = l.length; l.push({ n: nombre, c: cta }); altas++; }
+      else if (cta && l[pos[k]].c !== cta) { l[pos[k]].c = cta; cambios++; }
+    });
+    return escribirClientes(l).then(function () { return { altas: altas, cambios: cambios }; });
+  }
+  // Lista pegada: una línea por cliente, con el número y el nombre en cualquier orden (sirve copiar desde Excel).
+  function leerListaClientes(txt) {
+    var out = [];
+    String(txt || '').replace(/\r/g, '').split('\n').forEach(function (raw) {
+      var linea = raw.trim(); if (!linea) return;
+      var cols = linea.split(/\t|;|\|/).map(function (x) { return x.trim(); }).filter(Boolean);
+      if (cols.length < 2) { var m = linea.match(/^(\d[\d.\-\/]*)[\s,]+(.+)$/) || linea.match(/^(.+?)[\s,]+(\d[\d.\-\/]*)$/); if (m) cols = [m[1], m[2]]; }
+      var nums = cols.filter(function (x) { return /^\d[\d.\-\/]*$/.test(x); }), letras = cols.filter(function (x) { return /[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(x); });
+      // Si hay más de un número (por ejemplo el CUIT), el de cuenta es el que no tiene 11 dígitos.
+      var num = nums.filter(function (x) { return x.replace(/\D/g, '').length !== 11; })[0] || '';
+      var nombre = letras.sort(function (a, b) { return b.length - a.length; })[0] || '';
+      if (!nombre) return;
+      if (!num && /^(CLIENTES?|NOMBRE|RAZON SOCIAL|CUENTA|CODIGO|NUMERO|NRO)\b/.test(norm(nombre))) return;   // encabezado de la planilla
+      out.push({ n: nombre, c: num });
+    });
+    return out;
+  }
+  // Nombres que ya aparecen en las planillas de medias y en los pedidos.
+  function clientesConocidos() {
+    var v = {}, out = [];
+    var ver = function (nombre) { var k = norm(nombre); if (k && !v[k]) { v[k] = 1; out.push({ n: nombre, c: '' }); } };
+    (S.pedidos || []).forEach(function (p) { ver(p.cliente); });
+    (S.faena || []).forEach(function (sem) { sem.dias.forEach(function (d) { d.clientes.forEach(function (r) { ver(r.cliente); }); }); });
+    return out;
+  }
+  function renderClientes() {
+    var el = $('view-clientes');
+    if (!S.editor) { el.innerHTML = '<div class="panel"><p class="state">Para ver los clientes hay que ingresar con una cuenta autorizada.</p></div>'; return; }
+    var l = clientes(), sinNum = l.filter(function (x) { return !x.c; }).length;
+    var orden = l.map(function (x, i) { return [x, i]; }).sort(function (a, b) { return String(a[0].n).localeCompare(String(b[0].n)); });
+    var h = '<div class="panel carga"><h2>Agregar cliente</h2><div class="campos cli-alta">'
+      + '<label class="campo"><span>N° de cuenta</span><input type="text" inputmode="numeric" id="cli-c" autocomplete="off"></label>'
+      + '<label class="campo"><span>Nombre del cliente</span><input type="text" id="cli-n" autocomplete="off" style="text-transform:uppercase"></label></div>'
+      + '<div class="acciones"><button class="btn pri" data-act="cli-agregar">Agregar</button><span class="guardado" id="g-cli"></span></div></div>';
+    h += '<div class="panel"><div class="cam-cab"><h2>Clientes</h2><span class="small muted">' + (l.length ? l.length + plural(l.length, ' cliente', ' clientes') + (sinNum ? ' · ' + sinNum + ' sin número' : '') : 'todavía no hay clientes cargados') + '</span></div>';
+    if (l.length > 6) h += '<input type="search" id="cli-buscar" placeholder="Buscar por nombre o número…" aria-label="Buscar cliente" value="' + esc(S.cliBuscar || '') + '">';
+    if (l.length) h += '<table class="pl cli"><thead><tr><th>N° de cuenta</th><th>Cliente</th><th></th></tr></thead><tbody>' + orden.map(function (x) {
+      var c = x[0], i = x[1];
+      return '<tr data-busca="' + esc(norm(c.n) + ' ' + norm(c.c)) + '"><td><input type="text" inputmode="numeric" data-cli="' + i + '" data-k="c" value="' + esc(c.c || '') + '" placeholder="Falta" aria-label="Número de cuenta de ' + esc(c.n) + '"></td>'
+        + '<td><input type="text" data-cli="' + i + '" data-k="n" value="' + esc(c.n) + '" style="text-transform:uppercase" aria-label="Nombre del cliente"></td>'
+        + '<td><button class="btn x" data-act="cli-quitar" data-i="' + i + '" aria-label="Quitar a ' + esc(c.n) + '">×</button></td></tr>';
+    }).join('') + '</tbody></table><p class="small muted">Los cambios se guardan solos al salir de cada casillero.</p>';
+    else h += '<p class="muted">Agregalos de a uno arriba, o varios juntos abajo.</p>';
+    h += '</div>';
+    var conocidos = clientesConocidos().filter(function (x) { return !l.some(function (y) { return norm(y.n) === norm(x.n); }); }).length;
+    h += '<div class="panel"><details' + (S._cliVarios ? ' open' : '') + ' id="det-cli"><summary>Cargar varios juntos</summary>'
+      + '<label class="campo"><span>Pegá la lista: una línea por cliente, con el número y el nombre (se puede copiar desde Excel)</span><textarea id="cli-txt" rows="8" placeholder="21588  ALMACOR&#10;21147  JAVIER BRISIGHELLI"></textarea></label>'
+      + '<div class="acciones"><button class="btn pri" data-act="cli-pegar">Agregar la lista</button>'
+      + (conocidos ? '<button class="btn" data-act="cli-traer">Traer los ' + conocidos + ' nombres que ya figuran en pedidos y planillas</button>' : '') + '</div>'
+      + '<p class="small muted">Los que ya estaban se actualizan; no se borra ninguno.</p></details></div>';
+    el.innerHTML = h; pintarMsg('cli'); filtrarClientes();
+  }
+  function filtrarClientes() {
+    var q = norm(S.cliBuscar || '');
+    Array.prototype.forEach.call(document.querySelectorAll('#view-clientes tr[data-busca]'), function (tr) { tr.hidden = !!q && tr.getAttribute('data-busca').indexOf(q) < 0; });
+  }
+
   /* Precios y fletes: solo los ven quienes ingresan. El precio de cada corte se guarda en el pedido
      y el costo de cada camión en un documento privado por día; nada de esto se publica. */
   function plata(v, dec) { return '$ ' + (+v || 0).toLocaleString('es-AR', { minimumFractionDigits: dec ? 2 : 0, maximumFractionDigits: dec ? 2 : 0 }); }
@@ -530,7 +617,7 @@
   function moverPedido(p, f) {
     if (!p || !f || f === p.entrega) return Promise.resolve();
     S.prop.forEach(function (x) { if (x.editaId === p.id) x.entrega = f; });
-    return guardarPropuesta({ editaId: p.id, cliente: p.cliente, entrega: f, medias: p.medias, peso: p.peso, frio: p.frio, nota: p.nota, kg: p.kg, origen: p.origen, cortes: clone(cortesDe(p)) });
+    return guardarPropuesta({ editaId: p.id, cliente: p.cliente, entrega: f, medias: p.medias, peso: p.peso, frio: p.frio, cuenta: p.cuenta || '', nota: p.nota, kg: p.kg, origen: p.origen, cortes: clone(cortesDe(p)) });
   }
   function diaCorto(f) { var x = String(f).split('-'); return diaDe(f) + ' ' + (+x[2]) + '/' + (+x[1]); }
   function opcionesDia(p) {
@@ -543,7 +630,7 @@
   }
   function editarPedido(id, campo) {
     var pe = pedidoDe(id);
-    if (pe && !S.prop.some(function (x) { return x.editaId === pe.id; })) S.prop.push({ k: uid(), editaId: pe.id, cliente: pe.cliente || '', entrega: pe.entrega || '', medias: pe.medias || '', peso: pe.peso || '', frio: pe.frio || '', nota: pe.nota || '', kg: pe.kg || '', origen: pe.origen || 'manual', dudas: (pe.dudas || []).slice(), cortes: clone(cortesDe(pe)).map(function (c) { c.texto = sinCliente(c.texto, pe.cliente); return c; }) });
+    if (pe && !S.prop.some(function (x) { return x.editaId === pe.id; })) S.prop.push({ k: uid(), editaId: pe.id, cliente: pe.cliente || '', entrega: pe.entrega || '', medias: pe.medias || '', peso: pe.peso || '', frio: pe.frio || '', cuenta: pe.cuenta || '', nota: pe.nota || '', kg: pe.kg || '', origen: pe.origen || 'manual', dudas: (pe.dudas || []).slice(), cortes: clone(cortesDe(pe)).map(function (c) { c.texto = sinCliente(c.texto, pe.cliente); return c; }) });
     S.msg.fotos = ''; renderPedidos();
     var k = -1; S.prop.forEach(function (x, i) { if (x.editaId === id) k = i; });
     var fe = $('q' + k + (campo || 'cliente')); if (fe) { fe.focus(); if (fe.scrollIntoView) fe.scrollIntoView({ block: 'center' }); }
@@ -608,7 +695,7 @@
     cams.forEach(function (c) { hay[c.id] = c; });
     var peds = (S.pedidos || []).filter(function (p) { return p.entrega === f; }).map(function (p) {
       var k = kgPedido(p);
-      return { id: p.id, cliente: p.cliente || '', medias: +p.medias || 0, peso: p.peso || '', frio: p.frio || '', nota: p.nota || '', camion: p.camion && hay[p.camion] ? p.camion : '', kg: k.kg, kgFalta: !!k.falta, kgManual: !!k.manual,
+      return { id: p.id, cliente: p.cliente || '', cuenta: cuentaPedido(p), medias: +p.medias || 0, peso: p.peso || '', frio: p.frio || '', nota: p.nota || '', camion: p.camion && hay[p.camion] ? p.camion : '', kg: k.kg, kgFalta: !!k.falta, kgManual: !!k.manual,
         cortes: (p.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { corte: c.corte, texto: sinCliente(c.texto, p.cliente) }; }) };
     });
     // Dentro de cada camión, los pedidos van en el orden que se les dio; los nuevos, al final.
@@ -629,7 +716,7 @@
     Object.keys(S.log || {}).forEach(function (f) { if (f >= desde && !porFecha[f]) porFecha[f] = []; });
     Object.keys(porFecha).forEach(function (f) {
       var lg = logDe(f), kgDe = {}; S.pedidos.forEach(function (p) { if (p.entrega === f) kgDe[p.id] = kgPedido(p).kg; });
-      var a = porFecha[f].slice().sort().map(function (id) { return id + ':' + kgDe[id] + ':' + ((pedidoDe(id) || {}).frio || ''); }).join(','), b = ((lg && lg.pedidos) || []).map(function (x) { return x.id + ':' + (+x.kg || 0) + ':' + (x.frio || ''); }).sort().join(',');
+      var a = porFecha[f].slice().sort().map(function (id) { return id + ':' + kgDe[id] + ':' + ((pedidoDe(id) || {}).frio || '') + ':' + cuentaPedido(pedidoDe(id) || {}); }).join(','), b = ((lg && lg.pedidos) || []).map(function (x) { return x.id + ':' + (+x.kg || 0) + ':' + (x.frio || '') + ':' + (x.cuenta || ''); }).sort().join(',');
       if (a !== b) publicarLog(f).then(null, function () {});
     });
   }
@@ -721,7 +808,7 @@
   }
   function guardarPropuesta(q, auto) {
     var previo = q.editaId ? pedidoDe(q.editaId) : null, entrega = q.entrega || '';
-    var p = { cliente: String(q.cliente || '').toUpperCase().trim(), entrega: entrega, medias: +q.medias || 0, peso: q.peso || '', frio: frioDe(q.frio), nota: q.nota || '', origen: q.origen || 'manual',
+    var p = { cliente: String(q.cliente || '').toUpperCase().trim(), entrega: entrega, medias: +q.medias || 0, peso: q.peso || '', frio: frioDe(q.frio), cuenta: String(q.cuenta || '').trim(), nota: q.nota || '', origen: q.origen || 'manual',
       creado: previo && previo.creado ? previo.creado : ahoraTxt(), kg: +q.kg > 0 ? +q.kg : '',
       camion: previo && previo.entrega === entrega ? (previo.camion || '') : '',
       cortes: (q.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { k: c.k || uid(), corte: norm(c.corte), texto: sinCliente(String(c.texto).toUpperCase().replace(/\s+/g, ' ').trim(), q.cliente), orden: c.orden !== false, precio: c.precio === 0 ? 0 : c.precio || '' }; }).filter(function (c) { return c.texto; }) };
@@ -735,6 +822,11 @@
       .then(function () { return aplicarMedias(p); })
       .then(function () { return antes ? revincularProduccion(p, antes) : null; })
       .then(function () { return Promise.all((antes && antes.entrega !== p.entrega ? [antes.entrega, p.entrega] : [p.entrega]).map(function (f) { return publicarLog(f); })); })
+      .then(function () {
+        // Si en el pedido se escribió un número que la base no tenía, queda aprendido para ese cliente.
+        var ya = clientes().filter(function (x) { return norm(x.n) === norm(p.cliente); })[0];
+        return p.cuenta && (!ya || ya.c !== p.cuenta) ? sumarClientes([{ n: p.cliente, c: p.cuenta }]).then(null, function () {}) : null;
+      })
       .then(function () { tocar(); });
   }
 
@@ -907,7 +999,7 @@
       if (igual) {
         // Mismo pedido que ya estaba: no se repite, pero si ahora trae fresco o congelado se le agrega.
         if (!q.frio || (igual.frio || '') === q.frio) { repetidos++; return false; }
-        q.editaId = igual.id; q.cortes = clone(cortesDe(igual)); q.peso = igual.peso || q.peso; q.nota = igual.nota || q.nota; q.kg = igual.kg || ''; q.origen = igual.origen || q.origen;
+        q.editaId = igual.id; q.cortes = clone(cortesDe(igual)); q.peso = igual.peso || q.peso; q.nota = igual.nota || q.nota; q.kg = igual.kg || ''; q.origen = igual.origen || q.origen; q.cuenta = igual.cuenta || '';
         return true;
       }
       var soloMedias = prev.filter(function (x) { return !(x.cortes || []).length; })[0];
@@ -982,6 +1074,7 @@
     var listaCortes = CORTES_BASE.slice(); (q.cortes || []).forEach(function (c) { if (c.corte && listaCortes.indexOf(c.corte) < 0) listaCortes.push(c.corte); });
     var h = '<div class="card">';
     h += '<div class="campos"><label class="campo"><span>Cliente</span><input type="text" id="q' + i + 'cliente" data-q="' + i + '" data-k="cliente" value="' + esc(q.cliente) + '" style="text-transform:uppercase"></label>'
+      + '<label class="campo"><span>N° de cuenta</span><input type="text" inputmode="numeric" id="q' + i + 'cuenta" data-q="' + i + '" data-k="cuenta" value="' + esc(q.cuenta || '') + '" placeholder="' + esc(cuentaDe(q.cliente) || 'Sin número') + '"></label>'
       + '<label class="campo"><span>Entrega</span><input type="date" id="q' + i + 'entrega" data-q="' + i + '" data-k="entrega" value="' + esc(q.entrega || '') + '"></label>'
       + '<label class="campo"><span>Medias</span><input type="number" inputmode="numeric" id="q' + i + 'medias" data-q="' + i + '" data-k="medias" value="' + esc(q.medias) + '"></label>'
       + '<label class="campo"><span>Peso o aclaración</span><input type="text" id="q' + i + 'peso" data-q="' + i + '" data-k="peso" value="' + esc(q.peso || '') + '"></label>'
@@ -1019,7 +1112,7 @@
     if (cs.length) res.push(cs.length + (cs.length === 1 ? ' corte' : ' cortes'));
     var h = '<div class="ped' + (ab ? ' abierto' : '') + (sel ? ' sel' : '') + '"><div class="ped-cab">'
       + '<label class="chk"><input type="checkbox" data-sel="' + id + '"' + (sel ? ' checked' : '') + ' aria-label="Tildar el pedido de ' + esc(p.cliente) + ' para un camión"></label>'
-      + '<button class="ped-tit" data-act="ped-abrir" data-id="' + id + '" aria-expanded="' + ab + '"><span class="nom">' + esc(p.cliente || 'Sin cliente') + '</span><span class="res">' + res.join(' · ') + (p.frio ? ' ' + frioBadge(p.frio) : '') + '</span>'
+      + '<button class="ped-tit" data-act="ped-abrir" data-id="' + id + '" aria-expanded="' + ab + '"><span class="nom">' + esc(p.cliente || 'Sin cliente') + '</span>' + ctaHTML(cuentaPedido(p)) + '<span class="res">' + res.join(' · ') + (p.frio ? ' ' + frioBadge(p.frio) : '') + '</span>'
       + (cam ? '<span class="marcas"><span class="badge plain">' + esc(cam) + '</span></span>' : '') + '<span class="chev" aria-hidden="true">' + (ab ? '▴' : '▾') + '</span></button></div>';
     if (!ab) return h + '</div>';
     h += '<div class="ped-det"><div class="op-ped">';
@@ -1126,7 +1219,7 @@
   function logPedidoHTML(p, cam, cams, pos, total) {
     var id = esc(p.id), filas = (p.cortes || []).map(function (c) { return { corte: c.corte, texto: sinCliente(c.texto, p.cliente) }; });
     if (+p.medias) filas.unshift({ corte: 'MEDIAS', texto: textoMedias(p) });
-    var h = '<div class="log-ped"><div class="log-cab">' + (cam ? '<span class="log-pos">' + (pos + 1) + '</span>' : '') + '<strong>' + esc(p.cliente || 'Sin cliente') + '</strong>'
+    var h = '<div class="log-ped"><div class="log-cab">' + (cam ? '<span class="log-pos">' + (pos + 1) + '</span>' : '') + '<strong>' + esc(p.cliente || 'Sin cliente') + '</strong>' + ctaHTML(p.cuenta)
       + frioBadge(p.frio)
       + '<span class="small muted">' + esc(kgTxt({ kg: +p.kg || 0, falta: p.kgFalta, manual: p.kgManual })) + '</span>';
     if (S.editor) h += '<span class="log-acc">' + (cam
@@ -1227,6 +1320,10 @@
     var ma = medNum(f), mb = medNum(sig);
     html += tarjeta('medias', 'Medias', rot(f), ma.c ? [[ma.c, plural(ma.c, 'cliente', 'clientes')], [ma.a, plural(ma.a, 'animal', 'animales')]] : [], 'Sin ventas cargadas', '',
       pie(mb.c ? neg(mb.c, 'cliente', 'clientes') + ' · ' + neg(mb.a, 'animal', 'animales') : 'Sin ventas cargadas'));
+    if (S.editor) {
+      var lc = clientes(), sn = lc.filter(function (x) { return !x.c; }).length;
+      html += tarjeta('clientes', 'Clientes', 'Números de cuenta', lc.length ? [[lc.length, plural(lc.length, 'cliente', 'clientes')]].concat(sn ? [[sn, 'sin número']] : []) : [], 'Todavía no hay clientes cargados', '', '');
+    }
     el.innerHTML = html + '</div>';
   }
   // Volver al inicio deja todo parado en el día de hoy.
@@ -1245,16 +1342,18 @@
     if (!store || !store.signIn) e.innerHTML = '';
     else if (!S.user) e.innerHTML = '<button class="btn sm lnk" data-act="ingresar">Ingresar para cargar</button>';
     else e.innerHTML = '<span>' + esc(S.user.email) + (S.editor ? '' : ' · sin permiso para cargar') + '</span><button class="btn sm lnk" data-act="salir">Salir</button>';
-    $('tab-pedidos').hidden = !S.editor;
-    if (S.tab === 'pedidos' && !S.editor) S.tab = 'inicio';
+    $('tab-pedidos').hidden = !S.editor; $('tab-clientes').hidden = !S.editor;
+    $('tabs').classList.toggle('muchas', !!S.editor);
+    if ((S.tab === 'pedidos' || S.tab === 'clientes') && !S.editor) S.tab = 'inicio';
     TABS.forEach(function (t) { $('view-' + t).hidden = S.tab !== t; if (S.tab !== t) $('view-' + t).innerHTML = ''; $('tab-' + t).setAttribute('aria-selected', String(S.tab === t)); });
-    if (S.tab === 'medias') renderMedias(); else if (S.tab === 'pedidos') renderPedidos(); else if (S.tab === 'produccion') renderProduccion(); else if (S.tab === 'logistica') renderLogistica(); else renderInicio();
+    if (S.tab === 'medias') renderMedias(); else if (S.tab === 'pedidos') renderPedidos(); else if (S.tab === 'produccion') renderProduccion(); else if (S.tab === 'logistica') renderLogistica(); else if (S.tab === 'clientes') renderClientes(); else renderInicio();
   }
   // Cuando llegan datos nuevos no se redibuja la pantalla en la que se está escribiendo.
   function renderDatos() {
     if (S.tab === 'medias' && S.em) return pintarSumas();
     if (S.tab === 'produccion' && S.ep) return;
     if (S.tab === 'pedidos' && (S.prop.length || escribiendo())) return;
+    if (S.tab === 'clientes' && escribiendo()) return;
     if (S.tab === 'logistica' && (S.ec || S.ef || (document.activeElement && document.activeElement.dataset && document.activeElement.dataset.flete))) return;
     render();
   }
@@ -1268,6 +1367,22 @@
     if (S._c2 && S._c2 !== a + (D.i == null ? '' : D.i)) S._c2 = null;
 
     if (a === 'actualizar') { recargar(); return; }
+    if (a === 'cli-agregar' || a === 'cli-pegar' || a === 'cli-traer') {
+      var nuevos = a === 'cli-agregar' ? [{ n: $('cli-n').value, c: $('cli-c').value }] : a === 'cli-pegar' ? leerListaClientes($('cli-txt').value) : clientesConocidos();
+      nuevos = nuevos.filter(function (x) { return norm(x.n); });
+      if (!nuevos.length) { S.msg.cli = a === 'cli-agregar' ? '!Falta el nombre del cliente.' : '!No encontré clientes en lo que pegaste.'; pintarMsg('cli'); if (a !== 'cli-agregar') avisar(S.msg.cli, 6000); return; }
+      if (a !== 'cli-agregar') S._cliVarios = false;
+      sumarClientes(nuevos).then(function (r) {
+        S.msg.cli = r.altas + plural(r.altas, ' cliente agregado', ' clientes agregados') + (r.cambios ? ' · ' + r.cambios + plural(r.cambios, ' número actualizado', ' números actualizados') : '') + '.';
+        avisar(S.msg.cli, 5000); renderClientes(); var fn = $('cli-c'); if (fn && a === 'cli-agregar') fn.focus();
+      }, function () { S.msg.cli = '!No se pudo guardar. Revisá la conexión.'; pintarMsg('cli'); });
+      return;
+    }
+    if (a === 'cli-quitar') {
+      var lq = clone(clientes()); lq.splice(+D.i, 1);
+      escribirClientes(lq).then(renderClientes, function () { avisar('!No se pudo quitar. Revisá la conexión.', 6000); });
+      return;
+    }
     if (a === 'ir') irA(D.tab);
     else if (a === 'cam-imprimir') {
       // Solo ese camión: los demás se ocultan mientras dura la impresión.
@@ -1408,6 +1523,8 @@
 
   document.addEventListener('input', function (e) {
     var t = e.target, D = t.dataset;
+    if (t.id === 'cli-buscar') { S.cliBuscar = t.value; filtrarClientes(); return; }
+    if (D.cli != null) return;
     if (t.id === 'pegar-cli') { S.pegarCli = t.value; return; }
     if (t.id === 'pegar-txt') { S.pegarTxt = t.value; if (S.msg.fotos) { S.msg.fotos = ''; pintarMsg('fotos'); } return; }
     if (t.id === 'cam-nombre') { S.camNombre = t.value; return; }
@@ -1428,7 +1545,7 @@
     }
   });
   // Configuración queda abierta o cerrada como la dejó quien la usa, aunque se redibuje la pantalla.
-  document.addEventListener('toggle', function (e) { if (e.target && e.target.tagName === 'DETAILS') S._conf = e.target.open; }, true);
+  document.addEventListener('toggle', function (e) { var d = e.target; if (d && d.tagName === 'DETAILS') { if (d.id === 'det-cli') S._cliVarios = d.open; else S._conf = d.open; } }, true);
   document.addEventListener('change', function (e) {
     var t = e.target, D = t.dataset;
     if (t.id === 'p-fecha' && t.value) { if (S.ep) guardar('prod', true); S.ep = null; S.fechaFija = true; S.fecha = t.value; render(); }
@@ -1440,6 +1557,12 @@
       var ps = pedidoDe(D.sel);
       if (t.checked && ps) { if (S.selDia !== ps.entrega) { S.sel = {}; S.selDia = ps.entrega; S.camOtro = false; } S.sel[D.sel] = true; } else delete S.sel[D.sel];
       renderPedidos();
+    }
+    else if (D.cli != null && clientes()[+D.cli]) {
+      var lc = clone(clientes()), vc = t.value.replace(/\s+/g, ' ').trim();
+      if (D.k === 'n' && !vc) { t.value = lc[+D.cli].n; return; }
+      lc[+D.cli][D.k] = D.k === 'n' ? vc.toUpperCase() : vc;
+      escribirClientes(lc).then(function () { avisar('Guardado.', 2000); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); });
     }
     else if (D.precio) {
       guardarPrecio(D.precio, D.k, t.value).then(function () { avisar('Precio guardado.', 2500); }, function () { avisar('!No se pudo guardar el precio. Revisá la conexión.', 6000); });
@@ -1562,6 +1685,9 @@
               var fl = {}, antesF = JSON.stringify(S.fletes || {});
               l.forEach(function (x) { if (String(x.id).indexOf('fletes-') === 0) fl[x.id.slice(7)] = x; });
               S.fletes = fl; if (JSON.stringify(fl) !== antesF && S.tab === 'logistica') renderDatos();
+              var cl = l.filter(function (x) { return x.id === 'clientes'; })[0], antesC = JSON.stringify(clientes());
+              S.clientes = (cl && cl.lista) || [];
+              if (JSON.stringify(S.clientes) !== antesC) { conciliarLog(); renderDatos(); }
               var c = l.filter(function (x) { return x.id === 'ia'; })[0]; if (c) { var antes = !!(S.ia && S.ia.clave); S.ia = c; if (!antes && !S.prop.length && !S.em && !S.ep && !S.pegar) render(); } });
           }
         }

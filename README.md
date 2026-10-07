@@ -26,6 +26,7 @@ Otros comportamientos:
 - Un pedido se cambia de día desde el listado: abrirlo y elegir en "Cambiar de día…". Se mueven sus medias y sus cortes en producción, y sale del camión que tenía.
 - El texto de cada corte se carga tal cual figura en el pedido (con la unidad solo si el pedido la aclara) y no repite el cliente; el cliente se agrega solo al sumar el corte a producción. Las medias del pedido se muestran como un renglón más de la lista.
 - Precios y costos (solo los ve quien ingresa; no se publican): en Pedidos cada corte tiene un casillero de precio por kg, guardado en el pedido; en Logística cada camión tiene el costo del flete, por viaje o por kg, y la app calcula el costo por kg llevado. Los fletes se guardan en `privado/fletes-{fecha}`.
+- Pestaña Clientes (solo para quien ingresa): base de clientes con su número de cuenta, guardada en `privado/clientes`. Se cargan de a uno, pegando una lista, o trayendo los nombres que ya figuran en pedidos y planillas. Cada pedido muestra el número de su cliente (una sucursal sin número propio toma el del cliente); el número del pedido sale también en Logística.
 - En Logística cada camión se puede imprimir por separado y sus pedidos se ordenan con las flechas; el orden queda guardado en el camión.
 - Las planillas por sucursal (por ejemplo DINO) y los mensajes de un cliente con varias sucursales se cargan como un pedido por sucursal, no como uno solo sumado, porque cada sucursal puede ir en un camión distinto.
 - Las lecturas corren en segundo plano y un cartel avisa qué se está leyendo y qué se guardó.
