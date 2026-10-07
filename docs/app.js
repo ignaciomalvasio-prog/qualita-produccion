@@ -1454,7 +1454,7 @@
 
     if (a === 'actualizar') { recargar(); return; }
     if (a === 'link-log') {
-      var url = location.origin + location.pathname + '?solo=logistica', listo = function () { S.msg.log = 'Link copiado: ' + url; pintarMsg('log'); avisar('Link de Logística copiado. Pegalo donde quieras compartirlo.', 6000); };
+      var url = location.origin + location.pathname.replace(/[^\/]*$/, '') + 'logistica', listo = function () { S.msg.log = 'Link copiado: ' + url; pintarMsg('log'); avisar('Link de Logística copiado. Pegalo donde quieras compartirlo.', 6000); };
       var aMano = function () { S.msg.log = 'Link para compartir: ' + url; pintarMsg('log'); avisar('Link para compartir: ' + url, 15000); };
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(listo, aMano); else aMano();
       return;
@@ -1721,8 +1721,9 @@
   });
 
   var h0 = (location.hash || '').slice(1); if (TABS.indexOf(h0) >= 0) S.tab = h0;
-  // Link para compartir con una sola pestaña (?solo=logistica): se ve esa sola, sin las demás y sin ingresar.
-  try { var qs = new URLSearchParams(location.search).get('solo'); if (qs === 'logistica') { S.solo = qs; S.tab = qs; } } catch (err) {}
+  // Link para compartir con una sola pestaña: se ve esa sola, sin las demás y sin ingresar.
+  // Es la página logistica.html (se arma con tools/paginas.py); el link viejo con ?solo=logistica sigue andando.
+  try { var qs = document.documentElement.getAttribute('data-solo') || new URLSearchParams(location.search).get('solo'); if (qs === 'logistica') { S.solo = qs; S.tab = qs; } } catch (err) {}
   if (S.solo) {
     document.title = 'Logística Qualitá';
     var mf = document.querySelector('link[rel="manifest"]'); if (mf) mf.setAttribute('href', 'logistica.webmanifest');

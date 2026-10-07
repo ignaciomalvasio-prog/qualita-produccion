@@ -3,7 +3,7 @@
   "short_name": "Logística",
   "description": "Camiones y pedidos para entregar del Frigorífico Qualitá.",
   "lang": "es",
-  "start_url": "./?solo=logistica",
+  "start_url": "./logistica",
   "scope": "./",
   "display": "standalone",
   "background_color": "#ffffff",
