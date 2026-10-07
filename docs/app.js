@@ -570,6 +570,7 @@
     h += '<div class="panel"><details' + (S._cliVarios ? ' open' : '') + ' id="det-cli"><summary>Cargar varios juntos</summary>'
       + '<label class="campo"><span>Pegá la lista: una línea por cliente, con el número y el nombre (se puede copiar desde Excel)</span><textarea id="cli-txt" rows="8" placeholder="21588  ALMACOR&#10;21147  JAVIER BRISIGHELLI"></textarea></label>'
       + '<div class="acciones"><button class="btn pri" data-act="cli-pegar">Agregar la lista</button>'
+      + '<label class="btn" style="display:inline-flex;align-items:center">Subir un archivo (.txt o .csv)<input type="file" id="cli-archivo" accept=".txt,.csv,.tsv,text/plain,text/csv" hidden></label>'
       + (conocidos ? '<button class="btn" data-act="cli-traer">Traer los ' + conocidos + ' nombres que ya figuran en pedidos y planillas</button>' : '') + '</div>'
       + '<p class="small muted">Los que ya estaban se actualizan; no se borra ninguno.</p></details></div>';
     el.innerHTML = h; pintarMsg('cli'); filtrarClientes();
@@ -1616,6 +1617,21 @@
     else if (t.id === 'm-fecha' && t.value) { S.fm = t.value; render(); }
     else if (t.id === 'e-fecha' && t.value) { S.entrega = t.value; S.sel = {}; renderPedidos(); }
     else if (t.id === 'l-fecha' && t.value) { S.fl = t.value; S.ec = null; render(); }
+    else if (t.id === 'cli-archivo' && t.files && t.files.length) {
+      var lector = new FileReader();
+      lector.onload = function () {
+        var nuevos = leerListaClientes(String(lector.result || ''));
+        if (!nuevos.length) { S.msg.cli = '!No encontré clientes en ese archivo.'; avisar(S.msg.cli, 6000); pintarMsg('cli'); return; }
+        S._cliVarios = false;
+        sumarClientes(nuevos, true).then(function (r) {
+          S.msg.cli = r.altas + plural(r.altas, ' cliente agregado', ' clientes agregados') + (r.cambios ? ' · ' + r.cambios + plural(r.cambios, ' número actualizado', ' números actualizados') : '') + '.';
+          avisar(S.msg.cli, 6000); renderClientes();
+        }, function () { S.msg.cli = '!No se pudo guardar. Revisá la conexión.'; pintarMsg('cli'); });
+      };
+      lector.onerror = function () { avisar('!No se pudo leer el archivo.', 6000); };
+      lector.readAsText(t.files[0]);
+      try { t.value = ''; } catch (err) {}
+    }
     else if (t.id === 'fotos' && t.files && t.files.length) { subirFotos(t.files); try { t.value = ''; } catch (err) {} }
     else if (D.sel) {
       var ps = pedidoDe(D.sel);
