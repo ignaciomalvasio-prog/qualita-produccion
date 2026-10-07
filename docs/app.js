@@ -1325,7 +1325,7 @@
     var h = '<div class="nav"><button class="btn step" data-act="fl" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + esc(tituloDe(f)) + '</span><button class="btn step" data-act="fl" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="l-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">'
       + (peds.length ? '<button class="btn" data-act="imprimir">Imprimir</button>' : '')
-      + (S.editor ? '<button class="btn" data-act="cam-nuevo">+ Camión para este día</button><span class="guardado" id="g-log"></span>' : '') + '</div>';
+      + (S.editor ? '<button class="btn" data-act="cam-nuevo">+ Camión para este día</button><button class="btn" data-act="link-log">Copiar link para compartir</button><span class="guardado" id="g-log"></span>' : '') + '</div>';
     if (!peds.length && !cams.length) {
       h += '<div class="panel"><p class="state">No hay pedidos para entregar este día.</p>' + (S.editor ? '<div class="acciones" style="justify-content:center"><button class="btn pri" data-act="ir-pedidos" data-f="' + f + '">Ir a los pedidos de este día</button></div>' : '') + '</div>';
       if (S.editor || flota().length) h += stockCamionesHTML(f, peds, cams);
@@ -1420,7 +1420,9 @@
     $('stamp').textContent = (S.config.actualizado ? 'Actualizado: ' + S.config.actualizado : '') + (S.fuente === 'cache' ? ' · sin conexión' : '');
     var ht = $('hoy-txt'); if (ht) ht.textContent = 'Hoy es ' + tituloDe(hoy()).toLowerCase();
     var e = $('sesion');
-    if (!store || !store.signIn) e.innerHTML = '';
+    if (S.solo) { S.tab = S.solo; S.editor = false; }
+    $('tabs').hidden = !!S.solo;
+    if (!store || !store.signIn || S.solo) e.innerHTML = '';
     else if (!S.user) e.innerHTML = '<button class="btn sm lnk" data-act="ingresar">Ingresar para cargar</button>';
     else e.innerHTML = '<span>' + esc(S.user.email) + (S.editor ? '' : ' · sin permiso para cargar') + '</span><button class="btn sm lnk" data-act="salir">Salir</button>';
     $('tab-pedidos').hidden = !S.editor; $('tab-clientes').hidden = !S.editor;
@@ -1439,7 +1441,7 @@
     if (S.tab === 'logistica' && (S.ec || S.ef || (document.activeElement && document.activeElement.dataset && document.activeElement.dataset.flete))) return;
     render();
   }
-  function irA(tab) { S.volver = null; S.tab = tab; try { history.replaceState(null, '', '#' + tab); } catch (err) {} render(); window.scrollTo(0, 0); }
+  function irA(tab) { if (S.solo) tab = S.solo; S.volver = null; S.tab = tab; try { history.replaceState(null, '', '#' + tab); } catch (err) {} render(); window.scrollTo(0, 0); }
 
   document.querySelector('.top').addEventListener('click', function (e) { var b = e.target.closest('[data-tab]'); if (!b) return; e.preventDefault(); if (b.dataset.tab === 'inicio') alInicio(); if (S.ep) { asentarEdicion(); S.ep = null; } S.ec = null; S.msg.fotos = ''; S.msg.log = ''; S.pegar = false; if (!S.leyendo) { S.pegarTxt = ''; S.pegarCli = ''; } irA(b.dataset.tab); });
 
@@ -1449,6 +1451,12 @@
     if (S._c2 && S._c2 !== a + (D.i == null ? '' : D.i)) S._c2 = null;
 
     if (a === 'actualizar') { recargar(); return; }
+    if (a === 'link-log') {
+      var url = location.origin + location.pathname + '?solo=logistica', listo = function () { S.msg.log = 'Link copiado: ' + url; pintarMsg('log'); avisar('Link de Logística copiado. Pegalo donde quieras compartirlo.', 6000); };
+      var aMano = function () { S.msg.log = 'Link para compartir: ' + url; pintarMsg('log'); avisar('Link para compartir: ' + url, 15000); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(listo, aMano); else aMano();
+      return;
+    }
     if (a === 'iva') { guardarIva(D.id, D.k, D.v).then(null, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); }); renderPedidos(); return; }
     if (a === 'cta-cancelar') { S.ctaOtro = null; renderPedidos(); return; }
     if (a === 'cta-otro') { S.ctaOtro = D.id; renderPedidos(); var co = document.querySelector('[data-cta-in="' + D.id + '"]'); if (co) co.focus(); return; }
@@ -1549,7 +1557,8 @@
     // pedidos: listado
     else if (a === 'ped-abrir') {
       var enCta = !!(e.target.closest && e.target.closest('.cta'));
-      S.abierto[D.id] = enCta ? true : !S.abierto[D.id]; S.pedDia = null; S.ctaOtro = null; renderPedidos();
+      // Un solo pedido abierto a la vez: al abrir uno se cierra el que estaba.
+      var estaba = !!S.abierto[D.id]; S.abierto = {}; S.abierto[D.id] = enCta ? true : !estaba; S.pedDia = null; S.ctaOtro = null; renderPedidos();
       // El pedido que se abre queda a la vista entero, sin mover la pantalla si ya lo está.
       if (S.abierto[D.id] && !enCta) { var cab = document.querySelector('[data-act="ped-abrir"][data-id="' + D.id + '"]'), tar = cab && cab.closest('.ped'); if (tar && tar.scrollIntoView) tar.scrollIntoView({ block: 'nearest' }); }
       if (enCta) { var sc = document.querySelector('select[data-cta="' + D.id + '"], [data-cta-in="' + D.id + '"], [data-act="cta-otro"][data-id="' + D.id + '"]'); if (sc) { sc.focus(); if (sc.scrollIntoView) sc.scrollIntoView({ block: 'center' }); } }
@@ -1710,6 +1719,14 @@
   });
 
   var h0 = (location.hash || '').slice(1); if (TABS.indexOf(h0) >= 0) S.tab = h0;
+  // Link para compartir con una sola pestaña (?solo=logistica): se ve esa sola, sin las demás y sin ingresar.
+  try { var qs = new URLSearchParams(location.search).get('solo'); if (qs === 'logistica') { S.solo = qs; S.tab = qs; } } catch (err) {}
+  if (S.solo) {
+    document.title = 'Logística Qualitá';
+    var mf = document.querySelector('link[rel="manifest"]'); if (mf) mf.setAttribute('href', 'logistica.webmanifest');
+    var mn = document.querySelector('.marca-nom'); if (mn) mn.textContent = 'Logística';
+    document.documentElement.classList.add('solo');
+  }
 
   /* ---------- datos ---------- */
   function cache(leer) {
@@ -1792,6 +1809,7 @@
     });
     store.onAuth(function (u) {
       S.user = u ? { email: u.email } : null; S.editor = false;
+      if (S.solo) { S.user = null; render(); return; }   // el link para compartir es siempre de solo lectura
       if (!u) { S.em = null; S.ep = null; S.prop = []; render(); return; }
       store.esEditor(u.email).then(function (ok) {
         S.editor = ok;
