@@ -464,47 +464,65 @@
   function indiceClientes() {
     var l = clientes();
     if (S._cliIdx && S._cliIdx.de === l) return S._cliIdx;
-    var x = { de: l, lista: l.map(function (c) { var k = claveCliente(c.n), w = {}; palabras(k).forEach(function (p) { w[p] = 1; }); return { n: c.n, c: String(c.c || ''), nn: norm(c.n), k: k, w: w, nw: Object.keys(w).length }; }) };
+    var x = { de: l, lista: l.map(function (c) { var k = claveCliente(c.n), w = {}; palabras(k).forEach(function (p) { w[p] = 1; }); return { n: c.n, c: String(c.c || ''), p: !!c.p, nn: norm(c.n), k: k, w: w, nw: Object.keys(w).length }; }) };
     S._cliIdx = x; return x;
   }
-  // Devuelve la cuenta cuando el nombre la identifica sin dudas; si hay varias posibles, las propone en "cand" para elegir una vez.
+  // Devuelve la cuenta del cliente: la que se eligió para ese nombre, o la que el nombre identifica sin dudas.
+  // En "cand" van siempre los clientes parecidos de la base, para poder elegir o cambiar.
   function buscarCuenta(cliente) {
     var nn = norm(cliente), k = claveCliente(cliente), L = indiceClientes().lista, res = { c: '', cand: [] };
     if (!nn || !L.length) return res;
     var cuentas = function (lista) { var v = {}; lista.forEach(function (e) { if (e.c) v[e.c] = 1; }); return Object.keys(v); };
     // 1. El mismo nombre, tal cual está en la base (incluye los nombres cortos ya aprendidos).
-    var igual = L.filter(function (e) { return e.nn === nn && e.c; }), ci = cuentas(igual);
-    if (ci.length === 1) { res.c = ci[0]; return res; }
+    var igual = L.filter(function (e) { return e.nn === nn && e.c; }), ci = cuentas(igual), elegida = igual.filter(function (e) { return e.p; })[0];
     // 2. Todos los clientes de la base que tienen las palabras del nombre ("DIGAR" → DIGAR SA, FRIGORIFICO DIGAR SRL…).
     var pw = palabras(k), parecidos = pw.length ? L.filter(function (e) { return e.c && pw.every(function (w) { return e.w[w]; }); }) : [];
     // 3. El mismo nombre sin la forma societaria, o una sucursal ("DINO ALTA GRACIA" toma el número de "DINO").
     var mismo = k ? L.filter(function (e) { return e.c && e.k === k; }) : [];
     if (!mismo.length) { var pre = L.filter(function (e) { return e.c && e.k && k.indexOf(e.k + ' ') === 0; }), largo = Math.max.apply(null, pre.map(function (e) { return e.k.length; })); mismo = pre.filter(function (e) { return e.k.length === largo; }); }
-    var cm = cuentas(mismo), todos = cuentas(igual.concat(mismo, parecidos));
-    // Sale sola únicamente si no hay ninguna otra cuenta posible.
-    if (cm.length === 1 && todos.length === 1) { res.c = cm[0]; return res; }
-    var visto = {};
-    res.cand = igual.concat(mismo, parecidos).filter(function (e) { var key = e.c + '|' + e.nn; if (visto[key]) return false; visto[key] = 1; return true; })
+    var cm = cuentas(mismo), todos = cuentas(igual.concat(mismo, parecidos)), visto = {};
+    res.cand = igual.concat(mismo, parecidos).filter(function (e) { if (e.nn === nn && e.p) return false; var key = e.c + '|' + e.nn; if (visto[key]) return false; visto[key] = 1; return true; })
       .sort(function (a, b) { return a.nw - b.nw || (a.c.charAt(0) === '2' ? 0 : 1) - (b.c.charAt(0) === '2' ? 0 : 1) || a.n.localeCompare(b.n) || a.c.localeCompare(b.c); }).slice(0, 15);
+    if (elegida) res.c = elegida.c;                                   // la que se eligió para este nombre
+    else if (ci.length === 1) res.c = ci[0];                           // el nombre está en la base con una sola cuenta
+    else if (!ci.length && cm.length === 1 && todos.length === 1) res.c = cm[0];   // sale sola únicamente si no hay ninguna otra posible
     return res;
   }
   function cuentaDe(cliente) { return buscarCuenta(cliente).c; }
   function cuentaPedido(p) { return String(p.cuenta || '').trim() || cuentaDe(p.cliente); }
-  function ctaHTML(c) { return c ? '<span class="cta">N° ' + esc(c) + '</span>' : ''; }
-  // Deja el número en el pedido y lo aprende para ese nombre: la próxima vez sale solo.
-  function ponerCuenta(id, c) {
-    var p = pedidoDe(id); if (!p || !c) return Promise.resolve();
-    var doc = clone(p); delete doc.id; doc.cuenta = String(c);
-    S.pedidos = poner(S.pedidos, id, doc);
-    return store.set('pedidos', id, doc).then(function () { return sumarClientes([{ n: p.cliente, c: String(c) }]); }).then(function () { return publicarLog(p.entrega); });
+  function ctaHTML(c, tocar) { return c ? '<span class="cta' + (tocar ? ' toca' : '') + '">N° ' + esc(c) + '</span>' : tocar ? '<span class="cta toca falta">Sin N°</span>' : ''; }
+  // La cuenta elegida queda como la de ese cliente: vale para este pedido y para todos los de ese nombre, hasta que se cambie.
+  function fijarCuenta(nombre, cta) {
+    var l = clone(clientes()), k = norm(nombre), mismos = [];
+    cta = String(cta || '').trim(); if (!k || !cta) return Promise.resolve();
+    l.forEach(function (x, i) { if (norm(x.n) === k) mismos.push(i); });
+    var ya = mismos.filter(function (i) { return l[i].c === cta; })[0], vacio = mismos.filter(function (i) { return !l[i].c; })[0], antes = mismos.filter(function (i) { return l[i].p; })[0], cual;
+    if (ya != null) cual = ya;
+    else if (vacio != null) { l[vacio].c = cta; cual = vacio; }
+    else if (antes != null) { l[antes].c = cta; cual = antes; }           // se cambia la que se había elegido antes
+    else { cual = l.length; l.push({ n: String(nombre).toUpperCase().replace(/\s+/g, ' ').trim(), c: cta }); }
+    mismos.forEach(function (i) { delete l[i].p; }); l[cual].p = 1;
+    return escribirClientes(l);
   }
+  function ponerCuenta(id, c) {
+    var p = pedidoDe(id); c = String(c || '').trim(); if (!p || !c) return Promise.resolve();
+    var antes = Promise.resolve();
+    if (p.cuenta) { var doc = clone(p); delete doc.id; doc.cuenta = ''; S.pedidos = poner(S.pedidos, id, doc); antes = store.set('pedidos', id, doc); }
+    return antes.then(function () { return fijarCuenta(p.cliente, c); }).then(function () { return publicarLog(p.entrega); });
+  }
+  // Renglón del número de cuenta en el pedido abierto: siempre se puede elegir otro de la base o escribir uno.
   function elegirCuentaHTML(p) {
-    if (cuentaPedido(p)) return '';
-    var cand = buscarCuenta(p.cliente).cand;
-    return '<p class="lp sin-cta"><span><b>N° de cuenta</b> ' + (cand.length ? 'Hay ' + (cand.length === 1 ? 'un cliente parecido' : 'varios clientes parecidos') + ' en la base.' : 'Este cliente no está en la base.') + '</span><span class="lp-der">'
-      + (cand.length ? '<select class="mover" data-cta="' + esc(p.id) + '" aria-label="Elegir la cuenta de ' + esc(p.cliente) + '"><option value="">Elegir…</option>'
-        + cand.map(function (e) { return '<option value="' + esc(e.c) + '">' + esc(e.c) + ' · ' + esc(e.n) + '</option>'; }).join('') + '<option value="otra">Otro número…</option></select>'
-        : '<button class="btn sm" data-act="ped-cuenta" data-id="' + esc(p.id) + '">Poner el número</button>') + '</span></p>';
+    var id = esc(p.id), actual = cuentaPedido(p), cand = buscarCuenta(p.cliente).cand, ops = cand.filter(function (e) { return e.c !== actual; });
+    var h = '<p class="lp sin-cta' + (actual ? ' con' : '') + '"><span><b>N° de cuenta</b> ';
+    var nombreDe = function (c) { var e = indiceClientes().lista.filter(function (x) { return x.c === c && x.nn !== norm(p.cliente); })[0]; return e ? e.n : ''; };
+    h += (actual ? '<strong class="cta-num">' + esc(actual) + '</strong>' + (nombreDe(actual) ? ' <span class="small muted">' + esc(nombreDe(actual)) + '</span>' : '')
+      : ops.length ? 'Elegí cuál es: queda para este cliente.' : 'No está en la base: poné el número y queda guardado.') + '</span><span class="lp-der">';
+    // Casillero para escribir el número ahí mismo: cuando no hay de dónde elegir, o cuando se pide "otro número".
+    if (S.ctaOtro === p.id || (!actual && !ops.length)) return h + '<input type="text" inputmode="numeric" class="cta-in" data-cta-in="' + id + '" placeholder="Número" aria-label="Número de cuenta de ' + esc(p.cliente) + '">'
+      + '<button class="btn sm pri" data-act="cta-guardar" data-id="' + id + '">Guardar</button>' + (S.ctaOtro === p.id ? '<button class="btn sm" data-act="cta-cancelar">Cancelar</button>' : '') + '</span></p>';
+    if (!ops.length) return h + '<button class="btn sm" data-act="cta-otro" data-id="' + id + '">Cambiar</button></span></p>';
+    return h + '<select class="mover" data-cta="' + id + '" aria-label="' + (actual ? 'Cambiar' : 'Elegir') + ' la cuenta de ' + esc(p.cliente) + '"><option value="">' + (actual ? 'Cambiar…' : 'Elegir…') + '</option>'
+      + ops.map(function (e) { return '<option value="' + esc(e.c) + '">' + esc(e.c) + ' · ' + esc(e.n) + '</option>'; }).join('') + '<option value="otra">Otro número…</option></select></span></p>';
   }
   function escribirClientes(l) {
     S.clientes = l;
@@ -888,7 +906,7 @@
       .then(function () { return Promise.all((antes && antes.entrega !== p.entrega ? [antes.entrega, p.entrega] : [p.entrega]).map(function (f) { return publicarLog(f); })); })
       .then(function () {
         // Si en el pedido se escribió un número que la base no tenía, queda aprendido para ese cliente.
-        return p.cuenta && cuentaDe(p.cliente) !== p.cuenta ? sumarClientes([{ n: p.cliente, c: p.cuenta }]).then(null, function () {}) : null;
+        return p.cuenta && cuentaDe(p.cliente) !== p.cuenta ? fijarCuenta(p.cliente, p.cuenta).then(null, function () {}) : null;
       })
       .then(function () { tocar(); });
   }
@@ -1175,7 +1193,7 @@
     if (cs.length) res.push(cs.length + (cs.length === 1 ? ' corte' : ' cortes'));
     var h = '<div class="ped' + (ab ? ' abierto' : '') + (sel ? ' sel' : '') + '"><div class="ped-cab">'
       + '<label class="chk"><input type="checkbox" data-sel="' + id + '"' + (sel ? ' checked' : '') + ' aria-label="Tildar el pedido de ' + esc(p.cliente) + ' para un camión"></label>'
-      + '<button class="ped-tit" data-act="ped-abrir" data-id="' + id + '" aria-expanded="' + ab + '"><span class="nom">' + esc(p.cliente || 'Sin cliente') + '</span>' + ctaHTML(cuentaPedido(p)) + '<span class="res">' + res.join(' · ') + (p.frio ? ' ' + frioBadge(p.frio) : '') + '</span>'
+      + '<button class="ped-tit" data-act="ped-abrir" data-id="' + id + '" aria-expanded="' + ab + '"><span class="nom">' + esc(p.cliente || 'Sin cliente') + '</span>' + ctaHTML(cuentaPedido(p), true) + '<span class="res">' + res.join(' · ') + (p.frio ? ' ' + frioBadge(p.frio) : '') + '</span>'
       + (cam ? '<span class="marcas"><span class="badge plain">' + esc(cam) + '</span></span>' : '') + '<span class="chev" aria-hidden="true">' + (ab ? '▴' : '▾') + '</span></button></div>';
     if (!ab) return h + '</div>';
     h += '<div class="ped-det">' + elegirCuentaHTML(p) + '<div class="op-ped">';
@@ -1432,7 +1450,15 @@
 
     if (a === 'actualizar') { recargar(); return; }
     if (a === 'iva') { guardarIva(D.id, D.k, D.v).then(null, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); }); renderPedidos(); return; }
-    if (a === 'ped-cuenta') { editarPedido(D.id, 'cuenta'); return; }
+    if (a === 'cta-cancelar') { S.ctaOtro = null; renderPedidos(); return; }
+    if (a === 'cta-otro') { S.ctaOtro = D.id; renderPedidos(); var co = document.querySelector('[data-cta-in="' + D.id + '"]'); if (co) co.focus(); return; }
+    if (a === 'cta-guardar') {
+      var vi = (document.querySelector('[data-cta-in="' + D.id + '"]') || {}).value || '', pg = pedidoDe(D.id); vi = vi.replace(/\s+/g, '');
+      if (!vi) { avisar('!Escribí el número de cuenta.', 4000); return; }
+      S.ctaOtro = null;
+      ponerCuenta(D.id, vi).then(function () { avisar('Cuenta ' + vi + ' guardada para ' + (pg ? pg.cliente : 'el cliente') + '.', 5000); renderPedidos(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); renderPedidos(); });
+      return;
+    }
     if (a === 'cli-agregar' || a === 'cli-pegar' || a === 'cli-traer') {
       var nuevos = a === 'cli-agregar' ? [{ n: $('cli-n').value, c: $('cli-c').value }] : a === 'cli-pegar' ? leerListaClientes($('cli-txt').value) : clientesConocidos();
       nuevos = nuevos.filter(function (x) { return norm(x.n); });
@@ -1521,7 +1547,11 @@
     }
 
     // pedidos: listado
-    else if (a === 'ped-abrir') { S.abierto[D.id] = !S.abierto[D.id]; S.pedDia = null; renderPedidos(); }
+    else if (a === 'ped-abrir') {
+      var enCta = !!(e.target.closest && e.target.closest('.cta'));
+      S.abierto[D.id] = enCta ? true : !S.abierto[D.id]; S.pedDia = null; S.ctaOtro = null; renderPedidos();
+      if (enCta) { var sc = document.querySelector('select[data-cta="' + D.id + '"], [data-cta-in="' + D.id + '"], [data-act="cta-otro"][data-id="' + D.id + '"]'); if (sc) { sc.focus(); if (sc.scrollIntoView) sc.scrollIntoView({ block: 'center' }); } }
+    }
     else if (a === 'c-sumar' || a === 'c-quitar' || a === 'c-todos') {
       var pc = pedidoDe(D.id); if (!pc || S._ocup) return;
       var cc = cortesDe(pc), uno = cc.filter(function (c) { return c.k === D.k; })[0];
@@ -1587,6 +1617,7 @@
     }
   });
 
+  document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target && e.target.dataset && e.target.dataset.ctaIn) { e.preventDefault(); var bg = document.querySelector('[data-act="cta-guardar"][data-id="' + e.target.dataset.ctaIn + '"]'); if (bg) bg.click(); } });
   document.addEventListener('input', function (e) {
     var t = e.target, D = t.dataset;
     if (t.id === 'cli-buscar') { S.cliBuscar = t.value; filtrarClientes(); return; }
@@ -1646,9 +1677,9 @@
       escribirClientes(lc).then(function () { avisar('Guardado.', 2000); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); });
     }
     else if (D.cta && t.value) {
-      if (t.value === 'otra') { editarPedido(D.cta, 'cuenta'); return; }
+      if (t.value === 'otra') { S.ctaOtro = D.cta; renderPedidos(); var ci2 = document.querySelector('[data-cta-in="' + D.cta + '"]'); if (ci2) ci2.focus(); return; }
       var pq = pedidoDe(D.cta), nq = t.value;
-      ponerCuenta(D.cta, nq).then(function () { avisar('Cuenta ' + nq + ' guardada para ' + (pq ? pq.cliente : 'el cliente') + '. La próxima vez sale sola.', 6000); renderPedidos(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); renderPedidos(); });
+      ponerCuenta(D.cta, nq).then(function () { avisar('Cuenta ' + nq + ' guardada para ' + (pq ? pq.cliente : 'el cliente') + '.', 5000); renderPedidos(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); renderPedidos(); });
     }
     else if (D.precio) {
       guardarPrecio(D.precio, D.k, t.value).then(function () { avisar('Precio guardado.', 2500); }, function () { avisar('!No se pudo guardar el precio. Revisá la conexión.', 6000); });
