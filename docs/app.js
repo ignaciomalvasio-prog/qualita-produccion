@@ -450,6 +450,43 @@
   }
   // En producción sí va el cliente, porque ahí se juntan renglones de varios pedidos.
   function textoProd(p, c) { return sinCliente(c.texto, p.cliente) + ' “' + String(p.cliente || '').toUpperCase().trim() + '”'; }
+  /* Precios y fletes: solo los ven quienes ingresan. El precio de cada corte se guarda en el pedido
+     y el costo de cada camión en un documento privado por día; nada de esto se publica. */
+  function plata(v, dec) { return '$ ' + (+v || 0).toLocaleString('es-AR', { minimumFractionDigits: dec ? 2 : 0, maximumFractionDigits: dec ? 2 : 0 }); }
+  function precioHTML(id, k, valor, que) {
+    return '<label class="precio"><span>$ / kg</span><input type="number" inputmode="decimal" step="any" min="0" data-precio="' + esc(id) + '" data-k="' + esc(k) + '" value="' + esc(valor === 0 ? 0 : valor || '') + '" aria-label="Precio por kilo de ' + esc(que) + '"></label>';
+  }
+  function guardarPrecio(id, k, valor) {
+    var p = pedidoDe(id); if (!p) return Promise.resolve();
+    var doc = clone(p), v = valor === '' ? '' : +String(valor).replace(',', '.') || 0; delete doc.id;
+    if (k === 'm') doc.precioMedias = v; else doc.cortes = cortesDe(doc).map(function (c) { if (c.k === k) c.precio = v; return c; });
+    S.pedidos = poner(S.pedidos, id, doc);
+    return store.set('pedidos', id, doc);
+  }
+  function fleteDe(f, camId) { var d = (S.fletes || {})[f]; return (d && d.camiones && d.camiones[camId]) || { modo: 'viaje', valor: '' }; }
+  function guardarFlete(f, camId, cambio) {
+    var d = clone((S.fletes || {})[f] || { fecha: f, camiones: {} }), x = fleteDe(f, camId); delete d.id;
+    d.fecha = f; d.camiones = d.camiones || {};
+    d.camiones[camId] = { modo: (cambio.modo || x.modo) === 'kg' ? 'kg' : 'viaje', valor: cambio.valor === undefined ? x.valor : (cambio.valor === '' ? '' : +String(cambio.valor).replace(',', '.') || 0) };
+    S.fletes = S.fletes || {}; S.fletes[f] = d;
+    return store.set('privado', 'fletes-' + f, d);
+  }
+  // Costo del camión: con precio por viaje, el costo por kg sale de dividirlo por lo que lleva; con precio por kg, el viaje sale de multiplicar.
+  function fleteTxt(f, cam, peds) {
+    var fl = fleteDe(f, cam.id), v = +fl.valor || 0, suyos = peds.filter(function (p) { return p.camion === cam.id; }), kg = cargaDe(peds, cam.id);
+    if (!v) return 'Poné el precio y se calcula el costo por kg llevado.';
+    if (!kg) return fl.modo === 'kg' ? 'Todavía no lleva kilos para calcular el viaje.' : plata(v) + ' el viaje. Todavía no lleva kilos para calcular el costo por kg.';
+    var falta = suyos.some(function (p) { return p.kgFalta; }), sobre = ' · sobre ≈ ' + n(kg) + ' kg' + (falta ? ' (hay renglones sin peso)' : '');
+    return fl.modo === 'kg' ? '<strong>' + plata(v, true) + ' por kg llevado</strong> · viaje ≈ <strong>' + plata(v * kg) + '</strong>' + sobre
+      : '<strong>' + plata(v / kg, true) + ' por kg llevado</strong> · viaje ' + plata(v) + sobre;
+  }
+  function fleteHTML(f, cam, peds) {
+    var fl = fleteDe(f, cam.id), id = esc(cam.id);
+    return '<div class="cam-flete"><span class="fl-tit">Costo del flete</span>'
+      + '<select data-flete="' + id + '" data-k="modo" aria-label="Cómo se paga el flete de ' + esc(cam.nombre) + '"><option value="viaje"' + (fl.modo !== 'kg' ? ' selected' : '') + '>Precio por viaje</option><option value="kg"' + (fl.modo === 'kg' ? ' selected' : '') + '>Precio por kg</option></select>'
+      + '<label class="precio"><span>$</span><input type="number" inputmode="decimal" step="any" min="0" data-flete="' + id + '" data-k="valor" value="' + esc(fl.valor === 0 ? 0 : fl.valor || '') + '" aria-label="Precio del flete de ' + esc(cam.nombre) + '"></label>'
+      + '<span class="fl-res" data-flete-res="' + id + '">' + fleteTxt(f, cam, peds) + '</span></div>';
+  }
   // Las medias del pedido se muestran como un corte más, arriba de la lista.
   function textoMedias(p) { return +p.medias ? n(+p.medias) + (+p.medias === 1 ? ' MEDIA' : ' MEDIAS') + (p.peso ? ' ' + String(p.peso).toUpperCase() : '') : ''; }
   function pedidoDe(id) { return (S.pedidos || []).filter(function (x) { return x.id === id; })[0] || null; }
@@ -687,7 +724,8 @@
     var p = { cliente: String(q.cliente || '').toUpperCase().trim(), entrega: entrega, medias: +q.medias || 0, peso: q.peso || '', frio: frioDe(q.frio), nota: q.nota || '', origen: q.origen || 'manual',
       creado: previo && previo.creado ? previo.creado : ahoraTxt(), kg: +q.kg > 0 ? +q.kg : '',
       camion: previo && previo.entrega === entrega ? (previo.camion || '') : '',
-      cortes: (q.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { k: c.k || uid(), corte: norm(c.corte), texto: sinCliente(String(c.texto).toUpperCase().replace(/\s+/g, ' ').trim(), q.cliente), orden: c.orden !== false }; }).filter(function (c) { return c.texto; }) };
+      cortes: (q.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { k: c.k || uid(), corte: norm(c.corte), texto: sinCliente(String(c.texto).toUpperCase().replace(/\s+/g, ' ').trim(), q.cliente), orden: c.orden !== false, precio: c.precio === 0 ? 0 : c.precio || '' }; }).filter(function (c) { return c.texto; }) };
+    if (previo && (previo.precioMedias === 0 || previo.precioMedias)) p.precioMedias = previo.precioMedias;
     if (!p.cliente) return Promise.reject(new Error('Falta el cliente.'));
     if (!p.entrega) return Promise.reject(new Error('Falta la fecha de entrega.'));
     if (!auto) { asentarEdicion(); S.em = null; S.ep = null; }
@@ -985,12 +1023,12 @@
       + (cam ? '<span class="marcas"><span class="badge plain">' + esc(cam) + '</span></span>' : '') + '<span class="chev" aria-hidden="true">' + (ab ? '▴' : '▾') + '</span></button></div>';
     if (!ab) return h + '</div>';
     h += '<div class="ped-det"><div class="op-ped">';
-    if (+p.medias) h += '<p class="lp"><span><b>Medias</b> ' + esc(textoMedias(p)) + '</span></p>';
+    if (+p.medias) h += '<p class="lp"><span><b>Medias</b> ' + esc(textoMedias(p)) + '</span><span class="lp-der">' + precioHTML(p.id, 'm', p.precioMedias, 'las medias') + '</span></p>';
     cs.forEach(function (c) {
       var f = fechaProdDe(m, p, c);
-      h += '<p class="lp"><span><b>' + esc(c.corte) + '</b> ' + esc(sinCliente(c.texto, p.cliente)) + '</span>' + (f
+      h += '<p class="lp"><span><b>' + esc(c.corte) + '</b> ' + esc(sinCliente(c.texto, p.cliente)) + '</span><span class="lp-der">' + precioHTML(p.id, c.k, c.precio, c.corte) + (f
         ? '<span class="en"><span class="badge ok">En producción</span><button class="btn sm" data-act="c-quitar" data-id="' + id + '" data-k="' + esc(c.k) + '">Quitar</button></span>'
-        : '<button class="btn sm pri" data-act="c-sumar" data-id="' + id + '" data-k="' + esc(c.k) + '">Sumar a producción</button>') + '</p>';
+        : '<button class="btn sm pri" data-act="c-sumar" data-id="' + id + '" data-k="' + esc(c.k) + '">Sumar a producción</button>') + '</span></p>';
     });
     h += '</div>';
     if (p.nota) h += '<p class="small muted">' + esc(p.nota) + '</p>';
@@ -1129,6 +1167,7 @@
           + (S.editor ? '<button class="btn sm" data-act="cam-editar" data-id="' + esc(cam.id) + '">Editar</button>' + botonBorrar('cam-borrar', cam.id, 'Borrar camión') : '') + '</span>' : '') + '</header>';
       h += '<div class="cam-datos"><div class="cam-res"><b>' + suyos.length + '</b><span>' + (suyos.length === 1 ? 'pedido' : 'pedidos') + '</span></div>'
         + (ct ? '<div class="cam-carga"><p class="cam-cap' + (pasa ? ' neg' : '') + '">' + esc(ct) + '</p>' + (+cam.kg > 0 ? '<div class="medidor' + (pasa ? ' pasa' : '') + '" role="img" aria-label="' + esc(ct) + '"><i style="width:' + Math.min(100, Math.round(car / +cam.kg * 100)) + '%"></i></div>' : '') + '</div>' : '') + '</div>';
+      if (S.editor) h += fleteHTML(f, cam, peds);
       h += '<div class="cam-cuerpo">';
       if (ed) h += '<div class="campos"><label class="campo"><span>Nombre</span><input type="text" id="cam-e-nombre" value="' + esc(S.ecNombre || '') + '"></label><label class="campo"><span>Capacidad kg</span><input type="number" inputmode="numeric" id="cam-e-kg" value="' + esc(S.ecKg || '') + '"></label><label class="campo"><span>Nota (chofer, hora…)</span><input type="text" id="cam-e-nota" value="' + esc(S.ecNota || '') + '"></label></div>'
         + '<div class="acciones"><button class="btn pri" data-act="cam-guardar">Guardar</button><button class="btn" data-act="cam-cancelar">Cancelar</button></div>';
@@ -1216,7 +1255,7 @@
     if (S.tab === 'medias' && S.em) return pintarSumas();
     if (S.tab === 'produccion' && S.ep) return;
     if (S.tab === 'pedidos' && (S.prop.length || escribiendo())) return;
-    if (S.tab === 'logistica' && (S.ec || S.ef)) return;
+    if (S.tab === 'logistica' && (S.ec || S.ef || (document.activeElement && document.activeElement.dataset && document.activeElement.dataset.flete))) return;
     render();
   }
   function irA(tab) { S.tab = tab; try { history.replaceState(null, '', '#' + tab); } catch (err) {} render(); window.scrollTo(0, 0); }
@@ -1402,6 +1441,15 @@
       if (t.checked && ps) { if (S.selDia !== ps.entrega) { S.sel = {}; S.selDia = ps.entrega; S.camOtro = false; } S.sel[D.sel] = true; } else delete S.sel[D.sel];
       renderPedidos();
     }
+    else if (D.precio) {
+      guardarPrecio(D.precio, D.k, t.value).then(function () { avisar('Precio guardado.', 2500); }, function () { avisar('!No se pudo guardar el precio. Revisá la conexión.', 6000); });
+    }
+    else if (D.flete) {
+      var cambio = {}; cambio[D.k] = t.value;
+      guardarFlete(S.fl, D.flete, cambio).then(function () { avisar('Costo guardado.', 2500); }, function () { avisar('!No se pudo guardar el costo. Revisá la conexión.', 6000); });
+      var lgf = logDe(S.fl), camf = camionesDe(S.fl).filter(function (c) { return c.id === D.flete; })[0], res = document.querySelector('[data-flete-res="' + D.flete + '"]');
+      if (camf && res) res.innerHTML = fleteTxt(S.fl, camf, (lgf && lgf.pedidos) || []);
+    }
     else if (D.mover && t.value) {
       var pm = pedidoDe(D.mover), fm = t.value;
       if (fm === 'otra') { editarPedido(D.mover, 'entrega'); return; }
@@ -1510,7 +1558,11 @@
           if (!suscripto) {
             suscripto = true;
             store.sub('pedidos', function (l) { S.pedidos = ordenar(l); conciliarLog(); renderDatos(); });
-            store.sub('privado', function (l) { var c = l.filter(function (x) { return x.id === 'ia'; })[0]; if (c) { var antes = !!(S.ia && S.ia.clave); S.ia = c; if (!antes && !S.prop.length && !S.em && !S.ep && !S.pegar) render(); } });
+            store.sub('privado', function (l) {
+              var fl = {}, antesF = JSON.stringify(S.fletes || {});
+              l.forEach(function (x) { if (String(x.id).indexOf('fletes-') === 0) fl[x.id.slice(7)] = x; });
+              S.fletes = fl; if (JSON.stringify(fl) !== antesF && S.tab === 'logistica') renderDatos();
+              var c = l.filter(function (x) { return x.id === 'ia'; })[0]; if (c) { var antes = !!(S.ia && S.ia.clave); S.ia = c; if (!antes && !S.prop.length && !S.em && !S.ep && !S.pegar) render(); } });
           }
         }
         render();

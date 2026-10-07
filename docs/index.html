@@ -232,6 +232,12 @@ h1 a{color:inherit;text-decoration:none}
 .cam-barra input[type=text]{flex:1 1 180px}
 .cam-barra select{flex:0 1 260px}
 select.mover{font-weight:600;padding:6px 8px}
+.lp-der{display:inline-flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:8px;flex:0 0 auto}
+.precio{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--muted);text-transform:none;white-space:nowrap}
+.precio input{width:104px;text-align:right;font-weight:700;color:var(--ink)}
+.cam-flete{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--surface)}
+.cam-flete .fl-tit{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.cam-flete .fl-res{flex:1 1 240px;color:var(--muted)} .cam-flete .fl-res strong{color:var(--ink)}
 /* logística: cada camión es un bloque con su franja de color */
 .cam{background:var(--surface);border:2px solid var(--accent);border-radius:8px;overflow:hidden;display:flex;flex-direction:column;min-width:0;break-inside:avoid}
 .cam + .cam{margin-top:6px}
@@ -278,7 +284,7 @@ details[open] > summary{margin-bottom:10px}
   :root:root:root{--bg:#fff;--surface:#fff;--sunken:#fff;--ink:#000;--muted:#333;--line:#888;--accent:#000;--accent-ink:#000;--accent-soft:#fff;--warn:#000;--warn-soft:#fff;--crit:#000;--crit-soft:#fff;--ok:#000;--ok-soft:#fff;color-scheme:light}
   body{font-size:12px}
   .wrap{max-width:none;padding:0;gap:8px}
-  .toast,.nueva,.tabs,.pie,.btn,.dtabs,.semtabs,.log-acc,.acciones,input,select,textarea,.guardado,#copiado{display:none!important}
+  .toast,.nueva,.cam-flete,.precio,.tabs,.pie,.btn,.dtabs,.semtabs,.log-acc,.acciones,input,select,textarea,.guardado,#copiado{display:none!important}
   .top{border-bottom:2px solid #000;padding:0 0 4px;position:static}.top::before{display:none}.marca-dia{display:none}.marca img{height:44px;margin-bottom:0}.marca-nom{font-size:16px}
   h1{font-size:14px}
   .nav .tit{font-size:20px}
