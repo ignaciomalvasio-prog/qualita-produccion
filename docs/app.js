@@ -1407,7 +1407,8 @@
     else e.innerHTML = '<span>' + esc(S.user.email) + (S.editor ? '' : ' · sin permiso para cargar') + '</span><button class="btn sm lnk" data-act="salir">Salir</button>';
     $('tab-pedidos').hidden = !S.editor; $('tab-clientes').hidden = !S.editor;
     $('tabs').classList.toggle('muchas', !!S.editor);
-    if ((S.tab === 'pedidos' || S.tab === 'clientes') && !S.editor) S.tab = 'inicio';
+    // Si la página se abrió (o se recargó sola) en Pedidos o Clientes, se vuelve ahí apenas se confirma el permiso.
+    if ((S.tab === 'pedidos' || S.tab === 'clientes') && !S.editor) { S.volver = S.tab; S.tab = 'inicio'; }
     TABS.forEach(function (t) { $('view-' + t).hidden = S.tab !== t; if (S.tab !== t) $('view-' + t).innerHTML = ''; $('tab-' + t).setAttribute('aria-selected', String(S.tab === t)); });
     if (S.tab === 'medias') renderMedias(); else if (S.tab === 'pedidos') renderPedidos(); else if (S.tab === 'produccion') renderProduccion(); else if (S.tab === 'logistica') renderLogistica(); else if (S.tab === 'clientes') renderClientes(); else renderInicio();
   }
@@ -1420,7 +1421,7 @@
     if (S.tab === 'logistica' && (S.ec || S.ef || (document.activeElement && document.activeElement.dataset && document.activeElement.dataset.flete))) return;
     render();
   }
-  function irA(tab) { S.tab = tab; try { history.replaceState(null, '', '#' + tab); } catch (err) {} render(); window.scrollTo(0, 0); }
+  function irA(tab) { S.volver = null; S.tab = tab; try { history.replaceState(null, '', '#' + tab); } catch (err) {} render(); window.scrollTo(0, 0); }
 
   document.querySelector('.top').addEventListener('click', function (e) { var b = e.target.closest('[data-tab]'); if (!b) return; e.preventDefault(); if (b.dataset.tab === 'inicio') alInicio(); if (S.ep) { asentarEdicion(); S.ep = null; } S.ec = null; S.msg.fotos = ''; S.msg.log = ''; S.pegar = false; if (!S.leyendo) { S.pegarTxt = ''; S.pegarCli = ''; } irA(b.dataset.tab); });
 
@@ -1761,6 +1762,7 @@
       if (!u) { S.em = null; S.ep = null; S.prop = []; render(); return; }
       store.esEditor(u.email).then(function (ok) {
         S.editor = ok;
+        if (ok && S.volver && S.tab === 'inicio') { S.tab = S.volver; S.volver = null; }
         if (ok) {
           if (S.fuente === 'respaldo' || vacia) traer();
           if (!suscripto) {
