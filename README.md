@@ -24,6 +24,8 @@ Otros comportamientos:
 
 - La foto de la planilla semanal de faena y medias (Excel) no se lee como pedidos: reemplaza entera a la que había en esa semana (faena y clientes de los cinco días; quedan el stock inicial y las medias de pedidos cargados en la app). Va a la semana que dice la planilla, sin preguntar; si las fechas leídas son de una semana ya pasada, va a la semana que se está cargando.
 - Un pedido se cambia de día desde el listado: abrirlo y elegir en "Cambiar de día…". Se mueven sus medias y sus cortes en producción, y sale del camión que tenía.
+- El texto de cada corte lleva la cantidad con su unidad (cajas, kg…) y no repite el cliente; el cliente se agrega solo al sumar el corte a producción. Las medias del pedido se muestran como un renglón más de la lista.
+- En Logística cada camión se puede imprimir por separado y sus pedidos se ordenan con las flechas; el orden queda guardado en el camión.
 - Las planillas por sucursal (por ejemplo DINO) y los mensajes de un cliente con varias sucursales se cargan como un pedido por sucursal, no como uno solo sumado, porque cada sucursal puede ir en un camión distinto.
 - Las lecturas corren en segundo plano y un cartel avisa qué se está leyendo y qué se guardó.
 - Un pedido leído que ya estaba cargado igual no se repite.

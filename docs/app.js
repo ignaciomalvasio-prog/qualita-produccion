@@ -269,7 +269,7 @@
     (S.prod || []).forEach(function (o) { (o.cortes || []).forEach(function (c) { (c.lineas || []).forEach(function (l) { if (l.p) m[l.p + '|' + (l.ck || 't:' + norm(l.t))] = o.id; }); }); });
     return m;
   }
-  function fechaProdDe(m, p, c) { return m[p.id + '|' + c.k] || m[p.id + '|t:' + norm(c.texto)] || null; }
+  function fechaProdDe(m, p, c) { return m[p.id + '|' + c.k] || m[p.id + '|t:' + norm(c.texto)] || m[p.id + '|t:' + norm(textoProd(p, c))] || null; }
   function guardarOrden(f, o, borrarSiVacia) {
     var ol = limpiarOrden(o);
     if (borrarSiVacia && !ol.cortes.length) { S.prod = (S.prod || []).filter(function (x) { return x.id !== f; }); return store.del('produccion', f); }
@@ -277,7 +277,7 @@
   }
   function sumarCortes(p, cuales) {
     var f = p.entrega, o = clone(prodGuardada(f) || prodVacia(f)), m = enProduccion();
-    cuales.forEach(function (c) { if (c.texto && !fechaProdDe(m, p, c)) insertarLinea(o, c.corte, c.texto, p.id, c.k, p.frio); });
+    cuales.forEach(function (c) { if (c.texto && !fechaProdDe(m, p, c)) insertarLinea(o, c.corte, textoProd(p, c), p.id, c.k, p.frio); });
     return guardarOrden(f, o).then(tocar);
   }
   function quitarCorte(p, c) {
@@ -442,6 +442,22 @@
   // Fresco o congelado, si el pedido lo aclara.
   function frioDe(x) { var t = norm(x); return /CONG/.test(t) ? 'CONGELADO' : /FRESC/.test(t) ? 'FRESCO' : ''; }
   function frioBadge(f) { return f ? '<span class="badge ' + (f === 'CONGELADO' ? 'cong' : 'fresco') + '">' + esc(f) + '</span>' : ''; }
+  // El texto de un corte no repite el cliente: se le saca el nombre entre comillas si lo trae.
+  function sinCliente(t, cli) {
+    var c = norm(cli), s = String(t || '');
+    if (!c) return s;
+    return s.replace(/\s*[“"«]([^“”"«»]*)[”"»]/g, function (todo, dentro) { var d = norm(dentro); return d && (d === c || c.indexOf(d) >= 0 || d.indexOf(c) >= 0) ? '' : todo; }).replace(/\s+/g, ' ').trim();
+  }
+  // En producción sí va el cliente, porque ahí se juntan renglones de varios pedidos.
+  function textoProd(p, c) { return sinCliente(c.texto, p.cliente) + ' “' + String(p.cliente || '').toUpperCase().trim() + '”'; }
+  // Un renglón que empieza con una cantidad tiene que decir en qué viene: cajas, kg, unidades…
+  function sinUnidad(t) {
+    var m = norm(t).match(/^([\d.,]+)\s*(.*)$/);
+    if (!m) return false;
+    return !/^(KGS?|KILOS?|K|CAJAS?|CJS?|UND|UNIDAD(ES)?|UNID|U|BINES?|BIN|MEDIAS?|BOLSAS?|PIEZAS?|CANASTOS?|PALLETS?|BONELES?)\b/.test(m[2]) && !/^([\/º°%½X]|MUSC)/.test(m[2]);
+  }
+  // Las medias del pedido se muestran como un corte más, arriba de la lista.
+  function textoMedias(p) { return +p.medias ? n(+p.medias) + (+p.medias === 1 ? ' MEDIA' : ' MEDIAS') + (p.peso ? ' ' + String(p.peso).toUpperCase() : '') : ''; }
   function pedidoDe(id) { return (S.pedidos || []).filter(function (x) { return x.id === id; })[0] || null; }
   // Cortes del pedido con su clave. Los pedidos viejos no la tenían: se usa la posición.
   function cortesDe(p) { return (p.cortes || []).map(function (c, j) { if (!c.k) c.k = 'i' + j; return c; }); }
@@ -475,7 +491,7 @@
     (p.cortes || []).forEach(function (c) {
       if (!estaban[c.k] || !c.texto) return;
       var x = tocadas[p.entrega] || clone(prodGuardada(p.entrega) || prodVacia(p.entrega));
-      insertarLinea(x, c.corte, c.texto, p.id, c.k, p.frio); tocadas[p.entrega] = x;
+      insertarLinea(x, c.corte, textoProd(p, c), p.id, c.k, p.frio); tocadas[p.entrega] = x;
     });
     return Promise.all(Object.keys(tocadas).map(function (f) { return guardarOrden(f, tocadas[f], true); }));
   }
@@ -496,7 +512,7 @@
   }
   function editarPedido(id, campo) {
     var pe = pedidoDe(id);
-    if (pe && !S.prop.some(function (x) { return x.editaId === pe.id; })) S.prop.push({ k: uid(), editaId: pe.id, cliente: pe.cliente || '', entrega: pe.entrega || '', medias: pe.medias || '', peso: pe.peso || '', frio: pe.frio || '', nota: pe.nota || '', kg: pe.kg || '', origen: pe.origen || 'manual', dudas: (pe.dudas || []).slice(), cortes: clone(cortesDe(pe)) });
+    if (pe && !S.prop.some(function (x) { return x.editaId === pe.id; })) S.prop.push({ k: uid(), editaId: pe.id, cliente: pe.cliente || '', entrega: pe.entrega || '', medias: pe.medias || '', peso: pe.peso || '', frio: pe.frio || '', nota: pe.nota || '', kg: pe.kg || '', origen: pe.origen || 'manual', dudas: (pe.dudas || []).slice(), cortes: clone(cortesDe(pe)).map(function (c) { c.texto = sinCliente(c.texto, pe.cliente); return c; }) });
     S.msg.fotos = ''; renderPedidos();
     var k = -1; S.prop.forEach(function (x, i) { if (x.editaId === id) k = i; });
     var fe = $('q' + k + (campo || 'cliente')); if (fe) { fe.focus(); if (fe.scrollIntoView) fe.scrollIntoView({ block: 'center' }); }
@@ -557,13 +573,17 @@
   function nombreCamion(f, id) { var c = camionesDe(f).filter(function (x) { return x.id === id; })[0]; return c ? c.nombre : ''; }
   function publicarLog(f, camiones) {
     if (!f) return Promise.resolve();
-    var cams = (camiones || camionesDe(f)).map(function (c) { return { id: c.id, nombre: c.nombre || '', nota: c.nota || '', kg: +c.kg || 0 }; }), hay = {};
-    cams.forEach(function (c) { hay[c.id] = 1; });
+    var cams = (camiones || camionesDe(f)).map(function (c) { return { id: c.id, nombre: c.nombre || '', nota: c.nota || '', kg: +c.kg || 0, orden: (c.orden || []).slice() }; }), hay = {};
+    cams.forEach(function (c) { hay[c.id] = c; });
     var peds = (S.pedidos || []).filter(function (p) { return p.entrega === f; }).map(function (p) {
       var k = kgPedido(p);
       return { id: p.id, cliente: p.cliente || '', medias: +p.medias || 0, peso: p.peso || '', frio: p.frio || '', nota: p.nota || '', camion: p.camion && hay[p.camion] ? p.camion : '', kg: k.kg, kgFalta: !!k.falta, kgManual: !!k.manual,
-        cortes: (p.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { corte: c.corte, texto: c.texto }; }) };
+        cortes: (p.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { corte: c.corte, texto: sinCliente(c.texto, p.cliente) }; }) };
     });
+    // Dentro de cada camión, los pedidos van en el orden que se les dio; los nuevos, al final.
+    var lugar = function (x) { var o = x.camion ? hay[x.camion].orden : [], i = o.indexOf(x.id); return i < 0 ? 1e6 : i; };
+    peds = peds.map(function (x, i) { return [x, i]; }).sort(function (a, b) { return lugar(a[0]) - lugar(b[0]) || a[1] - b[1]; }).map(function (x) { return x[0]; });
+    cams.forEach(function (c) { c.orden = peds.filter(function (x) { return x.camion === c.id; }).map(function (x) { return x.id; }); });
     S.log = S.log || {};
     if (!peds.length && !cams.length) { if (!S.log[f]) return Promise.resolve(); delete S.log[f]; return store.del('config', 'log-' + f); }
     var doc = { fecha: f, camiones: cams, pedidos: peds, actualizado: ahoraTxt() };
@@ -609,7 +629,7 @@
     return crearCamion(f, fl.nombre, fl.nota, ids, fl.kg, idDia);
   }
   function cambiarCamion(f, id, nombre, nota, kg) {
-    var cams = camionesDe(f).map(function (c) { return c.id === id ? { id: id, nombre: String(nombre || '').trim() || c.nombre, nota: String(nota || '').trim(), kg: +kg || 0 } : c; });
+    var cams = camionesDe(f).map(function (c) { return c.id === id ? { id: id, nombre: String(nombre || '').trim() || c.nombre, nota: String(nota || '').trim(), kg: +kg || 0, orden: c.orden || [] } : c; });
     return publicarLog(f, cams).then(tocar);
   }
   var tFlota = null;
@@ -619,6 +639,15 @@
       var c = clone(S.config || {}); delete c.id; c.actualizado = ahoraTxt();
       store.set('config', 'general', c).then(function () { S.msg.flota = 'Guardado ' + ahoraTxt().split(', ')[1]; pintarMsg('flota'); }, function () { S.msg.flota = '!No se pudo guardar. Revisá la conexión.'; pintarMsg('flota'); });
     }, ya ? 0 : 700);
+  }
+  // Sube o baja un pedido dentro de su camión.
+  function moverEnCamion(f, camId, pedId, dir) {
+    var lg = logDe(f), cams = clone(camionesDe(f)), cam = cams.filter(function (c) { return c.id === camId; })[0];
+    if (!lg || !cam) return Promise.resolve();
+    var ids = (lg.pedidos || []).filter(function (x) { return x.camion === camId; }).map(function (x) { return x.id; }), i = ids.indexOf(pedId), j = i + dir;
+    if (i < 0 || j < 0 || j >= ids.length) return Promise.resolve();
+    ids.splice(j, 0, ids.splice(i, 1)[0]); cam.orden = ids;
+    return publicarLog(f, cams).then(tocar);
   }
   function borrarCamion(f, id) {
     var cams = camionesDe(f).filter(function (c) { return c.id !== id; });
@@ -664,7 +693,7 @@
     var p = { cliente: String(q.cliente || '').toUpperCase().trim(), entrega: entrega, medias: +q.medias || 0, peso: q.peso || '', frio: frioDe(q.frio), nota: q.nota || '', origen: q.origen || 'manual',
       creado: previo && previo.creado ? previo.creado : ahoraTxt(), kg: +q.kg > 0 ? +q.kg : '',
       camion: previo && previo.entrega === entrega ? (previo.camion || '') : '',
-      cortes: (q.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { k: c.k || uid(), corte: norm(c.corte), texto: String(c.texto).toUpperCase().replace(/\s+/g, ' ').trim(), orden: c.orden !== false }; }) };
+      cortes: (q.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { k: c.k || uid(), corte: norm(c.corte), texto: sinCliente(String(c.texto).toUpperCase().replace(/\s+/g, ' ').trim(), q.cliente), orden: c.orden !== false }; }).filter(function (c) { return c.texto; }) };
     if (!p.cliente) return Promise.reject(new Error('Falta el cliente.'));
     if (!p.entrega) return Promise.reject(new Error('Falta la fecha de entrega.'));
     if (!auto) { asentarEdicion(); S.em = null; S.ep = null; }
@@ -707,21 +736,21 @@
       + 'CÓMO LLEGAN LOS PEDIDOS\n'
       + '1. Formulario manuscrito "ORDEN DE PEDIDO": el cliente está arriba y hay una "Fecha de entrega". En el renglón "18 CAPÓN" la cantidad seguida de "½" es la cantidad de MEDIAS RESES (ej.: "20 ½" = 20 medias). Los demás renglones son cortes. "Todo" al lado de un corte significa que el cliente se lleva todo lo que salga de ese corte. Puede haber renglones agregados a mano al pie, con código, y notas al margen. Una foto puede traer varios formularios: cada uno es un pedido.\n'
       + '2. Planillas de Excel de reparto por zona o por ciudad: cada fila es un cliente; la columna "Medias" es cantidad de medias reses y las demás columnas son cortes, casi siempre en cajas. La fecha del encabezado es la fecha de entrega. Si junto al cliente dice un rango de kilos (ej. "46 a 48 kg"), es el peso pedido para las medias.\n'
-      + '3. Planillas por sucursal (ej. DINO): arriba a la izquierda figura el cliente y cada COLUMNA es una sucursal (Rod del Busto, Salsipuedes, Alta Gracia, Ruta 20…); cada fila es un corte, con su código, y el número es lo que pide esa sucursal de ese corte, casi siempre en kilos. Devolvé UN PEDIDO POR CADA SUCURSAL que tenga algo pedido, nunca uno solo con todo sumado: cada sucursal sale en un camión distinto. cliente = el nombre del cliente seguido de la sucursal (ej. "DINO ROD DEL BUSTO"). En cada pedido, un corte por cada fila que tenga cantidad en esa columna, con la cantidad de ESA sucursal. Una sucursal con toda la columna vacía o en cero no se carga. La imagen puede traer más de una tabla del mismo cliente: son más sucursales. No tomes como sucursal la columna TOTAL KG ni como corte la fila "KG X SUCURSAL": sirven para controlar; si la suma de una columna no coincide con su "KG X SUCURSAL", avisalo en dudas de ese pedido. El texto de cada corte lleva la cantidad, el nombre del corte como figura, el código entre paréntesis y la sucursal entre comillas (ej. "100KG JAMON 4 MUSC (COD 341) “DINO ROD DEL BUSTO”"). Los embutidos (chorizo, morcilla, salchicha) van con orden=false.\n'
+      + '3. Planillas por sucursal (ej. DINO): arriba a la izquierda figura el cliente y cada COLUMNA es una sucursal (Rod del Busto, Salsipuedes, Alta Gracia, Ruta 20…); cada fila es un corte, con su código, y el número es lo que pide esa sucursal de ese corte, casi siempre en kilos. Devolvé UN PEDIDO POR CADA SUCURSAL que tenga algo pedido, nunca uno solo con todo sumado: cada sucursal sale en un camión distinto. cliente = el nombre del cliente seguido de la sucursal (ej. "DINO ROD DEL BUSTO"). En cada pedido, un corte por cada fila que tenga cantidad en esa columna, con la cantidad de ESA sucursal. Una sucursal con toda la columna vacía o en cero no se carga. La imagen puede traer más de una tabla del mismo cliente: son más sucursales. No tomes como sucursal la columna TOTAL KG ni como corte la fila "KG X SUCURSAL": sirven para controlar; si la suma de una columna no coincide con su "KG X SUCURSAL", avisalo en dudas de ese pedido. El texto de cada corte lleva la cantidad con su unidad, el nombre del corte como figura y el código entre paréntesis (ej. "100KG JAMON 4 MUSC (COD 341)"); la sucursal no se repite en el texto. Los embutidos (chorizo, morcilla, salchicha) van con orden=false.\n'
       + '4. Lista escrita a mano en una hoja suelta: cada renglón es un cliente seguido de una cantidad con "½" (ej.: "Molina 100 ½" = 100 medias reses para MOLINA). Un título subrayado arriba (ej. "San Juan") es la zona o el destino, no un cliente: ponelo en la nota de cada pedido. Los importes con "$" son precios: no los copies. Una aclaración entre paréntesis como "(grandes)" va en peso. Un número rodeado con un círculo al pie es el total de medias de la hoja: no es un pedido; si la suma de los renglones no coincide con ese total, avisalo en dudas del primer pedido. Marcas como "ok" o rayas no son pedidos.\n'
-      + '5. Texto pegado de WhatsApp u otro mensaje: suele empezar con una frase general (ej. "pedido de cerdo para el martes por caja") que da la fecha de entrega y la unidad para todo el mensaje, y sigue con bloques separados por una línea en blanco: la primera línea de cada bloque es el cliente o la sucursal y las siguientes son "cantidad corte". Cada bloque es un pedido. Aplicá la unidad general a cada renglón ("por caja": "2 matambre" = 2 CAJAS). Si no se dice la unidad, escribí la cantidad sola y avisalo en dudas. "Pierna" es el rubro JAMON; conservá abreviaturas como "S/C" tal como vienen. Ignorá saludos y texto que no sea pedido. Si al pedirte la lectura te indican que todo el mensaje es de UN solo cliente y que los bloques son sus sucursales, devolvé igual un pedido por cada sucursal, con cliente = ese cliente seguido de la sucursal (ej. "CLIENTE MENENDEZ PIDAL") y ese mismo nombre entre comillas en cada renglón.\n\n'
+      + '5. Texto pegado de WhatsApp u otro mensaje: suele empezar con una frase general (ej. "pedido de cerdo para el martes por caja") que da la fecha de entrega y la unidad para todo el mensaje, y sigue con bloques separados por una línea en blanco: la primera línea de cada bloque es el cliente o la sucursal y las siguientes son "cantidad corte". Cada bloque es un pedido. Aplicá la unidad general a cada renglón ("por caja": "2 matambre" = 2 CAJAS). "Pierna" es el rubro JAMON; conservá abreviaturas como "S/C" tal como vienen. Ignorá saludos y texto que no sea pedido. Si al pedirte la lectura te indican que todo el mensaje es de UN solo cliente y que los bloques son sus sucursales, devolvé igual un pedido por cada sucursal, con cliente = ese cliente seguido de la sucursal (ej. "CLIENTE MENENDEZ PIDAL").\n\n'
       + 'QUÉ CARGAR, POR CADA PEDIDO\n'
       + '- cliente: en mayúsculas. Si coincide con uno de la lista de clientes conocidos, usá exactamente ese nombre.\n'
       + '- entrega: en formato AAAA-MM-DD. Resolvé fechas como "lun 05/10" con el año actual. Si solo dice un día de la semana ("para el martes"), es el próximo día con ese nombre contando desde mañana. Si no figura, dejala vacía.\n'
       + '- medias: cantidad de medias reses, número. 0 si no pide medias. Si un cliente figura en la planilla con 0 medias o con la cantidad en blanco, cargalo igual con medias 0: no lo saltees.\n'
       + '- peso: aclaración de peso de las medias (livianas, pesadas, rango de kg), o "".\n'
       + '- frio: "FRESCO" o "CONGELADO" cuando en cualquier parte de la imagen o del mensaje dice que la mercadería es fresca o congelada: en el título, el encabezado, el nombre de la planilla o de la hoja, una columna, una nota al margen, al lado del cliente o en la frase inicial de un mensaje. También valen las abreviaturas ("CONG.", "CGDO", "FCO", "FRESC."). Si lo dice una sola vez en general, vale para TODOS los pedidos de esa imagen o mensaje: ponelo en cada uno. Si no lo dice en ningún lado, "" (no lo supongas). Si en un mismo pedido hay cortes frescos y cortes congelados, dejá frio en "" y escribí FRESCO o CONGELADO dentro del texto de cada corte.\n'
-      + '- cortes: un elemento por cada corte pedido. "corte" es el rubro de la orden de producción, uno de: ' + CORTES_BASE.join(', ') + '. "texto" es la línea tal como se escribe en la orden de producción, en mayúsculas y con el estilo de los ejemplos: cantidad y unidad pegadas al principio (ej. "600KG", "50 UND", "10 CAJAS"), presentación o variante si se aclara (ej. "15 CAJAS PIERNA S/C “URCA”"), código si figura, y el cliente entre comillas al final. Si el cliente pide TODO el corte, la línea va sin cantidad (ej. "FRESCA EN BINES “ARGENCARNES”").\n'
+      + '- cortes: un elemento por cada corte pedido. "corte" es el rubro de la orden de producción, uno de: ' + CORTES_BASE.join(', ') + '. "texto" es lo que pide de ese corte, en mayúsculas: primero la cantidad y SIEMPRE su unidad, pegadas al principio (ej. "600KG", "10 CAJAS", "50 UND"), después la presentación o variante si se aclara (ej. "15 CAJAS PIERNA S/C", "107 CAJAS DE 20KG CARRE CON HUESO") y el código si figura (ej. "(ART 276)"). La unidad es CAJAS o KG (o UND, BINES si así lo dice): buscala en el renglón, en el encabezado de la columna, en la fila de totales o en la frase general del pedido ("por caja", "en kilos", "cj", "x kg") y escribila en CADA corte, aunque el original la diga una sola vez. Solo si no figura en ningún lado dejá la cantidad sola. NO pongas el nombre del cliente ni de la sucursal en el texto, ni entre comillas ni suelto: ya va en "cliente". Si el cliente pide TODO el corte, la línea va sin cantidad (ej. "TODO FRESCO EN BINES").\n'
       + '- orden: true si es un corte fresco que hay que producir ese día; false si es mercadería congelada que sale de stock, o productos que no salen del desposte (chorizo, morcilla, salchicha).\n'
       + '- nota: aclaraciones del pedido que no entran en otro campo. No copies precios.\n'
       + '- dudas: todo lo que no se lea bien o sea ambiguo, en una frase corta cada una. Si un número no se lee con seguridad, poné tu mejor lectura y avisá acá. No inventes datos.\n\n'
       + 'CLIENTES CONOCIDOS\n' + Object.keys(clientes).sort().join(', ') + '\n\n'
-      + 'EJEMPLOS DE ÓRDENES DE PRODUCCIÓN RECIENTES (para el estilo de las líneas)\n' + ejemplos.join('\n\n');
+      + 'EJEMPLOS DE ÓRDENES DE PRODUCCIÓN RECIENTES (solo para el vocabulario de cortes y presentaciones; en los pedidos el texto NO lleva el cliente entre comillas)\n' + ejemplos.join('\n\n');
   }
   function leerImagen(file) {
     if (window.__mock && window.__mock.ia) return Promise.resolve(window.__mock.ia(file.name));
@@ -785,8 +814,8 @@
     }, Promise.resolve()).then(function () { return ok; });
   }
   function mismoPedido(a, q) {
-    var ca = (a.cortes || []).map(function (c) { return norm(c.corte) + '|' + norm(c.texto); }).sort().join('~');
-    var cq = (q.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return norm(c.corte) + '|' + norm(c.texto); }).sort().join('~');
+    var ca = (a.cortes || []).map(function (c) { return norm(c.corte) + '|' + norm(sinCliente(c.texto, a.cliente)); }).sort().join('~');
+    var cq = (q.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return norm(c.corte) + '|' + norm(sinCliente(c.texto, q.cliente)); }).sort().join('~');
     return (+a.medias || 0) === (+q.medias || 0) && ca === cq;
   }
   /* ---------- cargas en segundo plano ----------
@@ -962,10 +991,10 @@
       + (cam ? '<span class="marcas"><span class="badge plain">' + esc(cam) + '</span></span>' : '') + '<span class="chev" aria-hidden="true">' + (ab ? '▴' : '▾') + '</span></button></div>';
     if (!ab) return h + '</div>';
     h += '<div class="ped-det"><div class="op-ped">';
-    if (+p.medias) h += '<p class="lp"><span><b>Medias</b> ' + n(+p.medias) + (p.peso ? ' ' + esc(p.peso) : '') + '</span></p>';
+    if (+p.medias) h += '<p class="lp"><span><b>Medias</b> ' + esc(textoMedias(p)) + '</span></p>';
     cs.forEach(function (c) {
       var f = fechaProdDe(m, p, c);
-      h += '<p class="lp"><span><b>' + esc(c.corte) + '</b> ' + esc(c.texto) + '</span>' + (f
+      h += '<p class="lp"><span><b>' + esc(c.corte) + '</b> ' + esc(sinCliente(c.texto, p.cliente)) + (sinUnidad(c.texto) ? ' <span class="badge warn">¿Cajas o kg?</span>' : '') + '</span>' + (f
         ? '<span class="en"><span class="badge ok">En producción</span><button class="btn sm" data-act="c-quitar" data-id="' + id + '" data-k="' + esc(c.k) + '">Quitar</button></span>'
         : '<button class="btn sm pri" data-act="c-sumar" data-id="' + id + '" data-k="' + esc(c.k) + '">Sumar a producción</button>') + '</p>';
     });
@@ -1062,16 +1091,19 @@
     }).join('') + '</tbody></table>';
     return h + '</div>';
   }
-  function logPedidoHTML(p, cam, cams) {
-    var h = '<div class="log-ped"><div class="log-cab"><strong>' + esc(p.cliente || 'Sin cliente') + '</strong>'
-      + (+p.medias ? '<span class="med">' + n(+p.medias) + (+p.medias === 1 ? ' media' : ' medias') + (p.peso ? ' <span class="small muted">' + esc(p.peso) + '</span>' : '') + '</span>' : '')
+  function logPedidoHTML(p, cam, cams, pos, total) {
+    var id = esc(p.id), filas = (p.cortes || []).map(function (c) { return { corte: c.corte, texto: sinCliente(c.texto, p.cliente) }; });
+    if (+p.medias) filas.unshift({ corte: 'MEDIAS', texto: textoMedias(p) });
+    var h = '<div class="log-ped"><div class="log-cab">' + (cam ? '<span class="log-pos">' + (pos + 1) + '</span>' : '') + '<strong>' + esc(p.cliente || 'Sin cliente') + '</strong>'
       + frioBadge(p.frio)
       + '<span class="small muted">' + esc(kgTxt({ kg: +p.kg || 0, falta: p.kgFalta, manual: p.kgManual })) + '</span>';
     if (S.editor) h += '<span class="log-acc">' + (cam
-      ? '<button class="btn sm" data-act="cam-quitar-ped" data-id="' + esc(p.id) + '">Sacar</button>'
+      ? (total > 1 ? '<button class="btn sm ord" data-act="cam-subir" data-id="' + id + '" data-cam="' + esc(cam.id) + '"' + (pos === 0 ? ' disabled' : '') + ' aria-label="Subir a ' + esc(p.cliente) + ' un lugar">↑</button>'
+        + '<button class="btn sm ord" data-act="cam-bajar" data-id="' + id + '" data-cam="' + esc(cam.id) + '"' + (pos === total - 1 ? ' disabled' : '') + ' aria-label="Bajar a ' + esc(p.cliente) + ' un lugar">↓</button>' : '')
+        + '<button class="btn sm" data-act="cam-quitar-ped" data-id="' + id + '">Sacar</button>'
       : opcionesCamion(p, cams)) + '</span>';
     h += '</div>';
-    if ((p.cortes || []).length) h += '<div class="log-cortes">' + p.cortes.map(function (c) { return '<p><u>' + esc(c.corte) + '</u>: ' + esc(c.texto) + '</p>'; }).join('') + '</div>';
+    if (filas.length) h += '<div class="log-cortes">' + filas.map(function (c) { return '<p><u>' + esc(c.corte) + '</u>: ' + esc(c.texto) + '</p>'; }).join('') + '</div>';
     if (p.nota) h += '<p class="small muted">' + esc(p.nota) + '</p>';
     return h + '</div>';
   }
@@ -1097,15 +1129,16 @@
     cams.forEach(function (cam, k) {
       var suyos = peds.filter(function (p) { return p.camion === cam.id; }), ed = S.ec === cam.id;
       var car = cargaDe(peds, cam.id), ct = capTxt(cam, car), pasa = +cam.kg > 0 && car > +cam.kg;
-      h += '<section class="cam' + (pasa ? ' pasa' : '') + '"><header class="cam-cab"><span class="cam-num">Camión ' + (k + 1) + '</span><h2>' + esc(cam.nombre) + '</h2>'
+      h += '<section class="cam' + (pasa ? ' pasa' : '') + '" data-cam="' + esc(cam.id) + '"><header class="cam-cab"><span class="cam-num">Camión ' + (k + 1) + '</span><h2>' + esc(cam.nombre) + '</h2>'
         + (cam.nota && !ed ? '<span class="cam-nota">' + esc(cam.nota) + '</span>' : '')
-        + (S.editor && !ed ? '<span class="log-acc"><button class="btn sm" data-act="cam-editar" data-id="' + esc(cam.id) + '">Editar</button>' + botonBorrar('cam-borrar', cam.id, 'Borrar camión') + '</span>' : '') + '</header>';
+        + (!ed ? '<span class="log-acc"><button class="btn sm" data-act="cam-imprimir" data-id="' + esc(cam.id) + '">Imprimir</button>'
+          + (S.editor ? '<button class="btn sm" data-act="cam-editar" data-id="' + esc(cam.id) + '">Editar</button>' + botonBorrar('cam-borrar', cam.id, 'Borrar camión') : '') + '</span>' : '') + '</header>';
       h += '<div class="cam-datos"><div class="cam-res"><b>' + suyos.length + '</b><span>' + (suyos.length === 1 ? 'pedido' : 'pedidos') + '</span></div>'
         + (ct ? '<div class="cam-carga"><p class="cam-cap' + (pasa ? ' neg' : '') + '">' + esc(ct) + '</p>' + (+cam.kg > 0 ? '<div class="medidor' + (pasa ? ' pasa' : '') + '" role="img" aria-label="' + esc(ct) + '"><i style="width:' + Math.min(100, Math.round(car / +cam.kg * 100)) + '%"></i></div>' : '') + '</div>' : '') + '</div>';
       h += '<div class="cam-cuerpo">';
       if (ed) h += '<div class="campos"><label class="campo"><span>Nombre</span><input type="text" id="cam-e-nombre" value="' + esc(S.ecNombre || '') + '"></label><label class="campo"><span>Capacidad kg</span><input type="number" inputmode="numeric" id="cam-e-kg" value="' + esc(S.ecKg || '') + '"></label><label class="campo"><span>Nota (chofer, hora…)</span><input type="text" id="cam-e-nota" value="' + esc(S.ecNota || '') + '"></label></div>'
         + '<div class="acciones"><button class="btn pri" data-act="cam-guardar">Guardar</button><button class="btn" data-act="cam-cancelar">Cancelar</button></div>';
-      h += suyos.length ? '<div class="log-lista">' + suyos.map(function (p) { return logPedidoHTML(p, cam, cams); }).join('') + '</div>' : '<p class="muted">Sin pedidos.</p>';
+      h += suyos.length ? '<div class="log-lista">' + suyos.map(function (p, i) { return logPedidoHTML(p, cam, cams, i, suyos.length); }).join('') + '</div>' : '<p class="muted">Sin pedidos.</p>';
       h += '</div></section>';
     });
     var sueltos = peds.filter(function (p) { return !p.camion; });
@@ -1202,6 +1235,20 @@
     if (S._c2 && S._c2 !== a + (D.i == null ? '' : D.i)) S._c2 = null;
 
     if (a === 'ir') irA(D.tab);
+    else if (a === 'cam-imprimir') {
+      // Solo ese camión: los demás se ocultan mientras dura la impresión.
+      var vl = $('view-logistica'), sec = null;
+      Array.prototype.forEach.call(vl.querySelectorAll('.cam'), function (x) { x.classList.remove('sale'); if (x.getAttribute('data-cam') === D.id) sec = x; });
+      if (!sec) return;
+      sec.classList.add('sale'); vl.classList.add('un-camion');
+      var hj = $('hoja-impresion');
+      if (!hj) { hj = document.createElement('style'); hj.id = 'hoja-impresion'; document.head.appendChild(hj); }
+      hj.textContent = '@page{size:A4 portrait;margin:10mm}';
+      var limpiar = function () { vl.classList.remove('un-camion'); sec.classList.remove('sale'); window.removeEventListener('afterprint', limpiar); };
+      window.addEventListener('afterprint', limpiar);
+      setTimeout(function () { window.print(); setTimeout(limpiar, 60000); }, 80);
+    }
+    else if (a === 'cam-subir' || a === 'cam-bajar') { moverEnCamion(S.fl, D.cam, D.id, a === 'cam-subir' ? -1 : 1).then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); }
     else if (a === 'imprimir') {
       // Se imprime siempre la vista de lectura, no la de edición.
       if (S.em) { guardar('medias', true); S.em = null; }
