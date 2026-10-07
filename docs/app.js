@@ -1550,6 +1550,8 @@
     else if (a === 'ped-abrir') {
       var enCta = !!(e.target.closest && e.target.closest('.cta'));
       S.abierto[D.id] = enCta ? true : !S.abierto[D.id]; S.pedDia = null; S.ctaOtro = null; renderPedidos();
+      // El pedido que se abre queda a la vista entero, sin mover la pantalla si ya lo está.
+      if (S.abierto[D.id] && !enCta) { var cab = document.querySelector('[data-act="ped-abrir"][data-id="' + D.id + '"]'), tar = cab && cab.closest('.ped'); if (tar && tar.scrollIntoView) tar.scrollIntoView({ block: 'nearest' }); }
       if (enCta) { var sc = document.querySelector('select[data-cta="' + D.id + '"], [data-cta-in="' + D.id + '"], [data-act="cta-otro"][data-id="' + D.id + '"]'); if (sc) { sc.focus(); if (sc.scrollIntoView) sc.scrollIntoView({ block: 'center' }); } }
     }
     else if (a === 'c-sumar' || a === 'c-quitar' || a === 'c-todos') {

@@ -224,6 +224,16 @@ h1 a{color:inherit;text-decoration:none}
 .ped-tit .marcas{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto}
 .ped-tit .chev{color:var(--muted);width:16px;text-align:center}
 .ped-det{display:flex;flex-direction:column;gap:10px;padding:4px 6px 16px 42px}
+/* el pedido abierto se recuadra: es en el que se está trabajando */
+.ped.abierto{border:2px solid var(--accent);border-left-width:8px;border-radius:8px;margin:14px 0;background:var(--surface);box-shadow:0 8px 24px rgba(0,50,70,.16);scroll-margin-top:96px}
+.ped.abierto>.ped-cab{background:var(--accent-soft);border-bottom:1px solid var(--line);border-radius:5px 5px 0 0}
+.ped.abierto .ped-tit{padding-top:14px;padding-bottom:14px}
+.ped.abierto .ped-tit .nom{font-size:22px;color:var(--accent)}
+.ped.abierto .ped-tit .res{color:var(--ink)}
+.ped.abierto .ped-det{padding:16px 18px 18px;gap:14px}
+.ped.abierto .lp.sin-cta{margin:0;background:var(--bg)}
+.ped.abierto .ped-det>.acciones{padding-top:12px;border-top:1px solid var(--line)}
+@media (max-width:560px){ .ped.abierto{border-left-width:6px;margin:12px 0} .ped.abierto .ped-det{padding:12px 10px 14px} .ped.abierto .ped-tit .nom{font-size:20px} }
 .op-ped{display:flex;flex-direction:column;gap:8px;font-size:15px;text-transform:uppercase;font-weight:600;overflow-wrap:anywhere}
 .op-ped p.lp b{color:var(--accent);font-weight:700;margin-right:6px}
 .op-ped p.lp{align-items:center}
