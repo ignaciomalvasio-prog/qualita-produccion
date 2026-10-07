@@ -1234,6 +1234,7 @@
     var a = b.dataset.act, D = b.dataset, o, c;
     if (S._c2 && S._c2 !== a + (D.i == null ? '' : D.i)) S._c2 = null;
 
+    if (a === 'actualizar') { recargar(); return; }
     if (a === 'ir') irA(D.tab);
     else if (a === 'cam-imprimir') {
       // Solo ese camión: los demás se ocultan mientras dura la impresión.
@@ -1523,6 +1524,38 @@
     });
   }
 
+  /* ---------- versión nueva ----------
+     Quien deja la app abierta no se queda con la versión vieja: se revisa cada tanto y se recarga sola
+     cuando no hay nada a medio escribir. Si lo hay, aparece un aviso con el botón para actualizar. */
+  var verCargada = null, verNueva = false;
+  function leerVersion() {
+    if (window.__mock) return Promise.resolve(window.__mock.version ? window.__mock.version() : null);
+    return fetch('sw.js?v=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.text() : ''; }).then(function (t) { var m = t.match(/produccion-qualita-v(\d+)/); return m ? m[1] : null; }, function () { return null; });
+  }
+  function recargar() { if (window.__mock) { if (window.__mock.recargar) window.__mock.recargar(); return; } location.reload(); }
+  function ocupado() { return !!(S.em || S.ep || S.ef || S.ec || S.pegar || (S.prop && S.prop.length) || cargas.activas || S._ocup) || escribiendo(); }
+  function aplicarVersion() {
+    if (!verNueva) return;
+    if (!ocupado()) { recargar(); return; }
+    if ($('nueva')) return;
+    var b = document.createElement('div'); b.id = 'nueva'; b.className = 'nueva'; b.setAttribute('role', 'status');
+    b.innerHTML = '<span>Hay una versión nueva de la app.</span><button class="btn sm" data-act="actualizar">Actualizar</button>';
+    document.body.appendChild(b);
+  }
+  function revisarVersion() {
+    leerVersion().then(function (v) {
+      if (!v) return;
+      if (!verCargada) { verCargada = v; return; }
+      if (v !== verCargada) { verNueva = true; aplicarVersion(); }
+    });
+  }
+  function vigilarVersion() {
+    revisarVersion();
+    setInterval(revisarVersion, 5 * 60 * 1000);
+    setInterval(aplicarVersion, 20 * 1000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) revisarVersion(); });
+  }
+
   function boot() {
     var c = cache(true);
     if (c && c.produccion && !window.__mock) aplicar(c, 'cache');
@@ -1534,4 +1567,5 @@
   }
   if ('serviceWorker' in navigator && !window.__mock) navigator.serviceWorker.register('sw.js').catch(function () {});
   boot();
+  vigilarVersion();
 })();
