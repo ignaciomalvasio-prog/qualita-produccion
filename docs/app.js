@@ -1322,6 +1322,8 @@
     if (cargando(el, S.prod || S.faena)) return;
     if (!S.fl) S.fl = fmInicial();
     var f = S.fl, lg = logDe(f), peds = (lg && lg.pedidos) || [], cams = (lg && lg.camiones) || [];
+    // Quien mira (sin cuenta, o por el link de Logística) ve solo los pedidos que ya tienen camión.
+    if (!S.editor) peds = peds.filter(function (p) { return p.camion; });
     var h = '<div class="nav"><button class="btn step" data-act="fl" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + esc(tituloDe(f)) + '</span><button class="btn step" data-act="fl" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="l-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">'
       + (peds.length ? '<button class="btn" data-act="imprimir">Imprimir</button>' : '')
@@ -1392,7 +1394,7 @@
     html += tarjeta('produccion', 'Producción', rot(f), da, 'Todavía no hay nada cargado',
       a.nl ? '<span class="badge ' + (a.o.estado === 'borrador' ? 'warn">Borrador' : 'ok">Confirmada') + '</span>' : '',
       pie(b.nl ? neg(b.nl, 'renglón', 'renglones') + (b.o.estado === 'borrador' ? ' · borrador' : ' · confirmada') : 'Sin cargar'));
-    var logNum = function (d) { var lg = logDe(d), lp = (lg && lg.pedidos) || [], lc = (lg && lg.camiones) || []; return { p: lp.length, c: lc.length, s: lp.filter(function (x) { return !x.camion; }).length }; };
+    var logNum = function (d) { var lg = logDe(d), lp = ((lg && lg.pedidos) || []).filter(function (x) { return S.editor || x.camion; }), lc = (lg && lg.camiones) || []; return { p: lp.length, c: lc.length, s: lp.filter(function (x) { return !x.camion; }).length }; };
     var la = logNum(f), lb = logNum(sig), dl = [];
     if (la.p) { dl.push([la.p, plural(la.p, 'pedido', 'pedidos')]); dl.push([la.c, plural(la.c, 'camión armado', 'camiones armados')]); if (la.s) dl.push([la.s, 'sin camión']); }
     html += tarjeta('logistica', 'Logística', rot(f), dl, 'Sin pedidos para entregar', '',
