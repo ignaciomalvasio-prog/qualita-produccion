@@ -454,29 +454,77 @@
      Base de clientes con su número de cuenta. Es privada (privado/clientes): la ve y la cambia quien ingresa.
      Cada pedido muestra el número de su cliente; si se escribe otro en el pedido, vale ese. */
   function clientes() { return S.clientes || []; }
-  function cuentaDe(cliente) {
-    var c = norm(cliente), l = clientes(); if (!c) return '';
-    var ex = l.filter(function (x) { return norm(x.n) === c; })[0];
-    if (ex && ex.c) return ex.c;
-    // Una sucursal ("DINO ALTA GRACIA") toma el número del cliente ("DINO") si no tiene uno propio.
-    var pre = l.filter(function (x) { var k = norm(x.n); return k && x.c && c.indexOf(k + ' ') === 0; }).sort(function (a, b) { return norm(b.n).length - norm(a.n).length; })[0];
-    return pre ? pre.c : '';
+  // Nombre sin la forma societaria ("CARNES URCA SOCIEDAD POR ACCIONES S" y "URCA S.A.S." se comparan sin eso).
+  function claveCliente(nombre) {
+    var t = norm(nombre).replace(/[.,]/g, ' ').replace(/\s+/g, ' ').trim(), antes;
+    do { antes = t; t = t.replace(/ (S A S|SAS|S R L|SRL|S A C I|SACI|S A|SA|LLC|LTD|SAPEM|SOCIEDAD ANONIMA\w*|SOCIEDAD POR ACCI\w*( S\w*)?|SOCIEDAD DE RESPONSAB\w*( LIMITADA)?|SOCIEDAD SIMPLE|SOCIEDAD COMERCI\w*)$/, '').replace(/[ \-]+$/, ''); } while (t !== antes);
+    return t;
   }
+  function palabras(clave) { return clave.split(/[^A-Z0-9Ñ]+/).filter(function (w) { return w.length > 1 || /\d/.test(w); }); }
+  function indiceClientes() {
+    var l = clientes();
+    if (S._cliIdx && S._cliIdx.de === l) return S._cliIdx;
+    var x = { de: l, lista: l.map(function (c) { var k = claveCliente(c.n), w = {}; palabras(k).forEach(function (p) { w[p] = 1; }); return { n: c.n, c: String(c.c || ''), nn: norm(c.n), k: k, w: w, nw: Object.keys(w).length }; }) };
+    S._cliIdx = x; return x;
+  }
+  // Devuelve la cuenta cuando el nombre la identifica sin dudas; si hay varias posibles, las propone en "cand" para elegir una vez.
+  function buscarCuenta(cliente) {
+    var nn = norm(cliente), k = claveCliente(cliente), L = indiceClientes().lista, res = { c: '', cand: [] };
+    if (!nn || !L.length) return res;
+    var cuentas = function (lista) { var v = {}; lista.forEach(function (e) { if (e.c) v[e.c] = 1; }); return Object.keys(v); };
+    // 1. El mismo nombre, tal cual está en la base (incluye los nombres cortos ya aprendidos).
+    var igual = L.filter(function (e) { return e.nn === nn && e.c; }), ci = cuentas(igual);
+    if (ci.length === 1) { res.c = ci[0]; return res; }
+    // 2. Todos los clientes de la base que tienen las palabras del nombre ("DIGAR" → DIGAR SA, FRIGORIFICO DIGAR SRL…).
+    var pw = palabras(k), parecidos = pw.length ? L.filter(function (e) { return e.c && pw.every(function (w) { return e.w[w]; }); }) : [];
+    // 3. El mismo nombre sin la forma societaria, o una sucursal ("DINO ALTA GRACIA" toma el número de "DINO").
+    var mismo = k ? L.filter(function (e) { return e.c && e.k === k; }) : [];
+    if (!mismo.length) { var pre = L.filter(function (e) { return e.c && e.k && k.indexOf(e.k + ' ') === 0; }), largo = Math.max.apply(null, pre.map(function (e) { return e.k.length; })); mismo = pre.filter(function (e) { return e.k.length === largo; }); }
+    var cm = cuentas(mismo), todos = cuentas(igual.concat(mismo, parecidos));
+    // Sale sola únicamente si no hay ninguna otra cuenta posible.
+    if (cm.length === 1 && todos.length === 1) { res.c = cm[0]; return res; }
+    var visto = {};
+    res.cand = igual.concat(mismo, parecidos).filter(function (e) { var key = e.c + '|' + e.nn; if (visto[key]) return false; visto[key] = 1; return true; })
+      .sort(function (a, b) { return a.nw - b.nw || (a.c.charAt(0) === '2' ? 0 : 1) - (b.c.charAt(0) === '2' ? 0 : 1) || a.n.localeCompare(b.n) || a.c.localeCompare(b.c); }).slice(0, 15);
+    return res;
+  }
+  function cuentaDe(cliente) { return buscarCuenta(cliente).c; }
   function cuentaPedido(p) { return String(p.cuenta || '').trim() || cuentaDe(p.cliente); }
   function ctaHTML(c) { return c ? '<span class="cta">N° ' + esc(c) + '</span>' : ''; }
+  // Deja el número en el pedido y lo aprende para ese nombre: la próxima vez sale solo.
+  function ponerCuenta(id, c) {
+    var p = pedidoDe(id); if (!p || !c) return Promise.resolve();
+    var doc = clone(p); delete doc.id; doc.cuenta = String(c);
+    S.pedidos = poner(S.pedidos, id, doc);
+    return store.set('pedidos', id, doc).then(function () { return sumarClientes([{ n: p.cliente, c: String(c) }]); }).then(function () { return publicarLog(p.entrega); });
+  }
+  function elegirCuentaHTML(p) {
+    if (cuentaPedido(p)) return '';
+    var cand = buscarCuenta(p.cliente).cand;
+    return '<p class="lp sin-cta"><span><b>N° de cuenta</b> ' + (cand.length ? 'Hay ' + (cand.length === 1 ? 'un cliente parecido' : 'varios clientes parecidos') + ' en la base.' : 'Este cliente no está en la base.') + '</span><span class="lp-der">'
+      + (cand.length ? '<select class="mover" data-cta="' + esc(p.id) + '" aria-label="Elegir la cuenta de ' + esc(p.cliente) + '"><option value="">Elegir…</option>'
+        + cand.map(function (e) { return '<option value="' + esc(e.c) + '">' + esc(e.c) + ' · ' + esc(e.n) + '</option>'; }).join('') + '<option value="otra">Otro número…</option></select>'
+        : '<button class="btn sm" data-act="ped-cuenta" data-id="' + esc(p.id) + '">Poner el número</button>') + '</span></p>';
+  }
   function escribirClientes(l) {
     S.clientes = l;
     return store.set('privado', 'clientes', { lista: l, actualizado: ahoraTxt() }).then(function () { conciliarLog(); });
   }
   // Suma o cambia clientes; si el nombre ya estaba, queda lo nuevo. Un número vacío no pisa uno cargado.
-  function sumarClientes(nuevos) {
+  // "varios": carga de una lista, donde un mismo nombre puede tener más de una cuenta.
+  function sumarClientes(nuevos, varios) {
     var l = clone(clientes()), pos = {}, altas = 0, cambios = 0;
-    l.forEach(function (x, i) { pos[norm(x.n)] = i; });
+    l.forEach(function (x, i) { (pos[norm(x.n)] = pos[norm(x.n)] || []).push(i); });
     nuevos.forEach(function (x) {
       var nombre = String(x.n || '').toUpperCase().replace(/\s+/g, ' ').trim(), k = norm(nombre), cta = String(x.c == null ? '' : x.c).trim();
       if (!k) return;
-      if (pos[k] == null) { pos[k] = l.length; l.push({ n: nombre, c: cta }); altas++; }
-      else if (cta && l[pos[k]].c !== cta) { l[pos[k]].c = cta; cambios++; }
+      var mismos = pos[k] || [];
+      if (!mismos.length) { pos[k] = [l.length]; l.push({ n: nombre, c: cta }); altas++; return; }
+      if (!cta || mismos.some(function (i) { return l[i].c === cta; })) return;
+      var vacio = mismos.filter(function (i) { return !l[i].c; })[0];
+      if (vacio != null) { l[vacio].c = cta; cambios++; }
+      else if (varios) { mismos.push(l.length); l.push({ n: nombre, c: cta }); altas++; }
+      else { l[mismos[0]].c = cta; cambios++; }
     });
     return escribirClientes(l).then(function () { return { altas: altas, cambios: cambios }; });
   }
@@ -509,19 +557,13 @@
     var el = $('view-clientes');
     if (!S.editor) { el.innerHTML = '<div class="panel"><p class="state">Para ver los clientes hay que ingresar con una cuenta autorizada.</p></div>'; return; }
     var l = clientes(), sinNum = l.filter(function (x) { return !x.c; }).length;
-    var orden = l.map(function (x, i) { return [x, i]; }).sort(function (a, b) { return String(a[0].n).localeCompare(String(b[0].n)); });
     var h = '<div class="panel carga"><h2>Agregar cliente</h2><div class="campos cli-alta">'
       + '<label class="campo"><span>N° de cuenta</span><input type="text" inputmode="numeric" id="cli-c" autocomplete="off"></label>'
       + '<label class="campo"><span>Nombre del cliente</span><input type="text" id="cli-n" autocomplete="off" style="text-transform:uppercase"></label></div>'
       + '<div class="acciones"><button class="btn pri" data-act="cli-agregar">Agregar</button><span class="guardado" id="g-cli"></span></div></div>';
     h += '<div class="panel"><div class="cam-cab"><h2>Clientes</h2><span class="small muted">' + (l.length ? l.length + plural(l.length, ' cliente', ' clientes') + (sinNum ? ' · ' + sinNum + ' sin número' : '') : 'todavía no hay clientes cargados') + '</span></div>';
     if (l.length > 6) h += '<input type="search" id="cli-buscar" placeholder="Buscar por nombre o número…" aria-label="Buscar cliente" value="' + esc(S.cliBuscar || '') + '">';
-    if (l.length) h += '<table class="pl cli"><thead><tr><th>N° de cuenta</th><th>Cliente</th><th></th></tr></thead><tbody>' + orden.map(function (x) {
-      var c = x[0], i = x[1];
-      return '<tr data-busca="' + esc(norm(c.n) + ' ' + norm(c.c)) + '"><td><input type="text" inputmode="numeric" data-cli="' + i + '" data-k="c" value="' + esc(c.c || '') + '" placeholder="Falta" aria-label="Número de cuenta de ' + esc(c.n) + '"></td>'
-        + '<td><input type="text" data-cli="' + i + '" data-k="n" value="' + esc(c.n) + '" style="text-transform:uppercase" aria-label="Nombre del cliente"></td>'
-        + '<td><button class="btn x" data-act="cli-quitar" data-i="' + i + '" aria-label="Quitar a ' + esc(c.n) + '">×</button></td></tr>';
-    }).join('') + '</tbody></table><p class="small muted">Los cambios se guardan solos al salir de cada casillero.</p>';
+    if (l.length) h += '<table class="pl cli"><thead><tr><th>N° de cuenta</th><th>Cliente</th><th></th></tr></thead><tbody id="cli-filas"></tbody></table><p class="small muted" id="cli-nota"></p>';
     else h += '<p class="muted">Agregalos de a uno arriba, o varios juntos abajo.</p>';
     h += '</div>';
     var conocidos = clientesConocidos().filter(function (x) { return !l.some(function (y) { return norm(y.n) === norm(x.n); }); }).length;
@@ -533,15 +575,35 @@
     el.innerHTML = h; pintarMsg('cli'); filtrarClientes();
   }
   function filtrarClientes() {
-    var q = norm(S.cliBuscar || '');
-    Array.prototype.forEach.call(document.querySelectorAll('#view-clientes tr[data-busca]'), function (tr) { tr.hidden = !!q && tr.getAttribute('data-busca').indexOf(q) < 0; });
+    var tb = $('cli-filas'); if (!tb) return;
+    var q = norm(S.cliBuscar || ''), l = clientes(), MAX = 80;
+    var lista = l.map(function (x, i) { return [x, i]; }).filter(function (x) { return !q || (norm(x[0].n) + ' ' + norm(x[0].c)).indexOf(q) >= 0; })
+      .sort(function (a, b) { return String(a[0].n).localeCompare(String(b[0].n)) || String(a[0].c).localeCompare(String(b[0].c)); });
+    tb.innerHTML = lista.slice(0, MAX).map(function (x) {
+      var c = x[0], i = x[1];
+      return '<tr><td><input type="text" inputmode="numeric" data-cli="' + i + '" data-k="c" value="' + esc(c.c || '') + '" placeholder="Falta" aria-label="Número de cuenta de ' + esc(c.n) + '"></td>'
+        + '<td><input type="text" data-cli="' + i + '" data-k="n" value="' + esc(c.n) + '" style="text-transform:uppercase" aria-label="Nombre del cliente"></td>'
+        + '<td><button class="btn x" data-act="cli-quitar" data-i="' + i + '" aria-label="Quitar a ' + esc(c.n) + '">×</button></td></tr>';
+    }).join('');
+    $('cli-nota').textContent = (lista.length > MAX ? 'Se muestran ' + MAX + ' de ' + n(lista.length) + (q ? ' que coinciden' : '') + ': usá el buscador para encontrar el resto. ' : !lista.length ? 'Ningún cliente coincide con la búsqueda. ' : '') + 'Los cambios se guardan solos al salir de cada casillero.';
   }
 
   /* Precios y fletes: solo los ven quienes ingresan. El precio de cada corte se guarda en el pedido
      y el costo de cada camión en un documento privado por día; nada de esto se publica. */
   function plata(v, dec) { return '$ ' + (+v || 0).toLocaleString('es-AR', { minimumFractionDigits: dec ? 2 : 0, maximumFractionDigits: dec ? 2 : 0 }); }
-  function precioHTML(id, k, valor, que) {
-    return '<label class="precio"><span>$ / kg</span><input type="number" inputmode="decimal" step="any" min="0" data-precio="' + esc(id) + '" data-k="' + esc(k) + '" value="' + esc(valor === 0 ? 0 : valor || '') + '" aria-label="Precio por kilo de ' + esc(que) + '"></label>';
+  function precioHTML(id, k, valor, que, iva) {
+    var chip = function (v, txt) { return '<button class="btn sm chip" data-act="iva" data-id="' + esc(id) + '" data-k="' + esc(k) + '" data-v="' + v + '" aria-pressed="' + (iva === v) + '" aria-label="Precio de ' + esc(que) + ': ' + txt + '">' + txt + '</button>'; };
+    return '<label class="precio"><span>$ / kg</span><input type="number" inputmode="decimal" step="any" min="0" data-precio="' + esc(id) + '" data-k="' + esc(k) + '" value="' + esc(valor === 0 ? 0 : valor || '') + '" aria-label="Precio por kilo de ' + esc(que) + '"></label>'
+      + '<span class="chips">' + chip('iva', '+ IVA') + chip('final', 'Final') + '</span>';
+  }
+  // "+ IVA" o "Final": se toca uno y queda; tocarlo de nuevo lo saca.
+  function guardarIva(id, k, v) {
+    var p = pedidoDe(id); if (!p) return Promise.resolve();
+    var doc = clone(p); delete doc.id;
+    if (k === 'm') doc.ivaMedias = doc.ivaMedias === v ? '' : v;
+    else doc.cortes = cortesDe(doc).map(function (c) { if (c.k === k) c.iva = c.iva === v ? '' : v; return c; });
+    S.pedidos = poner(S.pedidos, id, doc);
+    return store.set('pedidos', id, doc);
   }
   function guardarPrecio(id, k, valor) {
     var p = pedidoDe(id); if (!p) return Promise.resolve();
@@ -811,8 +873,9 @@
     var p = { cliente: String(q.cliente || '').toUpperCase().trim(), entrega: entrega, medias: +q.medias || 0, peso: q.peso || '', frio: frioDe(q.frio), cuenta: String(q.cuenta || '').trim(), nota: q.nota || '', origen: q.origen || 'manual',
       creado: previo && previo.creado ? previo.creado : ahoraTxt(), kg: +q.kg > 0 ? +q.kg : '',
       camion: previo && previo.entrega === entrega ? (previo.camion || '') : '',
-      cortes: (q.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { k: c.k || uid(), corte: norm(c.corte), texto: sinCliente(String(c.texto).toUpperCase().replace(/\s+/g, ' ').trim(), q.cliente), orden: c.orden !== false, precio: c.precio === 0 ? 0 : c.precio || '' }; }).filter(function (c) { return c.texto; }) };
+      cortes: (q.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { k: c.k || uid(), corte: norm(c.corte), texto: sinCliente(String(c.texto).toUpperCase().replace(/\s+/g, ' ').trim(), q.cliente), orden: c.orden !== false, precio: c.precio === 0 ? 0 : c.precio || '', iva: c.iva || '' }; }).filter(function (c) { return c.texto; }) };
     if (previo && (previo.precioMedias === 0 || previo.precioMedias)) p.precioMedias = previo.precioMedias;
+    if (previo && previo.ivaMedias) p.ivaMedias = previo.ivaMedias;
     if (!p.cliente) return Promise.reject(new Error('Falta el cliente.'));
     if (!p.entrega) return Promise.reject(new Error('Falta la fecha de entrega.'));
     if (!auto) { asentarEdicion(); S.em = null; S.ep = null; }
@@ -824,8 +887,7 @@
       .then(function () { return Promise.all((antes && antes.entrega !== p.entrega ? [antes.entrega, p.entrega] : [p.entrega]).map(function (f) { return publicarLog(f); })); })
       .then(function () {
         // Si en el pedido se escribió un número que la base no tenía, queda aprendido para ese cliente.
-        var ya = clientes().filter(function (x) { return norm(x.n) === norm(p.cliente); })[0];
-        return p.cuenta && (!ya || ya.c !== p.cuenta) ? sumarClientes([{ n: p.cliente, c: p.cuenta }]).then(null, function () {}) : null;
+        return p.cuenta && cuentaDe(p.cliente) !== p.cuenta ? sumarClientes([{ n: p.cliente, c: p.cuenta }]).then(null, function () {}) : null;
       })
       .then(function () { tocar(); });
   }
@@ -1115,11 +1177,11 @@
       + '<button class="ped-tit" data-act="ped-abrir" data-id="' + id + '" aria-expanded="' + ab + '"><span class="nom">' + esc(p.cliente || 'Sin cliente') + '</span>' + ctaHTML(cuentaPedido(p)) + '<span class="res">' + res.join(' · ') + (p.frio ? ' ' + frioBadge(p.frio) : '') + '</span>'
       + (cam ? '<span class="marcas"><span class="badge plain">' + esc(cam) + '</span></span>' : '') + '<span class="chev" aria-hidden="true">' + (ab ? '▴' : '▾') + '</span></button></div>';
     if (!ab) return h + '</div>';
-    h += '<div class="ped-det"><div class="op-ped">';
-    if (+p.medias) h += '<p class="lp"><span><b>Medias</b> ' + esc(textoMedias(p)) + '</span><span class="lp-der">' + precioHTML(p.id, 'm', p.precioMedias, 'las medias') + '</span></p>';
+    h += '<div class="ped-det">' + elegirCuentaHTML(p) + '<div class="op-ped">';
+    if (+p.medias) h += '<p class="lp"><span><b>Medias</b> ' + esc(textoMedias(p)) + '</span><span class="lp-der">' + precioHTML(p.id, 'm', p.precioMedias, 'las medias', p.ivaMedias) + '</span></p>';
     cs.forEach(function (c) {
       var f = fechaProdDe(m, p, c);
-      h += '<p class="lp"><span><b>' + esc(c.corte) + '</b> ' + esc(sinCliente(c.texto, p.cliente)) + '</span><span class="lp-der">' + precioHTML(p.id, c.k, c.precio, c.corte) + (f
+      h += '<p class="lp"><span><b>' + esc(c.corte) + '</b> ' + esc(sinCliente(c.texto, p.cliente)) + '</span><span class="lp-der">' + precioHTML(p.id, c.k, c.precio, c.corte, c.iva) + (f
         ? '<span class="en"><span class="badge ok">En producción</span><button class="btn sm" data-act="c-quitar" data-id="' + id + '" data-k="' + esc(c.k) + '">Quitar</button></span>'
         : '<button class="btn sm pri" data-act="c-sumar" data-id="' + id + '" data-k="' + esc(c.k) + '">Sumar a producción</button>') + '</span></p>';
     });
@@ -1367,12 +1429,14 @@
     if (S._c2 && S._c2 !== a + (D.i == null ? '' : D.i)) S._c2 = null;
 
     if (a === 'actualizar') { recargar(); return; }
+    if (a === 'iva') { guardarIva(D.id, D.k, D.v).then(null, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); }); renderPedidos(); return; }
+    if (a === 'ped-cuenta') { editarPedido(D.id, 'cuenta'); return; }
     if (a === 'cli-agregar' || a === 'cli-pegar' || a === 'cli-traer') {
       var nuevos = a === 'cli-agregar' ? [{ n: $('cli-n').value, c: $('cli-c').value }] : a === 'cli-pegar' ? leerListaClientes($('cli-txt').value) : clientesConocidos();
       nuevos = nuevos.filter(function (x) { return norm(x.n); });
       if (!nuevos.length) { S.msg.cli = a === 'cli-agregar' ? '!Falta el nombre del cliente.' : '!No encontré clientes en lo que pegaste.'; pintarMsg('cli'); if (a !== 'cli-agregar') avisar(S.msg.cli, 6000); return; }
       if (a !== 'cli-agregar') S._cliVarios = false;
-      sumarClientes(nuevos).then(function (r) {
+      sumarClientes(nuevos, a === 'cli-pegar').then(function (r) {
         S.msg.cli = r.altas + plural(r.altas, ' cliente agregado', ' clientes agregados') + (r.cambios ? ' · ' + r.cambios + plural(r.cambios, ' número actualizado', ' números actualizados') : '') + '.';
         avisar(S.msg.cli, 5000); renderClientes(); var fn = $('cli-c'); if (fn && a === 'cli-agregar') fn.focus();
       }, function () { S.msg.cli = '!No se pudo guardar. Revisá la conexión.'; pintarMsg('cli'); });
@@ -1563,6 +1627,11 @@
       if (D.k === 'n' && !vc) { t.value = lc[+D.cli].n; return; }
       lc[+D.cli][D.k] = D.k === 'n' ? vc.toUpperCase() : vc;
       escribirClientes(lc).then(function () { avisar('Guardado.', 2000); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); });
+    }
+    else if (D.cta && t.value) {
+      if (t.value === 'otra') { editarPedido(D.cta, 'cuenta'); return; }
+      var pq = pedidoDe(D.cta), nq = t.value;
+      ponerCuenta(D.cta, nq).then(function () { avisar('Cuenta ' + nq + ' guardada para ' + (pq ? pq.cliente : 'el cliente') + '. La próxima vez sale sola.', 6000); renderPedidos(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); renderPedidos(); });
     }
     else if (D.precio) {
       guardarPrecio(D.precio, D.k, t.value).then(function () { avisar('Precio guardado.', 2500); }, function () { avisar('!No se pudo guardar el precio. Revisá la conexión.', 6000); });
