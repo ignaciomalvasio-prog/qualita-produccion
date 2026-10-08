@@ -278,7 +278,7 @@
   }
   function sumarCortes(p, cuales) {
     var f = p.entrega, o = clone(prodGuardada(f) || prodVacia(f)), m = enProduccion();
-    cuales.forEach(function (c) { if (c.texto && !fechaProdDe(m, p, c)) insertarLinea(o, c.corte, textoProd(p, c), p.id, c.k, p.frio); });
+    cuales.forEach(function (c) { if (c.texto && !fechaProdDe(m, p, c)) insertarLinea(o, c.corte, textoProd(p, c), p.id, c.k, c.frio || p.frio); });
     return guardarOrden(f, o).then(tocar);
   }
   function quitarCorte(p, c) {
@@ -675,7 +675,7 @@
       var sem = cambios[lunes] || clone(semDe(lunes) || semanaNueva(lunes)), filas = sem.dias[i].clientes, nombre = norm(p.cliente);
       var fila = filas.filter(function (r) { return r.pedido === p.id; })[0] || filas.filter(function (r) { return !r.pedido && norm(r.cliente) === nombre; })[0];
       if (!fila) { fila = {}; filas.push(fila); }
-      fila.cliente = String(p.cliente || '').toUpperCase().trim(); fila.cant = medias / 2; fila.pedido = p.id; fila.nota = [p.peso, p.frio].filter(Boolean).join(' · ');
+      fila.cliente = String(p.cliente || '').toUpperCase().trim(); fila.cant = medias / 2; fila.pedido = p.id; fila.nota = p.peso || '';
       cambios[lunes] = sem;
     }
     return Promise.all(Object.keys(cambios).map(function (l) { var sl = limpiarSemana(cambios[l]); S.faena = poner(S.faena, l, sl); return store.set('faena', l, sl); }));
@@ -691,7 +691,7 @@
     (p.cortes || []).forEach(function (c) {
       if (!estaban[c.k] || !c.texto) return;
       var x = tocadas[p.entrega] || clone(prodGuardada(p.entrega) || prodVacia(p.entrega));
-      insertarLinea(x, c.corte, textoProd(p, c), p.id, c.k, p.frio); tocadas[p.entrega] = x;
+      insertarLinea(x, c.corte, textoProd(p, c), p.id, c.k, c.frio || p.frio); tocadas[p.entrega] = x;
     });
     return Promise.all(Object.keys(tocadas).map(function (f) { return guardarOrden(f, tocadas[f], true); }));
   }
@@ -893,7 +893,7 @@
     var p = { cliente: String(q.cliente || '').toUpperCase().trim(), entrega: entrega, medias: +q.medias || 0, peso: q.peso || '', frio: frioDe(q.frio), cuenta: String(q.cuenta || '').trim(), nota: q.nota || '', origen: q.origen || 'manual',
       creado: previo && previo.creado ? previo.creado : ahoraTxt(), kg: +q.kg > 0 ? +q.kg : '',
       camion: previo && previo.entrega === entrega ? (previo.camion || '') : '',
-      cortes: (q.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { k: c.k || uid(), corte: norm(c.corte), texto: sinCliente(String(c.texto).toUpperCase().replace(/\s+/g, ' ').trim(), q.cliente), orden: c.orden !== false, precio: c.precio === 0 ? 0 : c.precio || '', iva: c.iva || '' }; }).filter(function (c) { return c.texto; }) };
+      cortes: (q.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { k: c.k || uid(), corte: norm(c.corte), texto: sinCliente(String(c.texto).toUpperCase().replace(/\s+/g, ' ').trim(), q.cliente), orden: c.orden !== false, precio: c.precio === 0 ? 0 : c.precio || '', iva: c.iva || '', frio: frioDe(c.frio) }; }).filter(function (c) { return c.texto; }) };
     if (previo && (previo.precioMedias === 0 || previo.precioMedias)) p.precioMedias = previo.precioMedias;
     if (previo && previo.ivaMedias) p.ivaMedias = previo.ivaMedias;
     var vd = q.vendedor || (previo && previo.vendedor); if (vd) { p.vendedor = vd; p.vendedorNombre = q.vendedorNombre || (previo && previo.vendedorNombre) || ''; }
@@ -1202,7 +1202,7 @@
     if (+p.medias) h += '<p class="lp"><span><b>Medias</b> ' + esc(textoMedias(p)) + '</span><span class="lp-der">' + precioHTML(p.id, 'm', p.precioMedias, 'las medias', p.ivaMedias) + '</span></p>';
     cs.forEach(function (c) {
       var f = fechaProdDe(m, p, c);
-      h += '<p class="lp"><span><b>' + esc(c.corte) + '</b> ' + esc(sinCliente(c.texto, p.cliente)) + '</span><span class="lp-der">' + precioHTML(p.id, c.k, c.precio, c.corte, c.iva) + (f
+      h += '<p class="lp"><span><b>' + esc(c.corte) + '</b> ' + esc(sinCliente(c.texto, p.cliente)) + (c.frio && c.frio !== p.frio ? ' ' + frioBadge(c.frio) : '') + '</span><span class="lp-der">' + precioHTML(p.id, c.k, c.precio, c.corte, c.iva) + (f
         ? '<span class="en"><span class="badge ok">En producción</span><button class="btn sm" data-act="c-quitar" data-id="' + id + '" data-k="' + esc(c.k) + '">Quitar</button></span>'
         : '<button class="btn sm pri" data-act="c-sumar" data-id="' + id + '" data-k="' + esc(c.k) + '">Sumar a producción</button>') + '</span></p>';
     });
@@ -1228,7 +1228,7 @@
       h += '<div class="venta"><div class="venta-cab"><span class="nom">' + esc(v.cliente) + '</span>' + ctaHTML(cta, false)
         + (v.frio ? ' ' + frioBadge(v.frio) : '') + '<span class="small muted">Entrega ' + esc(diaCorto(v.entrega)) + ' · ' + esc(nombreVend(v)) + (v.creado ? ' · ' + esc(v.creado) : '') + '</span></div><ul class="venta-det">';
       if (+v.medias) h += '<li><b>Medias</b> ' + n(+v.medias) + (v.peso ? ' · ' + esc(v.peso) : '') + '</li>';
-      cs.forEach(function (c) { h += '<li><b>' + esc(c.corte || '') + '</b> ' + esc(c.texto || '') + '</li>'; });
+      cs.forEach(function (c) { h += '<li><b>' + esc(c.corte || '') + '</b> ' + esc(c.texto || '') + (c.frio && c.frio !== v.frio ? ' ' + frioBadge(c.frio) : '') + '</li>'; });
       h += '</ul>' + (v.nota ? '<p class="small">' + esc(v.nota) + '</p>' : '')
         + '<div class="acciones"><button class="btn sm pri" data-act="v-aceptar" data-id="' + id + '">Aceptar</button>'
         + '<input type="text" id="v-motivo-' + id + '" class="v-motivo" value="' + esc((S.vmot || {})[v.id] || '') + '" placeholder="Motivo (si lo rechazás)" aria-label="Motivo del rechazo">'
@@ -1238,7 +1238,7 @@
   }
   function aceptarVenta(v) {
     var q = { cliente: v.cliente, entrega: v.entrega, medias: v.medias, peso: v.peso, frio: v.frio, nota: v.nota, origen: 'vendedor', vendedor: v.vendedor, vendedorNombre: nombreVend(v),
-      cuenta: cuentaDe(v.cliente) || '', cortes: (v.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { k: uid(), corte: c.corte, texto: c.texto, orden: true }; }) };
+      cuenta: cuentaDe(v.cliente) || '', cortes: (v.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { k: uid(), corte: c.corte, texto: c.texto, frio: c.frio || '', orden: true }; }) };
     q.nuevoId = 'p' + uid();
     return guardarPropuesta(q, true).then(function () {
       var x = clone(v); delete x.id; x.estado = 'aceptado'; x.revisado = ahoraTxt(); x.por = S.user ? S.user.email : ''; x.pedido = q.nuevoId;

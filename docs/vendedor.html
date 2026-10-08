@@ -6,15 +6,15 @@
 <meta name="robots" content="noindex,nofollow">
 <meta name="theme-color" content="#005e78">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Pedidos Qualitá">
-<meta property="og:title" content="Pedidos Qualitá · Vendedores">
+<meta name="apple-mobile-web-app-title" content="Vendedores Qualitá">
+<meta property="og:title" content="Portal de vendedores · Qualitá">
 <meta property="og:description" content="Cargá los pedidos de tus clientes para el Frigorífico Qualitá.">
 <meta property="og:image" content="https://qualita-produccion.web.app/icon-512.png">
 <meta property="og:type" content="website">
 <link rel="manifest" href="vendedor.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>Pedidos Qualitá · Vendedores</title>
+<title>Portal de vendedores · Qualitá</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap">
 <style>
 :root{
@@ -69,9 +69,10 @@ textarea{min-height:64px;resize:vertical}
 .campo.ancho{grid-column:1/-1}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
 .cortes{display:flex;flex-direction:column;gap:8px}
-.corte{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr) auto;gap:8px;align-items:center}
+.corte{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr) auto auto;gap:8px;align-items:center}
+.chips.frio{flex-wrap:nowrap}
 .corte .x{width:42px;padding:0;color:var(--muted)}
-.cortes-tit{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr) 42px;gap:8px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.cortes-tit{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr) 178px 42px;gap:8px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
 .acciones{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .msg{font-size:14px;color:var(--ok);font-weight:600} .msg.err{color:var(--crit)}
 .badge{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:3px;white-space:nowrap}
@@ -86,13 +87,13 @@ textarea{min-height:64px;resize:vertical}
 .state{padding:8px 0}
 .filtro{display:flex;gap:6px;flex-wrap:wrap}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-@media (max-width:520px){ .corte{grid-template-columns:minmax(0,1fr) 42px} .corte .det{grid-column:1/2} .corte .x{grid-row:1/3;grid-column:2} .cortes-tit{display:none} }
+@media (max-width:620px){ .corte{grid-template-columns:minmax(0,1fr) 42px;padding-bottom:10px;border-bottom:1px solid var(--line)} .corte .det,.corte .frio{grid-column:1/2} .corte .x{grid-row:1/4;grid-column:2} .cortes-tit{display:none} }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="marca"><img src="logo.png" alt="Qualitá" width="42" height="54"><span class="marca-txt"><span class="marca-nom">Pedidos</span><span class="marca-sub">Vendedores · Frigorífico Qualitá</span></span></div>
+    <div class="marca"><img src="logo.png" alt="Qualitá" width="42" height="54"><span class="marca-txt"><span class="marca-nom">Portal de vendedores</span><span class="marca-sub">Frigorífico Qualitá</span></span></div>
     <div class="sesion" id="sesion"></div>
   </header>
   <main id="app"><div class="panel"><p class="state muted">Cargando…</p></div></main>

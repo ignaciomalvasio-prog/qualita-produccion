@@ -1,6 +1,6 @@
 {
-  "name": "Pedidos Qualitá",
-  "short_name": "Pedidos",
+  "name": "Portal de vendedores Qualitá",
+  "short_name": "Vendedores",
   "description": "Carga de pedidos para vendedores del Frigorífico Qualitá.",
   "lang": "es",
   "start_url": "./vendedor",

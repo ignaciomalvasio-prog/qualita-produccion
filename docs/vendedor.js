@@ -1,4 +1,4 @@
-/* Pedidos Qualitá · Vendedores
+/* Portal de vendedores · Qualitá
    Página para los vendedores externos: ingresan con su cuenta de Google, cargan los pedidos de sus
    clientes y ven si Qualitá ya los aceptó. Cada pedido queda en Firestore, colección "ventas", como
    pendiente; en la app principal (pestaña Pedidos) se acepta y pasa a ser un pedido más.
@@ -35,7 +35,7 @@
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   function n(x) { return Number(x).toLocaleString('es-AR'); }
 
-  function formVacio() { return { id: null, cliente: '', entrega: habilSiguiente(hoy()), medias: '', peso: '', frio: '', nota: '', cortes: [{ corte: '', texto: '' }] }; }
+  function formVacio() { return { id: null, cliente: '', entrega: habilSiguiente(hoy()), medias: '', peso: '', nota: '', cortes: [{ corte: '', texto: '', frio: '' }] }; }
 
   /* ---------- pantalla ---------- */
   function render() {
@@ -59,15 +59,14 @@
       + '<label class="campo ancho"><span>Cliente</span><input type="text" id="f-cliente" list="l-clientes" autocomplete="off" value="' + esc(f.cliente) + '" placeholder="Nombre del cliente (y sucursal si tiene)"></label>'
       + '<datalist id="l-clientes">' + Object.keys(clientes).sort().map(function (c) { return '<option value="' + esc(c) + '">'; }).join('') + '</datalist>'
       + '<label class="campo"><span>Fecha de entrega</span><input type="date" id="f-entrega" min="' + hoy() + '" value="' + esc(f.entrega) + '"></label>'
-      + '<label class="campo"><span>Medias</span><input type="number" inputmode="numeric" min="0" id="f-medias" value="' + esc(f.medias) + '" placeholder="0"></label>'
+      + '<label class="campo"><span>Medias (van frescas)</span><input type="number" inputmode="numeric" min="0" id="f-medias" value="' + esc(f.medias) + '" placeholder="0"></label>'
       + '<label class="campo"><span>Peso de las medias</span><input type="text" id="f-peso" value="' + esc(f.peso) + '" placeholder="Opcional, ej. 90 a 100 kg"></label>'
-      + '<div class="campo"><span>Fresco o congelado</span><div class="chips">'
-      + ['FRESCO', 'CONGELADO'].map(function (x) { return '<button type="button" class="btn sm" data-act="frio" data-v="' + x + '" aria-pressed="' + (f.frio === x) + '">' + (x === 'FRESCO' ? 'Fresco' : 'Congelado') + '</button>'; }).join('')
-      + '</div></div></div>'
-      + '<div class="cortes"><h3>Cortes</h3><div class="cortes-tit"><span>Corte</span><span>Cantidad y detalle</span><span></span></div>'
+      + '</div>'
+      + '<div class="cortes"><h3>Cortes</h3><div class="cortes-tit"><span>Corte</span><span>Cantidad y detalle</span><span>Fresco o congelado</span><span></span></div>'
       + f.cortes.map(function (c, i) {
         return '<div class="corte"><input type="text" list="l-cortes" data-c="corte" data-i="' + i + '" value="' + esc(c.corte) + '" placeholder="Corte" aria-label="Corte ' + (i + 1) + '">'
           + '<input type="text" class="det" data-c="texto" data-i="' + i + '" value="' + esc(c.texto) + '" placeholder="Ej. 10 CAJAS, 300 KG" aria-label="Cantidad y detalle del corte ' + (i + 1) + '">'
+          + '<div class="chips frio">' + ['FRESCO', 'CONGELADO'].map(function (x) { return '<button type="button" class="btn sm" data-act="frio" data-i="' + i + '" data-v="' + x + '" aria-pressed="' + (c.frio === x) + '">' + (x === 'FRESCO' ? 'Fresco' : 'Congelado') + '</button>'; }).join('') + '</div>'
           + '<button type="button" class="btn x" data-act="c-quitar" data-i="' + i + '" aria-label="Quitar este corte">✕</button></div>';
       }).join('')
       + '<datalist id="l-cortes">' + CORTES.map(function (c) { return '<option value="' + c + '">'; }).join('') + '</datalist>'
@@ -79,6 +78,7 @@
     return h;
   }
 
+  function badgeFrio(f) { return '<span class="badge ' + (f === 'CONGELADO' ? 'cong' : 'fresco') + '">' + esc(f) + '</span>'; }
   function estadoBadge(v) {
     if (v.estado === 'aceptado') return '<span class="badge ok">Aceptado</span>';
     if (v.estado === 'rechazado') return '<span class="badge no">Rechazado</span>';
@@ -95,10 +95,10 @@
     if (!l.length) h += '<p class="muted">No hay pedidos en esta lista.</p>';
     l.forEach(function (v) {
       var id = esc(v.id);
-      h += '<div class="mio"><div class="mio-cab"><span class="nom">' + esc(v.cliente) + '</span>' + estadoBadge(v) + (v.frio ? ' <span class="badge ' + (v.frio === 'CONGELADO' ? 'cong' : 'fresco') + '">' + esc(v.frio) + '</span>' : '') + '</div>'
+      h += '<div class="mio"><div class="mio-cab"><span class="nom">' + esc(v.cliente) + '</span>' + estadoBadge(v) + '</div>'
         + '<p class="small muted">Entrega el ' + esc(diaTxt(v.entrega)) + (v.creado ? ' · cargado el ' + esc(v.creado) : '') + '</p><ul>';
       if (+v.medias) h += '<li><b>Medias</b> ' + n(+v.medias) + (v.peso ? ' · ' + esc(v.peso) : '') + '</li>';
-      (v.cortes || []).forEach(function (c) { h += '<li><b>' + esc(c.corte) + '</b> ' + esc(c.texto) + '</li>'; });
+      (v.cortes || []).forEach(function (c) { h += '<li><b>' + esc(c.corte) + '</b> ' + esc(c.texto) + (c.frio ? ' ' + badgeFrio(c.frio) : '') + '</li>'; });
       h += '</ul>' + (v.nota ? '<p class="small">' + esc(v.nota) + '</p>' : '');
       if (v.estado === 'rechazado' && v.motivo) h += '<p class="small"><b>Motivo:</b> ' + esc(v.motivo) + '</p>';
       if (v.estado === 'pendiente') h += '<div class="acciones"><button class="btn sm" data-act="editar" data-id="' + id + '">Editar</button>'
@@ -120,7 +120,9 @@
   function enviar() {
     leerForm();
     var f = S.form, medias = Math.max(0, Math.round(+f.medias || 0));
-    var cortes = f.cortes.map(function (c) { return { corte: mayus(c.corte), texto: mayus(c.texto) }; }).filter(function (c) { return c.corte || c.texto; });
+    var cortes = f.cortes.map(function (c) { return { corte: mayus(c.corte), texto: mayus(c.texto), frio: c.frio || '' }; }).filter(function (c) { return c.corte || c.texto; });
+    // Si todos los cortes van igual, el pedido lleva ese cartelito; si se mezclan, va en cada corte.
+    var frios = cortes.map(function (c) { return c.frio; }), frio = frios.length && frios.every(function (x) { return x && x === frios[0]; }) ? frios[0] : '';
     if (!mayus(f.cliente)) return aviso('Falta el cliente.', true);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(f.entrega || '')) return aviso('Falta la fecha de entrega.', true);
     if (f.entrega < hoy()) return aviso('La fecha de entrega ya pasó.', true);
@@ -129,7 +131,7 @@
     if (!medias && !cortes.length) return aviso('Cargá medias o al menos un corte.', true);
     var previo = f.id ? S.ventas.filter(function (v) { return v.id === f.id; })[0] : null;
     if (previo && previo.estado !== 'pendiente') return aviso('Este pedido ya fue revisado por Qualitá y no se puede cambiar.', true);
-    var doc = { vendedor: S.user.email, nombre: S.nombre || '', cliente: mayus(f.cliente), entrega: f.entrega, medias: medias, peso: String(f.peso || '').trim(), frio: f.frio || '',
+    var doc = { vendedor: S.user.email, nombre: S.nombre || '', cliente: mayus(f.cliente), entrega: f.entrega, medias: medias, peso: String(f.peso || '').trim(), frio: frio,
       cortes: cortes, nota: String(f.nota || '').trim(), estado: 'pendiente', creado: previo ? previo.creado : ahoraTxt(), ts: previo ? previo.ts : Date.now() };
     if (previo) doc.editado = ahoraTxt();
     var id = f.id || 'v' + uid(), boton = document.querySelector('[data-act="enviar"]');
@@ -147,16 +149,16 @@
     if (a === 'ingresar') store.signIn().catch(function () {});
     else if (a === 'salir') store.signOut();
     else if (a === 'reintentar') { S.estado = 'cargando'; render(); revisar(S.user); }
-    else if (a === 'frio') { leerForm(); var v = b.getAttribute('data-v'); S.form.frio = S.form.frio === v ? '' : v; render(); }
-    else if (a === 'c-agregar') { leerForm(); S.form.cortes.push({ corte: '', texto: '' }); render(); var u = document.querySelectorAll('[data-c="corte"]'); if (u.length) u[u.length - 1].focus(); }
-    else if (a === 'c-quitar') { leerForm(); S.form.cortes.splice(+b.getAttribute('data-i'), 1); if (!S.form.cortes.length) S.form.cortes.push({ corte: '', texto: '' }); render(); }
+    else if (a === 'frio') { leerForm(); var v = b.getAttribute('data-v'), cf = S.form.cortes[+b.getAttribute('data-i')]; if (cf) cf.frio = cf.frio === v ? '' : v; render(); }
+    else if (a === 'c-agregar') { leerForm(); S.form.cortes.push({ corte: '', texto: '', frio: '' }); render(); var u = document.querySelectorAll('[data-c="corte"]'); if (u.length) u[u.length - 1].focus(); }
+    else if (a === 'c-quitar') { leerForm(); S.form.cortes.splice(+b.getAttribute('data-i'), 1); if (!S.form.cortes.length) S.form.cortes.push({ corte: '', texto: '', frio: '' }); render(); }
     else if (a === 'enviar') enviar();
     else if (a === 'cancelar') { S.form = formVacio(); S.msg = ''; render(); }
     else if (a === 'filtro') { leerForm(); S.filtro = b.getAttribute('data-v'); render(); }
     else if (a === 'editar') {
       var v2 = S.ventas.filter(function (x) { return x.id === id; })[0]; if (!v2) return;
-      S.form = { id: v2.id, cliente: v2.cliente, entrega: v2.entrega, medias: v2.medias || '', peso: v2.peso || '', frio: v2.frio || '', nota: v2.nota || '', cortes: clone(v2.cortes || []) };
-      if (!S.form.cortes.length) S.form.cortes.push({ corte: '', texto: '' });
+      S.form = { id: v2.id, cliente: v2.cliente, entrega: v2.entrega, medias: v2.medias || '', peso: v2.peso || '', nota: v2.nota || '', cortes: clone(v2.cortes || []).map(function (c) { c.frio = c.frio || v2.frio || ''; return c; }) };
+      if (!S.form.cortes.length) S.form.cortes.push({ corte: '', texto: '', frio: '' });
       S.msg = ''; render(); $('form').scrollIntoView({ behavior: 'smooth' });
     }
     else if (a === 'borrar') {
