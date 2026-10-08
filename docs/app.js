@@ -28,7 +28,7 @@
   var SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
   var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
   var TABS = ['inicio', 'pedidos', 'produccion', 'logistica', 'medias', 'clientes'];
-  var CORTES_BASE = ['JAMON', 'PALETA', 'PECHO', 'CARRE', 'SOLOMILLO', 'MATAMBRE', 'BONDIOLA', 'RECORTE', 'GRASA BUENA', 'GRASA MALA', 'CUERO', 'TAPA DE PALETA', 'TAPA DE JAMON', 'TORTUGA', 'GARRON', 'TOCINO', 'CHURRASCO', 'PAPADA', 'OREJAS', 'CABEZA', 'PULMON', 'HIGADO', 'PATAS Y MANOS'];
+  var CORTES_BASE = ['JAMON', 'PALETA', 'PECHO', 'CARRE', 'SOLOMILLO', 'MATAMBRE', 'BONDIOLA', 'RECORTE', 'GRASA BUENA', 'GRASA MALA', 'CUERO', 'TAPA DE PALETA', 'TAPA DE JAMON', 'TORTUGA', 'GARRON', 'TOCINO', 'CHURRASCO', 'PAPADA', 'OREJAS', 'CABEZA', 'PULMON', 'HIGADO', 'PATAS Y MANOS', 'HUESITOS', 'UNTO', 'MENUDENCIAS', 'EMBUTIDOS'];
 
   var S = {
     faena: null, prod: null, pedidos: null, config: {}, ia: {}, status: 'loading', fuente: '',
@@ -1216,7 +1216,24 @@
   /* ---------- pedidos de vendedores ----------
      Los vendedores externos cargan desde /vendedor; quedan en "ventas" como pendientes hasta que acá
      se aceptan (pasan a ser un pedido más) o se rechazan. El vendedor ve el estado desde su página. */
-  function ventasPendientes() { return (S.ventas || []).filter(function (v) { return v.estado === 'pendiente'; }).sort(function (a, b) { return String(a.entrega).localeCompare(String(b.entrega)) || (a.ts || 0) - (b.ts || 0); }); }
+  // Filtro por vendedor (S.fv): '' todos, '-' los cargados por Qualitá, o el mail del vendedor.
+  function pasaFiltro(mail) { return !S.fv || (S.fv === '-' ? !mail : mail === S.fv); }
+  function vendedoresConocidos() {
+    var vs = {};
+    (S.ventas || []).forEach(function (v) { if (v.vendedor) vs[v.vendedor] = nombreVend(v); });
+    (S.pedidos || []).forEach(function (p) { if (p.vendedor && !vs[p.vendedor]) vs[p.vendedor] = p.vendedorNombre || p.vendedor.split('@')[0]; });
+    return vs;
+  }
+  function filtroVendHTML() {
+    var vs = vendedoresConocidos(), ks = Object.keys(vs).sort(function (a, b) { return vs[a].localeCompare(vs[b]); });
+    if (!ks.length) return '';
+    if (S.fv && S.fv !== '-' && !vs[S.fv]) S.fv = '';
+    var b = function (v, t) { return '<button class="btn sm chip" data-act="fv" data-v="' + esc(v) + '" aria-pressed="' + ((S.fv || '') === v) + '">' + esc(t) + '</button>'; };
+    return '<div class="filtro-vend"><span class="small muted">Vendedor:</span>' + b('', 'Todos') + ks.map(function (k) { return b(k, vs[k]); }).join('') + b('-', 'Sin vendedor') + '</div>';
+  }
+  function ventasPendientes(todas) { return (S.ventas || []).filter(function (v) { return v.estado === 'pendiente' && (todas || pasaFiltro(v.vendedor)); }).sort(function (a, b) { return String(a.entrega).localeCompare(String(b.entrega)) || (a.ts || 0) - (b.ts || 0); }); }
+  // Si el vendedor eligió un producto de la lista, va en el texto con su código, como en los pedidos leídos: "10 CAJAS BONDIOLA – CAJAS X 10 UNID. (ART 101)".
+  function textoVenta(c) { return [c.texto, c.producto ? c.producto + (c.art ? ' (ART ' + c.art + ')' : '') : ''].filter(Boolean).join(' '); }
   function nombreVend(v) { return v.nombre || String(v.vendedor || '').split('@')[0]; }
   function ventasHTML() {
     var l = ventasPendientes();
@@ -1225,10 +1242,10 @@
       + '<p class="small muted">Al aceptarlo pasa a ser un pedido más del día de entrega, y el vendedor lo ve como aceptado.</p>';
     l.forEach(function (v) {
       var id = esc(v.id), cs = (v.cortes || []).filter(function (c) { return c.texto || c.corte; }), cta = cuentaDe(v.cliente);
-      h += '<div class="venta"><div class="venta-cab"><span class="nom">' + esc(v.cliente) + '</span>' + ctaHTML(cta, false)
-        + (v.frio ? ' ' + frioBadge(v.frio) : '') + '<span class="small muted">Entrega ' + esc(diaCorto(v.entrega)) + ' · ' + esc(nombreVend(v)) + (v.creado ? ' · ' + esc(v.creado) : '') + '</span></div><ul class="venta-det">';
+      h += '<div class="venta"><div class="venta-cab"><span class="badge vend">Vendedor: ' + esc(nombreVend(v)) + '</span><span class="nom">' + esc(v.cliente) + '</span>' + ctaHTML(cta, false)
+        + (v.frio ? ' ' + frioBadge(v.frio) : '') + '<span class="small muted">Entrega ' + esc(diaCorto(v.entrega)) + (v.creado ? ' · cargado el ' + esc(v.creado) : '') + '</span></div><ul class="venta-det">';
       if (+v.medias) h += '<li><b>Medias</b> ' + n(+v.medias) + (v.peso ? ' · ' + esc(v.peso) : '') + '</li>';
-      cs.forEach(function (c) { h += '<li><b>' + esc(c.corte || '') + '</b> ' + esc(c.texto || '') + (c.frio && c.frio !== v.frio ? ' ' + frioBadge(c.frio) : '') + '</li>'; });
+      cs.forEach(function (c) { h += '<li><b>' + esc(c.corte || '') + '</b> ' + esc(textoVenta(c)) + (c.frio && c.frio !== v.frio ? ' ' + frioBadge(c.frio) : '') + '</li>'; });
       h += '</ul>' + (v.nota ? '<p class="small">' + esc(v.nota) + '</p>' : '')
         + '<div class="acciones"><button class="btn sm pri" data-act="v-aceptar" data-id="' + id + '">Aceptar</button>'
         + '<input type="text" id="v-motivo-' + id + '" class="v-motivo" value="' + esc((S.vmot || {})[v.id] || '') + '" placeholder="Motivo (si lo rechazás)" aria-label="Motivo del rechazo">'
@@ -1238,7 +1255,7 @@
   }
   function aceptarVenta(v) {
     var q = { cliente: v.cliente, entrega: v.entrega, medias: v.medias, peso: v.peso, frio: v.frio, nota: v.nota, origen: 'vendedor', vendedor: v.vendedor, vendedorNombre: nombreVend(v),
-      cuenta: cuentaDe(v.cliente) || '', cortes: (v.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { k: uid(), corte: c.corte, texto: c.texto, frio: c.frio || '', orden: true }; }) };
+      cuenta: cuentaDe(v.cliente) || '', cortes: (v.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { k: uid(), corte: c.corte, texto: textoVenta(c), frio: c.frio || '', orden: true }; }) };
     q.nuevoId = 'p' + uid();
     return guardarPropuesta(q, true).then(function () {
       var x = clone(v); delete x.id; x.estado = 'aceptado'; x.revisado = ahoraTxt(); x.por = S.user ? S.user.email : ''; x.pedido = q.nuevoId;
@@ -1273,7 +1290,7 @@
     var h = '<div class="panel carga"><h2>Cargar pedidos</h2>' + cargaHTML('q-nuevo');
     var nuevas = S.prop.filter(function (x) { return !x.editaId; });
     if (nuevas.length) h += S.prop.map(function (q, i) { return q.editaId ? '' : propHTML(q, i); }).join('') + (nuevas.length > 1 ? '<div class="acciones"><button class="btn pri" data-act="q-todos">Guardar todos</button>' + botonBorrar('q-descartar-todos', null, 'Descartar todos', '') + '</div>' : '');
-    h += '</div>' + ventasHTML();
+    h += '</div>' + filtroVendHTML() + ventasHTML();
 
     S.prop.forEach(function (q, k) { if (q.editaId) h += '<div class="panel"><h3>Editando: ' + esc(q.cliente || 'pedido') + '</h3>' + propHTML(q, k) + '</div>'; });
 
@@ -1281,14 +1298,14 @@
     var hy = hoy(), m = enProduccion();
     if (S.pedDia) { S.pd = S.pedDia; S.pedDia = null; }
     if (!S.pd) S.pd = habilSiguiente(hy);
-    var f = S.pd, lista = (S.pedidos || []).filter(function (p) { return p.entrega === f; }), tild = S.selDia === f ? lista.filter(function (p) { return S.sel[p.id]; }) : [];
+    var f = S.pd, lista = (S.pedidos || []).filter(function (p) { return p.entrega === f && pasaFiltro(p.vendedor); }), tild = S.selDia === f ? lista.filter(function (p) { return S.sel[p.id]; }) : [];
     h += '<section class="dia-ped" id="dia-' + f + '"><div class="nav nav-ped"><button class="btn step" data-act="pd" data-d="-1" aria-label="Día anterior">‹</button>'
       + '<span class="tit">' + esc(tituloDe(f)) + (f === hy ? ' <span class="tag">hoy</span>' : f === mas(hy, 1) ? ' <span class="tag">mañana</span>' : '') + '</span>'
       + '<button class="btn step" data-act="pd" data-d="1" aria-label="Día siguiente">›</button><input type="date" id="pd-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">'
       + (f !== habilSiguiente(hy) ? '<button class="btn" data-act="pd-ir" data-f="' + habilSiguiente(hy) + '">Volver a mañana</button>' : '')
       + (lista.length ? botonBorrar('ped-borrar-todos', f, 'Eliminar todos los pedidos') : '') + '</div>';
     // Aviso de los otros días que tienen pedidos cargados, para no perderlos de vista.
-    var otros = {}; (S.pedidos || []).forEach(function (p) { if (p.entrega && p.entrega !== f && p.entrega >= hy) otros[p.entrega] = (otros[p.entrega] || 0) + 1; });
+    var otros = {}; (S.pedidos || []).forEach(function (p) { if (p.entrega && p.entrega !== f && p.entrega >= hy && pasaFiltro(p.vendedor)) otros[p.entrega] = (otros[p.entrega] || 0) + 1; });
     var ko = Object.keys(otros).sort();
     if (ko.length) h += '<p class="otros-dias"><span class="small muted">Otros días con pedidos:</span>' + ko.map(function (d) { return '<button class="btn sm" data-act="pd-ir" data-f="' + d + '">' + esc(diaCorto(d)) + ' <b>' + otros[d] + '</b></button>'; }).join('') + '</p>';
     if (tild.length) h += barraCamionHTML(f, tild);
@@ -1414,7 +1431,7 @@
     var rot = function (d) { return (d === h ? 'Hoy · ' : d === mas(h, 1) ? 'Mañana · ' : '') + tituloDe(d); };
     var neg = function (k, uno, muchos) { return '<strong>' + n(k) + '</strong> ' + plural(k, uno, muchos); };
     var pie = function (txt) { return '<span class="t-dia">' + esc(rot(sig)) + '</span><span>' + txt + '</span>'; };
-    if (S.editor && ventasPendientes().length) { var nv = ventasPendientes().length; html += '<button class="aviso-vend" data-act="ir-ventas"><strong>' + nv + '</strong> ' + plural(nv, 'pedido de vendedor para revisar', 'pedidos de vendedores para revisar') + ' <span aria-hidden="true">›</span></button>'; }
+    if (S.editor && ventasPendientes(true).length) { var nv = ventasPendientes(true).length; html += '<button class="aviso-vend" data-act="ir-ventas"><strong>' + nv + '</strong> ' + plural(nv, 'pedido de vendedor para revisar', 'pedidos de vendedores para revisar') + ' <span aria-hidden="true">›</span></button>'; }
     if (S.editor) {
       var deDia = function (d) { return (S.pedidos || []).filter(function (p) { return p.entrega === d; }); };
       var ph = deDia(f), ps = deDia(sig), mas2 = (S.pedidos || []).filter(function (p) { return p.entrega > sig; }).length;
@@ -1614,6 +1631,7 @@
       renderPedidos();
     }
     else if (a === 'ped-editar') editarPedido(D.id);
+    else if (a === 'fv') { S.fv = D.v || ''; renderPedidos(); }
     else if (a === 'ir-ventas') { irA('pedidos'); var vs = $('ventas'); if (vs) vs.scrollIntoView(); }
     else if (a === 'v-aceptar' || a === 'v-rechazar') {
       var vv = (S.ventas || []).filter(function (x) { return x.id === D.id; })[0];
@@ -1878,7 +1896,7 @@
           if (!suscripto) {
             suscripto = true;
             store.sub('pedidos', function (l) { S.pedidos = ordenar(l); conciliarLog(); renderDatos(); });
-            store.sub('ventas', function (l) { var antes = ventasPendientes().length; S.ventas = l; if (antes !== ventasPendientes().length && (S.tab === 'pedidos' || S.tab === 'inicio')) renderDatos(); });
+            store.sub('ventas', function (l) { var antes = ventasPendientes(true).length; S.ventas = l; if (antes !== ventasPendientes(true).length && (S.tab === 'pedidos' || S.tab === 'inicio')) renderDatos(); });
             store.sub('privado', function (l) {
               var fl = {}, antesF = JSON.stringify(S.fletes || {});
               l.forEach(function (x) { if (String(x.id).indexOf('fletes-') === 0) fl[x.id.slice(7)] = x; });

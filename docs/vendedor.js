@@ -15,7 +15,87 @@
       storageBucket: 'qualita-produccion.firebasestorage.app'
     }
   };
-  var CORTES = ['JAMON', 'PALETA', 'PECHO', 'CARRE', 'SOLOMILLO', 'MATAMBRE', 'BONDIOLA', 'RECORTE', 'GRASA BUENA', 'GRASA MALA', 'CUERO', 'TAPA DE PALETA', 'TAPA DE JAMON', 'TORTUGA', 'GARRON', 'TOCINO', 'CHURRASCO', 'PAPADA', 'OREJAS', 'CABEZA', 'PULMON', 'HIGADO', 'PATAS Y MANOS'];
+  // Productos de la lista de precios (solo código y nombre; los precios no se publican). El tercer dato es el rubro de la orden de producción.
+  var PRODUCTOS = [
+    [101, "Bondiola – Cajas x 10 Unid.", "BONDIOLA"],
+    [131, "Paleta c/hueso s/cuero – Cajas x 4 Unid.", "PALETA"],
+    [132, "Paleta c/hueso c/cuero – Cajas x 4 Unid.", "PALETA"],
+    [134, "Pulpa Paleta c/cuero y s/hueso", "PALETA"],
+    [139, "Paleta industrial – Cajas x 20 kgs.", "PALETA"],
+    [141, "Paleta pulpa al rojo – Cajas x 20 kgs.", "PALETA"],
+    [156, "Tapa de Paleta congelada", "TAPA DE PALETA"],
+    [203, "Parrillero completo s/cuero", "PECHO"],
+    [211, "Pechito con manta simple – Cajas x 5 Unid.", "PECHO"],
+    [231, "Matambrito – Cajas x 10 Unid.", "MATAMBRE"],
+    [241, "Churrasquito – Cajas x 20 kgs.", "CHURRASCO"],
+    [251, "Panceta piano - Cajas x 4 Unid", "PECHO"],
+    [271, "Carre con hueso s/solomillo – Cajas x 5 Unid.", "CARRE"],
+    [281, "Carre con hueso c/solomillo – Cajas x 5 Unid.", "CARRE"],
+    [285, "Solomillo – Cajas x 20 kgs.", "SOLOMILLO"],
+    [289, "Cinta de lomo – Cajas x 20 kgs.", "CARRE"],
+    [315, "Jamon c/hueso y c/cuero – Cajas x 2 Unid.", "JAMON"],
+    [318, "Jamon con hueso sin cuero – Cajas x 2 Unid.", "JAMON"],
+    [319, "Nalga - Cajas x 20 kgs.", "JAMON"],
+    [321, "jamon sin cuero sin hueso y sin grasa – Cajas x 20 kgs.", "JAMON"],
+    [322, "Cuadril - Cajas x 20 kgs.", "JAMON"],
+    [324, "Peceto - Cajas x 20 kgs.", "JAMON"],
+    [327, "Bola de Lomo - Cajas x 20 kgs.", "JAMON"],
+    [329, "Cuadrada - Cajas x 20 kgs.", "JAMON"],
+    [336, "Tapa de Jamón congelada", "TAPA DE JAMON"],
+    [341, "Jamon 5 musculos – Cajas x 20 kgs.", "JAMON"],
+    [349, "Jamón industrial – Cajas x 20 kgs.", "JAMON"],
+    [361, "Recorte de 2º (80-20) – Cajas x 20 kgs.", "RECORTE"],
+    [369, "Recorte 50/50 – Congelado Cajas x 20 kgs.", "RECORTE"],
+    [381, "Tortuga – Cajas x 20 kgs.", "TORTUGA"],
+    [401, "Garron – Cajas x 20 kgs.", "GARRON"],
+    [406, "Patas – Manos – Cajas x 20 kgs.", "PATAS Y MANOS"],
+    [411, "Cuero – Cajas x 20 kgs.", "CUERO"],
+    [421, "Huesitos – Cajas x 20 kgs.", "HUESITOS"],
+    [431, "Cabezas", "CABEZA"],
+    [441, "Recorte de cabezas", "CABEZA"],
+    [461, "Tocino – Cajas x 20 kgs.", "TOCINO"],
+    [471, "Unto – Boneles x 20 kgs.", "UNTO"],
+    [481, "Grasa – Cajas x 20 kgs.", "GRASA BUENA"],
+    [501, "Lengua – Cajas x 10 kgs.", "MENUDENCIAS"],
+    [502, "Higado – Cajas x 20 kgs.", "HIGADO"],
+    [503, "Corazon – Cajas x 20 kgs.", "MENUDENCIAS"],
+    [504, "Centro Entraña – Cajas x 20 kgs.", "MENUDENCIAS"],
+    [505, "Riñon – Cajas x 20 kgs.", "MENUDENCIAS"],
+    [506, "Rabo – Cajas x 10 kgs.", "MENUDENCIAS"],
+    [508, "Panza – Cajas x 20 kgs.", "MENUDENCIAS"],
+    [509, "Oreja – Cajas x 10 kgs.", "OREJAS"],
+    [520, "Chinchulin – Cajas x 10 kgs.", "MENUDENCIAS"],
+    [600, "Sangre", "MENUDENCIAS"],
+    [2000, "Chorizo fresco especial (gancho o caja)", "EMBUTIDOS"],
+    [2005, "Chorizo fresco especial E.V. - rosca (caja)", "EMBUTIDOS"],
+    [2007, "Chorizo fresco especial E.V. X 4 Unid. (caja)", "EMBUTIDOS"],
+    [2003, "Chorizo bombón fresco especial (gancho o caja)", "EMBUTIDOS"],
+    [2006, "Chorizo bombón fresco espec. E.V.- rosca (caja)", "EMBUTIDOS"],
+    [2101, "Chorizo bombón fresco espec. E.V.x 6 Un. (caja)", "EMBUTIDOS"],
+    [2015, "Chorizo bombón fresco espec. E.V.x 4 Un. (caja)", "EMBUTIDOS"],
+    [2051, "Chorizo especial en bandeja x 4 unidades", "EMBUTIDOS"],
+    [2053, "Chorizo bombón en bandeja x 8 unidades", "EMBUTIDOS"],
+    [2001, "Morcilla fresca (gancho o caja)", "EMBUTIDOS"],
+    [2009, "Morcilla fresca E.V. - rosca (caja)", "EMBUTIDOS"],
+    [2011, "Morcilla fresca E.V. X 4 Unidades (caja)", "EMBUTIDOS"],
+    [2004, "Morcilla bombón fresca (gancho o caja)", "EMBUTIDOS"],
+    [2010, "Morcilla bombón fresca E.V.-rosca (caja)", "EMBUTIDOS"],
+    [2012, "Morcilla bombón fresca E.V. X 6 Unidades (caja)", "EMBUTIDOS"],
+    [2061, "Morcilla en bandeja x 2 unidades", "EMBUTIDOS"],
+    [2108, "Morcilla bombón en bandeja x 8 unidades", "EMBUTIDOS"],
+    [2100, "Morcilla Bombón fresca x 4 unid.E.V.", "EMBUTIDOS"],
+    [2002, "Salchicha fresca (gancho o caja)", "EMBUTIDOS"],
+    [2110, "Salchicha fresca E.V.-rosca (caja)", "EMBUTIDOS"],
+    [2112, "Salchicha fresca E.V.x 6 unid. (caja)", "EMBUTIDOS"],
+    [2115, "Salchicha en bandeja", "EMBUTIDOS"]
+  ];
+  function etiqueta(p) { return p[0] + ' · ' + p[1]; }
+  // Lo que se escribe en "Producto": si coincide con uno de la lista se guarda con su código y su rubro.
+  function buscarProducto(txt) {
+    var s = String(txt || '').trim(), m = s.match(/^(\d{3,4})\b/);
+    return PRODUCTOS.filter(function (p) { return etiqueta(p) === s || (m && String(p[0]) === m[1]); })[0] || null;
+  }
+  function nombreCorte(c) { return c.producto ? c.producto + (c.art ? ' (ART ' + c.art + ')' : '') : c.corte; }
   var DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
   var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
@@ -62,15 +142,15 @@
       + '<label class="campo"><span>Medias (van frescas)</span><input type="number" inputmode="numeric" min="0" id="f-medias" value="' + esc(f.medias) + '" placeholder="0"></label>'
       + '<label class="campo"><span>Peso de las medias</span><input type="text" id="f-peso" value="' + esc(f.peso) + '" placeholder="Opcional, ej. 90 a 100 kg"></label>'
       + '</div>'
-      + '<div class="cortes"><h3>Cortes</h3><div class="cortes-tit"><span>Corte</span><span>Cantidad y detalle</span><span>Fresco o congelado</span><span></span></div>'
+      + '<div class="cortes"><h3>Productos</h3><div class="cortes-tit"><span>Producto</span><span>Cantidad</span><span>Fresco o congelado</span><span></span></div>'
       + f.cortes.map(function (c, i) {
-        return '<div class="corte"><input type="text" list="l-cortes" data-c="corte" data-i="' + i + '" value="' + esc(c.corte) + '" placeholder="Corte" aria-label="Corte ' + (i + 1) + '">'
-          + '<input type="text" class="det" data-c="texto" data-i="' + i + '" value="' + esc(c.texto) + '" placeholder="Ej. 10 CAJAS, 300 KG" aria-label="Cantidad y detalle del corte ' + (i + 1) + '">'
+        return '<div class="corte"><input type="text" list="l-cortes" data-c="corte" data-i="' + i + '" value="' + esc(c.corte) + '" placeholder="Escribí el nombre o el código" aria-label="Producto ' + (i + 1) + '">'
+          + '<input type="text" class="det" data-c="texto" data-i="' + i + '" value="' + esc(c.texto) + '" placeholder="Ej. 10 cajas, 300 kg" aria-label="Cantidad del producto ' + (i + 1) + '">'
           + '<div class="chips frio">' + ['FRESCO', 'CONGELADO'].map(function (x) { return '<button type="button" class="btn sm" data-act="frio" data-i="' + i + '" data-v="' + x + '" aria-pressed="' + (c.frio === x) + '">' + (x === 'FRESCO' ? 'Fresco' : 'Congelado') + '</button>'; }).join('') + '</div>'
-          + '<button type="button" class="btn x" data-act="c-quitar" data-i="' + i + '" aria-label="Quitar este corte">✕</button></div>';
+          + '<button type="button" class="btn x" data-act="c-quitar" data-i="' + i + '" aria-label="Quitar este producto">✕</button></div>';
       }).join('')
-      + '<datalist id="l-cortes">' + CORTES.map(function (c) { return '<option value="' + c + '">'; }).join('') + '</datalist>'
-      + '<div><button type="button" class="btn sm" data-act="c-agregar">+ Agregar corte</button></div></div>'
+      + '<datalist id="l-cortes">' + PRODUCTOS.map(function (p) { return '<option value="' + esc(etiqueta(p)) + '">'; }).join('') + '</datalist>'
+      + '<div><button type="button" class="btn sm" data-act="c-agregar">+ Agregar producto</button></div></div>'
       + '<label class="campo"><span>Nota</span><textarea id="f-nota" placeholder="Horario, dirección, lo que haga falta">' + esc(f.nota) + '</textarea></label>'
       + '<div class="acciones"><button class="btn pri grande" data-act="enviar">' + (edita ? 'Guardar cambios' : 'Enviar pedido') + '</button>'
       + (edita ? '<button class="btn" data-act="cancelar">Cancelar</button>' : '')
@@ -98,7 +178,7 @@
       h += '<div class="mio"><div class="mio-cab"><span class="nom">' + esc(v.cliente) + '</span>' + estadoBadge(v) + '</div>'
         + '<p class="small muted">Entrega el ' + esc(diaTxt(v.entrega)) + (v.creado ? ' · cargado el ' + esc(v.creado) : '') + '</p><ul>';
       if (+v.medias) h += '<li><b>Medias</b> ' + n(+v.medias) + (v.peso ? ' · ' + esc(v.peso) : '') + '</li>';
-      (v.cortes || []).forEach(function (c) { h += '<li><b>' + esc(c.corte) + '</b> ' + esc(c.texto) + (c.frio ? ' ' + badgeFrio(c.frio) : '') + '</li>'; });
+      (v.cortes || []).forEach(function (c) { h += '<li><b>' + esc(nombreCorte(c)) + '</b> ' + esc(c.texto) + (c.frio ? ' ' + badgeFrio(c.frio) : '') + '</li>'; });
       h += '</ul>' + (v.nota ? '<p class="small">' + esc(v.nota) + '</p>' : '');
       if (v.estado === 'rechazado' && v.motivo) h += '<p class="small"><b>Motivo:</b> ' + esc(v.motivo) + '</p>';
       if (v.estado === 'pendiente') h += '<div class="acciones"><button class="btn sm" data-act="editar" data-id="' + id + '">Editar</button>'
@@ -120,15 +200,19 @@
   function enviar() {
     leerForm();
     var f = S.form, medias = Math.max(0, Math.round(+f.medias || 0));
-    var cortes = f.cortes.map(function (c) { return { corte: mayus(c.corte), texto: mayus(c.texto), frio: c.frio || '' }; }).filter(function (c) { return c.corte || c.texto; });
+    var cortes = f.cortes.filter(function (c) { return String(c.corte || '').trim() || String(c.texto || '').trim(); }).map(function (c) {
+      var p = buscarProducto(c.corte), x = { corte: p ? p[2] : mayus(c.corte), texto: mayus(c.texto), frio: c.frio || '' };
+      if (p) { x.producto = mayus(p[1]); x.art = p[0]; }
+      return x;
+    });
     // Si todos los cortes van igual, el pedido lleva ese cartelito; si se mezclan, va en cada corte.
     var frios = cortes.map(function (c) { return c.frio; }), frio = frios.length && frios.every(function (x) { return x && x === frios[0]; }) ? frios[0] : '';
     if (!mayus(f.cliente)) return aviso('Falta el cliente.', true);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(f.entrega || '')) return aviso('Falta la fecha de entrega.', true);
     if (f.entrega < hoy()) return aviso('La fecha de entrega ya pasó.', true);
-    if (cortes.some(function (c) { return !c.texto; })) return aviso('Escribí la cantidad de cada corte.', true);
-    if (cortes.some(function (c) { return !c.corte; })) return aviso('Falta el nombre de algún corte.', true);
-    if (!medias && !cortes.length) return aviso('Cargá medias o al menos un corte.', true);
+    if (cortes.some(function (c) { return !c.texto; })) return aviso('Escribí la cantidad de cada producto.', true);
+    if (cortes.some(function (c) { return !c.corte; })) return aviso('Falta el producto en algún renglón.', true);
+    if (!medias && !cortes.length) return aviso('Cargá medias o al menos un producto.', true);
     var previo = f.id ? S.ventas.filter(function (v) { return v.id === f.id; })[0] : null;
     if (previo && previo.estado !== 'pendiente') return aviso('Este pedido ya fue revisado por Qualitá y no se puede cambiar.', true);
     var doc = { vendedor: S.user.email, nombre: S.nombre || '', cliente: mayus(f.cliente), entrega: f.entrega, medias: medias, peso: String(f.peso || '').trim(), frio: frio,
@@ -157,7 +241,7 @@
     else if (a === 'filtro') { leerForm(); S.filtro = b.getAttribute('data-v'); render(); }
     else if (a === 'editar') {
       var v2 = S.ventas.filter(function (x) { return x.id === id; })[0]; if (!v2) return;
-      S.form = { id: v2.id, cliente: v2.cliente, entrega: v2.entrega, medias: v2.medias || '', peso: v2.peso || '', nota: v2.nota || '', cortes: clone(v2.cortes || []).map(function (c) { c.frio = c.frio || v2.frio || ''; return c; }) };
+      S.form = { id: v2.id, cliente: v2.cliente, entrega: v2.entrega, medias: v2.medias || '', peso: v2.peso || '', nota: v2.nota || '', cortes: clone(v2.cortes || []).map(function (c) { var p = c.art && PRODUCTOS.filter(function (x) { return x[0] === c.art; })[0]; return { corte: p ? etiqueta(p) : c.corte, texto: c.texto, frio: c.frio || v2.frio || '' }; }) };
       if (!S.form.cortes.length) S.form.cortes.push({ corte: '', texto: '', frio: '' });
       S.msg = ''; render(); $('form').scrollIntoView({ behavior: 'smooth' });
     }
