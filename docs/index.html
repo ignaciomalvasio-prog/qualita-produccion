@@ -85,6 +85,12 @@ html,body{overflow-x:clip}
 .aviso-vend{display:flex;gap:6px;align-items:center;width:100%;margin:0 0 12px;padding:12px 14px;border:1px solid var(--warn);border-radius:10px;background:var(--warn-soft);color:var(--warn);font:inherit;font-size:16px;text-align:left;cursor:pointer}
 .aviso-vend span{margin-left:auto}
 .filtro-vend{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.v-fotos{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+.v-foto{padding:0;border:1px solid var(--line);border-radius:4px;background:none;cursor:zoom-in;line-height:0}
+.v-foto img{width:120px;height:120px;object-fit:cover;border-radius:4px}
+.v-fotos.grande .v-foto{cursor:zoom-out;flex-basis:100%}
+.v-fotos.grande .v-foto img{width:100%;max-width:900px;height:auto;object-fit:contain}
+.v-msg{white-space:pre-wrap;background:var(--sunken);padding:8px;border-radius:4px;margin:6px 0;max-height:220px;overflow:auto}
 
 .nav{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .nav .tit{font:700 26px/1.05 var(--display);text-transform:uppercase;min-width:0;flex:1 1 auto}

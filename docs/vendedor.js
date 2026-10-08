@@ -99,7 +99,7 @@
   var DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
   var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
-  var S = { estado: 'cargando', user: null, nombre: '', ventas: [], form: null, msg: '', err: false, c2: null, filtro: 'todos' };
+  var S = { adj: { fotos: [], msg: '' }, adjMsg: '', adjErr: false, enviando: false, estado: 'cargando', user: null, nombre: '', ventas: [], form: null, msg: '', err: false, c2: null, filtro: 'todos' };
   var store = null, desuscribir = null;
 
   function $(id) { return document.getElementById(id); }
@@ -128,13 +128,65 @@
       + '<div class="acciones"><button class="btn pri grande" data-act="ingresar">Ingresar con Google</button></div></div>';
     else if (S.estado === 'sin-permiso') h = '<div class="panel"><h2>Tu cuenta todavía no está habilitada</h2><p>Ingresaste como <b>' + esc(S.user.email) + '</b>. Pedile a Qualitá que te habilite esta cuenta como vendedor y después volvé a abrir la página.</p>'
       + '<div class="acciones"><button class="btn" data-act="reintentar">Ya me habilitaron</button><button class="btn lnk" data-act="salir">Ingresar con otra cuenta</button></div></div>';
-    else h = formHTML() + listaHTML();
+    else h = adjHTML() + formHTML() + listaHTML();
     el.innerHTML = h;
+  }
+
+  // Foto o mensaje: se manda tal cual y Qualitá lo lee con la IA, como hace Renzo con los pedidos que le llegan.
+  function adjHTML() {
+    var a = S.adj;
+    return '<div class="panel carga" id="adj"><h2>Mandar foto o mensaje</h2><p class="small">Sacale foto al pedido o pegá el mensaje de WhatsApp. Qualitá lo lee y lo carga; vos lo ves abajo en "Mis pedidos".</p>'
+      + '<div class="acciones"><label class="btn pri">Subir fotos<input type="file" id="adj-fotos" accept="image/*" multiple hidden></label><span class="small muted">Hasta 4 fotos por envío</span></div>'
+      + (a.fotos.length ? '<div class="miniaturas">' + a.fotos.map(function (b, i) { return '<div class="mini"><img src="data:image/jpeg;base64,' + b + '" alt="Foto ' + (i + 1) + '"><button type="button" class="btn x" data-act="adj-quitar" data-i="' + i + '" aria-label="Quitar la foto ' + (i + 1) + '">✕</button></div>'; }).join('') + '</div>' : '')
+      + '<label class="campo"><span>Mensaje (opcional)</span><textarea id="adj-msg" placeholder="Pegá acá el pedido o escribí una aclaración">' + esc(a.msg) + '</textarea></label>'
+      + '<div class="acciones"><button class="btn pri grande" data-act="adj-enviar"' + (S.enviando ? ' disabled' : '') + '>' + (S.enviando ? 'Enviando…' : 'Enviar a Qualitá') + '</button>'
+      + '<span class="msg' + (S.adjErr ? ' err' : '') + '" id="adj-aviso" role="status">' + esc(S.adjMsg) + '</span></div></div>'
+      + '<p class="o-mano">o cargalo a mano</p>';
+  }
+  function avisoAdj(t, err) { S.adjMsg = t; S.adjErr = !!err; var e = $('adj-aviso'); if (e) { e.textContent = t; e.className = 'msg' + (err ? ' err' : ''); } }
+  // Achica la foto para que entre en la base (hasta ~1 MB por envío entre todas).
+  function achicar(file, max, q) {
+    return new Promise(function (ok, no) {
+      var img = new Image(), url = URL.createObjectURL(file);
+      img.onload = function () {
+        var k = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement('canvas');
+        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+        ok(c.toDataURL('image/jpeg', q).split(',')[1]);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); no(new Error('No se pudo abrir la imagen.')); };
+      img.src = url;
+    });
+  }
+  function sumarFotos(files) {
+    var l = Array.prototype.slice.call(files || []).slice(0, Math.max(0, 4 - S.adj.fotos.length));
+    if (!l.length) { avisoAdj('Ya hay 4 fotos. Mandalas y después subí las demás.', true); return; }
+    leerAdj(); avisoAdj('Preparando ' + (l.length === 1 ? 'la foto' : 'las fotos') + '…');
+    var cuota = Math.floor(880000 / Math.min(4, S.adj.fotos.length + l.length));
+    Promise.all(l.map(function (f) {
+      if (window.__mock && window.__mock.foto) return Promise.resolve(window.__mock.foto(f.name));
+      // Primero con buena calidad; si queda pesada, se achica más hasta que entre.
+      var intentos = [[1800, 0.8], [1600, 0.72], [1400, 0.65], [1200, 0.6], [1000, 0.55]];
+      return (function prob(i) { return achicar(f, intentos[i][0], intentos[i][1]).then(function (b) { return b.length <= cuota || i === intentos.length - 1 ? b : prob(i + 1); }); })(0);
+    })).then(function (bs) { S.adj.fotos = S.adj.fotos.concat(bs); S.adjMsg = ''; render(); }, function (e) { avisoAdj(e.message, true); });
+  }
+  function leerAdj() { var m = $('adj-msg'); if (m) S.adj.msg = m.value; }
+  function enviarAdj() {
+    leerAdj();
+    var a = S.adj, msg = String(a.msg || '').trim();
+    if (!a.fotos.length && !msg) return avisoAdj('Subí una foto o pegá el mensaje.', true);
+    var peso = a.fotos.reduce(function (t, b) { return t + b.length; }, 0) + msg.length;
+    if (peso > 950000) return avisoAdj('Las fotos son muy pesadas. Mandalas de a una.', true);
+    var doc = { vendedor: S.user.email, nombre: S.nombre || '', tipo: 'archivo', cliente: '', entrega: '', medias: 0, cortes: [], fotos: a.fotos.slice(), mensaje: msg, estado: 'pendiente', creado: ahoraTxt(), ts: Date.now() };
+    S.enviando = true; render();
+    store.set('ventas', 'v' + uid(), doc).then(function () {
+      S.enviando = false; S.adj = { fotos: [], msg: '' }; S.adjMsg = 'Enviado. Qualitá ya lo puede ver.'; S.adjErr = false; render();
+    }, function () { S.enviando = false; render(); avisoAdj('No se pudo enviar. Revisá la conexión y probá de nuevo.', true); });
   }
 
   function formHTML() {
     var f = S.form || (S.form = formVacio()), edita = !!f.id;
-    var clientes = {}; S.ventas.forEach(function (v) { if (v.cliente) clientes[v.cliente] = 1; });
+    var clientes = {}; S.ventas.forEach(function (v) { if (v.cliente) clientes[v.cliente] = 1; (v.clientes ? String(v.clientes).split(', ') : []).forEach(function (c) { if (c) clientes[c] = 1; }); });
     var h = '<div class="panel carga" id="form"><h2>' + (edita ? 'Editando el pedido de ' + esc(f.cliente) : 'Nuevo pedido') + '</h2><div class="campos">'
       + '<label class="campo ancho"><span>Cliente</span><input type="text" id="f-cliente" list="l-clientes" autocomplete="off" value="' + esc(f.cliente) + '" placeholder="Nombre del cliente (y sucursal si tiene)"></label>'
       + '<datalist id="l-clientes">' + Object.keys(clientes).sort().map(function (c) { return '<option value="' + esc(c) + '">'; }).join('') + '</datalist>'
@@ -175,6 +227,16 @@
     if (!l.length) h += '<p class="muted">No hay pedidos en esta lista.</p>';
     l.forEach(function (v) {
       var id = esc(v.id);
+      if (v.tipo === 'archivo') {
+        var nf = (v.fotos || []).length;
+        h += '<div class="mio"><div class="mio-cab"><span class="nom">' + (nf ? (nf === 1 ? 'Foto' : nf + ' fotos') + (v.mensaje ? ' y mensaje' : '') : 'Mensaje') + '</span>' + estadoBadge(v) + '</div>'
+          + '<p class="small muted">' + (v.creado ? 'Enviado el ' + esc(v.creado) : '') + (v.leidos ? ' · Qualitá cargó ' + v.leidos + (v.leidos === 1 ? ' pedido' : ' pedidos') + (v.clientes ? ': ' + esc(v.clientes) : '') : '') + '</p>'
+          + (nf ? '<div class="miniaturas">' + v.fotos.map(function (b) { return '<div class="mini"><img src="data:image/jpeg;base64,' + b + '" alt=""></div>'; }).join('') + '</div>' : '')
+          + (v.mensaje ? '<p class="small msg-txt">' + esc(v.mensaje) + '</p>' : '');
+        if (v.estado === 'rechazado' && v.motivo) h += '<p class="small"><b>Motivo:</b> ' + esc(v.motivo) + '</p>';
+        if (v.estado === 'pendiente') h += '<div class="acciones"><button class="btn sm rojo" data-act="borrar" data-id="' + id + '">' + (S.c2 === 'borrar' + v.id ? 'Tocá de nuevo para borrarlo' : 'Borrar') + '</button></div>';
+        h += '</div>'; return;
+      }
       h += '<div class="mio"><div class="mio-cab"><span class="nom">' + esc(v.cliente) + '</span>' + estadoBadge(v) + '</div>'
         + '<p class="small muted">Entrega el ' + esc(diaTxt(v.entrega)) + (v.creado ? ' · cargado el ' + esc(v.creado) : '') + '</p><ul>';
       if (+v.medias) h += '<li><b>Medias</b> ' + n(+v.medias) + (v.peso ? ' · ' + esc(v.peso) : '') + '</li>';
@@ -191,6 +253,7 @@
 
   /* ---------- formulario ---------- */
   function leerForm() {
+    leerAdj();
     var f = S.form; if (!f || !$('f-cliente')) return;
     f.cliente = $('f-cliente').value; f.entrega = $('f-entrega').value; f.medias = $('f-medias').value; f.peso = $('f-peso').value; f.nota = $('f-nota').value;
     Array.prototype.forEach.call(document.querySelectorAll('[data-c]'), function (e) { var c = f.cortes[+e.getAttribute('data-i')]; if (c) c[e.getAttribute('data-c')] = e.value; });
@@ -226,6 +289,7 @@
     }, function () { if (boton) boton.disabled = false; aviso('No se pudo enviar. Revisá la conexión y probá de nuevo.', true); });
   }
 
+  document.addEventListener('change', function (e) { if (e.target && e.target.id === 'adj-fotos') { sumarFotos(e.target.files); e.target.value = ''; } });
   document.addEventListener('click', function (e) {
     var b = e.target.closest('[data-act]'); if (!b) return;
     var a = b.getAttribute('data-act'), id = b.getAttribute('data-id');
@@ -237,6 +301,8 @@
     else if (a === 'c-agregar') { leerForm(); S.form.cortes.push({ corte: '', texto: '', frio: '' }); render(); var u = document.querySelectorAll('[data-c="corte"]'); if (u.length) u[u.length - 1].focus(); }
     else if (a === 'c-quitar') { leerForm(); S.form.cortes.splice(+b.getAttribute('data-i'), 1); if (!S.form.cortes.length) S.form.cortes.push({ corte: '', texto: '', frio: '' }); render(); }
     else if (a === 'enviar') enviar();
+    else if (a === 'adj-enviar') enviarAdj();
+    else if (a === 'adj-quitar') { leerAdj(); S.adj.fotos.splice(+b.getAttribute('data-i'), 1); render(); }
     else if (a === 'cancelar') { S.form = formVacio(); S.msg = ''; render(); }
     else if (a === 'filtro') { leerForm(); S.filtro = b.getAttribute('data-v'); render(); }
     else if (a === 'editar') {

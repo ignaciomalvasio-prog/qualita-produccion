@@ -965,6 +965,10 @@
       return pedirIA([{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } }, { type: 'text', text: 'Leé los pedidos de esta imagen y cargalos.' }]);
     });
   }
+  function leerB64(b64, extra) {
+    if (window.__mock && window.__mock.ia) return Promise.resolve(window.__mock.ia('foto', extra || ''));
+    return pedirIA([{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } }, { type: 'text', text: 'Leé los pedidos de esta imagen y cargalos.' + (extra ? ' Aclaración que mandó el vendedor junto con la foto: ' + extra : '') }]);
+  }
   function leerTexto(txt, cli) {
     if (window.__mock && window.__mock.ia) return Promise.resolve(window.__mock.ia('texto', txt));
     return pedirIA([{ type: 'text', text: 'Este es un mensaje pegado con pedidos. Leelos y cargalos.' + (cli ? ' Todo el mensaje es de un solo cliente: ' + cli + '. Los bloques son sus sucursales.' : '') + '\n\n<mensaje>\n' + txt + '\n</mensaje>' }]);
@@ -1076,6 +1080,7 @@
       });
       if (x.j.planilla && x.j.planilla.length) planillas.push(x.j.planilla);
     });
+    if (ctx.vendedor) nuevos.forEach(function (q) { q.vendedor = ctx.vendedor.email; q.vendedorNombre = ctx.vendedor.nombre; q.origen = 'vendedor'; });
     nuevos = nuevos.filter(function (q) {
       var prev = (S.pedidos || []).filter(function (x) { return x.entrega === q.entrega && norm(x.cliente) === norm(q.cliente) && norm(q.cliente); });
       var igual = prev.filter(function (x) { return mismoPedido(x, q); })[0];
@@ -1089,6 +1094,7 @@
       if (soloMedias && !(q.cortes || []).some(function (c) { return c.texto; })) q.editaId = soloMedias.id;
       return true;
     });
+    if (ctx.vendedor) ctx.res = nuevos.map(function (q) { return String(q.cliente || '').toUpperCase().trim(); });
     var txtRep = repetidos ? (repetidos === 1 ? ' 1 pedido ya estaba cargado y no se repitió.' : ' ' + repetidos + ' pedidos ya estaban cargados y no se repitieron.') : '';
     // La planilla va a la semana que dice, sin preguntar. Si las fechas leídas son de una semana ya pasada,
     // es una mala lectura: va a la semana que se está cargando.
@@ -1240,7 +1246,20 @@
     if (!l.length) return '';
     var h = '<div class="panel ventas" id="ventas"><h2>Pedidos de vendedores <span class="badge vend">' + l.length + ' para revisar</span></h2>'
       + '<p class="small muted">Al aceptarlo pasa a ser un pedido más del día de entrega, y el vendedor lo ve como aceptado.</p>';
+    var conIA = !!(S.ia && S.ia.clave) || !!(window.__mock && window.__mock.ia);
     l.forEach(function (v) {
+      if (v.tipo === 'archivo') {
+        var vid = esc(v.id), nf = (v.fotos || []).length, gr = !!(S.vgrande || {})[v.id];
+        h += '<div class="venta"><div class="venta-cab"><span class="badge vend">Vendedor: ' + esc(nombreVend(v)) + '</span><span class="nom">' + (nf ? (nf === 1 ? 'Foto' : nf + ' fotos') + (v.mensaje ? ' y mensaje' : '') : 'Mensaje') + '</span>'
+          + '<span class="small muted">' + (v.creado ? 'Enviado el ' + esc(v.creado) : '') + '</span></div>'
+          + (nf ? '<div class="v-fotos' + (gr ? ' grande' : '') + '">' + v.fotos.map(function (b, i) { return '<button class="v-foto" data-act="v-ver" data-id="' + vid + '" aria-label="' + (gr ? 'Achicar' : 'Agrandar') + ' la foto ' + (i + 1) + '"><img src="data:image/jpeg;base64,' + b + '" alt="Foto ' + (i + 1) + ' del pedido"></button>'; }).join('') + '</div>' : '')
+          + (v.mensaje ? '<p class="small v-msg">' + esc(v.mensaje) + '</p>' : '')
+          + '<div class="acciones"><button class="btn sm pri" data-act="v-leer" data-id="' + vid + '"' + (conIA && !(S.vleyendo || {})[v.id] ? '' : ' disabled') + '>' + ((S.vleyendo || {})[v.id] ? 'Leyendo…' : 'Leer con IA y cargar') + '</button>'
+          + '<input type="text" id="v-motivo-' + vid + '" class="v-motivo" value="' + esc((S.vmot || {})[v.id] || '') + '" placeholder="Motivo (si lo rechazás)" aria-label="Motivo del rechazo">'
+          + '<button class="btn sm rojo" data-act="v-rechazar" data-id="' + vid + '" data-i="' + vid + '">' + (S._c2 === 'v-rechazar' + v.id ? 'Tocá de nuevo para rechazar' : 'Rechazar') + '</button></div>'
+          + (conIA ? '' : '<p class="small muted">Para leerlo hace falta la clave de IA (en Configuración, abajo).</p>') + '</div>';
+        return;
+      }
       var id = esc(v.id), cs = (v.cortes || []).filter(function (c) { return c.texto || c.corte; }), cta = cuentaDe(v.cliente);
       h += '<div class="venta"><div class="venta-cab"><span class="badge vend">Vendedor: ' + esc(nombreVend(v)) + '</span><span class="nom">' + esc(v.cliente) + '</span>' + ctaHTML(cta, false)
         + (v.frio ? ' ' + frioBadge(v.frio) : '') + '<span class="small muted">Entrega ' + esc(diaCorto(v.entrega)) + (v.creado ? ' · cargado el ' + esc(v.creado) : '') + '</span></div><ul class="venta-det">';
@@ -1260,6 +1279,23 @@
     return guardarPropuesta(q, true).then(function () {
       var x = clone(v); delete x.id; x.estado = 'aceptado'; x.revisado = ahoraTxt(); x.por = S.user ? S.user.email : ''; x.pedido = q.nuevoId;
       S.ventas = poner(S.ventas, v.id, x); return store.set('ventas', v.id, x);
+    });
+  }
+  // Lee las fotos y el mensaje del vendedor con la IA; los pedidos quedan cargados (o para completar) con su nombre.
+  function leerVenta(v) {
+    var ctx = ctxCarga(), leidos = [], errores = [], fotos = v.fotos || [], msg = String(v.mensaje || '').trim();
+    ctx.vendedor = { email: v.vendedor, nombre: nombreVend(v) };
+    S.vleyendo = S.vleyendo || {}; S.vleyendo[v.id] = true; cargas.activas++; estadoCarga();
+    var tareas = fotos.length ? fotos.map(function (b, i) { return function () { return leerB64(b, msg).then(function (j) { leidos.push({ j: j, origen: 'vendedor', nombre: 'foto ' + (i + 1) }); }, function (e) { errores.push(e.message); }); }; })
+      : [function () { return leerTexto(msg).then(function (j) { leidos.push({ j: j, origen: 'vendedor', nombre: '' }); }, function (e) { errores.push(e.message); }); }];
+    return tareas.reduce(function (c, t) { return c.then(t); }, Promise.resolve()).then(function () {
+      cargas.activas--; delete S.vleyendo[v.id];
+      if (!leidos.length) { S.msg.fotos = '!' + (errores.join(' ') || 'No se pudo leer.'); avisar(S.msg.fotos, 9000); refrescar(); return null; }
+      return encolar(ctx, leidos, errores).then(function () {
+        var cl = ctx.res || [], x = clone(v); delete x.id;
+        x.estado = 'aceptado'; x.leidos = cl.length; x.clientes = cl.filter(Boolean).join(', '); x.revisado = ahoraTxt(); x.por = S.user ? S.user.email : '';
+        S.ventas = poner(S.ventas, v.id, x); return store.set('ventas', v.id, x);
+      });
     });
   }
   function rechazarVenta(v, motivo) {
@@ -1631,6 +1667,11 @@
       renderPedidos();
     }
     else if (a === 'ped-editar') editarPedido(D.id);
+    else if (a === 'v-ver') { S.vgrande = S.vgrande || {}; S.vgrande[D.id] = !S.vgrande[D.id]; renderPedidos(); }
+    else if (a === 'v-leer') {
+      var vl = (S.ventas || []).filter(function (x) { return x.id === D.id; })[0];
+      if (vl) { leerVenta(vl).then(null, function () { S.msg.fotos = '!No se pudo guardar lo leído.'; avisar(S.msg.fotos, 9000); refrescar(); }); renderPedidos(); }
+    }
     else if (a === 'fv') { S.fv = D.v || ''; renderPedidos(); }
     else if (a === 'ir-ventas') { irA('pedidos'); var vs = $('ventas'); if (vs) vs.scrollIntoView(); }
     else if (a === 'v-aceptar' || a === 'v-rechazar') {
