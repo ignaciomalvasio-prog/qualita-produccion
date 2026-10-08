@@ -1239,20 +1239,23 @@
 
     S.prop.forEach(function (q, k) { if (q.editaId) h += '<div class="panel"><h3>Editando: ' + esc(q.cliente || 'pedido') + '</h3>' + propHTML(q, k) + '</div>'; });
 
-    // Un día debajo del otro, desde hoy.
-    var hy = hoy(), dias = {}, m = enProduccion();
-    if (esHabil(hy)) dias[hy] = 1;
-    dias[habilSiguiente(hy)] = 1;
-    (S.pedidos || []).forEach(function (p) { if (p.entrega && p.entrega >= hy) dias[p.entrega] = 1; });
-    if (S.pedDia) dias[S.pedDia] = 1;
-    Object.keys(dias).sort().forEach(function (f) {
-      var lista = (S.pedidos || []).filter(function (p) { return p.entrega === f; }), tild = S.selDia === f ? lista.filter(function (p) { return S.sel[p.id]; }) : [];
-      h += '<section class="dia-ped" id="dia-' + f + '"><div class="dia-cab"><h2 class="dia-tit">' + esc(tituloDe(f)) + (f === hy ? ' <span class="tag">hoy</span>' : f === mas(hy, 1) ? ' <span class="tag">mañana</span>' : '') + '</h2>'
-        + (lista.length ? botonBorrar('ped-borrar-todos', f, 'Eliminar todos los pedidos') : '') + '</div>';
-      if (tild.length) h += barraCamionHTML(f, tild);
-      h += lista.length ? '<div class="peds">' + lista.map(function (p) { return pedidoHTML(p, m); }).join('') + '</div>' : '<p class="muted sin">Sin pedidos.</p>';
-      h += '</section>';
-    });
+    // Un día por vez: arranca en mañana (el próximo día hábil) y se puede ir a otros con las flechas.
+    var hy = hoy(), m = enProduccion();
+    if (S.pedDia) { S.pd = S.pedDia; S.pedDia = null; }
+    if (!S.pd) S.pd = habilSiguiente(hy);
+    var f = S.pd, lista = (S.pedidos || []).filter(function (p) { return p.entrega === f; }), tild = S.selDia === f ? lista.filter(function (p) { return S.sel[p.id]; }) : [];
+    h += '<section class="dia-ped" id="dia-' + f + '"><div class="nav nav-ped"><button class="btn step" data-act="pd" data-d="-1" aria-label="Día anterior">‹</button>'
+      + '<span class="tit">' + esc(tituloDe(f)) + (f === hy ? ' <span class="tag">hoy</span>' : f === mas(hy, 1) ? ' <span class="tag">mañana</span>' : '') + '</span>'
+      + '<button class="btn step" data-act="pd" data-d="1" aria-label="Día siguiente">›</button><input type="date" id="pd-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">'
+      + (f !== habilSiguiente(hy) ? '<button class="btn" data-act="pd-ir" data-f="' + habilSiguiente(hy) + '">Volver a mañana</button>' : '')
+      + (lista.length ? botonBorrar('ped-borrar-todos', f, 'Eliminar todos los pedidos') : '') + '</div>';
+    // Aviso de los otros días que tienen pedidos cargados, para no perderlos de vista.
+    var otros = {}; (S.pedidos || []).forEach(function (p) { if (p.entrega && p.entrega !== f && p.entrega >= hy) otros[p.entrega] = (otros[p.entrega] || 0) + 1; });
+    var ko = Object.keys(otros).sort();
+    if (ko.length) h += '<p class="otros-dias"><span class="small muted">Otros días con pedidos:</span>' + ko.map(function (d) { return '<button class="btn sm" data-act="pd-ir" data-f="' + d + '">' + esc(diaCorto(d)) + ' <b>' + otros[d] + '</b></button>'; }).join('') + '</p>';
+    if (tild.length) h += barraCamionHTML(f, tild);
+    h += lista.length ? '<div class="peds">' + lista.map(function (p) { return pedidoHTML(p, m); }).join('') + '</div>' : '<p class="muted sin">Sin pedidos para este día.</p>';
+    h += '</section>';
 
     h += '<div class="panel"><details' + (S._conf ? ' open' : '') + '><summary>Configuración</summary><div class="campos">'
       + '<label class="campo"><span>Clave de IA (Anthropic)</span><input type="password" id="cfg-clave" autocomplete="off" placeholder="' + (S.ia && S.ia.clave ? 'Cargada. Escribí otra para cambiarla.' : 'sk-ant-…') + '"></label>'
@@ -1262,7 +1265,6 @@
       + ((S.pedidos || []).length ? botonBorrar('ped-borrar-total', null, 'Quitar todos los pedidos (' + S.pedidos.length + ')') : '') + '</div></details></div>';
     el.innerHTML = h;
     pintarMsg('fotos'); pintarMsg('cfg');
-    if (S.pedDia) { var d = $('dia-' + S.pedDia); S.pedDia = null; if (d && d.scrollIntoView) d.scrollIntoView(); }
   }
 
   /* ---------- logística ---------- */
@@ -1410,7 +1412,7 @@
     el.innerHTML = html + '</div>';
   }
   // Volver al inicio deja todo parado en el día de hoy.
-  function alInicio() { asentarEdicion(); S.em = null; S.ep = null; S.fechaFija = false; S.fecha = null; S.sem = null; S.dia = null; S.entrega = null; S.fm = null; S.mv = null; S.fl = null; S.ec = null; S.ef = false; }
+  function alInicio() { asentarEdicion(); S.em = null; S.ep = null; S.fechaFija = false; S.fecha = null; S.sem = null; S.dia = null; S.entrega = null; S.fm = null; S.mv = null; S.fl = null; S.ec = null; S.ef = false; S.pd = null; }
 
   /* ---------- estados, sesión y navegación ---------- */
   function cargando(el, data) {
@@ -1601,6 +1603,8 @@
       if (a === 'cam-crear') crearCamion(S.selDia, S.camNombre, S.camNota, idsT, S.camKg).then(function (cam) { S.msg.fotos = avisoCamion(S.selDia, cam.id, idsT.length); S.camKg = ''; S.camOtro = false; hecho(); }, mal);
       else asignarCamion(S.selDia, idsT, '').then(hecho, mal);
     }
+    else if (a === 'pd') { var yp = S.pd || habilSiguiente(hoy()); do { yp = mas(yp, +D.d); } while (!esHabil(yp)); S.pd = yp; S.abierto = {}; renderPedidos(); }
+    else if (a === 'pd-ir') { S.pd = D.f; S.abierto = {}; renderPedidos(); window.scrollTo(0, 0); }
     else if (a === 'fl') { var yl = S.fl; do { yl = mas(yl, +D.d); } while (!esHabil(yl)); S.fl = yl; S.ec = null; S.msg.log = ''; render(); }
     else if (a === 'cam-nuevo') { crearCamion(S.fl, '', '', []).then(function (cam) { S.ec = cam.id; S.ecNombre = cam.nombre; S.ecNota = ''; S.ecKg = ''; render(); var fn = $('cam-e-nombre'); if (fn) { fn.focus(); fn.select(); } }, function () { S.msg.log = '!No se pudo crear el camión.'; pintarMsg('log'); }); }
     else if (a === 'cam-editar') { var ce = camionesDe(S.fl).filter(function (c) { return c.id === D.id; })[0]; if (ce) { S.ec = ce.id; S.ecNombre = ce.nombre; S.ecNota = ce.nota || ''; S.ecKg = ce.kg || ''; render(); var fn2 = $('cam-e-nombre'); if (fn2) fn2.focus(); } }
@@ -1661,6 +1665,7 @@
     if (t.id === 'p-fecha' && t.value) { if (S.ep) guardar('prod', true); S.ep = null; S.fechaFija = true; S.fecha = t.value; render(); }
     else if (t.id === 'm-fecha' && t.value) { S.fm = t.value; render(); }
     else if (t.id === 'e-fecha' && t.value) { S.entrega = t.value; S.sel = {}; renderPedidos(); }
+    else if (t.id === 'pd-fecha' && t.value) { S.pd = t.value; S.abierto = {}; renderPedidos(); }
     else if (t.id === 'l-fecha' && t.value) { S.fl = t.value; S.ec = null; render(); }
     else if (t.id === 'cli-archivo' && t.files && t.files.length) {
       var lector = new FileReader();
@@ -1707,9 +1712,9 @@
       var pm = pedidoDe(D.mover), fm = t.value;
       if (fm === 'otra') { editarPedido(D.mover, 'entrega'); return; }
       if (!pm || S._ocup) return;
-      S._ocup = true; delete S.sel[pm.id]; S.pedDia = fm;
+      S._ocup = true; delete S.sel[pm.id];
       moverPedido(pm, fm).then(function () { S._ocup = false; S.msg.fotos = 'Pedido de ' + pm.cliente + ' pasado al ' + diaCorto(fm).toLowerCase() + '.'; avisar(S.msg.fotos, 6000); renderPedidos(); },
-        function () { S._ocup = false; S.pedDia = null; S.msg.fotos = '!No se pudo cambiar de día. Revisá la conexión.'; renderPedidos(); });
+        function () { S._ocup = false; S.msg.fotos = '!No se pudo cambiar de día. Revisá la conexión.'; renderPedidos(); });
     }
     else if (t.id === 'cam-a' && t.value) {
       if (t.value === 'nuevo') { S.camOtro = true; renderPedidos(); var fnn = $('cam-nombre'); if (fnn) fnn.focus(); return; }

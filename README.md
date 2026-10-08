@@ -23,6 +23,7 @@ Los kilos de cada pedido se estiman: medias y cajas por un peso habitual que se 
 Otros comportamientos:
 
 - La foto de la planilla semanal de faena y medias (Excel) no se lee como pedidos: reemplaza entera a la que había en esa semana (faena y clientes de los cinco días; quedan el stock inicial y las medias de pedidos cargados en la app). Va a la semana que dice la planilla, sin preguntar; si las fechas leídas son de una semana ya pasada, va a la semana que se está cargando.
+- Pedidos muestra un día por vez: arranca en mañana (el próximo día hábil), con flechas y fecha para ir a otros días y botones con los otros días que tienen pedidos.
 - Un pedido se cambia de día desde el listado: abrirlo y elegir en "Cambiar de día…". Se mueven sus medias y sus cortes en producción, y sale del camión que tenía.
 - El texto de cada corte se carga tal cual figura en el pedido (con la unidad solo si el pedido la aclara) y no repite el cliente; el cliente se agrega solo al sumar el corte a producción. Las medias del pedido se muestran como un renglón más de la lista.
 - Precios y costos (solo los ve quien ingresa; no se publican): en Pedidos cada corte tiene un casillero de precio por kg y dos cartelitos para marcar si es "+ IVA" o "Final", guardados en el pedido; en Logística cada camión tiene el costo del flete, por viaje o por kg, y la app calcula el costo por kg llevado. Los fletes se guardan en `privado/fletes-{fecha}`.
