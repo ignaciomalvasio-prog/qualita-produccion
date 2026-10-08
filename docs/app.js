@@ -490,6 +490,7 @@
     return res;
   }
   function cuentaDe(cliente) { return buscarCuenta(cliente).c; }
+  function clientePorCuenta(c) { c = String(c || '').trim(); if (!c) return ''; var e = clientes().filter(function (x) { return String(x.c || '').trim() === c; })[0]; return e ? String(e.n || '').toUpperCase().trim() : ''; }
   function cuentaPedido(p) { return String(p.cuenta || '').trim() || cuentaDe(p.cliente); }
   function ctaHTML(c, tocar) { return c ? '<span class="cta' + (tocar ? ' toca' : '') + '">N° ' + esc(c) + '</span>' : tocar ? '<span class="cta toca falta">Sin N°</span>' : ''; }
   // La cuenta elegida queda como la de ese cliente: vale para este pedido y para todos los de ese nombre, hasta que se cambie.
@@ -1162,7 +1163,7 @@
   function propHTML(q, i) {
     var listaCortes = CORTES_BASE.slice(); (q.cortes || []).forEach(function (c) { if (c.corte && listaCortes.indexOf(c.corte) < 0) listaCortes.push(c.corte); });
     var h = '<div class="card">';
-    h += '<div class="campos"><label class="campo"><span>Cliente</span><input type="text" id="q' + i + 'cliente" data-q="' + i + '" data-k="cliente" value="' + esc(q.cliente) + '" style="text-transform:uppercase"></label>'
+    h += '<div class="campos"><label class="campo"><span>Cliente</span><input type="text" id="q' + i + 'cliente" data-q="' + i + '" data-k="cliente" list="dl-clientes" autocomplete="off" value="' + esc(q.cliente) + '" style="text-transform:uppercase"></label>'
       + '<label class="campo"><span>N° de cuenta</span><input type="text" inputmode="numeric" id="q' + i + 'cuenta" data-q="' + i + '" data-k="cuenta" value="' + esc(q.cuenta || '') + '" placeholder="' + esc(cuentaDe(q.cliente) || 'Sin número') + '"></label>'
       + '<label class="campo"><span>Entrega</span><input type="date" id="q' + i + 'entrega" data-q="' + i + '" data-k="entrega" value="' + esc(q.entrega || '') + '"></label>'
       + '<label class="campo"><span>Medias</span><input type="number" inputmode="numeric" id="q' + i + 'medias" data-q="' + i + '" data-k="medias" value="' + esc(q.medias) + '"></label>'
@@ -1323,7 +1324,8 @@
     if (S.tab !== 'pedidos') return render();
     var el = $('view-pedidos');
     if (!S.editor) { el.innerHTML = '<div class="panel"><p class="state">Para cargar pedidos hay que ingresar con una cuenta autorizada.</p></div>'; return; }
-    var h = '<div class="panel carga"><h2>Cargar pedidos</h2>' + cargaHTML('q-nuevo');
+    var h = '<datalist id="dl-clientes">' + clientes().map(function (x) { return '<option value="' + esc(String(x.n || '').toUpperCase()) + '">' + esc(x.c ? 'N° ' + x.c : '') + '</option>'; }).join('') + '</datalist>'
+      + '<div class="panel carga"><h2>Cargar pedidos</h2>' + cargaHTML('q-nuevo');
     var nuevas = S.prop.filter(function (x) { return !x.editaId; });
     if (nuevas.length) h += S.prop.map(function (q, i) { return q.editaId ? '' : propHTML(q, i); }).join('') + (nuevas.length > 1 ? '<div class="acciones"><button class="btn pri" data-act="q-todos">Guardar todos</button>' + botonBorrar('q-descartar-todos', null, 'Descartar todos', '') + '</div>' : '');
     h += '</div>' + filtroVendHTML() + ventasHTML();
@@ -1766,6 +1768,20 @@
       var q = S.prop[+D.q];
       if (D.j != null) q.cortes[+D.j][D.k] = t.value; else q[D.k] = t.value;
       q.error = '';
+      // N° de cuenta ↔ cliente: al escribir uno se completa el otro con la base de clientes,
+      // mientras el otro esté vacío o lo haya completado la app (lo escrito a mano no se pisa).
+      if (D.j == null && D.k === 'cuenta') {
+        var nom = clientePorCuenta(t.value), ec = $('q' + D.q + 'cliente');
+        if (nom && (!q.cliente || q._autoCli)) { q.cliente = nom; q._autoCli = true; if (ec) ec.value = nom; }
+        else if (!nom && q._autoCli) { q.cliente = ''; if (ec) ec.value = ''; }
+        q._autoCta = false;
+      }
+      if (D.j == null && D.k === 'cliente') {
+        q._autoCli = false;
+        var cta = cuentaDe(t.value), en = $('q' + D.q + 'cuenta');
+        if (!q.cuenta || q._autoCta) { q.cuenta = cta || ''; q._autoCta = !!cta; if (en) en.value = q.cuenta; }
+        if (en) en.placeholder = cta || 'Sin número';
+      }
     }
   });
   // Configuración queda abierta o cerrada como la dejó quien la usa, aunque se redibuje la pantalla.
