@@ -124,8 +124,8 @@
     var el = $('app'), h = '';
     if (S.estado === 'cargando') h = '<div class="panel"><p class="state muted">Cargando…</p></div>';
     else if (S.estado === 'error') h = '<div class="panel"><p class="state">No se pudo conectar. Revisá la conexión y volvé a abrir la página.</p></div>';
-    else if (!S.user) h = '<div class="panel"><h2>Cargá tus pedidos</h2><p>Ingresá con tu cuenta de Google para cargar los pedidos de tus clientes. Le llegan directo a Qualitá y desde acá ves si ya los aceptaron.</p>'
-      + '<div class="acciones"><button class="btn pri grande" data-act="ingresar">Ingresar con Google</button></div></div>';
+    else if (!S.user) h = '<div class="panel"><h2>Cargá tus pedidos</h2><p>Ingresá para cargar los pedidos de tus clientes. Le llegan directo a Qualitá y desde acá ves si ya los aceptaron.</p>'
+      + '<div class="acciones"><button class="btn pri grande" data-act="ingresar">Ingresar</button></div><p class="small muted">Con tu cuenta de Google o con tu mail y una contraseña.</p></div>';
     else if (S.estado === 'sin-permiso') h = '<div class="panel"><h2>Tu cuenta todavía no está habilitada</h2><p>Ingresaste como <b>' + esc(S.user.email) + '</b>. Pedile a Qualitá que te habilite esta cuenta como vendedor y después volvé a abrir la página.</p>'
       + '<div class="acciones"><button class="btn" data-act="reintentar">Ya me habilitaron</button><button class="btn lnk" data-act="salir">Ingresar con otra cuenta</button></div></div>';
     else h = adjHTML() + formHTML() + listaHTML();
@@ -294,7 +294,7 @@
     var b = e.target.closest('[data-act]'); if (!b) return;
     var a = b.getAttribute('data-act'), id = b.getAttribute('data-id');
     if (a !== 'borrar') S.c2 = null;
-    if (a === 'ingresar') store.signIn().catch(function () {});
+    if (a === 'ingresar') { if (window.Acceso) window.Acceso.abrir(store); else store.signIn().catch(function () {}); }
     else if (a === 'salir') store.signOut();
     else if (a === 'reintentar') { S.estado = 'cargando'; render(); revisar(S.user); }
     else if (a === 'frio') { leerForm(); var v = b.getAttribute('data-v'), cf = S.form.cortes[+b.getAttribute('data-i')]; if (cf) cf.frio = cf.frio === v ? '' : v; render(); }
@@ -324,6 +324,8 @@
     if (desuscribir) { desuscribir(); desuscribir = null; }
     S.user = u ? { email: u.email } : null; S.ventas = [];
     if (!u) { S.estado = 'listo'; render(); return; }
+    // Entró con mail y todavía no lo confirmó: hasta que lo confirme no puede cargar nada.
+    if (u.emailVerified === false) { S.user = null; S.estado = 'listo'; render(); if (window.Acceso) window.Acceso.verificar(store, u.email); return; }
     store.vendedor(u.email).then(function (d) {
       if (!d) { S.estado = 'sin-permiso'; render(); return; }
       S.nombre = d.nombre || u.displayName || ''; S.estado = 'listo';
@@ -343,6 +345,12 @@
     return {
       onAuth: function (cb) { m.authCb = cb; setTimeout(function () { cb(m.user || null); }, 0); },
       signIn: function () { m.user = { email: m.loginAs, displayName: 'Prueba' }; m.authCb(m.user); return Promise.resolve(); },
+      google: function () { m.user = { email: m.loginAs, emailVerified: true }; m.authCb(m.user); return Promise.resolve(); },
+      entrarMail: function (e) { if (m.malClave) return Promise.reject({ code: 'auth/invalid-credential' }); m.user = { email: e, emailVerified: !!m.verificado }; m.authCb(m.user); return Promise.resolve(m.user); },
+      crearMail: function (e) { m.user = { email: e, emailVerified: false }; m.mails = (m.mails || 0) + 1; m.authCb(m.user); return Promise.resolve(); },
+      olvide: function () { m.reset = (m.reset || 0) + 1; return Promise.resolve(); },
+      reenviar: function () { m.mails = (m.mails || 0) + 1; return Promise.resolve(); },
+      confirmar: function () { if (!m.verificado) return Promise.resolve(false); m.user.emailVerified = true; m.authCb(m.user); return Promise.resolve(true); },
       signOut: function () { m.user = null; m.authCb(null); return Promise.resolve(); },
       vendedor: function (email) { return Promise.resolve(m.vendedores && m.vendedores[email] ? m.vendedores[email] : null); },
       mias: function (email, cb) { var s = { email: email, cb: cb }; subs.push(s); setTimeout(emit, 0); return function () { subs = subs.filter(function (x) { return x !== s; }); }; },
@@ -353,9 +361,17 @@
   function firebaseStore() {
     var base = 'https://www.gstatic.com/firebasejs/' + FIREBASE.version + '/';
     return Promise.all([import(base + 'firebase-app.js'), import(base + 'firebase-firestore.js'), import(base + 'firebase-auth.js')]).then(function (m) {
-      var app = m[0].initializeApp(FIREBASE.config), fs = m[1], au = m[2], db = fs.getFirestore(app), auth = au.getAuth(app);
+      var app = m[0].initializeApp(FIREBASE.config), fs = m[1], au = m[2], db = fs.getFirestore(app), auth = au.getAuth(app), authCb = null;
+      auth.languageCode = 'es';
       return {
-        onAuth: function (cb) { return au.onAuthStateChanged(auth, cb); },
+        onAuth: function (cb) { authCb = cb; return au.onAuthStateChanged(auth, cb); },
+        google: function () { var p = new au.GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account' }); return au.signInWithPopup(auth, p); },
+        entrarMail: function (e, p) { return au.signInWithEmailAndPassword(auth, e, p).then(function (c) { return c.user; }); },
+        crearMail: function (e, p) { return au.createUserWithEmailAndPassword(auth, e, p).then(function (c) { return au.sendEmailVerification(c.user, { url: location.origin + location.pathname }); }); },
+        olvide: function (e) { return au.sendPasswordResetEmail(auth, e); },
+        reenviar: function () { return auth.currentUser ? au.sendEmailVerification(auth.currentUser, { url: location.origin + location.pathname }) : Promise.resolve(); },
+        // Después de tocar el link del mail: se relee la cuenta y se pide un permiso nuevo, que ya dice "verificado".
+        confirmar: function () { var u = auth.currentUser; if (!u) return Promise.resolve(false); return u.reload().then(function () { return u.getIdToken(true); }).then(function () { if (u.emailVerified && authCb) authCb(auth.currentUser); return u.emailVerified; }); },
         signIn: function () { var p = new au.GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account' }); return au.signInWithPopup(auth, p); },
         signOut: function () { return au.signOut(auth); },
         vendedor: function (email) { return fs.getDoc(fs.doc(db, 'vendedores', email)).then(function (s) { return s.exists() ? (s.data() || {}) : null; }, function () { return null; }); },

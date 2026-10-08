@@ -1606,7 +1606,7 @@
       hoja.textContent = '@page{size:A4 ' + (S.tab === 'medias' && mvAct() === 'semana' ? 'landscape' : 'portrait') + ';margin:10mm}';
       setTimeout(function () { window.print(); }, 80);
     }
-    else if (a === 'ingresar') store.signIn().catch(function () {});
+    else if (a === 'ingresar') { if (window.Acceso && store.entrarMail) window.Acceso.abrir(store); else store.signIn().catch(function () {}); }
     else if (a === 'salir') store.signOut();
     else if (a === 'copiar') {
       var ta = $('txt-orden'), msg = $('copiado'); ta.hidden = false;
@@ -1895,6 +1895,12 @@
       del: function (c, id) { if (m.data[c]) delete m.data[c][id]; setTimeout(function () { emit(c); }, 0); return Promise.resolve(); },
       onAuth: function (cb) { authCb = cb; setTimeout(function () { cb(m.user || null); }, 0); },
       signIn: function () { m.user = { email: m.loginAs }; authCb(m.user); return Promise.resolve(); },
+      google: function () { m.user = { email: m.loginAs, emailVerified: true }; authCb(m.user); return Promise.resolve(); },
+      entrarMail: function (e) { if (m.malClave) return Promise.reject({ code: 'auth/invalid-credential' }); m.user = { email: e, emailVerified: !!m.verificado }; authCb(m.user); return Promise.resolve(m.user); },
+      crearMail: function (e) { m.user = { email: e, emailVerified: false }; m.mails = (m.mails || 0) + 1; authCb(m.user); return Promise.resolve(); },
+      olvide: function () { m.reset = (m.reset || 0) + 1; return Promise.resolve(); },
+      reenviar: function () { m.mails = (m.mails || 0) + 1; return Promise.resolve(); },
+      confirmar: function () { if (!m.verificado) return Promise.resolve(false); m.user.emailVerified = true; authCb(m.user); return Promise.resolve(true); },
       signOut: function () { m.user = null; authCb(null); return Promise.resolve(); },
       esEditor: function (email) { return Promise.resolve((m.editores || []).indexOf(email) >= 0); }
     };
@@ -1902,13 +1908,21 @@
   function firebaseStore() {
     var base = 'https://www.gstatic.com/firebasejs/' + FIREBASE.version + '/';
     return Promise.all([import(base + 'firebase-app.js'), import(base + 'firebase-firestore.js'), import(base + 'firebase-auth.js')]).then(function (m) {
-      var app = m[0].initializeApp(FIREBASE.config), fs = m[1], au = m[2], db = fs.getFirestore(app), auth = au.getAuth(app);
+      var app = m[0].initializeApp(FIREBASE.config), fs = m[1], au = m[2], db = fs.getFirestore(app), auth = au.getAuth(app), authCb = null;
+      auth.languageCode = 'es';
       return {
         sub: function (c, cb, err) { return fs.onSnapshot(fs.collection(db, c), function (snap) { cb(snap.docs.map(function (x) { var o = x.data(); o.id = x.id; return o; })); }, err || function () {}); },
         set: function (c, id, data) { return fs.setDoc(fs.doc(db, c, id), clone(data)); },
         del: function (c, id) { return fs.deleteDoc(fs.doc(db, c, id)); },
-        onAuth: function (cb) { return au.onAuthStateChanged(auth, cb); },
+        onAuth: function (cb) { authCb = cb; return au.onAuthStateChanged(auth, cb); },
         signIn: function () { return au.signInWithPopup(auth, new au.GoogleAuthProvider()); },
+        google: function () { var p = new au.GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account' }); return au.signInWithPopup(auth, p); },
+        entrarMail: function (e, p) { return au.signInWithEmailAndPassword(auth, e, p).then(function (c) { return c.user; }); },
+        crearMail: function (e, p) { return au.createUserWithEmailAndPassword(auth, e, p).then(function (c) { return au.sendEmailVerification(c.user, { url: location.origin + location.pathname }); }); },
+        olvide: function (e) { return au.sendPasswordResetEmail(auth, e); },
+        reenviar: function () { return auth.currentUser ? au.sendEmailVerification(auth.currentUser, { url: location.origin + location.pathname }) : Promise.resolve(); },
+        // Después de tocar el link del mail: se relee la cuenta y se pide un permiso nuevo, que ya dice "verificado".
+        confirmar: function () { var u = auth.currentUser; if (!u) return Promise.resolve(false); return u.reload().then(function () { return u.getIdToken(true); }).then(function () { if (u.emailVerified && authCb) authCb(auth.currentUser); return u.emailVerified; }); },
         signOut: function () { return au.signOut(auth); },
         esEditor: function (email) { return fs.getDoc(fs.doc(db, 'editores', email)).then(function (s) { return s.exists(); }, function () { return false; }); }
       };
@@ -1944,6 +1958,8 @@
     store.onAuth(function (u) {
       S.user = u ? { email: u.email } : null; S.editor = false;
       if (S.solo) { S.user = null; render(); return; }   // el link para compartir es siempre de solo lectura
+      // Quien entró con mail y todavía no lo confirmó no puede leer nada: se le pide que lo confirme.
+      if (u && u.emailVerified === false) { S.user = null; render(); if (window.Acceso) window.Acceso.verificar(store, u.email); return; }
       if (!u) { S.em = null; S.ep = null; S.prop = []; render(); return; }
       store.esEditor(u.email).then(function (ok) {
         S.editor = ok;
