@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#005e78">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Pedidos Qualitá">
+<meta property="og:title" content="Pedidos Qualitá · Vendedores">
+<meta property="og:description" content="Cargá los pedidos de tus clientes para el Frigorífico Qualitá.">
+<meta property="og:image" content="https://qualita-produccion.web.app/icon-512.png">
+<meta property="og:type" content="website">
+<link rel="manifest" href="vendedor.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Pedidos Qualitá · Vendedores</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#f0f3f5; --surface:#ffffff; --sunken:#e4e9ed; --ink:#12222b; --muted:#52646f; --line:#ccd6dc;
+  --accent:#005e78; --accent-ink:#ffffff; --accent-soft:#e1f1fb; --celeste:#7ac3f0;
+  --ok:#1c7446; --ok-soft:#dff1e6; --warn:#8a5600; --warn-soft:#fbeed0; --crit:#a5251c; --crit-soft:#f9e1de;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif; --body:"Barlow","Segoe UI",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0e161b; --surface:#17222a; --sunken:#111b21; --ink:#e5edf2; --muted:#93a6b3; --line:#2b3a45;
+  --accent:#6fc3df; --accent-ink:#082029; --accent-soft:#143440;
+  --ok:#62cc96; --ok-soft:#143021; --warn:#e8b65c; --warn-soft:#3a2c10; --crit:#f4918a; --crit-soft:#401b19;
+  color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#0e161b; --surface:#17222a; --sunken:#111b21; --ink:#e5edf2; --muted:#93a6b3; --line:#2b3a45;
+  --accent:#6fc3df; --accent-ink:#082029; --accent-soft:#143440;
+  --ok:#62cc96; --ok-soft:#143021; --warn:#e8b65c; --warn-soft:#3a2c10; --crit:#f4918a; --crit-soft:#401b19;
+  color-scheme:dark }
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{overflow-x:clip}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.4}
+.wrap{max-width:760px;margin:0 auto;padding:0 16px 48px;display:flex;flex-direction:column;gap:16px}
+h1,h2,h3{font-family:var(--display);margin:0;letter-spacing:.01em;text-transform:uppercase}
+h2{font-size:22px;line-height:1.1} h3{font-size:17px}
+p{margin:0}
+.muted{color:var(--muted)} .small{font-size:13px}
+.top{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;padding:8px 0 10px;position:relative;isolation:isolate}
+.top::before{content:"";position:absolute;inset:0 -100vmax;background:var(--surface);border-bottom:4px solid var(--accent);z-index:-1}
+.marca{display:flex;align-items:center;gap:12px;margin:0}
+.marca img{height:54px;width:auto}
+.marca-txt{display:flex;flex-direction:column;gap:2px}
+.marca-nom{font:700 21px/1 var(--display);text-transform:uppercase;letter-spacing:.02em}
+.marca-sub{font:500 14px/1.1 var(--body);color:var(--muted)}
+.sesion{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:14px;color:var(--muted)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.panel.carga{background:var(--accent-soft);border:2px dashed var(--accent)} .panel.carga h2{color:var(--accent)}
+.btn{font:600 15px var(--body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:8px 14px;cursor:pointer;min-height:42px}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.sm{padding:4px 10px;min-height:34px;font-size:14px}
+.btn.lnk{border-color:transparent;background:transparent;color:var(--accent);padding-inline:4px}
+.btn.rojo{color:var(--crit);border-color:var(--crit)}
+.btn:disabled{opacity:.5;cursor:default}
+.btn[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.grande{font-size:17px;min-height:48px;padding-inline:22px}
+input,select,textarea{font:500 16px var(--body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:8px;min-width:0;max-width:100%;width:100%}
+textarea{min-height:64px;resize:vertical}
+.campos{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px 14px}
+.campo{display:flex;flex-direction:column;gap:4px;min-width:0}
+.campo>span{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.campo.ancho{grid-column:1/-1}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.cortes{display:flex;flex-direction:column;gap:8px}
+.corte{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr) auto;gap:8px;align-items:center}
+.corte .x{width:42px;padding:0;color:var(--muted)}
+.cortes-tit{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr) 42px;gap:8px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.acciones{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.msg{font-size:14px;color:var(--ok);font-weight:600} .msg.err{color:var(--crit)}
+.badge{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:3px;white-space:nowrap}
+.badge.pend{background:var(--warn-soft);color:var(--warn)} .badge.ok{background:var(--ok-soft);color:var(--ok)} .badge.no{background:var(--crit-soft);color:var(--crit)}
+.badge.cong{background:var(--accent);color:var(--accent-ink)} .badge.fresco{background:var(--ok-soft);color:var(--ok)}
+.mio{border-top:1px solid var(--line);padding:12px 0;display:flex;flex-direction:column;gap:6px}
+.mio:first-of-type{border-top:0}
+.mio-cab{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline}
+.mio-cab .nom{font-weight:700;font-size:17px}
+.mio ul{margin:0;padding-left:18px}
+#app{display:flex;flex-direction:column;gap:16px}
+.state{padding:8px 0}
+.filtro{display:flex;gap:6px;flex-wrap:wrap}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (max-width:520px){ .corte{grid-template-columns:minmax(0,1fr) 42px} .corte .det{grid-column:1/2} .corte .x{grid-row:1/3;grid-column:2} .cortes-tit{display:none} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="marca"><img src="logo.png" alt="Qualitá" width="42" height="54"><span class="marca-txt"><span class="marca-nom">Pedidos</span><span class="marca-sub">Vendedores · Frigorífico Qualitá</span></span></div>
+    <div class="sesion" id="sesion"></div>
+  </header>
+  <main id="app"><div class="panel"><p class="state muted">Cargando…</p></div></main>
+</div>
+<script src="vendedor.js"></script>
+</body>
+</html>

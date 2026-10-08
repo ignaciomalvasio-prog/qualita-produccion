@@ -35,6 +35,7 @@
     log: {},        // logística publicada, por fecha de entrega
     tab: 'inicio', mv: null, fm: null, sem: null, dia: null, fecha: null, entrega: null, fl: null,
     abierto: {},    // pedidos desplegados en el listado
+    ventas: [],     // pedidos que mandan los vendedores externos desde /vendedor
     sel: {},        // pedidos tildados para armar un camión
     ec: null,       // camión que se está editando en Logística
     user: null, editor: false,
@@ -895,10 +896,11 @@
       cortes: (q.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { k: c.k || uid(), corte: norm(c.corte), texto: sinCliente(String(c.texto).toUpperCase().replace(/\s+/g, ' ').trim(), q.cliente), orden: c.orden !== false, precio: c.precio === 0 ? 0 : c.precio || '', iva: c.iva || '' }; }).filter(function (c) { return c.texto; }) };
     if (previo && (previo.precioMedias === 0 || previo.precioMedias)) p.precioMedias = previo.precioMedias;
     if (previo && previo.ivaMedias) p.ivaMedias = previo.ivaMedias;
+    var vd = q.vendedor || (previo && previo.vendedor); if (vd) { p.vendedor = vd; p.vendedorNombre = q.vendedorNombre || (previo && previo.vendedorNombre) || ''; }
     if (!p.cliente) return Promise.reject(new Error('Falta el cliente.'));
     if (!p.entrega) return Promise.reject(new Error('Falta la fecha de entrega.'));
     if (!auto) { asentarEdicion(); S.em = null; S.ep = null; }
-    var id = previo ? previo.id : 'p' + uid(), doc = clone(p), antes = previo ? clone(previo) : null; p.id = id;
+    var id = previo ? previo.id : q.nuevoId || 'p' + uid(), doc = clone(p), antes = previo ? clone(previo) : null; p.id = id;
     S.pedidos = poner(S.pedidos, id, doc);
     return store.set('pedidos', id, doc)
       .then(function () { return aplicarMedias(p); })
@@ -1194,7 +1196,7 @@
     var h = '<div class="ped' + (ab ? ' abierto' : '') + (sel ? ' sel' : '') + '"><div class="ped-cab">'
       + '<label class="chk"><input type="checkbox" data-sel="' + id + '"' + (sel ? ' checked' : '') + ' aria-label="Tildar el pedido de ' + esc(p.cliente) + ' para un camión"></label>'
       + '<button class="ped-tit" data-act="ped-abrir" data-id="' + id + '" aria-expanded="' + ab + '"><span class="nom">' + esc(p.cliente || 'Sin cliente') + '</span>' + ctaHTML(cuentaPedido(p), true) + '<span class="res">' + res.join(' · ') + (p.frio ? ' ' + frioBadge(p.frio) : '') + '</span>'
-      + (cam ? '<span class="marcas"><span class="badge plain">' + esc(cam) + '</span></span>' : '') + '<span class="chev" aria-hidden="true">' + (ab ? '▴' : '▾') + '</span></button></div>';
+      + (cam || p.vendedor ? '<span class="marcas">' + (p.vendedor ? '<span class="badge vend" title="' + esc(p.vendedor) + '">Vendedor: ' + esc(p.vendedorNombre || p.vendedor.split('@')[0]) + '</span>' : '') + (cam ? '<span class="badge plain">' + esc(cam) + '</span>' : '') + '</span>' : '') + '<span class="chev" aria-hidden="true">' + (ab ? '▴' : '▾') + '</span></button></div>';
     if (!ab) return h + '</div>';
     h += '<div class="ped-det">' + elegirCuentaHTML(p) + '<div class="op-ped">';
     if (+p.medias) h += '<p class="lp"><span><b>Medias</b> ' + esc(textoMedias(p)) + '</span><span class="lp-der">' + precioHTML(p.id, 'm', p.precioMedias, 'las medias', p.ivaMedias) + '</span></p>';
@@ -1210,6 +1212,42 @@
       + '<button class="btn sm" data-act="ped-editar" data-id="' + id + '">Editar</button>' + opcionesDia(p)
       + '<button class="btn sm rojo" data-act="ped-borrar" data-id="' + id + '" data-i="' + id + '">' + (S._c2 === 'ped-borrar' + p.id ? 'Tocá de nuevo para confirmar' : 'Quitar') + '</button></div>';
     return h + '</div></div>';
+  }
+  /* ---------- pedidos de vendedores ----------
+     Los vendedores externos cargan desde /vendedor; quedan en "ventas" como pendientes hasta que acá
+     se aceptan (pasan a ser un pedido más) o se rechazan. El vendedor ve el estado desde su página. */
+  function ventasPendientes() { return (S.ventas || []).filter(function (v) { return v.estado === 'pendiente'; }).sort(function (a, b) { return String(a.entrega).localeCompare(String(b.entrega)) || (a.ts || 0) - (b.ts || 0); }); }
+  function nombreVend(v) { return v.nombre || String(v.vendedor || '').split('@')[0]; }
+  function ventasHTML() {
+    var l = ventasPendientes();
+    if (!l.length) return '';
+    var h = '<div class="panel ventas" id="ventas"><h2>Pedidos de vendedores <span class="badge vend">' + l.length + ' para revisar</span></h2>'
+      + '<p class="small muted">Al aceptarlo pasa a ser un pedido más del día de entrega, y el vendedor lo ve como aceptado.</p>';
+    l.forEach(function (v) {
+      var id = esc(v.id), cs = (v.cortes || []).filter(function (c) { return c.texto || c.corte; }), cta = cuentaDe(v.cliente);
+      h += '<div class="venta"><div class="venta-cab"><span class="nom">' + esc(v.cliente) + '</span>' + ctaHTML(cta, false)
+        + (v.frio ? ' ' + frioBadge(v.frio) : '') + '<span class="small muted">Entrega ' + esc(diaCorto(v.entrega)) + ' · ' + esc(nombreVend(v)) + (v.creado ? ' · ' + esc(v.creado) : '') + '</span></div><ul class="venta-det">';
+      if (+v.medias) h += '<li><b>Medias</b> ' + n(+v.medias) + (v.peso ? ' · ' + esc(v.peso) : '') + '</li>';
+      cs.forEach(function (c) { h += '<li><b>' + esc(c.corte || '') + '</b> ' + esc(c.texto || '') + '</li>'; });
+      h += '</ul>' + (v.nota ? '<p class="small">' + esc(v.nota) + '</p>' : '')
+        + '<div class="acciones"><button class="btn sm pri" data-act="v-aceptar" data-id="' + id + '">Aceptar</button>'
+        + '<input type="text" id="v-motivo-' + id + '" class="v-motivo" value="' + esc((S.vmot || {})[v.id] || '') + '" placeholder="Motivo (si lo rechazás)" aria-label="Motivo del rechazo">'
+        + '<button class="btn sm rojo" data-act="v-rechazar" data-id="' + id + '" data-i="' + id + '">' + (S._c2 === 'v-rechazar' + v.id ? 'Tocá de nuevo para rechazar' : 'Rechazar') + '</button></div></div>';
+    });
+    return h + '<p class="guardado" id="g-ventas"></p></div>';
+  }
+  function aceptarVenta(v) {
+    var q = { cliente: v.cliente, entrega: v.entrega, medias: v.medias, peso: v.peso, frio: v.frio, nota: v.nota, origen: 'vendedor', vendedor: v.vendedor, vendedorNombre: nombreVend(v),
+      cuenta: cuentaDe(v.cliente) || '', cortes: (v.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { k: uid(), corte: c.corte, texto: c.texto, orden: true }; }) };
+    q.nuevoId = 'p' + uid();
+    return guardarPropuesta(q, true).then(function () {
+      var x = clone(v); delete x.id; x.estado = 'aceptado'; x.revisado = ahoraTxt(); x.por = S.user ? S.user.email : ''; x.pedido = q.nuevoId;
+      S.ventas = poner(S.ventas, v.id, x); return store.set('ventas', v.id, x);
+    });
+  }
+  function rechazarVenta(v, motivo) {
+    var x = clone(v); delete x.id; x.estado = 'rechazado'; x.motivo = String(motivo || '').trim(); x.revisado = ahoraTxt(); x.por = S.user ? S.user.email : '';
+    S.ventas = poner(S.ventas, v.id, x); return store.set('ventas', v.id, x);
   }
   // Barra para mandar los pedidos tildados a un camión.
   function barraCamionHTML(f, tild) {
@@ -1235,7 +1273,7 @@
     var h = '<div class="panel carga"><h2>Cargar pedidos</h2>' + cargaHTML('q-nuevo');
     var nuevas = S.prop.filter(function (x) { return !x.editaId; });
     if (nuevas.length) h += S.prop.map(function (q, i) { return q.editaId ? '' : propHTML(q, i); }).join('') + (nuevas.length > 1 ? '<div class="acciones"><button class="btn pri" data-act="q-todos">Guardar todos</button>' + botonBorrar('q-descartar-todos', null, 'Descartar todos', '') + '</div>' : '');
-    h += '</div>';
+    h += '</div>' + ventasHTML();
 
     S.prop.forEach(function (q, k) { if (q.editaId) h += '<div class="panel"><h3>Editando: ' + esc(q.cliente || 'pedido') + '</h3>' + propHTML(q, k) + '</div>'; });
 
@@ -1264,7 +1302,7 @@
       + '<div class="acciones"><button class="btn" data-act="cfg-guardar">Guardar configuración</button><span class="guardado" id="g-cfg"></span>'
       + ((S.pedidos || []).length ? botonBorrar('ped-borrar-total', null, 'Quitar todos los pedidos (' + S.pedidos.length + ')') : '') + '</div></details></div>';
     el.innerHTML = h;
-    pintarMsg('fotos'); pintarMsg('cfg');
+    pintarMsg('fotos'); pintarMsg('cfg'); pintarMsg('ventas');
   }
 
   /* ---------- logística ---------- */
@@ -1376,6 +1414,7 @@
     var rot = function (d) { return (d === h ? 'Hoy · ' : d === mas(h, 1) ? 'Mañana · ' : '') + tituloDe(d); };
     var neg = function (k, uno, muchos) { return '<strong>' + n(k) + '</strong> ' + plural(k, uno, muchos); };
     var pie = function (txt) { return '<span class="t-dia">' + esc(rot(sig)) + '</span><span>' + txt + '</span>'; };
+    if (S.editor && ventasPendientes().length) { var nv = ventasPendientes().length; html += '<button class="aviso-vend" data-act="ir-ventas"><strong>' + nv + '</strong> ' + plural(nv, 'pedido de vendedor para revisar', 'pedidos de vendedores para revisar') + ' <span aria-hidden="true">›</span></button>'; }
     if (S.editor) {
       var deDia = function (d) { return (S.pedidos || []).filter(function (p) { return p.entrega === d; }); };
       var ph = deDia(f), ps = deDia(sig), mas2 = (S.pedidos || []).filter(function (p) { return p.entrega > sig; }).length;
@@ -1575,6 +1614,18 @@
       renderPedidos();
     }
     else if (a === 'ped-editar') editarPedido(D.id);
+    else if (a === 'ir-ventas') { irA('pedidos'); var vs = $('ventas'); if (vs) vs.scrollIntoView(); }
+    else if (a === 'v-aceptar' || a === 'v-rechazar') {
+      var vv = (S.ventas || []).filter(function (x) { return x.id === D.id; })[0];
+      if (!vv) return;
+      var mo = $('v-motivo-' + D.id); S.vmot = S.vmot || {}; if (mo) S.vmot[D.id] = mo.value;
+      if (a === 'v-rechazar' && !confirma('v-rechazar' + D.id)) { renderPedidos(); return; }
+      S.msg.ventas = 'Guardando…'; pintarMsg('ventas');
+      (a === 'v-aceptar' ? aceptarVenta(vv) : rechazarVenta(vv, S.vmot[D.id] || ''))
+        .then(function () { S.msg.ventas = a === 'v-aceptar' ? 'Aceptado: ' + vv.cliente + ' quedó en los pedidos del ' + diaCorto(vv.entrega) + '.' : 'Rechazado.'; tocar(); refrescar(); },
+          function () { S.msg.ventas = '!No se pudo guardar. Revisá la conexión.'; refrescar(); });
+      renderPedidos();
+    }
     else if (a === 'ped-borrar') {
       if (!confirma('ped-borrar' + D.id)) { renderPedidos(); return; }
       var pb = pedidoDe(D.id); S.prop = S.prop.filter(function (x) { return x.editaId !== D.id; });
@@ -1827,6 +1878,7 @@
           if (!suscripto) {
             suscripto = true;
             store.sub('pedidos', function (l) { S.pedidos = ordenar(l); conciliarLog(); renderDatos(); });
+            store.sub('ventas', function (l) { var antes = ventasPendientes().length; S.ventas = l; if (antes !== ventasPendientes().length && (S.tab === 'pedidos' || S.tab === 'inicio')) renderDatos(); });
             store.sub('privado', function (l) {
               var fl = {}, antesF = JSON.stringify(S.fletes || {});
               l.forEach(function (x) { if (String(x.id).indexOf('fletes-') === 0) fl[x.id.slice(7)] = x; });

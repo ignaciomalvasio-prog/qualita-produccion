@@ -24,6 +24,15 @@
         ]
       },
       {
+        "source": "/vendedor",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      },
+      {
         "source": "**/*.@(html|js|json|webmanifest)",
         "headers": [
           {
