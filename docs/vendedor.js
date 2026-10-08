@@ -123,7 +123,7 @@
     ses.innerHTML = S.user ? '<span>' + esc(S.user.email) + '</span><button class="btn sm lnk" data-act="salir">Salir</button>' : '';
     var el = $('app'), h = '';
     if (S.estado === 'cargando') h = '<div class="panel"><p class="state muted">Cargando…</p></div>';
-    else if (S.estado === 'error') h = '<div class="panel"><p class="state">No se pudo conectar. Revisá la conexión y volvé a abrir la página.</p></div>';
+    else if (S.estado === 'error') h = '<div class="panel"><p class="state">' + (/permission/.test(S.errTxt || '') ? 'Qualitá todavía no te dio permiso para cargar pedidos con esta cuenta. Avisales y volvé a abrir la página.' : 'No se pudo conectar. Revisá la conexión y volvé a abrir la página.') + '</p>' + (S.errTxt ? '<p class="small muted">Detalle: ' + esc(S.errTxt) + '</p>' : '') + '<div class="acciones"><button class="btn" data-act="reintentar">Probar de nuevo</button></div></div>';
     else if (!S.user) h = '<div class="panel"><h2>Cargá tus pedidos</h2><p>Ingresá para cargar los pedidos de tus clientes. Le llegan directo a Qualitá y desde acá ves si ya los aceptaron.</p>'
       + '<div class="acciones"><button class="btn pri grande" data-act="ingresar">Ingresar</button></div><p class="small muted">Con tu cuenta de Google o con tu mail y una contraseña.</p></div>';
     else if (S.estado === 'sin-permiso') h = '<div class="panel"><h2>Tu cuenta todavía no está habilitada</h2><p>Ingresaste como <b>' + esc(S.user.email) + '</b>. Pedile a Qualitá que te habilite esta cuenta como vendedor y después volvé a abrir la página.</p>'
@@ -326,14 +326,22 @@
     if (!u) { S.estado = 'listo'; render(); return; }
     // Entró con mail y todavía no lo confirmó: hasta que lo confirme no puede cargar nada.
     if (u.emailVerified === false) { S.user = null; S.estado = 'listo'; render(); if (window.Acceso) window.Acceso.verificar(store, u.email); return; }
-    store.vendedor(u.email).then(function (d) {
+    // Se pide un permiso nuevo antes de leer: el guardado puede ser de antes de confirmar el mail.
+    (store.renovar ? store.renovar() : Promise.resolve()).then(null, function () {}).then(function () { return store.vendedor(u.email); }).then(function (d) {
       if (!d) { S.estado = 'sin-permiso'; render(); return; }
       S.nombre = d.nombre || u.displayName || ''; S.estado = 'listo';
-      desuscribir = store.mias(u.email, function (l) {
-        S.ventas = l;
-        if (S.form && S.form.id && !l.some(function (v) { return v.id === S.form.id && v.estado === 'pendiente'; })) { S.form = formVacio(); S.msg = 'Ese pedido ya lo revisó Qualitá.'; S.err = true; }
-        leerForm(); render();
-      }, function () { S.estado = 'error'; render(); });
+      var reintento = false;
+      (function suscribir() {
+        desuscribir = store.mias(u.email, function (l) {
+          S.ventas = l;
+          if (S.form && S.form.id && !l.some(function (v) { return v.id === S.form.id && v.estado === 'pendiente'; })) { S.form = formVacio(); S.msg = 'Ese pedido ya lo revisó Qualitá.'; S.err = true; }
+          leerForm(); render();
+        }, function (e) {
+          // Sin permiso: una vez más con el permiso renovado; si sigue, se muestra el motivo.
+          if (!reintento && store.renovar) { reintento = true; store.renovar().then(suscribir, function () { S.estado = 'error'; S.errTxt = (e && e.code) || ''; render(); }); return; }
+          S.estado = 'error'; S.errTxt = (e && e.code) || ''; render();
+        });
+      })();
       render();
     });
   }
@@ -369,6 +377,7 @@
         entrarMail: function (e, p) { return au.signInWithEmailAndPassword(auth, e, p).then(function (c) { return c.user; }); },
         crearMail: function (e, p) { return au.createUserWithEmailAndPassword(auth, e, p).then(function (c) { return au.sendEmailVerification(c.user, { url: location.origin + location.pathname }); }); },
         olvide: function (e) { return au.sendPasswordResetEmail(auth, e); },
+        renovar: function () { return auth.currentUser ? auth.currentUser.reload().then(function () { return auth.currentUser.getIdToken(true); }) : Promise.resolve(); },
         reenviar: function () { return auth.currentUser ? au.sendEmailVerification(auth.currentUser, { url: location.origin + location.pathname }) : Promise.resolve(); },
         // Después de tocar el link del mail: se relee la cuenta y se pide un permiso nuevo, que ya dice "verificado".
         confirmar: function () { var u = auth.currentUser; if (!u) return Promise.resolve(false); return u.reload().then(function () { return u.getIdToken(true); }).then(function () { if (u.emailVerified && authCb) authCb(auth.currentUser); return u.emailVerified; }); },

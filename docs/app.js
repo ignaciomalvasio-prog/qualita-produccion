@@ -1920,6 +1920,7 @@
         entrarMail: function (e, p) { return au.signInWithEmailAndPassword(auth, e, p).then(function (c) { return c.user; }); },
         crearMail: function (e, p) { return au.createUserWithEmailAndPassword(auth, e, p).then(function (c) { return au.sendEmailVerification(c.user, { url: location.origin + location.pathname }); }); },
         olvide: function (e) { return au.sendPasswordResetEmail(auth, e); },
+        renovar: function () { return auth.currentUser ? auth.currentUser.reload().then(function () { return auth.currentUser.getIdToken(true); }) : Promise.resolve(); },
         reenviar: function () { return auth.currentUser ? au.sendEmailVerification(auth.currentUser, { url: location.origin + location.pathname }) : Promise.resolve(); },
         // Después de tocar el link del mail: se relee la cuenta y se pide un permiso nuevo, que ya dice "verificado".
         confirmar: function () { var u = auth.currentUser; if (!u) return Promise.resolve(false); return u.reload().then(function () { return u.getIdToken(true); }).then(function () { if (u.emailVerified && authCb) authCb(auth.currentUser); return u.emailVerified; }); },
@@ -1961,7 +1962,7 @@
       // Quien entró con mail y todavía no lo confirmó no puede leer nada: se le pide que lo confirme.
       if (u && u.emailVerified === false) { S.user = null; render(); if (window.Acceso) window.Acceso.verificar(store, u.email); return; }
       if (!u) { S.em = null; S.ep = null; S.prop = []; render(); return; }
-      store.esEditor(u.email).then(function (ok) {
+      (store.renovar ? store.renovar() : Promise.resolve()).then(null, function () {}).then(function () { return store.esEditor(u.email); }).then(function (ok) {
         S.editor = ok;
         if (ok && S.volver && S.tab === 'inicio') { S.tab = S.volver; S.volver = null; }
         if (ok) {
