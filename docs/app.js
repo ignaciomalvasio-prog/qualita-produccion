@@ -130,9 +130,10 @@
         ? '<tr><td><input type="text" id="c' + i + '-' + j + 'c" data-m="clientes" data-i="' + i + '" data-r="' + j + '" data-k="cliente" value="' + esc(r.cliente) + '" aria-label="Cliente"></td>'
           + '<td><input type="number" inputmode="decimal" step="0.5" class="n" id="c' + i + '-' + j + 'n" data-m="clientes" data-i="' + i + '" data-r="' + j + '" data-k="cant" value="' + esc(r.cant || '') + '" aria-label="Cerdos"></td>'
           + '<td class="xq"><button class="btn x" data-act="m-quitar" data-m="clientes" data-i="' + i + '" data-r="' + j + '" aria-label="Quitar cliente">×</button></td></tr>'
-        : '<tr><td>' + esc(r.cliente) + (r.nota ? ' <span class="small muted" style="text-transform:none;font-weight:400">' + esc(r.nota) + '</span>' : '') + '</td><td>' + n(+r.cant || 0) + '</td></tr>';
+        : '<tr><td>' + mChk(f, j, r) + esc(r.cliente) + mYa(r) + (r.nota ? ' <span class="small muted" style="text-transform:none;font-weight:400">' + esc(r.nota) + '</span>' : '') + '</td><td>' + n(+r.cant || 0) + '</td></tr>';
     });
     h += '</tbody><tfoot><tr><th>Total clientes</th><td id="sc' + i + '">' + n(s.clientes) + '</td>' + (edit ? '<td></td>' : '') + '</tr></tfoot></table>';
+    if (!edit) h += mBarraHTML(f);
     if (edit) h += '<div class="acciones"><button class="btn sm" data-act="m-agregar" data-m="clientes" data-i="' + i + '">+ Cliente</button>' + botonBorrar('m-vaciar', i, 'Vaciar este día') + '</div>';
 
     h += '<div class="desp" id="sd' + i + '">' + despHTML(s) + '</div>';
@@ -159,6 +160,33 @@
     });
   }
 
+  /* De la planilla de medias a Logística: se tildan los clientes del día que todavía no son pedido y se
+     crean sus pedidos (entrega el día hábil siguiente, medias = animales × 2). Así aparecen en Logística. */
+  function mSelKey(f, j) { return f + '|' + j; }
+  function mChk(f, j, r) {
+    if (!S.editor || !r.cliente || !(+r.cant > 0)) return '';
+    if (r.pedido && pedidoDe(r.pedido)) return '';
+    var k = mSelKey(f, j);
+    return '<label class="chk m-chk"><input type="checkbox" data-msel="' + esc(k) + '"' + ((S.mSel || {})[k] ? ' checked' : '') + ' aria-label="Mandar ' + esc(r.cliente) + ' a Logística"></label>';
+  }
+  function mYa(r) { return S.editor && r.pedido && pedidoDe(r.pedido) ? ' <span class="badge ok m-ya" title="Ya está en Pedidos y Logística">En logística</span>' : ''; }
+  function mPend(f) { var x = diaFaena(f); return x ? x.d.clientes.map(function (r, j) { return { r: r, j: j }; }).filter(function (o) { return o.r.cliente && +o.r.cant > 0 && !(o.r.pedido && pedidoDe(o.r.pedido)); }) : []; }
+  function mBarraHTML(f) {
+    if (!S.editor) return '';
+    var pend = mPend(f); if (!pend.length) return '';
+    var tild = pend.filter(function (o) { return (S.mSel || {})[mSelKey(f, o.j)]; }).length;
+    return '<div class="m-log"><span class="small">Tildá los clientes que salen y mandalos a Logística (entrega ' + esc(diaCorto(habilSiguiente(f))) + ').</span>'
+      + '<button class="btn sm" data-act="m-tildar" data-f="' + f + '">' + (tild === pend.length ? 'Destildar todos' : 'Tildar todos') + '</button>'
+      + '<button class="btn sm pri" data-act="m-a-log" data-f="' + f + '"' + (tild ? '' : ' disabled') + '>Mandar a Logística' + (tild ? ' (' + tild + ')' : '') + '</button></div>';
+  }
+  function mandarALogistica(f) {
+    var ent = habilSiguiente(f), qs = mPend(f).filter(function (o) { return (S.mSel || {})[mSelKey(f, o.j)]; }).map(function (o) {
+      var c = String(o.r.cliente).toUpperCase().trim();
+      return { cliente: c, entrega: ent, medias: Math.round((+o.r.cant || 0) * 2), peso: '', frio: '', nota: '', origen: 'medias', cuenta: cuentaDe(c) || '', cortes: [] };
+    });
+    if (!qs.length) return Promise.resolve(0);
+    return guardarVarios(qs, true).then(function (ok) { Object.keys(S.mSel || {}).forEach(function (k) { if (k.indexOf(f + '|') === 0) delete S.mSel[k]; }); return ok.length; });
+  }
   // Lo que ve el encargado: solo los clientes del día y cuántas medias lleva cada uno.
   function mvAct() { return S.editor ? (S.mv || 'semana') : 'dia'; }
   function conMedias(d) { return ((d && d.clientes) || []).filter(function (r) { return +r.cant > 0; }); }
@@ -194,8 +222,9 @@
     else {
       var tot = cl.reduce(function (t, r) { return t + (+r.cant || 0); }, 0);
       h += '<table class="pl cl-dia"><thead><tr><th>Cliente</th><th>Animales</th></tr></thead><tbody>' + cl.map(function (r) {
-        return '<tr><td>' + esc(r.cliente || 'Sin nombre') + (r.nota ? ' <span class="small muted" style="text-transform:none;font-weight:400">' + esc(r.nota) + '</span>' : '') + '</td><td>' + n(+r.cant || 0) + '</td></tr>';
+        return '<tr><td>' + mChk(f, x.d.clientes.indexOf(r), r) + esc(r.cliente || 'Sin nombre') + mYa(r) + (r.nota ? ' <span class="small muted" style="text-transform:none;font-weight:400">' + esc(r.nota) + '</span>' : '') + '</td><td>' + n(+r.cant || 0) + '</td></tr>';
       }).join('') + '</tbody><tfoot><tr><th>Total</th><td>' + n(tot) + '</td></tr></tfoot></table>'
+        + mBarraHTML(f)
         + '<p class="small muted">Cantidades en animales enteros (un animal son dos medias). Salen de la faena del ' + esc(tituloDe(f).toLowerCase()) + ' y se entregan el ' + esc(tituloDe(habilSiguiente(f)).toLowerCase()) + '.</p>';
     }
     el.innerHTML = h + '</div>';
@@ -1456,7 +1485,7 @@
     if (!S.editor) peds = peds.filter(function (p) { return p.camion; });
     var h = '<div class="nav"><button class="btn step" data-act="fl" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + esc(tituloDe(f)) + '</span><button class="btn step" data-act="fl" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="l-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">'
-      + (peds.length ? '<button class="btn" data-act="resumen" aria-pressed="' + !!S.resumen + '">Resumen</button><button class="btn" data-act="imprimir">' + (S.resumen ? 'Imprimir resumen' : 'Imprimir') + '</button>' : '')
+      + (peds.length ? '<button class="btn" data-act="resumen" aria-pressed="' + !!S.resumen + '">' + (S.resumen ? 'Ver por camión' : 'Resumen del día') + '</button><button class="btn" data-act="imprimir">' + (S.resumen ? 'Imprimir resumen' : 'Imprimir') + '</button>' : '')
       + (S.editor ? '<button class="btn" data-act="cam-nuevo">+ Camión para este día</button><button class="btn" data-act="link-log">Copiar link para compartir</button><span class="guardado" id="g-log"></span>' : '') + '</div>';
     if (!peds.length && !cams.length) {
       h += '<div class="panel"><p class="state">No hay pedidos para entregar este día.</p>' + (S.editor ? '<div class="acciones" style="justify-content:center"><button class="btn pri" data-act="ir-pedidos" data-f="' + f + '">Ir a los pedidos de este día</button></div>' : '') + '</div>';
@@ -1661,6 +1690,14 @@
     }
     else if (a === 'm-dia') { if (S.em) guardar('medias', true); S.em = null; S.mv = 'dia'; if (S.sem && S.dia != null) S.fm = mas(S.sem, S.dia); render(); }
     else if (a === 'sem') { S.msg.fotos = ''; S.msg.medias = ''; if (S.em) guardar('medias', true); S.em = null; S.sem = mas(S.sem, +D.d); S.dia = null; render(); }
+    else if (a === 'm-tildar') {
+      var pnd = mPend(D.f), todos = pnd.every(function (o) { return (S.mSel || {})[mSelKey(D.f, o.j)]; }); S.mSel = S.mSel || {};
+      pnd.forEach(function (o) { if (todos) delete S.mSel[mSelKey(D.f, o.j)]; else S.mSel[mSelKey(D.f, o.j)] = true; }); render();
+    }
+    else if (a === 'm-a-log') {
+      b.disabled = true; b.textContent = 'Mandando…';
+      mandarALogistica(D.f).then(function (k) { avisar(k + (k === 1 ? ' cliente quedó' : ' clientes quedaron') + ' en Logística del ' + tituloDe(habilSiguiente(D.f)).toLowerCase() + '.', 7000); render(); }, function () { avisar('!No se pudo mandar a Logística. Revisá la conexión.', 8000); render(); });
+    }
     else if (a === 'dia') { S.dia = +D.i; var g = document.querySelector('.dias'); if (g) g.dataset.sel = D.i; document.querySelectorAll('.dtabs .btn').forEach(function (x) { x.setAttribute('aria-pressed', String(x.dataset.i === D.i)); }); }
     else if (a === 'm-editar') { if (S.em) { guardar('medias', true); S.em = null; } else { S.em = { lunes: S.sem, doc: clone(semDe(S.sem)) }; S.msg.medias = ''; } render(); }
     else if (a === 'm-nueva') { S.em = { lunes: S.sem, doc: semanaNueva(S.sem) }; guardar('medias', true); render(); }
@@ -1890,6 +1927,7 @@
       (t.value.charAt(0) === 'f' ? usarDeFlota(f, v, ids) : asignarCamion(f, ids, v).then(function () { return { id: v }; }))
         .then(function (cam) { S.msg.fotos = avisoCamion(f, cam.id, ids.length); S.sel = {}; S.camOtro = false; renderPedidos(); }, function (e) { S.msg.fotos = '!' + ((e && e.message) || 'No se pudo guardar. Revisá la conexión.'); renderPedidos(); });
     }
+    else if (D.msel) { S.mSel = S.mSel || {}; if (t.checked) S.mSel[D.msel] = true; else delete S.mSel[D.msel]; render(); }
     else if (D.pasar && t.value) { (t.value.charAt(0) === 'f' ? usarDeFlota(S.fl, t.value.slice(2), [D.pasar]) : asignarCamion(S.fl, [D.pasar], t.value.slice(2))).then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); }
   });
 

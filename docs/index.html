@@ -299,6 +299,9 @@ button.cam-num{background:none;color:inherit;cursor:pointer}
 .cam-num.falta{border-style:dashed;opacity:.75}
 .cam-ord{display:inline-flex;gap:4px}
 .cam-hora{font:700 15px var(--body);opacity:.9}
+.m-chk{display:inline-flex;margin-right:6px;vertical-align:middle}.m-chk input{width:18px;height:18px}
+.m-ya{margin-left:4px;font-size:10px}
+.m-log{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;background:var(--accent-soft);border-radius:6px;padding:8px}
 /* Resumen del día: como la hoja a mano, con resaltador. */
 .resumen-dia{background:#fff;color:#111;border:1px solid var(--line);border-radius:6px;padding:16px;display:flex;flex-direction:column;gap:12px}
 .resumen-dia mark{background:#f2ff5c;color:#111;padding:0 4px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -363,6 +366,7 @@ details[open] > summary{margin-bottom:10px}
   .un-camion>*:not(.nav):not(.sale){display:none!important}
   .log-pos{background:none;color:#000;border:1.5px solid #000}
   .log-ped{break-inside:avoid}
+  .m-chk,.m-ya,.m-log{display:none!important}
   .nav:has(+ .resumen-dia){display:none!important}.resumen-dia{border:0;padding:0}.resumen-dia ~ *{display:none}.res-tit{font-size:15px}.res-lista{font-size:14px}.res-dia{font-size:20px}
   .op{font-size:14px;line-height:1.3;gap:7px}
   .op .op-f,.op .op-m{font-size:17px}
