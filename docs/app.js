@@ -130,10 +130,9 @@
         ? '<tr><td><input type="text" id="c' + i + '-' + j + 'c" data-m="clientes" data-i="' + i + '" data-r="' + j + '" data-k="cliente" value="' + esc(r.cliente) + '" aria-label="Cliente"></td>'
           + '<td><input type="number" inputmode="decimal" step="0.5" class="n" id="c' + i + '-' + j + 'n" data-m="clientes" data-i="' + i + '" data-r="' + j + '" data-k="cant" value="' + esc(r.cant || '') + '" aria-label="Cerdos"></td>'
           + '<td class="xq"><button class="btn x" data-act="m-quitar" data-m="clientes" data-i="' + i + '" data-r="' + j + '" aria-label="Quitar cliente">×</button></td></tr>'
-        : '<tr><td>' + mChk(f, j, r) + esc(r.cliente) + mYa(r) + (r.nota ? ' <span class="small muted" style="text-transform:none;font-weight:400">' + esc(r.nota) + '</span>' : '') + '</td><td>' + n(+r.cant || 0) + '</td></tr>';
+        : '<tr><td>' + esc(r.cliente) + (r.nota ? ' <span class="small muted" style="text-transform:none;font-weight:400">' + esc(r.nota) + '</span>' : '') + '</td><td>' + n(+r.cant || 0) + '</td></tr>';
     });
     h += '</tbody><tfoot><tr><th>Total clientes</th><td id="sc' + i + '">' + n(s.clientes) + '</td>' + (edit ? '<td></td>' : '') + '</tr></tfoot></table>';
-    if (!edit) h += mBarraHTML(f);
     if (edit) h += '<div class="acciones"><button class="btn sm" data-act="m-agregar" data-m="clientes" data-i="' + i + '">+ Cliente</button>' + botonBorrar('m-vaciar', i, 'Vaciar este día') + '</div>';
 
     h += '<div class="desp" id="sd' + i + '">' + despHTML(s) + '</div>';
@@ -160,33 +159,6 @@
     });
   }
 
-  /* De la planilla de medias a Logística: se tildan los clientes del día que todavía no son pedido y se
-     crean sus pedidos (entrega el día hábil siguiente, medias = animales × 2). Así aparecen en Logística. */
-  function mSelKey(f, j) { return f + '|' + j; }
-  function mChk(f, j, r) {
-    if (!S.editor || !r.cliente || !(+r.cant > 0)) return '';
-    if (r.pedido && pedidoDe(r.pedido)) return '';
-    var k = mSelKey(f, j);
-    return '<label class="chk m-chk"><input type="checkbox" data-msel="' + esc(k) + '"' + ((S.mSel || {})[k] ? ' checked' : '') + ' aria-label="Mandar ' + esc(r.cliente) + ' a Logística"></label>';
-  }
-  function mYa(r) { return S.editor && r.pedido && pedidoDe(r.pedido) ? ' <span class="badge ok m-ya" title="Ya está en Pedidos y Logística">En logística</span>' : ''; }
-  function mPend(f) { var x = diaFaena(f); return x ? x.d.clientes.map(function (r, j) { return { r: r, j: j }; }).filter(function (o) { return o.r.cliente && +o.r.cant > 0 && !(o.r.pedido && pedidoDe(o.r.pedido)); }) : []; }
-  function mBarraHTML(f) {
-    if (!S.editor) return '';
-    var pend = mPend(f); if (!pend.length) return '';
-    var tild = pend.filter(function (o) { return (S.mSel || {})[mSelKey(f, o.j)]; }).length;
-    return '<div class="m-log"><span class="small">Tildá los clientes que salen y mandalos a Logística (entrega ' + esc(diaCorto(habilSiguiente(f))) + ').</span>'
-      + '<button class="btn sm" data-act="m-tildar" data-f="' + f + '">' + (tild === pend.length ? 'Destildar todos' : 'Tildar todos') + '</button>'
-      + '<button class="btn sm pri" data-act="m-a-log" data-f="' + f + '"' + (tild ? '' : ' disabled') + '>Mandar a Logística' + (tild ? ' (' + tild + ')' : '') + '</button></div>';
-  }
-  function mandarALogistica(f) {
-    var ent = habilSiguiente(f), qs = mPend(f).filter(function (o) { return (S.mSel || {})[mSelKey(f, o.j)]; }).map(function (o) {
-      var c = String(o.r.cliente).toUpperCase().trim();
-      return { cliente: c, entrega: ent, medias: Math.round((+o.r.cant || 0) * 2), peso: '', frio: '', nota: '', origen: 'medias', cuenta: cuentaDe(c) || '', cortes: [] };
-    });
-    if (!qs.length) return Promise.resolve(0);
-    return guardarVarios(qs, true).then(function (ok) { Object.keys(S.mSel || {}).forEach(function (k) { if (k.indexOf(f + '|') === 0) delete S.mSel[k]; }); return ok.length; });
-  }
   // Lo que ve el encargado: solo los clientes del día y cuántas medias lleva cada uno.
   function mvAct() { return S.editor ? (S.mv || 'semana') : 'dia'; }
   function conMedias(d) { return ((d && d.clientes) || []).filter(function (r) { return +r.cant > 0; }); }
@@ -222,9 +194,8 @@
     else {
       var tot = cl.reduce(function (t, r) { return t + (+r.cant || 0); }, 0);
       h += '<table class="pl cl-dia"><thead><tr><th>Cliente</th><th>Animales</th></tr></thead><tbody>' + cl.map(function (r) {
-        return '<tr><td>' + mChk(f, x.d.clientes.indexOf(r), r) + esc(r.cliente || 'Sin nombre') + mYa(r) + (r.nota ? ' <span class="small muted" style="text-transform:none;font-weight:400">' + esc(r.nota) + '</span>' : '') + '</td><td>' + n(+r.cant || 0) + '</td></tr>';
+        return '<tr><td>' + esc(r.cliente || 'Sin nombre') + (r.nota ? ' <span class="small muted" style="text-transform:none;font-weight:400">' + esc(r.nota) + '</span>' : '') + '</td><td>' + n(+r.cant || 0) + '</td></tr>';
       }).join('') + '</tbody><tfoot><tr><th>Total</th><td>' + n(tot) + '</td></tr></tfoot></table>'
-        + mBarraHTML(f)
         + '<p class="small muted">Cantidades en animales enteros (un animal son dos medias). Salen de la faena del ' + esc(tituloDe(f).toLowerCase()) + ' y se entregan el ' + esc(tituloDe(habilSiguiente(f)).toLowerCase()) + '.</p>';
     }
     el.innerHTML = h + '</div>';
@@ -490,6 +461,20 @@
     do { antes = t; t = t.replace(/ (S A S|SAS|S R L|SRL|S A C I|SACI|S A|SA|LLC|LTD|SAPEM|SOCIEDAD ANONIMA\w*|SOCIEDAD POR ACCI\w*( S\w*)?|SOCIEDAD DE RESPONSAB\w*( LIMITADA)?|SOCIEDAD SIMPLE|SOCIEDAD COMERCI\w*)$/, '').replace(/[ \-]+$/, ''); } while (t !== antes);
     return t;
   }
+  // ¿Son el mismo cliente? Mismo nombre sin la forma societaria, la misma cuenta, o un nombre contenido en el
+  // otro ("RECREO" e "INDUSTRIAS FRIGORIFICAS RECREO"). Si los dos tienen cuenta y es distinta, no lo son.
+  var GENERICAS = { LA: 1, EL: 1, LOS: 1, LAS: 1, DE: 1, DEL: 1, INDUSTRIAS: 1, INDUSTRIA: 1, FRIGORIFICO: 1, FRIGORIFICOS: 1, FRIGORIFICA: 1, FRIGORIFICAS: 1, CARNES: 1, CARNICERIA: 1, DISTRIBUIDORA: 1, SUPERMERCADO: 1, AUTOSERVICIO: 1 };
+  function mismoCliente(a, b) {
+    var ka = claveCliente(a), kb = claveCliente(b);
+    if (!ka || !kb) return false;
+    if (ka === kb) return true;
+    var ca = cuentaDe(a), cb = cuentaDe(b);
+    if (ca && cb) return ca === cb;
+    var wa = palabras(ka).filter(function (w) { return !GENERICAS[w]; }), wb = palabras(kb).filter(function (w) { return !GENERICAS[w]; });
+    if (!wa.length || !wb.length) return false;
+    var corto = wa.length <= wb.length ? wa : wb, largo = corto === wa ? wb : wa;
+    return corto.every(function (w) { return largo.indexOf(w) >= 0; });
+  }
   function palabras(clave) { return clave.split(/[^A-Z0-9Ñ]+/).filter(function (w) { return w.length > 1 || /\d/.test(w); }); }
   function indiceClientes() {
     var l = clientes();
@@ -703,12 +688,36 @@
     });
     if (va) {
       var sem = cambios[lunes] || clone(semDe(lunes) || semanaNueva(lunes)), filas = sem.dias[i].clientes, nombre = norm(p.cliente);
-      var fila = filas.filter(function (r) { return r.pedido === p.id; })[0] || filas.filter(function (r) { return !r.pedido && norm(r.cliente) === nombre; })[0];
+      var fila = filas.filter(function (r) { return r.pedido === p.id; })[0] || filas.filter(function (r) { return !r.pedido && norm(r.cliente) === nombre; })[0]
+        || filas.filter(function (r) { return !r.pedido && r.cliente && mismoCliente(r.cliente, p.cliente); })[0];   // ya cargado en la planilla con otro nombre: no se repite
       if (!fila) { fila = {}; filas.push(fila); }
       fila.cliente = String(p.cliente || '').toUpperCase().trim(); fila.cant = medias / 2; fila.pedido = p.id; fila.nota = p.peso || '';
       cambios[lunes] = sem;
     }
     return Promise.all(Object.keys(cambios).map(function (l) { var sl = limpiarSemana(cambios[l]); S.faena = poner(S.faena, l, sl); return store.set('faena', l, sl); }));
+  }
+  /* Una vez por sesión, al entrar un editor: en las semanas de ahora en adelante, si un cliente de la planilla
+     quedó repetido con el renglón que vino de su pedido (mismo cliente y misma cantidad), se deja solo el del pedido. */
+  var mediasConciliadas = false;
+  function conciliarMedias() {
+    if (mediasConciliadas || !S.editor || !S.faena || !S.pedidos) return;
+    mediasConciliadas = true;
+    var desde = lunesDe(hoy()), cambios = [];
+    S.faena.forEach(function (sem) {
+      if (sem.id < desde) return;
+      var x = clone(sem), toco = false;
+      x.dias.forEach(function (d) {
+        var conPedido = d.clientes.filter(function (r) { return r.pedido && pedidoDe(r.pedido); });
+        var antes = d.clientes.length;
+        d.clientes = d.clientes.filter(function (r) {
+          if (r.pedido || !r.cliente || !(+r.cant > 0)) return true;
+          return !conPedido.some(function (l) { return +l.cant === +r.cant && mismoCliente(l.cliente, r.cliente); });
+        });
+        if (d.clientes.length !== antes) toco = true;
+      });
+      if (toco) { var id = x.id; delete x.id; var sl = limpiarSemana(x); S.faena = poner(S.faena, id, sl); cambios.push(store.set('faena', id, sl)); }
+    });
+    if (cambios.length) Promise.all(cambios).then(function () { renderDatos(); }, function () {});
   }
   // Al editar un pedido, los cortes que ya estaban en producción siguen estando, con el texto y la fecha nuevos.
   function revincularProduccion(p, previo) {
@@ -1690,14 +1699,6 @@
     }
     else if (a === 'm-dia') { if (S.em) guardar('medias', true); S.em = null; S.mv = 'dia'; if (S.sem && S.dia != null) S.fm = mas(S.sem, S.dia); render(); }
     else if (a === 'sem') { S.msg.fotos = ''; S.msg.medias = ''; if (S.em) guardar('medias', true); S.em = null; S.sem = mas(S.sem, +D.d); S.dia = null; render(); }
-    else if (a === 'm-tildar') {
-      var pnd = mPend(D.f), todos = pnd.every(function (o) { return (S.mSel || {})[mSelKey(D.f, o.j)]; }); S.mSel = S.mSel || {};
-      pnd.forEach(function (o) { if (todos) delete S.mSel[mSelKey(D.f, o.j)]; else S.mSel[mSelKey(D.f, o.j)] = true; }); render();
-    }
-    else if (a === 'm-a-log') {
-      b.disabled = true; b.textContent = 'Mandando…';
-      mandarALogistica(D.f).then(function (k) { avisar(k + (k === 1 ? ' cliente quedó' : ' clientes quedaron') + ' en Logística del ' + tituloDe(habilSiguiente(D.f)).toLowerCase() + '.', 7000); render(); }, function () { avisar('!No se pudo mandar a Logística. Revisá la conexión.', 8000); render(); });
-    }
     else if (a === 'dia') { S.dia = +D.i; var g = document.querySelector('.dias'); if (g) g.dataset.sel = D.i; document.querySelectorAll('.dtabs .btn').forEach(function (x) { x.setAttribute('aria-pressed', String(x.dataset.i === D.i)); }); }
     else if (a === 'm-editar') { if (S.em) { guardar('medias', true); S.em = null; } else { S.em = { lunes: S.sem, doc: clone(semDe(S.sem)) }; S.msg.medias = ''; } render(); }
     else if (a === 'm-nueva') { S.em = { lunes: S.sem, doc: semanaNueva(S.sem) }; guardar('medias', true); render(); }
@@ -1927,7 +1928,6 @@
       (t.value.charAt(0) === 'f' ? usarDeFlota(f, v, ids) : asignarCamion(f, ids, v).then(function () { return { id: v }; }))
         .then(function (cam) { S.msg.fotos = avisoCamion(f, cam.id, ids.length); S.sel = {}; S.camOtro = false; renderPedidos(); }, function (e) { S.msg.fotos = '!' + ((e && e.message) || 'No se pudo guardar. Revisá la conexión.'); renderPedidos(); });
     }
-    else if (D.msel) { S.mSel = S.mSel || {}; if (t.checked) S.mSel[D.msel] = true; else delete S.mSel[D.msel]; render(); }
     else if (D.pasar && t.value) { (t.value.charAt(0) === 'f' ? usarDeFlota(S.fl, t.value.slice(2), [D.pasar]) : asignarCamion(S.fl, [D.pasar], t.value.slice(2))).then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); }
   });
 
@@ -2026,7 +2026,7 @@
       renderDatos();
     }
     var fallo = function () { if (!got.faena || !got.prod) { var c = cache(true); if (c && c.produccion) aplicar(c, 'cache'); else S.status = 'error'; render(); } };
-    store.sub('faena', function (l) { if (S.fuente === 'respaldo' && !l.length) return; S.faena = ordenar(l.map(function (x) { x.desde = x.desde || x.id; return x; })); llego('faena'); }, fallo);
+    store.sub('faena', function (l) { if (S.fuente === 'respaldo' && !l.length) return; S.faena = ordenar(l.map(function (x) { x.desde = x.desde || x.id; return x; })); llego('faena'); conciliarMedias(); }, fallo);
     store.sub('produccion', function (l) { if (S.fuente === 'respaldo' && !l.length) return; S.prod = ordenar(l.map(function (x) { x.fecha = x.fecha || x.id; return x; })); llego('prod'); }, fallo);
     store.sub('config', function (l) {
       var c = l.filter(function (x) { return x.id === 'general'; })[0], lg = {};
@@ -2049,7 +2049,7 @@
           if (S.fuente === 'respaldo' || vacia) traer();
           if (!suscripto) {
             suscripto = true;
-            store.sub('pedidos', function (l) { S.pedidos = ordenar(l); conciliarLog(); renderDatos(); });
+            store.sub('pedidos', function (l) { S.pedidos = ordenar(l); conciliarLog(); renderDatos(); conciliarMedias(); });
             store.sub('ventas', function (l) { var antes = ventasPendientes(true).length; S.ventas = l; if (antes !== ventasPendientes(true).length && (S.tab === 'pedidos' || S.tab === 'inicio')) renderDatos(); });
             store.sub('privado', function (l) {
               var fl = {}, antesF = JSON.stringify(S.fletes || {});
