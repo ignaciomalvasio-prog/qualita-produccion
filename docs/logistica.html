@@ -298,6 +298,19 @@ select.mover{font-weight:600;padding:6px 8px}
 button.cam-num{background:none;color:inherit;cursor:pointer}
 .cam-num.falta{border-style:dashed;opacity:.75}
 .cam-ord{display:inline-flex;gap:4px}
+.cam-hora{font:700 15px var(--body);opacity:.9}
+/* Resumen del día: como la hoja a mano, con resaltador. */
+.resumen-dia{background:#fff;color:#111;border:1px solid var(--line);border-radius:6px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.resumen-dia mark{background:#f2ff5c;color:#111;padding:0 4px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.res-dia{text-align:center;font-size:26px;text-transform:none}
+.res-grilla{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-top:1.5px solid #111;border-left:1.5px solid #111}
+.res-cam{border-right:1.5px solid #111;border-bottom:1.5px solid #111;padding:8px 10px;break-inside:avoid;display:flex;flex-direction:column;gap:4px}
+.res-tit{font:700 18px/1.2 var(--body)}
+.res-lista{font-size:17px;line-height:1.45}
+.res-cli{white-space:nowrap}
+.res-cong{font-size:12px;font-weight:700;text-transform:uppercase;border:1px solid #111;border-radius:3px;padding:0 3px}
+.res-nota{font-size:14px;color:#444}
+@media (max-width:640px){ .res-grilla{grid-template-columns:1fr} .res-cli{white-space:normal} }
 .cam>.cam-cab .cam-nota{font-weight:600;opacity:.92}
 .cam.pasa{border-color:var(--crit)} .cam.pasa>.cam-cab{background:var(--crit);color:#fff}
 .cam.suelto{border:2px dashed var(--muted)} .cam.suelto>.cam-cab{background:var(--sunken);color:var(--ink)}
@@ -350,6 +363,7 @@ details[open] > summary{margin-bottom:10px}
   .un-camion>*:not(.nav):not(.sale){display:none!important}
   .log-pos{background:none;color:#000;border:1.5px solid #000}
   .log-ped{break-inside:avoid}
+  .nav:has(+ .resumen-dia){display:none!important}.resumen-dia{border:0;padding:0}.resumen-dia ~ *{display:none}.res-tit{font-size:15px}.res-lista{font-size:14px}.res-dia{font-size:20px}
   .op{font-size:14px;line-height:1.3;gap:7px}
   .op .op-f,.op .op-m{font-size:17px}
   .op .op-c{gap:3px;break-inside:avoid}

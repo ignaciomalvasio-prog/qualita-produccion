@@ -67,3 +67,4 @@ Lo faenado un día recién se entrega o se desposta al día siguiente.
 
 Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/firebase-hosting.yml`, con el secreto `FIREBASE_SERVICE_ACCOUNT`) y en GitHub Pages (carpeta `docs/`).
 - Logística: el número de cada camión lo pone Renzo a mano (Editar → N° de camión, o "Poner N°" en la cabecera; ya no se numeran solos) y con ↑/↓ se cambia el orden de los camiones del día. Sin nombre, el camión se muestra como "Camión N°".
+- Logística → **Resumen**: hoja del día como la que se arma a mano (un recuadro por camión con N°, nombre y hora de salida, y los clientes en orden de carga: "ALEDO 12½+C" = 12 medias y cortes). "Imprimir resumen" la imprime sola. La hora de salida se carga en Editar del camión.

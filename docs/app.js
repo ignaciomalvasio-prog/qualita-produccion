@@ -776,7 +776,7 @@
   function nombreCamion(f, id) { var c = camionesDe(f).filter(function (x) { return x.id === id; })[0]; return c ? nomCam(c) : ''; }
   function publicarLog(f, camiones) {
     if (!f) return Promise.resolve();
-    var cams = (camiones || camionesDe(f)).map(function (c) { return { id: c.id, nombre: c.nombre || '', num: String(c.num || '').trim(), nota: c.nota || '', kg: +c.kg || 0, orden: (c.orden || []).slice() }; }), hay = {};
+    var cams = (camiones || camionesDe(f)).map(function (c) { return { id: c.id, nombre: c.nombre || '', num: String(c.num || '').trim(), hora: String(c.hora || '').trim(), nota: c.nota || '', kg: +c.kg || 0, orden: (c.orden || []).slice() }; }), hay = {};
     cams.forEach(function (c) { hay[c.id] = c; });
     var peds = (S.pedidos || []).filter(function (p) { return p.entrega === f; }).map(function (p) {
       var k = kgPedido(p);
@@ -831,8 +831,8 @@
     if (!fl) return Promise.reject(new Error('Ese camión ya no está en el stock.'));
     return crearCamion(f, fl.nombre, fl.nota, ids, fl.kg, idDia);
   }
-  function cambiarCamion(f, id, nombre, nota, kg, num) {
-    var cams = camionesDe(f).map(function (c) { return c.id === id ? { id: id, nombre: String(nombre || '').trim(), num: String(num == null ? c.num || '' : num).trim(), nota: String(nota || '').trim(), kg: +kg || 0, orden: c.orden || [] } : c; });
+  function cambiarCamion(f, id, nombre, nota, kg, num, hora) {
+    var cams = camionesDe(f).map(function (c) { return c.id === id ? { id: id, nombre: String(nombre || '').trim(), num: String(num == null ? c.num || '' : num).trim(), hora: String(hora == null ? c.hora || '' : hora).trim(), nota: String(nota || '').trim(), kg: +kg || 0, orden: c.orden || [] } : c; });
     return publicarLog(f, cams).then(tocar);
   }
   // Cambia de lugar un camión en la lista del día (el orden en que se muestran e imprimen).
@@ -1312,6 +1312,31 @@
     var x = clone(v); delete x.id; x.estado = 'rechazado'; x.motivo = String(motivo || '').trim(); x.revisado = ahoraTxt(); x.por = S.user ? S.user.email : '';
     S.ventas = poner(S.ventas, v.id, x); return store.set('ventas', v.id, x);
   }
+  /* Resumen del día, como la hoja que se arma a mano: un recuadro por camión con su número, nombre y hora,
+     y los clientes en el orden de carga ("Aledo 12½ + C" = 12 medias y cortes). */
+  function resumenDiaHTML(f, cams, peds) {
+    var x = String(f).split('-'), titulo = diaDe(f) + ' ' + x[2] + '-' + x[1] + '-' + x[0].slice(2);
+    var cli = function (p) {
+      var t = esc(p.cliente || 'Sin cliente');
+      if (+p.medias) t += ' <b>' + n(+p.medias) + '½</b>';
+      if ((p.cortes || []).length) t += (+p.medias ? '' : ' ') + '<b>+C</b>';
+      if (p.frio === 'CONGELADO') t += ' <span class="res-cong">cong.</span>';
+      return '<span class="res-cli">' + t + '</span>';
+    };
+    var bloque = function (tit, hora, lista, nota) {
+      return '<div class="res-cam"><p class="res-tit"><mark># ' + esc(tit) + (hora ? ' ' + esc(hora) + ' hs' : '') + '</mark></p>'
+        + '<p class="res-lista">' + (lista.length ? lista.map(cli).join(' – ') : '<span class="muted">Sin pedidos</span>') + '</p>'
+        + (nota ? '<p class="res-nota">' + esc(nota) + '</p>' : '') + '</div>';
+    };
+    var h = '<div class="resumen-dia"><h2 class="res-dia"><mark>' + esc(titulo) + '</mark></h2><div class="res-grilla">';
+    cams.forEach(function (c) {
+      var tit = (c.num && String(c.nombre || '').trim() ? 'N° ' + c.num + ' · ' : '') + nomCam(c);
+      h += bloque(tit, c.hora, peds.filter(function (p) { return p.camion === c.id; }), c.nota);
+    });
+    var sueltos = peds.filter(function (p) { return !p.camion; });
+    if (sueltos.length) h += bloque('Sin camión', '', sueltos, '');
+    return h + '</div></div>';
+  }
   // Barra para mandar los pedidos tildados a un camión.
   function barraCamionHTML(f, tild) {
     var cams = camionesDe(f), lg = logDe(f), pubs = (lg && lg.pedidos) || [], fl = flota();
@@ -1431,19 +1456,20 @@
     if (!S.editor) peds = peds.filter(function (p) { return p.camion; });
     var h = '<div class="nav"><button class="btn step" data-act="fl" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + esc(tituloDe(f)) + '</span><button class="btn step" data-act="fl" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="l-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">'
-      + (peds.length ? '<button class="btn" data-act="imprimir">Imprimir</button>' : '')
+      + (peds.length ? '<button class="btn" data-act="resumen" aria-pressed="' + !!S.resumen + '">Resumen</button><button class="btn" data-act="imprimir">' + (S.resumen ? 'Imprimir resumen' : 'Imprimir') + '</button>' : '')
       + (S.editor ? '<button class="btn" data-act="cam-nuevo">+ Camión para este día</button><button class="btn" data-act="link-log">Copiar link para compartir</button><span class="guardado" id="g-log"></span>' : '') + '</div>';
     if (!peds.length && !cams.length) {
       h += '<div class="panel"><p class="state">No hay pedidos para entregar este día.</p>' + (S.editor ? '<div class="acciones" style="justify-content:center"><button class="btn pri" data-act="ir-pedidos" data-f="' + f + '">Ir a los pedidos de este día</button></div>' : '') + '</div>';
       if (S.editor || flota().length) h += stockCamionesHTML(f, peds, cams);
       el.innerHTML = h; pintarMsg('log'); pintarMsg('flota'); return;
     }
+    if (S.resumen) { el.innerHTML = h + resumenDiaHTML(f, cams, peds); pintarMsg('log'); return; }
     h += '<p class="muted">Para entregar ' + esc(cuandoEs(f)) + ': ' + resumenLog(peds) + (cams.length ? ' · ' + cams.length + (cams.length === 1 ? ' camión' : ' camiones') : '') + '.</p>';
     cams.forEach(function (cam, k) {
       var suyos = peds.filter(function (p) { return p.camion === cam.id; }), ed = S.ec === cam.id;
       var car = cargaDe(peds, cam.id), ct = capTxt(cam, car), pasa = +cam.kg > 0 && car > +cam.kg;
       h += '<section class="cam' + (pasa ? ' pasa' : '') + '" data-cam="' + esc(cam.id) + '"><header class="cam-cab">' + (S.editor && cams.length > 1 && !ed ? '<span class="cam-ord"><button class="btn sm ord" data-act="camion-subir" data-id="' + esc(cam.id) + '"' + (k === 0 ? ' disabled' : '') + ' aria-label="Subir el camión ' + esc(nomCam(cam)) + '">↑</button><button class="btn sm ord" data-act="camion-bajar" data-id="' + esc(cam.id) + '"' + (k === cams.length - 1 ? ' disabled' : '') + ' aria-label="Bajar el camión ' + esc(nomCam(cam)) + '">↓</button></span>' : '')
-        + (cam.num ? (String(cam.nombre || '').trim() ? '<span class="cam-num">N° ' + esc(cam.num) + '</span>' : '') : S.editor ? '<button class="cam-num falta" data-act="cam-editar" data-id="' + esc(cam.id) + '">Poner N°</button>' : '') + '<h2>' + esc(nomCam(cam)) + '</h2>'
+        + (cam.num ? (String(cam.nombre || '').trim() ? '<span class="cam-num">N° ' + esc(cam.num) + '</span>' : '') : S.editor ? '<button class="cam-num falta" data-act="cam-editar" data-id="' + esc(cam.id) + '">Poner N°</button>' : '') + '<h2>' + esc(nomCam(cam)) + '</h2>' + (cam.hora ? '<span class="cam-hora">' + esc(cam.hora) + ' hs</span>' : '')
         + (cam.nota && !ed ? '<span class="cam-nota">' + esc(cam.nota) + '</span>' : '')
         + (!ed ? '<span class="log-acc"><button class="btn sm" data-act="cam-imprimir" data-id="' + esc(cam.id) + '">Imprimir</button>'
           + (S.editor ? '<button class="btn sm" data-act="cam-editar" data-id="' + esc(cam.id) + '">Editar</button>' + botonBorrar('cam-borrar', cam.id, 'Borrar camión') : '') + '</span>' : '') + '</header>';
@@ -1451,7 +1477,7 @@
         + (ct ? '<div class="cam-carga"><p class="cam-cap' + (pasa ? ' neg' : '') + '">' + esc(ct) + '</p>' + (+cam.kg > 0 ? '<div class="medidor' + (pasa ? ' pasa' : '') + '" role="img" aria-label="' + esc(ct) + '"><i style="width:' + Math.min(100, Math.round(car / +cam.kg * 100)) + '%"></i></div>' : '') + '</div>' : '') + '</div>';
       if (S.editor) h += fleteHTML(f, cam, peds);
       h += '<div class="cam-cuerpo">';
-      if (ed) h += '<div class="campos"><label class="campo"><span>N° de camión</span><input type="text" id="cam-e-num" value="' + esc(S.ecNum || '') + '" placeholder="Ej. 7"></label><label class="campo"><span>Nombre</span><input type="text" id="cam-e-nombre" value="' + esc(S.ecNombre || '') + '" placeholder="Opcional"></label><label class="campo"><span>Capacidad kg</span><input type="number" inputmode="numeric" id="cam-e-kg" value="' + esc(S.ecKg || '') + '"></label><label class="campo"><span>Nota (chofer, hora…)</span><input type="text" id="cam-e-nota" value="' + esc(S.ecNota || '') + '"></label></div>'
+      if (ed) h += '<div class="campos"><label class="campo"><span>N° de camión</span><input type="text" id="cam-e-num" value="' + esc(S.ecNum || '') + '" placeholder="Ej. 7"></label><label class="campo"><span>Nombre</span><input type="text" id="cam-e-nombre" value="' + esc(S.ecNombre || '') + '" placeholder="Opcional"></label><label class="campo"><span>Hora de salida</span><input type="time" id="cam-e-hora" value="' + esc(S.ecHora || '') + '"></label><label class="campo"><span>Capacidad kg</span><input type="number" inputmode="numeric" id="cam-e-kg" value="' + esc(S.ecKg || '') + '"></label><label class="campo"><span>Nota (chofer, hora…)</span><input type="text" id="cam-e-nota" value="' + esc(S.ecNota || '') + '"></label></div>'
         + '<div class="acciones"><button class="btn pri" data-act="cam-guardar">Guardar</button><button class="btn" data-act="cam-cancelar">Cancelar</button></div>';
       h += suyos.length ? '<div class="log-lista">' + suyos.map(function (p, i) { return logPedidoHTML(p, cam, cams, i, suyos.length); }).join('') + '</div>' : '<p class="muted">Sin pedidos.</p>';
       h += '</div></section>';
@@ -1607,6 +1633,7 @@
       setTimeout(function () { window.print(); setTimeout(limpiar, 60000); }, 80);
     }
     else if (a === 'cam-subir' || a === 'cam-bajar') { moverEnCamion(S.fl, D.cam, D.id, a === 'cam-subir' ? -1 : 1).then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); }
+    else if (a === 'resumen') { S.resumen = !S.resumen; render(); }
     else if (a === 'imprimir') {
       // Se imprime siempre la vista de lectura, no la de edición.
       if (S.em) { guardar('medias', true); S.em = null; }
@@ -1729,11 +1756,11 @@
     else if (a === 'pd') { var yp = S.pd || habilSiguiente(hoy()); do { yp = mas(yp, +D.d); } while (!esHabil(yp)); S.pd = yp; S.abierto = {}; renderPedidos(); }
     else if (a === 'pd-ir') { S.pd = D.f; S.abierto = {}; renderPedidos(); window.scrollTo(0, 0); }
     else if (a === 'fl') { var yl = S.fl; do { yl = mas(yl, +D.d); } while (!esHabil(yl)); S.fl = yl; S.ec = null; S.msg.log = ''; render(); }
-    else if (a === 'cam-nuevo') { crearCamion(S.fl, '', '', []).then(function (cam) { S.ec = cam.id; S.ecNum = ''; S.ecNombre = ''; S.ecNota = ''; S.ecKg = ''; render(); var fn = $('cam-e-num'); if (fn) fn.focus(); }, function () { S.msg.log = '!No se pudo crear el camión.'; pintarMsg('log'); }); }
-    else if (a === 'cam-editar') { var ce = camionesDe(S.fl).filter(function (c) { return c.id === D.id; })[0]; if (ce) { S.ec = ce.id; S.ecNum = ce.num || ''; S.ecNombre = ce.nombre || ''; S.ecNota = ce.nota || ''; S.ecKg = ce.kg || ''; render(); var fn2 = $('cam-e-num'); if (fn2) fn2.focus(); } }
+    else if (a === 'cam-nuevo') { crearCamion(S.fl, '', '', []).then(function (cam) { S.ec = cam.id; S.ecNum = ''; S.ecHora = ''; S.ecNombre = ''; S.ecNota = ''; S.ecKg = ''; render(); var fn = $('cam-e-num'); if (fn) fn.focus(); }, function () { S.msg.log = '!No se pudo crear el camión.'; pintarMsg('log'); }); }
+    else if (a === 'cam-editar') { var ce = camionesDe(S.fl).filter(function (c) { return c.id === D.id; })[0]; if (ce) { S.ec = ce.id; S.ecNum = ce.num || ''; S.ecHora = ce.hora || ''; S.ecNombre = ce.nombre || ''; S.ecNota = ce.nota || ''; S.ecKg = ce.kg || ''; render(); var fn2 = $('cam-e-num'); if (fn2) fn2.focus(); } }
     else if (a === 'cam-cancelar') { S.ec = null; render(); }
     else if (a === 'camion-subir' || a === 'camion-bajar') { moverCamion(S.fl, D.id, a === 'camion-subir' ? -1 : 1).then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); }
-    else if (a === 'cam-guardar') { var idc = S.ec; S.ec = null; cambiarCamion(S.fl, idc, S.ecNombre, S.ecNota, S.ecKg, S.ecNum || '').then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); render(); }
+    else if (a === 'cam-guardar') { var idc = S.ec; S.ec = null; cambiarCamion(S.fl, idc, S.ecNombre, S.ecNota, S.ecKg, S.ecNum || '', S.ecHora || '').then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); render(); }
     else if (a === 'cam-borrar') { if (!confirma('cam-borrar' + D.i)) { render(); return; } S.ec = null; borrarCamion(S.fl, D.i).then(render, function () { S.msg.log = '!No se pudo borrar.'; render(); }); render(); }
     else if (a === 'cam-quitar-ped') { asignarCamion(S.fl, [D.id], '').then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); }
 
@@ -1773,6 +1800,7 @@
     if (t.id === 'cfg-kgmedia' || t.id === 'cfg-kgcaja') { S.config[t.id === 'cfg-kgmedia' ? 'kgMedia' : 'kgCaja'] = +t.value || 0; guardarConfig(); return; }
     if (t.id === 'cam-e-nombre') { S.ecNombre = t.value; return; }
     if (t.id === 'cam-e-num') { S.ecNum = t.value; return; }
+    if (t.id === 'cam-e-hora') { S.ecHora = t.value; return; }
     if (t.id === 'cam-num') { S.camNum = t.value; return; }
     if (t.id === 'cam-e-nota') { S.ecNota = t.value; return; }
     if (D.m && S.em) { S.em.doc.dias[+D.i][D.m][+D.r][D.k] = t.value; guardar('medias'); pintarSumas(); }
