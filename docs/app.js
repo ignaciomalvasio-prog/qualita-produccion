@@ -316,7 +316,8 @@
     var h = '<div class="nav"><button class="btn step" data-act="fecha" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + esc(tituloDe(f)) + '</span><button class="btn step" data-act="fecha" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="p-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">';
     if (o) h += '<button class="btn" data-act="imprimir">Imprimir</button>';
-    if (S.editor && o) h += '<button class="btn' + (edit ? ' pri' : '') + '" data-act="p-editar">' + (edit ? 'Listo' : 'Editar') + '</button><span class="guardado" id="g-prod"></span>';
+    if (S.editor && o) h += '<button class="btn' + (edit ? ' pri' : '') + '" data-act="p-editar">' + (edit ? 'Listo' : 'Editar') + '</button>';
+    if (S.editor) h += '<button class="btn" data-act="link-prod">Copiar link para compartir</button><span class="guardado" id="g-prod"></span>';
     h += '</div>';
     if (!o) {
       h += '<div class="panel"><p class="state">Todavía no hay nada en producción para este día.</p>';
@@ -1624,9 +1625,10 @@
     if (S._c2 && S._c2 !== a + (D.i == null ? '' : D.i)) S._c2 = null;
 
     if (a === 'actualizar') { recargar(); return; }
-    if (a === 'link-log') {
-      var url = location.origin + location.pathname.replace(/[^\/]*$/, '') + 'logistica', listo = function () { S.msg.log = 'Link copiado: ' + url; pintarMsg('log'); avisar('Link de Logística copiado. Pegalo donde quieras compartirlo.', 6000); };
-      var aMano = function () { S.msg.log = 'Link para compartir: ' + url; pintarMsg('log'); avisar('Link para compartir: ' + url, 15000); };
+    if (a === 'link-log' || a === 'link-prod') {
+      var pag = a === 'link-prod' ? 'produccion' : 'logistica', km = a === 'link-prod' ? 'prod' : 'log', nom = a === 'link-prod' ? 'Producción' : 'Logística';
+      var url = location.origin + location.pathname.replace(/[^\/]*$/, '') + pag, listo = function () { S.msg[km] = 'Link copiado: ' + url; pintarMsg(km); avisar('Link de ' + nom + ' copiado. Pegalo donde quieras compartirlo.', 6000); };
+      var aMano = function () { S.msg[km] = 'Link para compartir: ' + url; pintarMsg(km); avisar('Link para compartir: ' + url, 15000); };
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(listo, aMano); else aMano();
       return;
     }
@@ -1934,11 +1936,12 @@
   var h0 = (location.hash || '').slice(1); if (TABS.indexOf(h0) >= 0) S.tab = h0;
   // Link para compartir con una sola pestaña: se ve esa sola, sin las demás y sin ingresar.
   // Es la página logistica.html (se arma con tools/paginas.py); el link viejo con ?solo=logistica sigue andando.
-  try { var qs = document.documentElement.getAttribute('data-solo') || new URLSearchParams(location.search).get('solo'); if (qs === 'logistica') { S.solo = qs; S.tab = qs; } } catch (err) {}
+  try { var qs = document.documentElement.getAttribute('data-solo') || new URLSearchParams(location.search).get('solo'); if (qs === 'logistica' || qs === 'produccion') { S.solo = qs; S.tab = qs; } } catch (err) {}
   if (S.solo) {
-    document.title = 'Logística Qualitá';
-    var mf = document.querySelector('link[rel="manifest"]'); if (mf) mf.setAttribute('href', 'logistica.webmanifest');
-    var mn = document.querySelector('.marca-nom'); if (mn) mn.textContent = 'Logística';
+    var tsolo = S.solo === 'produccion' ? 'Producción' : 'Logística';
+    document.title = tsolo + ' Qualitá';
+    var mf = document.querySelector('link[rel="manifest"]'); if (mf) mf.setAttribute('href', S.solo + '.webmanifest');
+    var mn = document.querySelector('.marca-nom'); if (mn) mn.textContent = tsolo;
     document.documentElement.classList.add('solo');
   }
 
