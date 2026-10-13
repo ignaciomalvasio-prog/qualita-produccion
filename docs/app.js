@@ -27,8 +27,8 @@
 
   var SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
   var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-  var TABS = ['inicio', 'pedidos', 'produccion', 'logistica', 'medias', 'clientes'];
-  var CORTES_BASE = ['JAMON', 'PALETA', 'PECHO', 'CARRE', 'SOLOMILLO', 'MATAMBRE', 'BONDIOLA', 'RECORTE', 'GRASA BUENA', 'GRASA MALA', 'CUERO', 'TAPA DE PALETA', 'TAPA DE JAMON', 'TORTUGA', 'GARRON', 'TOCINO', 'CHURRASCO', 'PAPADA', 'OREJAS', 'CABEZA', 'PULMON', 'HIGADO', 'PATAS Y MANOS', 'HUESITOS', 'UNTO', 'MENUDENCIAS', 'EMBUTIDOS'];
+  var TABS = ['inicio', 'pedidos', 'produccion', 'ciclo3', 'logistica', 'medias', 'clientes'];
+  var CORTES_BASE = ['JAMON', 'PALETA', 'PECHO', 'CARRE', 'SOLOMILLO', 'MATAMBRE', 'BONDIOLA', 'RECORTE', 'GRASA BUENA', 'GRASA MALA', 'CUERO', 'TAPA DE PALETA', 'TAPA DE JAMON', 'TORTUGA', 'GARRON', 'TOCINO', 'CHURRASCO', 'PAPADA', 'OREJAS', 'CABEZA', 'PULMON', 'HIGADO', 'PATAS Y MANOS', 'HUESITOS', 'UNTO', 'MENUDENCIAS', 'EMBUTIDOS', 'CHORIZO', 'MORCILLA', 'SALCHICHA'];
 
   var S = {
     faena: null, prod: null, pedidos: null, config: {}, ia: {}, status: 'loading', fuente: '',
@@ -238,8 +238,17 @@
   function sinResto(t) { return String(t || '').replace(/^\s*RESTO\s*:?\s*/i, ''); }
   function corteDe(o, nombre) { var k = norm(nombre); return (o.cortes || []).filter(function (c) { return norm(c.corte) === k; })[0] || null; }
   function ordenCorte(nombre) { var i = CORTES_BASE.indexOf(norm(nombre)); return i < 0 ? 999 : i; }
+  /* Ciclo III (embutidos: chorizo, morcilla, salchicha) tiene su propia planilla por día. Se guarda en la
+     misma colección "produccion" con el id "c3-AAAA-MM-DD"; la de desposte sigue con el id "AAAA-MM-DD". */
+  function esC3(id) { return /^c3-/.test(String(id || '')); }
+  function diaProd(id) { return String(id || '').replace(/^c3-/, ''); }
+  function idActual() { return (S.tab === 'ciclo3' ? 'c3-' : '') + S.fecha; }
+  function esEmbutido(c) { var t = norm((c.corte || '') + ' ' + (c.texto || '')); return norm(c.corte) === 'EMBUTIDOS' || /CHORIZ|MORCILL|SALCHICH/.test(t); }
+  function idPara(p, c) { return (esEmbutido(c) ? 'c3-' : '') + p.entrega; }
+  // En Ciclo III los renglones se agrupan por producto: chorizo, morcilla o salchicha.
+  function corteC3(c) { var t = norm((c.texto || '') + ' ' + (c.corte || '')); return /CHORIZ/.test(t) ? 'CHORIZO' : /MORCILL/.test(t) ? 'MORCILLA' : /SALCHICH/.test(t) ? 'SALCHICHA' : 'EMBUTIDOS'; }
   function prodGuardada(f) { return (S.prod || []).filter(function (o) { return o.id === f; })[0] || null; }
-  function prodVacia(f) { return { fecha: f, medias: +S.config.desposteHabitual || 750, mercado: '', estado: 'borrador', cortes: [] }; }
+  function prodVacia(f) { return esC3(f) ? { fecha: diaProd(f), linea: 'ciclo3', medias: 0, mercado: '', estado: 'borrador', cortes: [] } : { fecha: f, medias: +S.config.desposteHabitual || 750, mercado: '', estado: 'borrador', cortes: [] }; }
   // Un renglón nuevo dentro de su corte. Los que llevan cantidad van arriba de los que no.
   function insertarLinea(o, corte, texto, pid, ck, frio) {
     var c = corteDe(o, corte);
@@ -276,10 +285,15 @@
     if (borrarSiVacia && !ol.cortes.length) { S.prod = (S.prod || []).filter(function (x) { return x.id !== f; }); return store.del('produccion', f); }
     S.prod = poner(S.prod, f, ol); return store.set('produccion', f, ol);
   }
+  // Los cortes van a la planilla de desposte del día; chorizo, morcilla y salchicha, a la de Ciclo III.
   function sumarCortes(p, cuales) {
-    var f = p.entrega, o = clone(prodGuardada(f) || prodVacia(f)), m = enProduccion();
-    cuales.forEach(function (c) { if (c.texto && !fechaProdDe(m, p, c)) insertarLinea(o, c.corte, textoProd(p, c), p.id, c.k, c.frio || p.frio); });
-    return guardarOrden(f, o).then(tocar);
+    var m = enProduccion(), docs = {};
+    cuales.forEach(function (c) {
+      if (!c.texto || fechaProdDe(m, p, c)) return;
+      var id = idPara(p, c), o = docs[id] || (docs[id] = clone(prodGuardada(id) || prodVacia(id)));
+      insertarLinea(o, esC3(id) ? corteC3(c) : c.corte, textoProd(p, c), p.id, c.k, c.frio || p.frio);
+    });
+    return Promise.all(Object.keys(docs).map(function (id) { return guardarOrden(id, docs[id]); })).then(tocar);
   }
   function quitarCorte(p, c) {
     var f = fechaProdDe(enProduccion(), p, c), o = f && prodGuardada(f);
@@ -309,35 +323,36 @@
     return orden.filter(function (u) { return t[u]; }).map(function (u) { return n(t[u]) + ' ' + (u === 'cajas' && t[u] === 1 ? 'caja' : u === 'bines' && t[u] === 1 ? 'bin' : u); }).join(' · ');
   }
   function textoOrden(o, sinFrio) {
-    var out = [diaDe(o.fecha).toUpperCase() + ' ' + fechaCorta(o.fecha), (o.medias || '') + '½ ' + String(o.mercado || '').toUpperCase()];
+    var out = [diaDe(o.fecha).toUpperCase() + ' ' + fechaCorta(o.fecha)].concat(o.linea === 'ciclo3' ? ['CICLO III · EMBUTIDOS'] : [(o.medias || '') + '½ ' + String(o.mercado || '').toUpperCase()]);
     (o.cortes || []).forEach(function (c) {
       (c.lineas.length ? c.lineas : [{ t: '' }]).forEach(function (l, i) { out.push(((i === 0 ? c.corte + ': ' : '') + enKg(l.t) + (l.f && !sinFrio ? ' (' + l.f + ')' : '')).toUpperCase()); });
       var tot = totalCorte(c); if (tot && c.lineas.length > 1) out.push('TOTAL ' + c.corte + ': ' + tot.toUpperCase());
     });
     return out.join('\n');
   }
-  function fechaProdInicial() { var h = hoy(); return esHabil(h) ? h : habilSiguiente(h); }
+  // El día de trabajo: hoy si es hábil; desde las 15 h ya se trabaja para el día hábil siguiente.
+  function fechaProdInicial() { var h = hoy(); return esHabil(h) && new Date().getHours() < 15 ? h : habilSiguiente(h); }
 
   function renderProduccion() {
-    var el = $('view-produccion');
+    var c3 = S.tab === 'ciclo3', el = $(c3 ? 'view-ciclo3' : 'view-produccion');
     if (cargando(el, S.prod)) return;
     if (!S.fecha || !S.fechaFija) S.fecha = fechaProdInicial();
-    var f = S.fecha, o = prodDe(f), edit = !!(S.ep && S.ep.fecha === f);
+    var f = S.fecha, id = idActual(), o = prodDe(id), edit = !!(S.ep && S.ep.fecha === id);
     var h = '<div class="nav"><button class="btn step" data-act="fecha" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + esc(tituloDe(f)) + '</span><button class="btn step" data-act="fecha" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="p-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">';
     if (o) h += '<button class="btn" data-act="imprimir">Imprimir</button>';
     if (S.editor && o) h += '<button class="btn' + (edit ? ' pri' : '') + '" data-act="p-editar">' + (edit ? 'Listo' : 'Editar') + '</button>';
-    if (S.editor) h += '<button class="btn" data-act="link-prod">Copiar link para compartir</button><span class="guardado" id="g-prod"></span>';
+    if (S.editor) h += '<button class="btn" data-act="' + (c3 ? 'link-c3' : 'link-prod') + '">Copiar link para compartir</button><span class="guardado" id="g-prod"></span>';
     h += '</div>';
     if (!o) {
-      h += '<div class="panel"><p class="state">Todavía no hay nada en producción para este día.</p>';
+      h += '<div class="panel"><p class="state">' + (c3 ? 'Todavía no hay embutidos para Ciclo III este día.' : 'Todavía no hay nada en producción para este día.') + '</p>' + (c3 ? '<p class="small muted" style="text-align:center">Llegan solos al tocar "Sumar a producción" en un pedido con chorizo, morcilla o salchicha.</p>' : '');
       if (S.editor) h += '<div class="acciones" style="justify-content:center"><button class="btn pri" data-act="ir-pedidos" data-f="' + f + '">Ir a los pedidos de este día</button><button class="btn" data-act="p-nueva">Escribir a mano</button></div>';
       el.innerHTML = h + '</div>'; return;
     }
     if (edit) { h += prodEditHTML(S.ep.doc); el.innerHTML = h; pintarMsg('prod'); crecer($('p-doc')); return; }
     var nl = (o.cortes || []).reduce(function (t, c) { return t + c.lineas.length; }, 0);
-    h += '<div class="panel hoja"><header class="hoja-cab"><div><p class="hoja-sup">Planilla de producción</p><h2>' + esc(tituloDe(f)) + '</h2></div>'
-      + '<div class="hoja-dato"><b>' + n(+o.medias || 0) + '</b><span>medias' + (o.mercado ? ' · ' + esc(o.mercado) : '') + '</span></div>'
+    h += '<div class="panel hoja' + (c3 ? ' hoja-c3' : '') + '"><header class="hoja-cab"><div><p class="hoja-sup">' + (c3 ? 'Ciclo III · Embutidos' : 'Planilla de producción') + '</p><h2>' + esc(tituloDe(f)) + '</h2></div>'
+      + (c3 ? '' : '<div class="hoja-dato"><b>' + n(+o.medias || 0) + '</b><span>medias' + (o.mercado ? ' · ' + esc(o.mercado) : '') + '</span></div>')
       + (o.estado === 'borrador' ? '<span class="badge warn">Borrador</span>' : '<span class="badge ok">Confirmada</span>') + '</header>';
     if (!nl) h += '<p class="muted">Todavía no se sumó ningún corte.</p>';
     else h += '<div class="hoja-cortes">' + (o.cortes || []).map(function (c) {
@@ -348,7 +363,7 @@
     el.innerHTML = h;
   }
   function docDeOrden(o) {
-    var out = [(o.medias || '') + '½ ' + String(o.mercado || '').toUpperCase(), ''];
+    var out = o.linea === 'ciclo3' ? [] : [(o.medias || '') + '½ ' + String(o.mercado || '').toUpperCase(), ''];
     (o.cortes || []).forEach(function (c) {
       out.push(String(c.corte || '').toUpperCase() + ':' + (c.lineas.length ? ' ' + String(c.lineas[0].t || '').toUpperCase() : ''));
       c.lineas.slice(1).forEach(function (l) { out.push(String(l.t || '').toUpperCase()); });
@@ -392,7 +407,7 @@
   function crecer(e) { if (!e) return; e.style.height = 'auto'; e.style.height = (e.scrollHeight + 4) + 'px'; }
   function prodEditHTML(o) {
     var h = '<div class="panel">';
-    var st = stockParaFecha(o.fecha);
+    var st = o.linea === 'ciclo3' ? null : stockParaFecha(o.fecha);
     if (st != null) h += '<p class="small ' + (st < +o.medias ? 'neg' : 'muted') + '">Hay ' + n(st) + ' medias con un día de frío para este día.</p>';
     h += '<div class="acciones">' + (o.estado === 'borrador'
       ? '<button class="btn pri" data-act="p-estado" data-v="lista">Confirmar planilla</button>'
@@ -740,8 +755,8 @@
     });
     (p.cortes || []).forEach(function (c) {
       if (!estaban[c.k] || !c.texto) return;
-      var x = tocadas[p.entrega] || clone(prodGuardada(p.entrega) || prodVacia(p.entrega));
-      insertarLinea(x, c.corte, textoProd(p, c), p.id, c.k, c.frio || p.frio); tocadas[p.entrega] = x;
+      var idp = idPara(p, c), x = tocadas[idp] || clone(prodGuardada(idp) || prodVacia(idp));
+      insertarLinea(x, esC3(idp) ? corteC3(c) : c.corte, textoProd(p, c), p.id, c.k, c.frio || p.frio); tocadas[idp] = x;
     });
     return Promise.all(Object.keys(tocadas).map(function (f) { return guardarOrden(f, tocadas[f], true); }));
   }
@@ -1023,7 +1038,7 @@
   function instrucciones() {
     var clientes = {}, ejemplos = [];
     (S.faena || []).forEach(function (s) { s.dias.forEach(function (d) { d.clientes.forEach(function (r) { if (r.cliente) clientes[r.cliente] = 1; }); }); });
-    (S.prod || []).slice(-3).forEach(function (o) { ejemplos.push(textoOrden(o, true)); });
+    (S.prod || []).filter(function (o) { return !esC3(o.id); }).slice(-3).forEach(function (o) { ejemplos.push(textoOrden(o, true)); });
     return 'Sos el asistente de carga de pedidos del Frigorífico Qualitá, un frigorífico de cerdo. Recibís una foto, una captura de pantalla o un texto pegado (por ejemplo de WhatsApp) con uno o varios pedidos de clientes y devolvés los pedidos leídos como datos estructurados, sin texto adicional.\n\n'
       + 'Hoy es ' + diaDe(hoy()) + ' ' + hoy() + '.\n\n'
       + 'PRIMERO MIRÁ SI ES LA PLANILLA SEMANAL\n'
@@ -1302,8 +1317,8 @@
     cs.forEach(function (c) {
       var f = fechaProdDe(m, p, c);
       h += '<p class="lp"><span><b>' + esc(c.corte) + '</b> ' + esc(sinCliente(c.texto, p.cliente)) + (c.frio && c.frio !== p.frio ? ' ' + frioBadge(c.frio) : '') + '</span><span class="lp-der">' + precioHTML(p.id, c.k, c.precio, c.corte, c.iva) + (f
-        ? '<span class="en"><span class="badge ok">En producción</span><button class="btn sm" data-act="c-quitar" data-id="' + id + '" data-k="' + esc(c.k) + '">Quitar</button></span>'
-        : '<button class="btn sm pri" data-act="c-sumar" data-id="' + id + '" data-k="' + esc(c.k) + '">Sumar a producción</button>') + '</span></p>';
+        ? '<span class="en"><span class="badge ok">' + (esC3(f) ? 'En Ciclo III' : 'En producción') + '</span><button class="btn sm" data-act="c-quitar" data-id="' + id + '" data-k="' + esc(c.k) + '">Quitar</button></span>'
+        : '<button class="btn sm pri" data-act="c-sumar" data-id="' + id + '" data-k="' + esc(c.k) + '">' + (esEmbutido(c) ? 'Sumar a Ciclo III' : 'Sumar a producción') + '</button>') + '</span></p>';
     });
     h += '</div>';
     if (p.nota) h += '<p class="small muted">' + esc(p.nota) + '</p>';
@@ -1606,23 +1621,73 @@
   /* ---------- inicio ----------
      Una tarjeta por pestaña, todas con el mismo orden: el día, los números del día y qué hay para el día siguiente. */
   function plural(k, uno, muchos) { return k === 1 ? uno : muchos; }
+  /* ---------- inicio ----------
+     Arriba, el día con el que se está trabajando y sus números clave; después los avisos de lo que falta
+     (solo para quien carga), una tarjeta por sección y, para quien carga, los próximos días. */
+  var ICONOS = {
+    pedidos: '<path d="M9 4h6l1 2h3v14H5V6h3z"/><path d="M9 11h6M9 15h4"/>',
+    produccion: '<path d="M4 20V10l5 3V10l5 3V6l6 4v10z"/><path d="M8 17h2M13 17h2"/>',
+    ciclo3: '<path d="M6 8c0-2 2-3 3.5-1.5S12 9 14 7s4 0 4 2-2 3-3.5 1.5S12 9 10 11s-4 0-4-3z"/><path d="M6 16c0-2 2-3 3.5-1.5S12 17 14 15s4 0 4 2-2 3-3.5 1.5S12 17 10 19s-4 0-4-3z"/>',
+    logistica: '<path d="M3 7h11v9H3zM14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/>',
+    medias: '<path d="M7 4h10v4l-2 12H9L7 8z"/><path d="M7 8h10"/>',
+    clientes: '<circle cx="9" cy="9" r="3"/><path d="M3 19c0-3 3-5 6-5s6 2 6 5"/><circle cx="17" cy="8" r="2.4"/><path d="M15.5 13.5c2.6-.4 5.5 1.2 5.5 4"/>'
+  };
+  function icono(k) { return '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">' + (ICONOS[k] || '') + '</svg>'; }
   function tarjeta(tab, titulo, dia, datos, vacio, marca, sigue) {
-    return '<button class="tile" data-act="ir" data-tab="' + tab + '"><span class="t-cab"><b>' + titulo + '</b>' + (marca || '') + '</span>'
+    return '<button class="tile t-' + tab + '" data-act="ir" data-tab="' + tab + '"><span class="t-cab"><span class="t-ico">' + icono(tab) + '</span><b>' + titulo + '</b>' + (marca || '') + '</span>'
       + '<span class="t-dia">' + esc(dia) + '</span>'
       + (datos.length ? '<span class="t-nums">' + datos.map(function (d, k) { return '<strong' + (k === 0 ? ' class="g"' : '') + '>' + n(d[0]) + '</strong><span>' + esc(d[1]) + '</span>'; }).join('') + '</span>' : '<span class="t-vacio">' + esc(vacio) + '</span>')
-      + (sigue ? '<span class="t-sig">' + sigue + '</span>' : '') + '</button>';
+      + (sigue ? '<span class="t-sig">' + sigue + '</span>' : '') + '<span class="t-ir" aria-hidden="true">Abrir ›</span></button>';
+  }
+  // Kilos de una planilla: lo que empieza en kg, cajas o canastos (las cajas y canastos pasados a kg).
+  function kgOrden(o) {
+    var t = 0;
+    ((o && o.cortes) || []).forEach(function (c) { c.lineas.forEach(function (l) { var m = norm(enKg(l.t)).match(/^([\d.,]+)\s*(KGS?|KILOS?|K)\b/); if (m) t += numero(m[1]); }); });
+    return Math.round(t);
   }
   function renderInicio() {
     var el = $('view-inicio');
     if (cargando(el, S.prod && S.faena)) return;
-    var h = hoy(), f = fechaProdInicial(), sig = habilSiguiente(f), html = '<div class="home">';
+    var h = hoy(), f = fechaProdInicial(), sig = habilSiguiente(f), html = '<div class="dash">';
     var rot = function (d) { return (d === h ? 'Hoy · ' : d === mas(h, 1) ? 'Mañana · ' : '') + tituloDe(d); };
     var neg = function (k, uno, muchos) { return '<strong>' + n(k) + '</strong> ' + plural(k, uno, muchos); };
     var pie = function (txt) { return '<span class="t-dia">' + esc(rot(sig)) + '</span><span>' + txt + '</span>'; };
-    if (S.editor && ventasPendientes(true).length) { var nv = ventasPendientes(true).length; html += '<button class="aviso-vend" data-act="ir-ventas"><strong>' + nv + '</strong> ' + plural(nv, 'pedido de vendedor para revisar', 'pedidos de vendedores para revisar') + ' <span aria-hidden="true">›</span></button>'; }
+    var deDia = function (d) { return (S.pedidos || []).filter(function (p) { return p.entrega === d; }); };
+    var prodNum = function (id) {
+      var o = prodDe(id), ids = {}, nl = 0;
+      if (o) (o.cortes || []).forEach(function (c) { c.lineas.forEach(function (l) { nl++; if (l.p) ids[l.p] = 1; }); });
+      return { o: o, nl: nl, peds: Object.keys(ids).length, kg: kgOrden(o) };
+    };
+    var logNum = function (d) { var lg = logDe(d), lp = ((lg && lg.pedidos) || []).filter(function (x) { return S.editor || x.camion; }), lc = (lg && lg.camiones) || []; return { p: lp.length, c: lc.length, s: lp.filter(function (x) { return !x.camion; }).length, kg: lp.reduce(function (t, x) { return t + (+x.kg || 0); }, 0) }; };
+    var a = prodNum(f), b = prodNum(sig), a3 = prodNum('c3-' + f), b3 = prodNum('c3-' + sig), la = logNum(f), lb = logNum(sig);
+
+    // Encabezado con los números del día.
+    var kpi = function (v, txt, tab) { return '<button class="kpi" data-act="ir" data-tab="' + tab + '"><b>' + (v === '' ? '—' : n(v)) + '</b><span>' + esc(txt) + '</span></button>'; };
+    var ph = deDia(f);
+    html += '<section class="dash-hero"><div class="dh-txt"><p class="dh-sup">' + (f === h ? 'Trabajando hoy' : 'Próximo día de trabajo') + '</p><h2>' + esc(tituloDe(f)) + '</h2>'
+      + '<p class="dh-sub">Después: ' + esc(tituloDe(sig).toLowerCase()) + '</p></div><div class="kpis">'
+      + kpi(a.o ? +a.o.medias || 0 : '', 'medias a despostar', 'produccion')
+      + (S.editor ? kpi(ph.length, plural(ph.length, 'pedido', 'pedidos') + ' para entregar', 'pedidos') : kpi(la.p, plural(la.p, 'pedido', 'pedidos') + ' para entregar', 'logistica'))
+      + kpi(la.kg || '', 'kg a despachar', 'logistica')
+      + kpi(la.c, plural(la.c, 'camión', 'camiones'), 'logistica')
+      + kpi(a3.kg || (a3.nl ? a3.nl : ''), a3.kg ? 'kg de embutidos' : 'renglones de embutidos', 'ciclo3')
+      + '</div></section>';
+
+    // Lo que falta hacer (solo para quien carga).
     if (S.editor) {
-      var deDia = function (d) { return (S.pedidos || []).filter(function (p) { return p.entrega === d; }); };
-      var ph = deDia(f), ps = deDia(sig), mas2 = (S.pedidos || []).filter(function (p) { return p.entrega > sig; }).length;
+      var av = [], aviso = function (num, txt, act, extra) { av.push('<button class="aviso" data-act="' + act + '"' + (extra || '') + '><strong>' + n(num) + '</strong> ' + esc(txt) + ' <span aria-hidden="true">›</span></button>'); };
+      var nv = ventasPendientes(true).length; if (nv) aviso(nv, plural(nv, 'pedido de vendedor para revisar', 'pedidos de vendedores para revisar'), 'ir-ventas');
+      var m = enProduccion(), sinSumar = 0; ph.forEach(function (p) { cortesDe(p).forEach(function (c) { if (c.texto && !fechaProdDe(m, p, c)) sinSumar++; }); });
+      if (sinSumar) aviso(sinSumar, plural(sinSumar, 'corte sin sumar a producción', 'cortes sin sumar a producción') + ' (' + diaCorto(f) + ')', 'ini-dia', ' data-f="' + f + '"');
+      if (la.s) aviso(la.s, plural(la.s, 'pedido sin camión', 'pedidos sin camión') + ' (' + diaCorto(f) + ')', 'ir', ' data-tab="logistica"');
+      var sinCta = ph.filter(function (p) { return !cuentaPedido(p); }).length; if (sinCta) aviso(sinCta, plural(sinCta, 'cliente sin N° de cuenta', 'clientes sin N° de cuenta') + ' (' + diaCorto(f) + ')', 'ini-dia', ' data-f="' + f + '"');
+      html += av.length ? '<div class="avisos">' + av.join('') + '</div>' : (ph.length ? '<p class="todo-ok">✓ Todo al día para el ' + esc(tituloDe(f).toLowerCase()) + '.</p>' : '');
+    }
+
+    // Una tarjeta por sección.
+    html += '<div class="home">';
+    if (S.editor) {
+      var ps = deDia(sig), mas2 = (S.pedidos || []).filter(function (p) { return p.entrega > sig; }).length;
       var pm = ph.reduce(function (t, p) { return t + (+p.medias || 0); }, 0), pc = ph.reduce(function (t, p) { return t + (p.cortes || []).length; }, 0);
       var dp = ph.length ? [[ph.length, plural(ph.length, 'pedido', 'pedidos')]] : [];
       if (pm) dp.push([pm, plural(pm, 'media', 'medias')]);
@@ -1630,18 +1695,17 @@
       html += tarjeta('pedidos', 'Pedidos', rot(f), dp, 'Sin pedidos cargados', '',
         pie(ps.length ? neg(ps.length, 'pedido', 'pedidos') : 'Sin pedidos') + (mas2 ? '<span>Más adelante: ' + neg(mas2, 'pedido', 'pedidos') + '</span>' : ''));
     }
-    var prodNum = function (d) {
-      var o = prodDe(d), ids = {}, nl = 0;
-      if (o) (o.cortes || []).forEach(function (c) { c.lineas.forEach(function (l) { nl++; if (l.p) ids[l.p] = 1; }); });
-      return { o: o, nl: nl, peds: Object.keys(ids).length };
-    };
-    var a = prodNum(f), b = prodNum(sig), da = [];
-    if (a.nl) { da.push([a.nl, plural(a.nl, 'renglón', 'renglones')]); if (a.peds) da.push([a.peds, plural(a.peds, 'pedido', 'pedidos')]); if (+a.o.medias) da.push([+a.o.medias, 'medias a despostar']); }
+    var da = [];
+    if (a.nl) { da.push([a.nl, plural(a.nl, 'renglón', 'renglones')]); if (a.kg) da.push([a.kg, 'kg']); if (+a.o.medias) da.push([+a.o.medias, 'medias a despostar']); }
     html += tarjeta('produccion', 'Producción', rot(f), da, 'Todavía no hay nada cargado',
       a.nl ? '<span class="badge ' + (a.o.estado === 'borrador' ? 'warn">Borrador' : 'ok">Confirmada') + '</span>' : '',
       pie(b.nl ? neg(b.nl, 'renglón', 'renglones') + (b.o.estado === 'borrador' ? ' · borrador' : ' · confirmada') : 'Sin cargar'));
-    var logNum = function (d) { var lg = logDe(d), lp = ((lg && lg.pedidos) || []).filter(function (x) { return S.editor || x.camion; }), lc = (lg && lg.camiones) || []; return { p: lp.length, c: lc.length, s: lp.filter(function (x) { return !x.camion; }).length }; };
-    var la = logNum(f), lb = logNum(sig), dl = [];
+    var d3 = [];
+    if (a3.nl) { d3.push([a3.nl, plural(a3.nl, 'renglón', 'renglones')]); if (a3.kg) d3.push([a3.kg, 'kg']); if (a3.peds) d3.push([a3.peds, plural(a3.peds, 'pedido', 'pedidos')]); }
+    html += tarjeta('ciclo3', 'Ciclo III', rot(f), d3, 'Sin embutidos cargados',
+      a3.nl ? '<span class="badge ' + (a3.o.estado === 'borrador' ? 'warn">Borrador' : 'ok">Confirmada') + '</span>' : '',
+      pie(b3.nl ? neg(b3.nl, 'renglón', 'renglones') + (b3.kg ? ' · ' + neg(b3.kg, 'kg', 'kg') : '') : 'Sin cargar'));
+    var dl = [];
     if (la.p) { dl.push([la.p, plural(la.p, 'pedido', 'pedidos')]); dl.push([la.c, plural(la.c, 'camión armado', 'camiones armados')]); if (la.s) dl.push([la.s, 'sin camión']); }
     html += tarjeta('logistica', 'Logística', rot(f), dl, 'Sin pedidos para entregar', '',
       pie(lb.p ? neg(lb.p, 'pedido', 'pedidos') + ' · ' + neg(lb.c, 'camión', 'camiones') : 'Sin pedidos'));
@@ -1652,6 +1716,20 @@
     if (S.editor) {
       var lc = clientes(), sn = lc.filter(function (x) { return !x.c; }).length;
       html += tarjeta('clientes', 'Clientes', 'Números de cuenta', lc.length ? [[lc.length, plural(lc.length, 'cliente', 'clientes')]].concat(sn ? [[sn, 'sin número']] : []) : [], 'Todavía no hay clientes cargados', '', '');
+    }
+    html += '</div>';
+
+    // Próximos días hábiles: cuántos pedidos y medias hay cargados en cada uno.
+    if (S.editor) {
+      var dias = [f]; while (dias.length < 6) dias.push(habilSiguiente(dias[dias.length - 1]));
+      var datos = dias.map(function (d) { var l = deDia(d); return { d: d, p: l.length, m: l.reduce(function (t, p) { return t + (+p.medias || 0); }, 0), c: logNum(d).c }; });
+      var mx = Math.max.apply(null, datos.map(function (x) { return x.p; }).concat([1]));
+      html += '<section class="panel prox"><h3>Próximos días</h3><div class="prox-dias">' + datos.map(function (x) {
+        return '<button class="prox-d' + (x.d === f ? ' hoy' : '') + '" data-act="ini-dia" data-f="' + x.d + '"><span class="pd-dia">' + esc(diaCorto(x.d)) + '</span>'
+          + '<span class="pd-barra"><i style="height:' + Math.round(x.p / mx * 100) + '%"></i></span>'
+          + '<span class="pd-num"><b>' + n(x.p) + '</b> ' + plural(x.p, 'pedido', 'pedidos') + '</span>'
+          + '<span class="pd-det">' + (x.m ? n(x.m) + ' medias' : '—') + (x.c ? ' · ' + x.c + ' ' + plural(x.c, 'camión', 'camiones') : '') + '</span></button>';
+      }).join('') + '</div></section>';
     }
     el.innerHTML = html + '</div>';
   }
@@ -1678,12 +1756,12 @@
     // Si la página se abrió (o se recargó sola) en Pedidos o Clientes, se vuelve ahí apenas se confirma el permiso.
     if ((S.tab === 'pedidos' || S.tab === 'clientes') && !S.editor) { S.volver = S.tab; S.tab = 'inicio'; }
     TABS.forEach(function (t) { $('view-' + t).hidden = S.tab !== t; if (S.tab !== t) $('view-' + t).innerHTML = ''; $('tab-' + t).setAttribute('aria-selected', String(S.tab === t)); });
-    if (S.tab === 'medias') renderMedias(); else if (S.tab === 'pedidos') renderPedidos(); else if (S.tab === 'produccion') renderProduccion(); else if (S.tab === 'logistica') renderLogistica(); else if (S.tab === 'clientes') renderClientes(); else renderInicio();
+    if (S.tab === 'medias') renderMedias(); else if (S.tab === 'pedidos') renderPedidos(); else if (S.tab === 'produccion' || S.tab === 'ciclo3') renderProduccion(); else if (S.tab === 'logistica') renderLogistica(); else if (S.tab === 'clientes') renderClientes(); else renderInicio();
   }
   // Cuando llegan datos nuevos no se redibuja la pantalla en la que se está escribiendo.
   function renderDatos() {
     if (S.tab === 'medias' && S.em) return pintarSumas();
-    if (S.tab === 'produccion' && S.ep) return;
+    if ((S.tab === 'produccion' || S.tab === 'ciclo3') && S.ep) return;
     if (S.tab === 'pedidos' && (S.prop.length || escribiendo())) return;
     if (S.tab === 'clientes' && escribiendo()) return;
     if (S.tab === 'logistica' && (S.ec || S.ef || (document.activeElement && document.activeElement.dataset && document.activeElement.dataset.flete))) return;
@@ -1699,8 +1777,8 @@
     if (S._c2 && S._c2 !== a + (D.i == null ? '' : D.i)) S._c2 = null;
 
     if (a === 'actualizar') { recargar(); return; }
-    if (a === 'link-log' || a === 'link-prod') {
-      var pag = a === 'link-prod' ? 'produccion' : 'logistica', km = a === 'link-prod' ? 'prod' : 'log', nom = a === 'link-prod' ? 'Producción' : 'Logística';
+    if (a === 'link-log' || a === 'link-prod' || a === 'link-c3') {
+      var pag = a === 'link-c3' ? 'ciclo3' : a === 'link-prod' ? 'produccion' : 'logistica', km = a === 'link-log' ? 'log' : 'prod', nom = a === 'link-c3' ? 'Ciclo III' : a === 'link-prod' ? 'Producción' : 'Logística';
       var url = location.origin + location.pathname.replace(/[^\/]*$/, '') + pag, listo = function () { S.msg[km] = 'Link copiado: ' + url; pintarMsg(km); avisar('Link de ' + nom + ' copiado. Pegalo donde quieras compartirlo.', 6000); };
       var aMano = function () { S.msg[km] = 'Link para compartir: ' + url; pintarMsg(km); avisar('Link para compartir: ' + url, 15000); };
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(listo, aMano); else aMano();
@@ -1733,6 +1811,7 @@
       return;
     }
     if (a === 'ir') irA(D.tab);
+    else if (a === 'ini-dia') { S.pd = D.f; S.abierto = {}; irA('pedidos'); }
     else if (a === 'cam-imprimir') {
       // Solo ese camión: los demás se ocultan mientras dura la impresión.
       var vl = $('view-logistica'), sec = null;
@@ -1785,8 +1864,8 @@
 
     // producción
     else if (a === 'fecha') { S.fechaFija = true; if (S.ep) guardar('prod', true); S.ep = null; var x = S.fecha; do { x = mas(x, +D.d); } while (!esHabil(x)); S.fecha = x; render(); }
-    else if (a === 'p-nueva') { S.fechaFija = true; S.ep = { fecha: S.fecha, doc: prodVacia(S.fecha) }; S.ep.base = clone(S.ep.doc); S.msg.prod = ''; guardar('prod', true); render(); var pn = $('p-doc'); if (pn) { pn.focus(); pn.setSelectionRange(pn.value.length, pn.value.length); } }
-    else if (a === 'p-editar') { S.fechaFija = true; if (S.ep) { guardar('prod', true); S.ep = null; } else { S.ep = { fecha: S.fecha, doc: clone(prodDe(S.fecha)) }; S.ep.base = clone(S.ep.doc); S.msg.prod = ''; } render(); if (S.ep) { var pd = $('p-doc'); if (pd) { pd.focus(); pd.setSelectionRange(0, 0); window.scrollTo(0, 0); } } }
+    else if (a === 'p-nueva') { S.fechaFija = true; S.ep = { fecha: idActual(), doc: prodVacia(idActual()) }; S.ep.base = clone(S.ep.doc); S.msg.prod = ''; guardar('prod', true); render(); var pn = $('p-doc'); if (pn) { pn.focus(); pn.setSelectionRange(pn.value.length, pn.value.length); } }
+    else if (a === 'p-editar') { S.fechaFija = true; if (S.ep) { guardar('prod', true); S.ep = null; } else { S.ep = { fecha: idActual(), doc: clone(prodDe(idActual())) }; S.ep.base = clone(S.ep.doc); S.msg.prod = ''; } render(); if (S.ep) { var pd = $('p-doc'); if (pd) { pd.focus(); pd.setSelectionRange(0, 0); window.scrollTo(0, 0); } } }
     else if (a === 'p-borrar' && S.ep) { if (!confirma('p-borrar')) { render(); return; } clearTimeout(timers.prod); var fb = S.ep.fecha; S.ep = null; S.prod = (S.prod || []).filter(function (x) { return x.id !== fb; }); store.del('produccion', fb).then(tocar, function () {}); render(); }
     else if (a === 'p-estado' && S.ep) { S.ep.doc.estado = D.v; S.ep.base = clone(S.ep.doc); guardar('prod', true); render(); }
 
@@ -2016,9 +2095,9 @@
   var h0 = (location.hash || '').slice(1); if (TABS.indexOf(h0) >= 0) S.tab = h0;
   // Link para compartir con una sola pestaña: se ve esa sola, sin las demás y sin ingresar.
   // Es la página logistica.html (se arma con tools/paginas.py); el link viejo con ?solo=logistica sigue andando.
-  try { var qs = document.documentElement.getAttribute('data-solo') || new URLSearchParams(location.search).get('solo'); if (qs === 'logistica' || qs === 'produccion') { S.solo = qs; S.tab = qs; } } catch (err) {}
+  try { var qs = document.documentElement.getAttribute('data-solo') || new URLSearchParams(location.search).get('solo'); if (qs === 'logistica' || qs === 'produccion' || qs === 'ciclo3') { S.solo = qs; S.tab = qs; } } catch (err) {}
   if (S.solo) {
-    var tsolo = S.solo === 'produccion' ? 'Producción' : 'Logística';
+    var tsolo = S.solo === 'produccion' ? 'Producción' : S.solo === 'ciclo3' ? 'Ciclo III' : 'Logística';
     document.title = tsolo + ' Qualitá';
     var mf = document.querySelector('link[rel="manifest"]'); if (mf) mf.setAttribute('href', S.solo + '.webmanifest');
     var mn = document.querySelector('.marca-nom'); if (mn) mn.textContent = tsolo;
