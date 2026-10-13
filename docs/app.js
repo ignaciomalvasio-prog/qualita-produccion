@@ -287,11 +287,21 @@
     var x = clone(o); quitarDeOrden(x, p.id, c.k, c.texto);
     return guardarOrden(f, x, true).then(tocar);
   }
+  /* En producción todo se muestra en kilos: una caja o un canasto pesa 20 kg (o lo que diga "CAJAS DE 15KG").
+     Lo que va en canastos lo aclara al final. Lo guardado no cambia: es solo cómo se muestra e imprime. */
+  function kgCanasto() { return +S.config.kgCanasto || 20; }
+  function enKg(t) {
+    var s = String(t || ''), m = s.match(/^\s*([\d.,]+)\s*(CANASTOS?|CANASTAS?|CAJAS?|CJS?\.?)(?:\s+(?:DE|X)\s*([\d.,]+)\s*(?:KGS?|KILOS?)\.?)?(?=\s|$)/i);
+    if (!m) return s;
+    var canasto = /^CANAST/i.test(m[2]), por = m[3] ? numero(m[3]) : canasto ? kgCanasto() : kgCaja();
+    var kg = Math.round(numero(m[1]) * por * 100) / 100, resto = s.slice(m[0].length).trim();
+    return String(kg).replace('.', ',') + 'KG' + (resto ? ' ' + resto : '') + (canasto ? ' — EN CANASTOS' : '');
+  }
   // Total de un corte, sumando la cantidad con la que empieza cada renglón, por unidad.
   function totalCorte(c) {
     var t = {}, orden = ['kg', 'cajas', 'und', 'bines'];
     (c.lineas || []).forEach(function (l) {
-      var m = norm(l.t).match(/^([\d.,]+)\s*(KGS?|KILOS?|K|CAJAS?|CJS?|UND|UNIDAD(?:ES)?|UNID|U|BINES?)\b/);
+      var m = norm(enKg(l.t)).match(/^([\d.,]+)\s*(KGS?|KILOS?|K|CAJAS?|CJS?|UND|UNIDAD(?:ES)?|UNID|U|BINES?)\b/);
       if (!m) return;
       var u = /^K/.test(m[2]) ? 'kg' : /^C/.test(m[2]) ? 'cajas' : /^B/.test(m[2]) ? 'bines' : 'und';
       t[u] = (t[u] || 0) + numero(m[1]);
@@ -301,7 +311,7 @@
   function textoOrden(o, sinFrio) {
     var out = [diaDe(o.fecha).toUpperCase() + ' ' + fechaCorta(o.fecha), (o.medias || '') + '½ ' + String(o.mercado || '').toUpperCase()];
     (o.cortes || []).forEach(function (c) {
-      (c.lineas.length ? c.lineas : [{ t: '' }]).forEach(function (l, i) { out.push(((i === 0 ? c.corte + ': ' : '') + l.t + (l.f && !sinFrio ? ' (' + l.f + ')' : '')).toUpperCase()); });
+      (c.lineas.length ? c.lineas : [{ t: '' }]).forEach(function (l, i) { out.push(((i === 0 ? c.corte + ': ' : '') + enKg(l.t) + (l.f && !sinFrio ? ' (' + l.f + ')' : '')).toUpperCase()); });
       var tot = totalCorte(c); if (tot && c.lineas.length > 1) out.push('TOTAL ' + c.corte + ': ' + tot.toUpperCase());
     });
     return out.join('\n');
@@ -332,7 +342,7 @@
     if (!nl) h += '<p class="muted">Todavía no se sumó ningún corte.</p>';
     else h += '<div class="hoja-cortes">' + (o.cortes || []).map(function (c) {
       var tot = totalCorte(c);
-      return '<div class="hoja-corte"><div class="hoja-nom"><h3>' + esc(c.corte || 'Sin corte') + '</h3>' + (tot ? '<p class="hoja-tot"><span>Total</span> ' + esc(tot) + '</p>' : '') + '</div><ul>' + c.lineas.map(function (l) { return '<li>' + esc(l.t) + (l.f ? ' ' + frioBadge(l.f) : '') + '</li>'; }).join('') + '</ul></div>';
+      return '<div class="hoja-corte"><div class="hoja-nom"><h3>' + esc(c.corte || 'Sin corte') + '</h3>' + (tot ? '<p class="hoja-tot"><span>Total</span> ' + esc(tot) + '</p>' : '') + '</div><ul>' + c.lineas.map(function (l) { return '<li>' + esc(enKg(l.t)) + (l.f ? ' ' + frioBadge(l.f) : '') + '</li>'; }).join('') + '</ul></div>';
     }).join('') + '</div>';
     h += '<div class="acciones"><button class="btn" data-act="copiar">Copiar como texto</button>' + (S.editor ? '<button class="btn" data-act="ir-pedidos" data-f="' + f + '">Sumar cortes desde los pedidos</button>' : '') + '<span class="small muted" id="copiado" aria-live="polite"></span></div><textarea id="txt-orden" class="txt" readonly hidden aria-label="Planilla en texto">' + esc(textoOrden(o)) + '</textarea></div>';
     el.innerHTML = h;
@@ -786,7 +796,7 @@
   function kgCaja() { return +S.config.kgCaja || 20; }
   function numero(x) { x = String(x); return /^\d{1,3}(\.\d{3})+$/.test(x) ? +x.replace(/\./g, '') : +x.replace(',', '.') || 0; }
   function kgDeTexto(t) {
-    var s = norm(t), m = s.match(/^([\d.,]+)\s*(KGS?|KILOS?|K)\b/);
+    var s = norm(enKg(t)), m = s.match(/^([\d.,]+)\s*(KGS?|KILOS?|K)\b/);
     if (m) return { kg: numero(m[1]) };
     m = s.match(/^([\d.,]+)\s*(CAJAS?|CJS?)\b/);
     if (m) return { kg: numero(m[1]) * kgCaja() };
