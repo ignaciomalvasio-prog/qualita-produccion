@@ -900,6 +900,26 @@
     }, ya ? 0 : 700);
   }
   // Sube o baja un pedido dentro de su camión.
+  // Lleva un pedido a un lugar del camión (0 = primero).
+  function moverEnCamionA(f, camId, pedId, j) {
+    var lg = logDe(f), cams = clone(camionesDe(f)), cam = cams.filter(function (c) { return c.id === camId; })[0];
+    if (!lg || !cam) return Promise.resolve();
+    var ids = (lg.pedidos || []).filter(function (x) { return x.camion === camId; }).map(function (x) { return x.id; }), i = ids.indexOf(pedId);
+    if (i < 0 || j < 0 || j >= ids.length || i === j) return Promise.resolve();
+    ids.splice(j, 0, ids.splice(i, 1)[0]); cam.orden = ids;
+    return publicarLog(f, cams).then(tocar);
+  }
+  function moverCamionA(f, id, j) {
+    var cams = clone(camionesDe(f)), i = cams.map(function (c) { return c.id; }).indexOf(id);
+    if (i < 0 || j < 0 || j >= cams.length || i === j) return Promise.resolve();
+    cams.splice(j, 0, cams.splice(i, 1)[0]);
+    return publicarLog(f, cams).then(tocar);
+  }
+  // Selector de posición: se elige el número y el pedido (o camión) pasa directo a ese lugar.
+  function posSelHTML(attr, pos, total, etiqueta) {
+    var o = ''; for (var i = 0; i < total; i++) o += '<option value="' + i + '"' + (i === pos ? ' selected' : '') + '>' + (i + 1) + '</option>';
+    return '<select class="pos-sel" ' + attr + ' aria-label="' + esc(etiqueta) + '">' + o + '</select><span class="log-pos solo-print">' + (pos + 1) + '</span>';
+  }
   function moverEnCamion(f, camId, pedId, dir) {
     var lg = logDe(f), cams = clone(camionesDe(f)), cam = cams.filter(function (c) { return c.id === camId; })[0];
     if (!lg || !cam) return Promise.resolve();
@@ -1386,6 +1406,33 @@
     if (sueltos.length) h += bloque('Sin camión', '', sueltos, '');
     return h + '</div></div>';
   }
+  // Pedidos del día agrupados: primero los que no tienen camión, después cada camión en su orden.
+  function pedidosAgrupadosHTML(f, lista, m) {
+    var cams = camionesDe(f), hay = {}; cams.forEach(function (c) { hay[c.id] = c; });
+    if (!cams.length || !lista.some(function (p) { return p.camion && hay[p.camion]; })) return '<div class="peds">' + lista.map(function (p) { return pedidoHTML(p, m); }).join('') + '</div>';
+    var grupo = function (tit, extra, l, cls) { return '<div class="grupo-cam' + (cls ? ' ' + cls : '') + '"><h3 class="grupo-tit">' + tit + ' <span class="small muted">' + esc(extra) + '</span></h3><div class="peds">' + l.map(function (p) { return pedidoHTML(p, m); }).join('') + '</div></div>'; };
+    var h = '', sin = lista.filter(function (p) { return !(p.camion && hay[p.camion]); });
+    if (sin.length) h += grupo('Sin camión', resumenLog(sin), sin, 'sin-cam');
+    cams.forEach(function (c) {
+      var o = c.orden || [], l = lista.filter(function (p) { return p.camion === c.id; }).sort(function (a, b) { var i = o.indexOf(a.id), j = o.indexOf(b.id); return (i < 0 ? 1e6 : i) - (j < 0 ? 1e6 : j); });
+      if (l.length) h += grupo('<span class="badge plain">' + esc(nomCam(c)) + '</span>' + (c.hora ? ' ' + esc(c.hora) + ' hs' : ''), resumenLog(l), l);
+    });
+    return h;
+  }
+  // Buscador: en todos los pedidos (desde la semana pasada), por cliente o N° de cuenta.
+  function buscarPedidosHTML(q) {
+    var t = norm(q).trim(), desde = mas(hoy(), -7);
+    var l = (S.pedidos || []).filter(function (p) { return p.entrega >= desde && (norm(p.cliente).indexOf(t) >= 0 || (cuentaPedido(p) && String(cuentaPedido(p)).indexOf(t) === 0)); })
+      .sort(function (a, b) { return String(a.entrega).localeCompare(String(b.entrega)) || String(a.cliente).localeCompare(String(b.cliente)); });
+    if (!l.length) return '<p class="muted sin">No hay pedidos de "' + esc(q) + '" desde el ' + esc(diaCorto(desde)) + '.</p>';
+    return '<p class="small muted">' + l.length + (l.length === 1 ? ' pedido encontrado' : ' pedidos encontrados') + ':</p><div class="busq">' + l.map(function (p) {
+      var cam = nombreCamion(p.entrega, p.camion), res = [];
+      if (+p.medias) res.push(n(+p.medias) + ' medias'); if ((p.cortes || []).length) res.push(p.cortes.length + ((p.cortes.length === 1) ? ' corte' : ' cortes'));
+      return '<div class="busq-f"><span class="busq-dia">' + esc(diaCorto(p.entrega)) + '</span><span class="nom">' + esc(p.cliente) + '</span>' + ctaHTML(cuentaPedido(p)) + '<span class="small muted">' + res.join(' · ') + '</span>'
+        + (cam ? '<span class="badge plain">' + esc(cam) + '</span>' : '<span class="badge warn">Sin camión</span>')
+        + '<button class="btn sm" data-act="busq-ver" data-id="' + esc(p.id) + '">Ver</button></div>';
+    }).join('') + '</div>';
+  }
   // Barra para mandar los pedidos tildados a un camión.
   function barraCamionHTML(f, tild) {
     var cams = camionesDe(f), lg = logDe(f), pubs = (lg && lg.pedidos) || [], fl = flota();
@@ -1425,14 +1472,18 @@
       + '<span class="tit">' + esc(tituloDe(f)) + (f === hy ? ' <span class="tag">hoy</span>' : f === mas(hy, 1) ? ' <span class="tag">mañana</span>' : '') + '</span>'
       + '<button class="btn step" data-act="pd" data-d="1" aria-label="Día siguiente">›</button><input type="date" id="pd-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">'
       + (f !== habilSiguiente(hy) ? '<button class="btn" data-act="pd-ir" data-f="' + habilSiguiente(hy) + '">Volver a mañana</button>' : '')
-      + (lista.length ? botonBorrar('ped-borrar-todos', f, 'Eliminar todos los pedidos') : '') + '</div>';
+      + (lista.length ? botonBorrar('ped-borrar-todos', f, 'Eliminar todos los pedidos') : '') + '</div>'
+      + '<div class="pd-busca"><input type="search" id="pd-buscar" value="' + esc(S.pdBuscar || '') + '" placeholder="Buscar cliente o N° de cuenta (en todos los días)" aria-label="Buscar un cliente en los pedidos" autocomplete="off">' + (S.pdBuscar ? '<button class="btn sm" data-act="busq-limpiar">Borrar búsqueda</button>' : '') + '</div>';
+    if (String(S.pdBuscar || '').trim()) { h += buscarPedidosHTML(S.pdBuscar) + '</section>'; }
+    else {
     // Aviso de los otros días que tienen pedidos cargados, para no perderlos de vista.
     var otros = {}; (S.pedidos || []).forEach(function (p) { if (p.entrega && p.entrega !== f && p.entrega >= hy && pasaFiltro(p.vendedor)) otros[p.entrega] = (otros[p.entrega] || 0) + 1; });
     var ko = Object.keys(otros).sort();
     if (ko.length) h += '<p class="otros-dias"><span class="small muted">Otros días con pedidos:</span>' + ko.map(function (d) { return '<button class="btn sm" data-act="pd-ir" data-f="' + d + '">' + esc(diaCorto(d)) + ' <b>' + otros[d] + '</b></button>'; }).join('') + '</p>';
     if (tild.length) h += barraCamionHTML(f, tild);
-    h += lista.length ? '<div class="peds">' + lista.map(function (p) { return pedidoHTML(p, m); }).join('') + '</div>' : '<p class="muted sin">Sin pedidos para este día.</p>';
+    h += lista.length ? pedidosAgrupadosHTML(f, lista, m) : '<p class="muted sin">Sin pedidos para este día.</p>';
     h += '</section>';
+    }
 
     h += '<div class="panel"><details' + (S._conf ? ' open' : '') + '><summary>Configuración</summary><div class="campos">'
       + '<label class="campo"><span>Clave de IA (Anthropic)</span><input type="password" id="cfg-clave" autocomplete="off" placeholder="' + (S.ia && S.ia.clave ? 'Cargada. Escribí otra para cambiarla.' : 'sk-ant-…') + '"></label>'
@@ -1479,13 +1530,11 @@
   function logPedidoHTML(p, cam, cams, pos, total) {
     var id = esc(p.id), filas = (p.cortes || []).map(function (c) { return { corte: c.corte, texto: sinCliente(c.texto, p.cliente) }; });
     if (+p.medias) filas.unshift({ corte: 'MEDIAS', texto: textoMedias(p) });
-    var h = '<div class="log-ped"><div class="log-cab">' + (cam ? '<span class="log-pos">' + (pos + 1) + '</span>' : '') + '<strong>' + esc(p.cliente || 'Sin cliente') + '</strong>' + ctaHTML(p.cuenta)
+    var h = '<div class="log-ped"><div class="log-cab">' + (cam ? (S.editor && total > 1 ? posSelHTML('data-pos-ped="' + id + '" data-cam="' + esc(cam.id) + '"', pos, total, 'Lugar de ' + p.cliente + ' en el camión') : '<span class="log-pos">' + (pos + 1) + '</span>') : '') + '<strong>' + esc(p.cliente || 'Sin cliente') + '</strong>' + ctaHTML(p.cuenta)
       + frioBadge(p.frio)
       + '<span class="small muted">' + esc(kgTxt({ kg: +p.kg || 0, falta: p.kgFalta, manual: p.kgManual })) + '</span>';
     if (S.editor) h += '<span class="log-acc">' + (cam
-      ? (total > 1 ? '<button class="btn sm ord" data-act="cam-subir" data-id="' + id + '" data-cam="' + esc(cam.id) + '"' + (pos === 0 ? ' disabled' : '') + ' aria-label="Subir a ' + esc(p.cliente) + ' un lugar">↑</button>'
-        + '<button class="btn sm ord" data-act="cam-bajar" data-id="' + id + '" data-cam="' + esc(cam.id) + '"' + (pos === total - 1 ? ' disabled' : '') + ' aria-label="Bajar a ' + esc(p.cliente) + ' un lugar">↓</button>' : '')
-        + '<button class="btn sm" data-act="cam-quitar-ped" data-id="' + id + '">Sacar</button>'
+      ? '<button class="btn sm" data-act="cam-quitar-ped" data-id="' + id + '">Sacar</button>'
       : opcionesCamion(p, cams)) + '</span>';
     h += '</div>';
     if (filas.length) h += '<div class="log-cortes">' + filas.map(function (c) { return '<p><u>' + esc(c.corte) + '</u>: ' + esc(c.texto) + '</p>'; }).join('') + '</div>';
@@ -1517,7 +1566,7 @@
     cams.forEach(function (cam, k) {
       var suyos = peds.filter(function (p) { return p.camion === cam.id; }), ed = S.ec === cam.id;
       var car = cargaDe(peds, cam.id), ct = capTxt(cam, car), pasa = +cam.kg > 0 && car > +cam.kg;
-      h += '<section class="cam' + (pasa ? ' pasa' : '') + '" data-cam="' + esc(cam.id) + '"><header class="cam-cab">' + (S.editor && cams.length > 1 && !ed ? '<span class="cam-ord"><button class="btn sm ord" data-act="camion-subir" data-id="' + esc(cam.id) + '"' + (k === 0 ? ' disabled' : '') + ' aria-label="Subir el camión ' + esc(nomCam(cam)) + '">↑</button><button class="btn sm ord" data-act="camion-bajar" data-id="' + esc(cam.id) + '"' + (k === cams.length - 1 ? ' disabled' : '') + ' aria-label="Bajar el camión ' + esc(nomCam(cam)) + '">↓</button></span>' : '')
+      h += '<section class="cam' + (pasa ? ' pasa' : '') + '" data-cam="' + esc(cam.id) + '"><header class="cam-cab">' + (S.editor && cams.length > 1 && !ed ? '<label class="cam-ord"><span>Orden</span>' + posSelHTML('data-pos-cam="' + esc(cam.id) + '"', k, cams.length, 'Orden del camión ' + nomCam(cam)) + '</label>' : '')
         + (cam.num ? (String(cam.nombre || '').trim() ? '<span class="cam-num">N° ' + esc(cam.num) + '</span>' : '') : S.editor ? '<button class="cam-num falta" data-act="cam-editar" data-id="' + esc(cam.id) + '">Poner N°</button>' : '') + '<h2>' + esc(nomCam(cam)) + '</h2>' + (cam.hora ? '<span class="cam-hora">' + esc(cam.hora) + ' hs</span>' : '')
         + (cam.nota && !ed ? '<span class="cam-nota">' + esc(cam.nota) + '</span>' : '')
         + (!ed ? '<span class="log-acc"><button class="btn sm" data-act="cam-imprimir" data-id="' + esc(cam.id) + '">Imprimir</button>'
@@ -1757,6 +1806,8 @@
       renderPedidos();
     }
     else if (a === 'ped-editar') editarPedido(D.id);
+    else if (a === 'busq-limpiar') { S.pdBuscar = ''; renderPedidos(); var bq = $('pd-buscar'); if (bq) bq.focus(); }
+    else if (a === 'busq-ver') { var pv = pedidoDe(D.id); if (pv) { S.pdBuscar = ''; S.pd = pv.entrega; S.abierto = {}; S.abierto[pv.id] = true; renderPedidos(); var dv = document.querySelector('[data-act="ped-abrir"][data-id="' + pv.id + '"]'); if (dv) dv.scrollIntoView({ block: 'center' }); } }
     else if (a === 'v-ver') { S.vgrande = S.vgrande || {}; S.vgrande[D.id] = !S.vgrande[D.id]; renderPedidos(); }
     else if (a === 'v-leer') {
       var vl = (S.ventas || []).filter(function (x) { return x.id === D.id; })[0];
@@ -1839,6 +1890,7 @@
   document.addEventListener('input', function (e) {
     var t = e.target, D = t.dataset;
     if (t.id === 'cli-buscar') { S.cliBuscar = t.value; filtrarClientes(); return; }
+    if (t.id === 'pd-buscar') { var ss = t.selectionStart; S.pdBuscar = t.value; renderPedidos(); var nb = $('pd-buscar'); if (nb) { nb.focus(); try { nb.setSelectionRange(ss, ss); } catch (err) {} } return; }
     if (D.cli != null) return;
     if (t.id === 'pegar-cli') { S.pegarCli = t.value; return; }
     if (t.id === 'pegar-txt') { S.pegarTxt = t.value; if (S.msg.fotos) { S.msg.fotos = ''; pintarMsg('fotos'); } return; }
@@ -1940,6 +1992,8 @@
       (t.value.charAt(0) === 'f' ? usarDeFlota(f, v, ids) : asignarCamion(f, ids, v).then(function () { return { id: v }; }))
         .then(function (cam) { S.msg.fotos = avisoCamion(f, cam.id, ids.length); S.sel = {}; S.camOtro = false; renderPedidos(); }, function (e) { S.msg.fotos = '!' + ((e && e.message) || 'No se pudo guardar. Revisá la conexión.'); renderPedidos(); });
     }
+    else if (D.posPed != null && D.cam) { moverEnCamionA(S.fl, D.cam, D.posPed, +t.value).then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); }
+    else if (D.posCam != null) { moverCamionA(S.fl, D.posCam, +t.value).then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); }
     else if (D.pasar && t.value) { (t.value.charAt(0) === 'f' ? usarDeFlota(S.fl, t.value.slice(2), [D.pasar]) : asignarCamion(S.fl, [D.pasar], t.value.slice(2))).then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); }
   });
 
