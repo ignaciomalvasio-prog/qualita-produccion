@@ -67,7 +67,7 @@ html,body{overflow-x:clip}
   .marca img{height:50px;margin-bottom:0}
   .marca-nom{font-size:19px}
   .tabs{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);width:100%;gap:3px}
-  .tabs.muchas{grid-auto-flow:row;grid-template-columns:repeat(4,minmax(0,1fr))}
+  .tabs.muchas{grid-auto-flow:row;grid-template-columns:repeat(3,minmax(0,1fr))}
   .tab{padding:8px 2px;min-height:40px;font-size:clamp(12.5px,3.7vw,16px);letter-spacing:.01em;background:var(--sunken)}
 }
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -403,7 +403,8 @@ details[open] > summary{margin-bottom:10px}
   .top{border-bottom:2px solid #000;padding:0 0 4px;position:static}.top::before{display:none}.marca-dia{display:none}.marca img{height:44px;margin-bottom:0}.marca-nom{font-size:16px}
   h1{font-size:14px}
   .nav .tit{font-size:20px}
-  #view-produccion .nav{display:none}
+  #view-produccion .nav,#view-ciclo3 .nav{display:none}
+  .hoja-c3{break-before:auto;margin-top:10px}
   .hoja-cab h2{font-size:22px}.hoja-dato b{font-size:26px}.hoja-corte{padding:6px 2px}.hoja-corte:nth-child(even){background:none}.hoja-corte h3{font-size:15px;color:#000}.hoja-tot{font-size:15px}.hoja-corte li{font-size:14px}
   .panel.carga{border:0;background:none}
   .cam{border:1.5px solid #000;border-radius:0;margin-bottom:8px}.cam>.cam-cab,.cam.pasa>.cam-cab,.cam.suelto>.cam-cab{background:none;color:#000;border-bottom:2px solid #000;padding:6px 8px}.cam>.cam-cab h2{font-size:18px}.cam-datos{background:none;padding:4px 8px}.cam-res b{font-size:18px}.cam-cuerpo{padding:0 8px 6px}.medidor{display:none}
@@ -443,7 +444,6 @@ details[open] > summary{margin-bottom:10px}
       <button class="tab" role="tab" id="tab-inicio" data-tab="inicio" aria-selected="true">Inicio</button>
       <button class="tab" role="tab" id="tab-pedidos" data-tab="pedidos" aria-selected="false" hidden>Pedidos</button>
       <button class="tab" role="tab" id="tab-produccion" data-tab="produccion" aria-selected="false">Producción</button>
-      <button class="tab" role="tab" id="tab-ciclo3" data-tab="ciclo3" aria-selected="false">Ciclo III</button>
       <button class="tab" role="tab" id="tab-logistica" data-tab="logistica" aria-selected="false">Logística</button>
       <button class="tab" role="tab" id="tab-medias" data-tab="medias" aria-selected="false">Medias</button>
       <button class="tab" role="tab" id="tab-clientes" data-tab="clientes" aria-selected="false" hidden>Clientes</button>

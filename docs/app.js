@@ -238,11 +238,12 @@
   function sinResto(t) { return String(t || '').replace(/^\s*RESTO\s*:?\s*/i, ''); }
   function corteDe(o, nombre) { var k = norm(nombre); return (o.cortes || []).filter(function (c) { return norm(c.corte) === k; })[0] || null; }
   function ordenCorte(nombre) { var i = CORTES_BASE.indexOf(norm(nombre)); return i < 0 ? 999 : i; }
-  /* Ciclo III (embutidos: chorizo, morcilla, salchicha) tiene su propia planilla por día. Se guarda en la
-     misma colección "produccion" con el id "c3-AAAA-MM-DD"; la de desposte sigue con el id "AAAA-MM-DD". */
+  /* Los embutidos (chorizo, morcilla, salchicha) se muestran en Producción, aparte, como "Embutidos". Se guardan
+     en la misma colección "produccion" con el id "c3-AAAA-MM-DD"; la de desposte sigue con el id "AAAA-MM-DD".
+     El link del Ciclo III (/ciclo3) muestra solo los embutidos. */
   function esC3(id) { return /^c3-/.test(String(id || '')); }
   function diaProd(id) { return String(id || '').replace(/^c3-/, ''); }
-  function idActual() { return (S.tab === 'ciclo3' ? 'c3-' : '') + S.fecha; }
+  function idActual() { return (S.solo === 'ciclo3' ? 'c3-' : '') + S.fecha; }
   function esEmbutido(c) { var t = norm((c.corte || '') + ' ' + (c.texto || '')); return norm(c.corte) === 'EMBUTIDOS' || /CHORIZ|MORCILL|SALCHICH/.test(t); }
   function idPara(p, c) { return (esEmbutido(c) ? 'c3-' : '') + p.entrega; }
   // En Ciclo III los renglones se agrupan por producto: chorizo, morcilla o salchicha.
@@ -323,7 +324,7 @@
     return orden.filter(function (u) { return t[u]; }).map(function (u) { return n(t[u]) + ' ' + (u === 'cajas' && t[u] === 1 ? 'caja' : u === 'bines' && t[u] === 1 ? 'bin' : u); }).join(' · ');
   }
   function textoOrden(o, sinFrio) {
-    var out = [diaDe(o.fecha).toUpperCase() + ' ' + fechaCorta(o.fecha)].concat(o.linea === 'ciclo3' ? ['CICLO III · EMBUTIDOS'] : [(o.medias || '') + '½ ' + String(o.mercado || '').toUpperCase()]);
+    var out = [diaDe(o.fecha).toUpperCase() + ' ' + fechaCorta(o.fecha)].concat(o.linea === 'ciclo3' ? ['EMBUTIDOS · CICLO III'] : [(o.medias || '') + '½ ' + String(o.mercado || '').toUpperCase()]);
     (o.cortes || []).forEach(function (c) {
       (c.lineas.length ? c.lineas : [{ t: '' }]).forEach(function (l, i) { out.push(((i === 0 ? c.corte + ': ' : '') + enKg(l.t) + (l.f && !sinFrio ? ' (' + l.f + ')' : '')).toUpperCase()); });
       var tot = totalCorte(c); if (tot && c.lineas.length > 1) out.push('TOTAL ' + c.corte + ': ' + tot.toUpperCase());
@@ -333,33 +334,47 @@
   // El día de trabajo: hoy si es hábil; desde las 15 h ya se trabaja para el día hábil siguiente.
   function fechaProdInicial() { var h = hoy(); return esHabil(h) && new Date().getHours() < 15 ? h : habilSiguiente(h); }
 
-  function renderProduccion() {
-    var c3 = S.tab === 'ciclo3', el = $(c3 ? 'view-ciclo3' : 'view-produccion');
-    if (cargando(el, S.prod)) return;
-    if (!S.fecha || !S.fechaFija) S.fecha = fechaProdInicial();
-    var f = S.fecha, id = idActual(), o = prodDe(id), edit = !!(S.ep && S.ep.fecha === id);
-    var h = '<div class="nav"><button class="btn step" data-act="fecha" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + esc(tituloDe(f)) + '</span><button class="btn step" data-act="fecha" data-d="1" aria-label="Día siguiente">›</button>'
-      + '<input type="date" id="p-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">';
-    if (o) h += '<button class="btn" data-act="imprimir">Imprimir</button>';
-    if (S.editor && o) h += '<button class="btn' + (edit ? ' pri' : '') + '" data-act="p-editar">' + (edit ? 'Listo' : 'Editar') + '</button>';
-    if (S.editor) h += '<button class="btn" data-act="' + (c3 ? 'link-c3' : 'link-prod') + '">Copiar link para compartir</button><span class="guardado" id="g-prod"></span>';
-    h += '</div>';
-    if (!o) {
-      h += '<div class="panel"><p class="state">' + (c3 ? 'Todavía no hay embutidos para Ciclo III este día.' : 'Todavía no hay nada en producción para este día.') + '</p>' + (c3 ? '<p class="small muted" style="text-align:center">Llegan solos al tocar "Sumar a producción" en un pedido con chorizo, morcilla o salchicha.</p>' : '');
-      if (S.editor) h += '<div class="acciones" style="justify-content:center"><button class="btn pri" data-act="ir-pedidos" data-f="' + f + '">Ir a los pedidos de este día</button><button class="btn" data-act="p-nueva">Escribir a mano</button></div>';
-      el.innerHTML = h + '</div>'; return;
-    }
-    if (edit) { h += prodEditHTML(S.ep.doc); el.innerHTML = h; pintarMsg('prod'); crecer($('p-doc')); return; }
-    var nl = (o.cortes || []).reduce(function (t, c) { return t + c.lineas.length; }, 0);
-    h += '<div class="panel hoja' + (c3 ? ' hoja-c3' : '') + '"><header class="hoja-cab"><div><p class="hoja-sup">' + (c3 ? 'Ciclo III · Embutidos' : 'Planilla de producción') + '</p><h2>' + esc(tituloDe(f)) + '</h2></div>'
-      + (c3 ? '' : '<div class="hoja-dato"><b>' + n(+o.medias || 0) + '</b><span>medias' + (o.mercado ? ' · ' + esc(o.mercado) : '') + '</span></div>')
+  // La planilla de un día, para leer (la de desposte o la de embutidos).
+  function hojaHTML(o, f, c3) {
+    var nl = (o.cortes || []).reduce(function (t, c) { return t + c.lineas.length; }, 0), k = c3 ? 'c3' : 'orden';
+    var h = '<div class="panel hoja' + (c3 ? ' hoja-c3' : '') + '"' + (c3 ? ' id="embutidos"' : '') + '><header class="hoja-cab"><div><p class="hoja-sup">' + (c3 ? (S.solo ? 'Ciclo III · Embutidos' : 'Ciclo III') : 'Planilla de producción') + '</p><h2>' + esc(c3 && !S.solo ? 'Embutidos' : tituloDe(f)) + '</h2></div>'
+      + (c3 ? (kgOrden(o) ? '<div class="hoja-dato"><b>' + n(kgOrden(o)) + '</b><span>kg</span></div>' : '') : '<div class="hoja-dato"><b>' + n(+o.medias || 0) + '</b><span>medias' + (o.mercado ? ' · ' + esc(o.mercado) : '') + '</span></div>')
       + (o.estado === 'borrador' ? '<span class="badge warn">Borrador</span>' : '<span class="badge ok">Confirmada</span>') + '</header>';
-    if (!nl) h += '<p class="muted">Todavía no se sumó ningún corte.</p>';
+    if (!nl) h += '<p class="muted">Todavía no se sumó ningún ' + (c3 ? 'embutido' : 'corte') + '.</p>';
     else h += '<div class="hoja-cortes">' + (o.cortes || []).map(function (c) {
       var tot = totalCorte(c);
       return '<div class="hoja-corte"><div class="hoja-nom"><h3>' + esc(c.corte || 'Sin corte') + '</h3>' + (tot ? '<p class="hoja-tot"><span>Total</span> ' + esc(tot) + '</p>' : '') + '</div><ul>' + c.lineas.map(function (l) { return '<li>' + esc(enKg(l.t)) + (l.f ? ' ' + frioBadge(l.f) : '') + '</li>'; }).join('') + '</ul></div>';
     }).join('') + '</div>';
-    h += '<div class="acciones"><button class="btn" data-act="copiar">Copiar como texto</button>' + (S.editor ? '<button class="btn" data-act="ir-pedidos" data-f="' + f + '">Sumar cortes desde los pedidos</button>' : '') + '<span class="small muted" id="copiado" aria-live="polite"></span></div><textarea id="txt-orden" class="txt" readonly hidden aria-label="Planilla en texto">' + esc(textoOrden(o)) + '</textarea></div>';
+    h += '<div class="acciones"><button class="btn" data-act="copiar" data-t="' + k + '">Copiar como texto</button>'
+      + (S.editor ? '<button class="btn" data-act="p-editar" data-id="' + (c3 ? 'c3-' : '') + f + '">' + (c3 ? 'Editar embutidos' : 'Editar') + '</button>' : '')
+      + (S.editor && !c3 ? '<button class="btn" data-act="ir-pedidos" data-f="' + f + '">Sumar cortes desde los pedidos</button>' : '')
+      + (S.editor && c3 ? '<button class="btn" data-act="link-c3">Copiar link para el Ciclo III</button>' : '')
+      + '<span class="small muted" id="copiado-' + k + '" aria-live="polite"></span></div><textarea id="txt-' + k + '" class="txt" readonly hidden aria-label="Planilla en texto">' + esc(textoOrden(o)) + '</textarea></div>';
+    return h;
+  }
+  function renderProduccion() {
+    var solo3 = S.solo === 'ciclo3', el = $(solo3 ? 'view-ciclo3' : 'view-produccion');
+    if (cargando(el, S.prod)) return;
+    if (!S.fecha || !S.fechaFija) S.fecha = fechaProdInicial();
+    var f = S.fecha, o = solo3 ? null : prodDe(f), o3 = prodDe('c3-' + f), edit = !!(S.ep && (S.ep.fecha === f || S.ep.fecha === 'c3-' + f));
+    var h = '<div class="nav"><button class="btn step" data-act="fecha" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + esc(tituloDe(f)) + '</span><button class="btn step" data-act="fecha" data-d="1" aria-label="Día siguiente">›</button>'
+      + '<input type="date" id="p-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">';
+    if (o || o3) h += '<button class="btn" data-act="imprimir">Imprimir</button>';
+    if (edit) h += '<button class="btn pri" data-act="p-editar">Listo</button>';
+    if (S.editor) h += '<button class="btn" data-act="link-prod">Copiar link para compartir</button><span class="guardado" id="g-prod"></span>';
+    h += '</div>';
+    if (edit) { h += prodEditHTML(S.ep.doc); el.innerHTML = h; pintarMsg('prod'); crecer($('p-doc')); return; }
+    if (solo3) {
+      h += o3 ? hojaHTML(o3, f, true) : '<div class="panel"><p class="state">Todavía no hay embutidos para este día.</p></div>';
+      el.innerHTML = h; return;
+    }
+    if (o) h += hojaHTML(o, f, false);
+    else {
+      h += '<div class="panel"><p class="state">Todavía no hay nada en producción para este día.</p>';
+      if (S.editor) h += '<div class="acciones" style="justify-content:center"><button class="btn pri" data-act="ir-pedidos" data-f="' + f + '">Ir a los pedidos de este día</button><button class="btn" data-act="p-nueva">Escribir a mano</button></div>';
+      h += '</div>';
+    }
+    if (o3) h += hojaHTML(o3, f, true);
     el.innerHTML = h;
   }
   function docDeOrden(o) {
@@ -414,7 +429,7 @@
       : '<span class="badge ok">Confirmada</span><button class="btn sm" data-act="p-estado" data-v="borrador">Volver a borrador</button>')
       + botonBorrar('p-borrar', null, 'Borrar la planilla') + '</div></div>';
     h += '<div class="panel"><p class="small muted">Cada corte empieza con su nombre y dos puntos (JAMON: …); los renglones de abajo son de ese corte. Se guarda solo.</p>'
-      + '<article class="op"><p class="op-f">' + esc(diaDe(o.fecha)) + ' ' + esc(fechaCorta(o.fecha)) + '</p>'
+      + '<article class="op"><p class="op-f">' + esc(diaDe(o.fecha)) + ' ' + esc(fechaCorta(o.fecha)) + (o.linea === 'ciclo3' ? ' · Embutidos' : '') + '</p>'
       + '<textarea id="p-doc" class="op-doc" spellcheck="false" autocapitalize="characters" aria-label="Planilla de producción">' + esc(docDeOrden(o)) + '</textarea></article></div>';
     return h;
   }
@@ -1317,8 +1332,8 @@
     cs.forEach(function (c) {
       var f = fechaProdDe(m, p, c);
       h += '<p class="lp"><span><b>' + esc(c.corte) + '</b> ' + esc(sinCliente(c.texto, p.cliente)) + (c.frio && c.frio !== p.frio ? ' ' + frioBadge(c.frio) : '') + '</span><span class="lp-der">' + precioHTML(p.id, c.k, c.precio, c.corte, c.iva) + (f
-        ? '<span class="en"><span class="badge ok">' + (esC3(f) ? 'En Ciclo III' : 'En producción') + '</span><button class="btn sm" data-act="c-quitar" data-id="' + id + '" data-k="' + esc(c.k) + '">Quitar</button></span>'
-        : '<button class="btn sm pri" data-act="c-sumar" data-id="' + id + '" data-k="' + esc(c.k) + '">' + (esEmbutido(c) ? 'Sumar a Ciclo III' : 'Sumar a producción') + '</button>') + '</span></p>';
+        ? '<span class="en"><span class="badge ok">' + (esC3(f) ? 'En producción · embutidos' : 'En producción') + '</span><button class="btn sm" data-act="c-quitar" data-id="' + id + '" data-k="' + esc(c.k) + '">Quitar</button></span>'
+        : '<button class="btn sm pri" data-act="c-sumar" data-id="' + id + '" data-k="' + esc(c.k) + '">' + 'Sumar a producción' + '</button>') + '</span></p>';
     });
     h += '</div>';
     if (p.nota) h += '<p class="small muted">' + esc(p.nota) + '</p>';
@@ -1633,8 +1648,8 @@
     clientes: '<circle cx="9" cy="9" r="3"/><path d="M3 19c0-3 3-5 6-5s6 2 6 5"/><circle cx="17" cy="8" r="2.4"/><path d="M15.5 13.5c2.6-.4 5.5 1.2 5.5 4"/>'
   };
   function icono(k) { return '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">' + (ICONOS[k] || '') + '</svg>'; }
-  function tarjeta(tab, titulo, dia, datos, vacio, marca, sigue) {
-    return '<button class="tile t-' + tab + '" data-act="ir" data-tab="' + tab + '"><span class="t-cab"><span class="t-ico">' + icono(tab) + '</span><b>' + titulo + '</b>' + (marca || '') + '</span>'
+  function tarjeta(tab, titulo, dia, datos, vacio, marca, sigue, ico) {
+    return '<button class="tile t-' + (ico || tab) + '" data-act="ir" data-tab="' + tab + '"' + (ico === 'ciclo3' ? ' data-ancla="embutidos"' : '') + '><span class="t-cab"><span class="t-ico">' + icono(ico || tab) + '</span><b>' + titulo + '</b>' + (marca || '') + '</span>'
       + '<span class="t-dia">' + esc(dia) + '</span>'
       + (datos.length ? '<span class="t-nums">' + datos.map(function (d, k) { return '<strong' + (k === 0 ? ' class="g"' : '') + '>' + n(d[0]) + '</strong><span>' + esc(d[1]) + '</span>'; }).join('') + '</span>' : '<span class="t-vacio">' + esc(vacio) + '</span>')
       + (sigue ? '<span class="t-sig">' + sigue + '</span>' : '') + '<span class="t-ir" aria-hidden="true">Abrir ›</span></button>';
@@ -1662,7 +1677,7 @@
     var a = prodNum(f), b = prodNum(sig), a3 = prodNum('c3-' + f), b3 = prodNum('c3-' + sig), la = logNum(f), lb = logNum(sig);
 
     // Encabezado con los números del día.
-    var kpi = function (v, txt, tab) { return '<button class="kpi" data-act="ir" data-tab="' + tab + '"><b>' + (v === '' ? '—' : n(v)) + '</b><span>' + esc(txt) + '</span></button>'; };
+    var kpi = function (v, txt, tab, ancla) { return '<button class="kpi" data-act="ir" data-tab="' + tab + '"' + (ancla ? ' data-ancla="' + ancla + '"' : '') + '><b>' + (v === '' ? '—' : n(v)) + '</b><span>' + esc(txt) + '</span></button>'; };
     var ph = deDia(f);
     html += '<section class="dash-hero"><div class="dh-txt"><p class="dh-sup">' + (f === h ? 'Trabajando hoy' : 'Próximo día de trabajo') + '</p><h2>' + esc(tituloDe(f)) + '</h2>'
       + '<p class="dh-sub">Después: ' + esc(tituloDe(sig).toLowerCase()) + '</p></div><div class="kpis">'
@@ -1670,7 +1685,7 @@
       + (S.editor ? kpi(ph.length, plural(ph.length, 'pedido', 'pedidos') + ' para entregar', 'pedidos') : kpi(la.p, plural(la.p, 'pedido', 'pedidos') + ' para entregar', 'logistica'))
       + kpi(la.kg || '', 'kg a despachar', 'logistica')
       + kpi(la.c, plural(la.c, 'camión', 'camiones'), 'logistica')
-      + kpi(a3.kg || (a3.nl ? a3.nl : ''), a3.kg ? 'kg de embutidos' : 'renglones de embutidos', 'ciclo3')
+      + kpi(a3.kg || (a3.nl ? a3.nl : ''), a3.kg ? 'kg de embutidos' : 'renglones de embutidos', 'produccion', 'embutidos')
       + '</div></section>';
 
     // Lo que falta hacer (solo para quien carga).
@@ -1702,9 +1717,9 @@
       pie(b.nl ? neg(b.nl, 'renglón', 'renglones') + (b.o.estado === 'borrador' ? ' · borrador' : ' · confirmada') : 'Sin cargar'));
     var d3 = [];
     if (a3.nl) { d3.push([a3.nl, plural(a3.nl, 'renglón', 'renglones')]); if (a3.kg) d3.push([a3.kg, 'kg']); if (a3.peds) d3.push([a3.peds, plural(a3.peds, 'pedido', 'pedidos')]); }
-    html += tarjeta('ciclo3', 'Ciclo III', rot(f), d3, 'Sin embutidos cargados',
+    html += tarjeta('produccion', 'Embutidos', rot(f), d3, 'Sin embutidos cargados',
       a3.nl ? '<span class="badge ' + (a3.o.estado === 'borrador' ? 'warn">Borrador' : 'ok">Confirmada') + '</span>' : '',
-      pie(b3.nl ? neg(b3.nl, 'renglón', 'renglones') + (b3.kg ? ' · ' + neg(b3.kg, 'kg', 'kg') : '') : 'Sin cargar'));
+      pie(b3.nl ? neg(b3.nl, 'renglón', 'renglones') + (b3.kg ? ' · ' + neg(b3.kg, 'kg', 'kg') : '') : 'Sin cargar'), 'ciclo3');
     var dl = [];
     if (la.p) { dl.push([la.p, plural(la.p, 'pedido', 'pedidos')]); dl.push([la.c, plural(la.c, 'camión armado', 'camiones armados')]); if (la.s) dl.push([la.s, 'sin camión']); }
     html += tarjeta('logistica', 'Logística', rot(f), dl, 'Sin pedidos para entregar', '',
@@ -1755,7 +1770,7 @@
     $('tabs').classList.toggle('muchas', !!S.editor);
     // Si la página se abrió (o se recargó sola) en Pedidos o Clientes, se vuelve ahí apenas se confirma el permiso.
     if ((S.tab === 'pedidos' || S.tab === 'clientes') && !S.editor) { S.volver = S.tab; S.tab = 'inicio'; }
-    TABS.forEach(function (t) { $('view-' + t).hidden = S.tab !== t; if (S.tab !== t) $('view-' + t).innerHTML = ''; $('tab-' + t).setAttribute('aria-selected', String(S.tab === t)); });
+    TABS.forEach(function (t) { $('view-' + t).hidden = S.tab !== t; if (S.tab !== t) $('view-' + t).innerHTML = ''; var tb = $('tab-' + t); if (tb) tb.setAttribute('aria-selected', String(S.tab === t)); });
     if (S.tab === 'medias') renderMedias(); else if (S.tab === 'pedidos') renderPedidos(); else if (S.tab === 'produccion' || S.tab === 'ciclo3') renderProduccion(); else if (S.tab === 'logistica') renderLogistica(); else if (S.tab === 'clientes') renderClientes(); else renderInicio();
   }
   // Cuando llegan datos nuevos no se redibuja la pantalla en la que se está escribiendo.
@@ -1810,7 +1825,7 @@
       escribirClientes(lq).then(renderClientes, function () { avisar('!No se pudo quitar. Revisá la conexión.', 6000); });
       return;
     }
-    if (a === 'ir') irA(D.tab);
+    if (a === 'ir') { irA(D.tab); if (D.ancla) { var an = $(D.ancla); if (an) an.scrollIntoView(); } }
     else if (a === 'ini-dia') { S.pd = D.f; S.abierto = {}; irA('pedidos'); }
     else if (a === 'cam-imprimir') {
       // Solo ese camión: los demás se ocultan mientras dura la impresión.
@@ -1840,7 +1855,7 @@
     else if (a === 'ingresar') { if (window.Acceso && store.entrarMail) window.Acceso.abrir(store); else store.signIn().catch(function () {}); }
     else if (a === 'salir') store.signOut();
     else if (a === 'copiar') {
-      var ta = $('txt-orden'), msg = $('copiado'); ta.hidden = false;
+      var ta = $('txt-' + (D.t || 'orden')), msg = $('copiado-' + (D.t || 'orden')); ta.hidden = false;
       var ok = function () { msg.textContent = 'Copiado.'; }, no = function () { ta.focus(); ta.select(); msg.textContent = 'Seleccionado: copialo con Ctrl+C o manteniendo apretado.'; };
       try { navigator.clipboard.writeText(ta.value).then(ok, no); } catch (err) { no(); }
     }
@@ -1865,7 +1880,7 @@
     // producción
     else if (a === 'fecha') { S.fechaFija = true; if (S.ep) guardar('prod', true); S.ep = null; var x = S.fecha; do { x = mas(x, +D.d); } while (!esHabil(x)); S.fecha = x; render(); }
     else if (a === 'p-nueva') { S.fechaFija = true; S.ep = { fecha: idActual(), doc: prodVacia(idActual()) }; S.ep.base = clone(S.ep.doc); S.msg.prod = ''; guardar('prod', true); render(); var pn = $('p-doc'); if (pn) { pn.focus(); pn.setSelectionRange(pn.value.length, pn.value.length); } }
-    else if (a === 'p-editar') { S.fechaFija = true; if (S.ep) { guardar('prod', true); S.ep = null; } else { S.ep = { fecha: idActual(), doc: clone(prodDe(idActual())) }; S.ep.base = clone(S.ep.doc); S.msg.prod = ''; } render(); if (S.ep) { var pd = $('p-doc'); if (pd) { pd.focus(); pd.setSelectionRange(0, 0); window.scrollTo(0, 0); } } }
+    else if (a === 'p-editar') { S.fechaFija = true; if (S.ep) { guardar('prod', true); S.ep = null; } else { var ide = D.id || idActual(); S.ep = { fecha: ide, doc: clone(prodDe(ide)) }; S.ep.base = clone(S.ep.doc); S.msg.prod = ''; } render(); if (S.ep) { var pd = $('p-doc'); if (pd) { pd.focus(); pd.setSelectionRange(0, 0); window.scrollTo(0, 0); } } }
     else if (a === 'p-borrar' && S.ep) { if (!confirma('p-borrar')) { render(); return; } clearTimeout(timers.prod); var fb = S.ep.fecha; S.ep = null; S.prod = (S.prod || []).filter(function (x) { return x.id !== fb; }); store.del('produccion', fb).then(tocar, function () {}); render(); }
     else if (a === 'p-estado' && S.ep) { S.ep.doc.estado = D.v; S.ep.base = clone(S.ep.doc); guardar('prod', true); render(); }
 
@@ -2092,7 +2107,7 @@
     else if (D.pasar && t.value) { (t.value.charAt(0) === 'f' ? usarDeFlota(S.fl, t.value.slice(2), [D.pasar]) : asignarCamion(S.fl, [D.pasar], t.value.slice(2))).then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); }
   });
 
-  var h0 = (location.hash || '').slice(1); if (TABS.indexOf(h0) >= 0) S.tab = h0;
+  var h0 = (location.hash || '').slice(1); if (TABS.indexOf(h0) >= 0) S.tab = h0 === 'ciclo3' ? 'produccion' : h0;
   // Link para compartir con una sola pestaña: se ve esa sola, sin las demás y sin ingresar.
   // Es la página logistica.html (se arma con tools/paginas.py); el link viejo con ?solo=logistica sigue andando.
   try { var qs = document.documentElement.getAttribute('data-solo') || new URLSearchParams(location.search).get('solo'); if (qs === 'logistica' || qs === 'produccion' || qs === 'ciclo3') { S.solo = qs; S.tab = qs; } } catch (err) {}
