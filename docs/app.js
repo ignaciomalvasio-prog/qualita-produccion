@@ -1586,8 +1586,8 @@
     return h + '</div>';
   }
   function resumenLog(lista) {
-    var tm = lista.reduce(function (t, p) { return t + (+p.medias || 0); }, 0), tc = lista.reduce(function (t, p) { return t + (p.cortes || []).length; }, 0);
-    return lista.length + (lista.length === 1 ? ' pedido' : ' pedidos') + (tm ? ' · ' + n(tm) + ' medias' : '') + (tc ? ' · ' + tc + (tc === 1 ? ' renglón de cortes' : ' renglones de cortes') : '');
+    var tm = lista.reduce(function (t, p) { return t + (+p.medias || 0); }, 0), tc = kgPedidos(lista);
+    return lista.length + (lista.length === 1 ? ' pedido' : ' pedidos') + (tm ? ' · ' + n(tm) + ' medias' : '') + (tc ? ' · ' + n(tc) + ' kg de cortes' : '');
   }
   function renderLogistica() {
     var el = $('view-logistica');
@@ -1655,6 +1655,8 @@
       + (sigue ? '<span class="t-sig">' + sigue + '</span>' : '') + '<span class="t-ir" aria-hidden="true">Abrir ›</span></button>';
   }
   // Kilos de una planilla: lo que empieza en kg, cajas o canastos (las cajas y canastos pasados a kg).
+  // Kilos de los cortes de unos pedidos (las cajas y canastos pasados a kg).
+  function kgPedidos(lista) { return kgOrden({ cortes: [{ lineas: [].concat.apply([], (lista || []).map(function (p) { return (p.cortes || []).map(function (c) { return { t: c.texto }; }); })) }] }); }
   function kgOrden(o) {
     var t = 0;
     ((o && o.cortes) || []).forEach(function (c) { c.lineas.forEach(function (l) { var m = norm(enKg(l.t)).match(/^([\d.,]+)\s*(KGS?|KILOS?|K)\b/); if (m) t += numero(m[1]); }); });
@@ -1703,18 +1705,18 @@
     html += '<div class="home">';
     if (S.editor) {
       var ps = deDia(sig), mas2 = (S.pedidos || []).filter(function (p) { return p.entrega > sig; }).length;
-      var pm = ph.reduce(function (t, p) { return t + (+p.medias || 0); }, 0), pc = ph.reduce(function (t, p) { return t + (p.cortes || []).length; }, 0);
+      var pm = ph.reduce(function (t, p) { return t + (+p.medias || 0); }, 0), pc = kgPedidos(ph);
       var dp = ph.length ? [[ph.length, plural(ph.length, 'pedido', 'pedidos')]] : [];
       if (pm) dp.push([pm, plural(pm, 'media', 'medias')]);
-      if (pc) dp.push([pc, plural(pc, 'renglón de cortes', 'renglones de cortes')]);
+      if (pc) dp.push([pc, 'kg de cortes']);
       html += tarjeta('pedidos', 'Pedidos', rot(f), dp, 'Sin pedidos cargados', '',
         pie(ps.length ? neg(ps.length, 'pedido', 'pedidos') : 'Sin pedidos') + (mas2 ? '<span>Más adelante: ' + neg(mas2, 'pedido', 'pedidos') + '</span>' : ''));
     }
     var da = [];
-    if (a.nl) { da.push([a.nl, plural(a.nl, 'renglón', 'renglones')]); if (a.kg) da.push([a.kg, 'kg']); if (+a.o.medias) da.push([+a.o.medias, 'medias a despostar']); }
+    if (a.nl) { da.push([a.kg, 'kg']); if (+a.o.medias) da.push([+a.o.medias, 'medias a despostar']); }
     html += tarjeta('produccion', 'Producción', rot(f), da, 'Todavía no hay nada cargado',
       a.nl ? '<span class="badge ' + (a.o.estado === 'borrador' ? 'warn">Borrador' : 'ok">Confirmada') + '</span>' : '',
-      pie(b.nl ? neg(b.nl, 'renglón', 'renglones') + (b.o.estado === 'borrador' ? ' · borrador' : ' · confirmada') : 'Sin cargar'));
+      pie(b.nl ? neg(b.kg, 'kg', 'kg') + (b.o.estado === 'borrador' ? ' · borrador' : ' · confirmada') : 'Sin cargar'));
     var d3 = [];
     if (a3.nl) { d3.push([a3.kg, 'kg']); if (a3.peds) d3.push([a3.peds, plural(a3.peds, 'pedido', 'pedidos')]); }
     html += tarjeta('produccion', 'Embutidos', rot(f), d3, 'Sin embutidos cargados',
