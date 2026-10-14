@@ -1685,7 +1685,7 @@
       + (S.editor ? kpi(ph.length, plural(ph.length, 'pedido', 'pedidos') + ' para entregar', 'pedidos') : kpi(la.p, plural(la.p, 'pedido', 'pedidos') + ' para entregar', 'logistica'))
       + kpi(la.kg || '', 'kg a despachar', 'logistica')
       + kpi(la.c, plural(la.c, 'camión', 'camiones'), 'logistica')
-      + kpi(a3.kg || (a3.nl ? a3.nl : ''), a3.kg ? 'kg de embutidos' : 'renglones de embutidos', 'produccion', 'embutidos')
+      + kpi(a3.nl ? a3.kg : '', 'kg de embutidos', 'produccion', 'embutidos')
       + '</div></section>';
 
     // Lo que falta hacer (solo para quien carga).
@@ -1716,10 +1716,10 @@
       a.nl ? '<span class="badge ' + (a.o.estado === 'borrador' ? 'warn">Borrador' : 'ok">Confirmada') + '</span>' : '',
       pie(b.nl ? neg(b.nl, 'renglón', 'renglones') + (b.o.estado === 'borrador' ? ' · borrador' : ' · confirmada') : 'Sin cargar'));
     var d3 = [];
-    if (a3.nl) { d3.push([a3.nl, plural(a3.nl, 'renglón', 'renglones')]); if (a3.kg) d3.push([a3.kg, 'kg']); if (a3.peds) d3.push([a3.peds, plural(a3.peds, 'pedido', 'pedidos')]); }
+    if (a3.nl) { d3.push([a3.kg, 'kg']); if (a3.peds) d3.push([a3.peds, plural(a3.peds, 'pedido', 'pedidos')]); }
     html += tarjeta('produccion', 'Embutidos', rot(f), d3, 'Sin embutidos cargados',
       a3.nl ? '<span class="badge ' + (a3.o.estado === 'borrador' ? 'warn">Borrador' : 'ok">Confirmada') + '</span>' : '',
-      pie(b3.nl ? neg(b3.nl, 'renglón', 'renglones') + (b3.kg ? ' · ' + neg(b3.kg, 'kg', 'kg') : '') : 'Sin cargar'), 'ciclo3');
+      pie(b3.nl ? neg(b3.kg, 'kg', 'kg') : 'Sin cargar'), 'ciclo3');
     var dl = [];
     if (la.p) { dl.push([la.p, plural(la.p, 'pedido', 'pedidos')]); dl.push([la.c, plural(la.c, 'camión armado', 'camiones armados')]); if (la.s) dl.push([la.s, 'sin camión']); }
     html += tarjeta('logistica', 'Logística', rot(f), dl, 'Sin pedidos para entregar', '',
