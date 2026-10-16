@@ -950,6 +950,18 @@
     ids.splice(j, 0, ids.splice(i, 1)[0]); cam.orden = ids;
     return publicarLog(f, cams).then(tocar);
   }
+  // Hora de salida puesta desde el Resumen del día: no reordena, el orden lo deja quien arma el resumen.
+  function ponerHora(f, id, hora) {
+    var cams = camionesDe(f).map(function (c) { if (c.id !== id) return c; var x = clone(c); x.hora = String(hora || '').trim(); return x; });
+    return publicarLog(f, cams).then(tocar);
+  }
+  // Deja los camiones del día en el orden dado (lista de ids), por ejemplo después de arrastrarlos.
+  function ordenarCamiones(f, ids) {
+    var cams = clone(camionesDe(f)), lugar = function (c) { var i = ids.indexOf(c.id); return i < 0 ? 1e6 : i; };
+    var nuevo = cams.map(function (c, i) { return [c, i]; }).sort(function (a, b) { return lugar(a[0]) - lugar(b[0]) || a[1] - b[1]; }).map(function (x) { return x[0]; });
+    if (nuevo.map(function (c) { return c.id; }).join() === cams.map(function (c) { return c.id; }).join()) return Promise.resolve();
+    return publicarLog(f, nuevo).then(tocar);
+  }
   function moverCamionA(f, id, j) {
     var cams = clone(camionesDe(f)), i = cams.map(function (c) { return c.id; }).indexOf(id);
     if (i < 0 || j < 0 || j >= cams.length || i === j) return Promise.resolve();
@@ -1308,7 +1320,7 @@
     var conIA = !!(S.ia && S.ia.clave) || !!(window.__mock && window.__mock.ia);
     var h = '<div class="acciones"><label class="btn pri" style="display:inline-flex;align-items:center' + (conIA ? '' : ';opacity:.45') + '">Subir fotos o capturas<input type="file" id="fotos" accept="image/*" multiple hidden' + (conIA ? '' : ' disabled') + '></label>'
       + '<button class="btn" data-act="q-pegar"' + (conIA ? '' : ' disabled') + '>Pegar texto</button>'
-      + '<button class="btn" data-act="' + actMano + '">Cargar a mano</button><span class="guardado" id="g-fotos"></span></div>';
+      + '<button class="btn" data-act="' + actMano + '">Cargar a mano</button>' + (conIA ? '<span class="small muted pega-tip">o pegá una captura con Ctrl+V</span>' : '') + '<span class="guardado" id="g-fotos"></span></div>';
     if (S.pegar && conIA) h += '<div class="pegar"><label class="campo"><span>Mensaje con los pedidos</span><textarea id="pegar-txt" rows="9">' + esc(S.pegarTxt || '') + '</textarea></label>'
       + '<label class="campo"><span>Cliente, si todo el mensaje es de uno solo con varias sucursales (opcional)</span><input type="text" id="pegar-cli" value="' + esc(S.pegarCli || '') + '"></label>'
       + '<div class="acciones"><button class="btn pri" data-act="q-leer-texto">Leer</button><button class="btn" data-act="q-pegar">Cancelar</button></div></div>';
@@ -1436,15 +1448,17 @@
       if (p.frio === 'CONGELADO') t += ' <span class="res-cong">cong.</span>';
       return '<span class="res-cli">' + t + '</span>';
     };
-    var bloque = function (tit, hora, lista, nota) {
-      return '<div class="res-cam"><p class="res-tit"><mark># ' + esc(tit) + (hora ? ' ' + esc(hora) + ' hs' : '') + '</mark></p>'
+    var ed = S.editor && !S.solo;
+    var bloque = function (tit, hora, lista, nota, id) {
+      var hh = ed && id ? ' <input type="time" class="res-hora" data-hora="' + esc(id) + '" value="' + esc(hora || '') + '" aria-label="Hora de salida de ' + esc(tit) + '">' + (hora ? '<span class="solo-print">' + esc(hora) + ' hs</span>' : '') : hora ? ' ' + esc(hora) + ' hs' : '';
+      return '<div class="res-cam' + (ed && id ? ' movible' : '') + '"' + (id ? ' data-cam="' + esc(id) + '"' : '') + '><p class="res-tit">' + (ed && id ? '<button class="res-mover" data-arr="' + esc(id) + '" aria-label="Arrastrar para cambiar el orden de ' + esc(tit) + ' (o usar las flechas del teclado)" title="Arrastrar para ordenar">⠿</button>' : '') + '<mark># ' + esc(tit) + hh + '</mark></p>'
         + '<p class="res-lista">' + (lista.length ? lista.map(cli).join(' – ') : '<span class="muted">Sin pedidos</span>') + '</p>'
         + (nota ? '<p class="res-nota">' + esc(nota) + '</p>' : '') + '</div>';
     };
-    var h = '<div class="resumen-dia"><h2 class="res-dia"><mark>' + esc(titulo) + '</mark></h2><div class="res-grilla">';
+    var h = '<div class="resumen-dia"><h2 class="res-dia"><mark>' + esc(titulo) + '</mark></h2>' + (ed && cams.length > 1 ? '<p class="small muted res-ayuda">Arrastrá cada camión desde ⠿ para ordenarlos (queda igual en "Ver por camión"). La hora se cambia tocándola.</p>' : '') + '<div class="res-grilla">';
     cams.forEach(function (c) {
       var tit = (c.num && String(c.nombre || '').trim() ? 'N° ' + c.num + ' · ' : '') + nomCam(c);
-      h += bloque(tit, c.hora, peds.filter(function (p) { return p.camion === c.id; }), c.nota);
+      h += bloque(tit, c.hora, peds.filter(function (p) { return p.camion === c.id; }), c.nota, c.id);
     });
     var sueltos = peds.filter(function (p) { return !p.camion; });
     if (sueltos.length) h += bloque('Sin camión', '', sueltos, '');
@@ -2042,8 +2056,49 @@
   });
   // Configuración queda abierta o cerrada como la dejó quien la usa, aunque se redibuje la pantalla.
   document.addEventListener('toggle', function (e) { var d = e.target; if (d && d.tagName === 'DETAILS') { if (d.id === 'det-cli') S._cliVarios = d.open; else S._conf = d.open; } }, true);
+  // Arrastrar camiones en el Resumen del día (con el mouse o con el dedo).
+  var arr = null;
+  document.addEventListener('pointerdown', function (e) {
+    var hd = e.target.closest && e.target.closest('.res-mover'); if (!hd || e.button > 0) return;
+    var el = hd.closest('.res-cam'); if (!el) return;
+    e.preventDefault(); S._ocup = true;
+    arr = { el: el, grilla: el.parentNode, antes: ids() }; el.classList.add('arrastrando');
+    try { hd.setPointerCapture(e.pointerId); } catch (err) {}
+    function ids() { return Array.prototype.map.call(el.parentNode.querySelectorAll('.res-cam[data-cam]'), function (x) { return x.getAttribute('data-cam'); }); }
+    arr.ids = ids;
+  });
+  document.addEventListener('pointermove', function (e) {
+    if (!arr) return; e.preventDefault();
+    var bajo = document.elementFromPoint(e.clientX, e.clientY), t = bajo && bajo.closest && bajo.closest('.res-cam[data-cam]');
+    if (!t || t === arr.el || t.parentNode !== arr.grilla) return;
+    var hijos = Array.prototype.slice.call(arr.grilla.children);
+    arr.grilla.insertBefore(arr.el, hijos.indexOf(arr.el) < hijos.indexOf(t) ? t.nextSibling : t);
+  });
+  function soltar() {
+    if (!arr) return; var a = arr; arr = null; a.el.classList.remove('arrastrando'); S._ocup = false;
+    var nuevo = a.ids(); if (nuevo.join() === a.antes.join()) return;
+    ordenarCamiones(S.fl, nuevo).then(render, function () { S.msg.log = '!No se pudo guardar el orden.'; render(); });
+  }
+  document.addEventListener('pointerup', soltar); document.addEventListener('pointercancel', soltar);
+  document.addEventListener('keydown', function (e) {
+    var hd = e.target && e.target.classList && e.target.classList.contains('res-mover') ? e.target : null; if (!hd) return;
+    var d = e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : 0; if (!d) return;
+    e.preventDefault(); var id = hd.getAttribute('data-arr');
+    moverCamion(S.fl, id, d).then(function () { render(); var b = document.querySelector('.res-mover[data-arr="' + id + '"]'); if (b) b.focus(); });
+  });
+  // Una captura copiada (o varias imágenes) se pega con Ctrl+V donde esté el botón "Subir fotos o capturas", también en el cuadro de texto.
+  document.addEventListener('paste', function (e) {
+    var inp = $('fotos'); if (!inp || inp.disabled || !e.clipboardData) return;
+    var imgs = Array.prototype.slice.call(e.clipboardData.items || []).filter(function (it) { return it.kind === 'file' && /^image\//.test(it.type); }).map(function (it) { return it.getAsFile(); }).filter(Boolean);
+    if (!imgs.length) return;
+    e.preventDefault();
+    imgs = imgs.map(function (b, i) { try { return new File([b], b.name && b.name !== 'image.png' ? b.name : 'captura' + (imgs.length > 1 ? ' ' + (i + 1) : '') + '.png', { type: b.type }); } catch (err) { return b; } });
+    if (S.pegar && !String(S.pegarTxt || '').trim()) { S.pegar = false; renderPedidos(); }
+    subirFotos(imgs);
+  });
   document.addEventListener('change', function (e) {
     var t = e.target, D = t.dataset;
+    if (D.hora != null && t.classList.contains('res-hora')) { ponerHora(S.fl, D.hora, t.value).then(null, function () { S.msg.log = '!No se pudo guardar.'; render(); }); return; }
     if (t.id === 'p-fecha' && t.value) { if (S.ep) guardar('prod', true); S.ep = null; S.fechaFija = true; S.fecha = t.value; render(); }
     else if (t.id === 'm-fecha' && t.value) { S.fm = t.value; render(); }
     else if (t.id === 'e-fecha' && t.value) { S.entrega = t.value; S.sel = {}; renderPedidos(); }

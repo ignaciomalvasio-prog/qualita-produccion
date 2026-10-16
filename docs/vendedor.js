@@ -136,7 +136,7 @@
   function adjHTML() {
     var a = S.adj;
     return '<div class="panel carga" id="adj"><h2>Mandar foto o mensaje</h2><p class="small">Sacale foto al pedido o pegá el mensaje de WhatsApp. Qualitá lo lee y lo carga; vos lo ves abajo en "Mis pedidos".</p>'
-      + '<div class="acciones"><label class="btn pri">Subir fotos<input type="file" id="adj-fotos" accept="image/*" multiple hidden></label><span class="small muted">Hasta 4 fotos por envío</span></div>'
+      + '<div class="acciones"><label class="btn pri">Subir fotos<input type="file" id="adj-fotos" accept="image/*" multiple hidden></label><span class="small muted">Hasta 4 fotos por envío · también podés pegar una captura con Ctrl+V</span></div>'
       + (a.fotos.length ? '<div class="miniaturas">' + a.fotos.map(function (b, i) { return '<div class="mini"><img src="data:image/jpeg;base64,' + b + '" alt="Foto ' + (i + 1) + '"><button type="button" class="btn x" data-act="adj-quitar" data-i="' + i + '" aria-label="Quitar la foto ' + (i + 1) + '">✕</button></div>'; }).join('') + '</div>' : '')
       + '<label class="campo"><span>Mensaje (opcional)</span><textarea id="adj-msg" placeholder="Pegá acá el pedido o escribí una aclaración">' + esc(a.msg) + '</textarea></label>'
       + '<div class="acciones"><button class="btn pri grande" data-act="adj-enviar"' + (S.enviando ? ' disabled' : '') + '>' + (S.enviando ? 'Enviando…' : 'Enviar a Qualitá') + '</button>'
@@ -289,6 +289,13 @@
     }, function () { if (boton) boton.disabled = false; aviso('No se pudo enviar. Revisá la conexión y probá de nuevo.', true); });
   }
 
+  // Una captura copiada se pega con Ctrl+V donde está "Subir fotos".
+  document.addEventListener('paste', function (e) {
+    if (!$('adj-fotos') || !e.clipboardData) return;
+    var imgs = Array.prototype.slice.call(e.clipboardData.items || []).filter(function (it) { return it.kind === 'file' && /^image\//.test(it.type); }).map(function (it) { return it.getAsFile(); }).filter(Boolean);
+    if (!imgs.length) return;
+    e.preventDefault(); sumarFotos(imgs);
+  });
   document.addEventListener('change', function (e) { if (e.target && e.target.id === 'adj-fotos') { sumarFotos(e.target.files); e.target.value = ''; } });
   document.addEventListener('click', function (e) {
     var b = e.target.closest('[data-act]'); if (!b) return;
