@@ -1605,10 +1605,13 @@
     var h = '<div class="log-ped"><div class="log-cab">' + (cam ? (S.editor && total > 1 ? posSelHTML('data-pos-ped="' + id + '" data-cam="' + esc(cam.id) + '"', pos, total, 'Lugar de ' + p.cliente + ' en el camión', { act: 'cam', attr: 'data-id="' + id + '" data-cam="' + esc(cam.id) + '"' }) : '<span class="log-pos">' + (pos + 1) + '</span>') : '') + '<strong>' + esc(p.cliente || 'Sin cliente') + '</strong>' + ctaHTML(p.cuenta)
       + frioBadge(p.frio)
       + '<span class="small muted">' + esc(kgTxt({ kg: +p.kg || 0, falta: p.kgFalta, manual: p.kgManual })) + '</span>';
-    if (S.editor) h += '<span class="log-acc">' + (cam
+    var ke = -1; if (S.editor) (S.prop || []).forEach(function (x, i) { if (x.editaId === p.id) ke = i; });
+    if (S.editor) h += '<span class="log-acc">' + (ke < 0 && pedidoDe(p.id) ? '<button class="btn sm" data-act="log-editar" data-id="' + id + '">Editar</button>' : '') + (cam
       ? '<button class="btn sm" data-act="cam-quitar-ped" data-id="' + id + '">Sacar</button>'
       : opcionesCamion(p, cams)) + '</span>';
     h += '</div>';
+    // Editar el pedido ahí mismo, sin ir a Pedidos.
+    if (ke >= 0) return h + '<div class="log-edit">' + propHTML(S.prop[ke], ke) + '</div></div>';
     if (filas.length) h += '<div class="log-cortes">' + filas.map(function (c) { return '<p><u>' + esc(c.corte) + '</u>: ' + esc(c.texto) + (c.precio ? ' <span class="log-precio">' + esc(c.precio) + '</span>' : '') + '</p>'; }).join('') + '</div>';
     if (p.nota) h += '<p class="small muted">' + esc(p.nota) + '</p>';
     return h + '</div>';
@@ -1945,6 +1948,11 @@
       renderPedidos();
     }
     else if (a === 'ped-editar') editarPedido(D.id);
+    else if (a === 'log-editar') {
+      var pl = pedidoDe(D.id);
+      if (pl && !S.prop.some(function (x) { return x.editaId === pl.id; })) S.prop.push({ k: uid(), editaId: pl.id, cliente: pl.cliente || '', entrega: pl.entrega || '', medias: pl.medias || '', peso: pl.peso || '', frio: pl.frio || '', cuenta: pl.cuenta || '', nota: pl.nota || '', kg: pl.kg || '', origen: pl.origen || 'manual', dudas: (pl.dudas || []).slice(), cortes: clone(cortesDe(pl)).map(function (c) { c.texto = sinCliente(c.texto, pl.cliente); return c; }) });
+      render(); var kl = -1; S.prop.forEach(function (x, i) { if (x.editaId === D.id) kl = i; }); var fl1 = $('q' + kl + 'c0texto') || $('q' + kl + 'cliente'); if (fl1) fl1.focus();
+    }
     else if (a === 'busq-limpiar') { S.pdBuscar = ''; renderPedidos(); var bq = $('pd-buscar'); if (bq) bq.focus(); }
     else if (a === 'busq-ver') { var pv = pedidoDe(D.id); if (pv) { S.pdBuscar = ''; S.pd = pv.entrega; S.abierto = {}; S.abierto[pv.id] = true; renderPedidos(); var dv = document.querySelector('[data-act="ped-abrir"][data-id="' + pv.id + '"]'); if (dv) dv.scrollIntoView({ block: 'center' }); } }
     else if (a === 'v-ver') { S.vgrande = S.vgrande || {}; S.vgrande[D.id] = !S.vgrande[D.id]; renderPedidos(); }

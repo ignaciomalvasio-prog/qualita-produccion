@@ -80,3 +80,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Precios en Logística: el precio por kg de las medias y de cada corte (con "+ IVA" o "final") se publica con el pedido y se ve en Logística, también en el link para compartir. Se actualiza al cambiarlo en Pedidos.
 - Hora del camión escrita en la nota ("02:00HS"): se toma como hora de salida, así se puede cambiar desde el Resumen del día y ordena por horario.
 - Pegar texto: campo opcional "Día de entrega". Si se elige, todos los pedidos leídos de ese mensaje van a ese día aunque el mensaje diga otro (solo en Pegar texto, no en fotos).
+- Logística: botón "Editar" en cada pedido (solo editores) para cambiar el pedido ahí mismo, con el mismo formulario de Pedidos; al guardar sigue en su camión y se actualiza Logística.
