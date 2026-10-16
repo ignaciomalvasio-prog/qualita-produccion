@@ -79,3 +79,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Resumen del día editable (Logística, solo editores): cada camión se arrastra desde ⠿ (con el mouse o el dedo; con el teclado, flechas) y ese orden queda guardado y es el mismo de "Ver por camión". La hora de salida se cambia ahí mismo; cambiarla desde el resumen no reordena los camiones. En papel y en el link para compartir se ve como antes.
 - Precios en Logística: el precio por kg de las medias y de cada corte (con "+ IVA" o "final") se publica con el pedido y se ve en Logística, también en el link para compartir. Se actualiza al cambiarlo en Pedidos.
 - Hora del camión escrita en la nota ("02:00HS"): se toma como hora de salida, así se puede cambiar desde el Resumen del día y ordena por horario.
+- Pegar texto: campo opcional "Día de entrega". Si se elige, todos los pedidos leídos de ese mensaje van a ese día aunque el mensaje diga otro (solo en Pegar texto, no en fotos).

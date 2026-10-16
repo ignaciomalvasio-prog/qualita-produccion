@@ -1281,10 +1281,12 @@
     var txt = String(S.pegarTxt || '').trim();
     if (!txt) { S.msg.fotos = '!Pegá primero el texto del pedido.'; pintarMsg('fotos'); return; }
     if (S.leyendo) return;
-    var ctx = ctxCarga(), cli = String(S.pegarCli || '').toUpperCase().trim();
+    var ctx = ctxCarga(), cli = String(S.pegarCli || '').toUpperCase().trim(), dia = S.pegarDia || '';
     S.leyendo = true; S.pegar = false; S.msg.fotos = 'Leyendo el texto…'; cargas.activas++; estadoCarga(); render();
     leerTexto(txt, cli).then(function (j) {
-      S.leyendo = false; cargas.activas--; S.pegarTxt = ''; S.pegarCli = '';
+      S.leyendo = false; cargas.activas--; S.pegarTxt = ''; S.pegarCli = ''; S.pegarDia = '';
+      // El día elegido a mano manda sobre el que diga el mensaje.
+      if (dia && j && j.pedidos) j.pedidos.forEach(function (q) { q.entrega = dia; });
       return encolar(ctx, [{ j: j, origen: 'texto', nombre: '' }], []);
     }, function (e) {
       // Si falla la lectura, el texto pegado no se pierde.
@@ -1334,6 +1336,7 @@
       + '<button class="btn" data-act="' + actMano + '">Cargar a mano</button>' + (conIA ? '<span class="small muted pega-tip">o pegá una captura con Ctrl+V</span>' : '') + '<span class="guardado" id="g-fotos"></span></div>';
     if (S.pegar && conIA) h += '<div class="pegar"><label class="campo"><span>Mensaje con los pedidos</span><textarea id="pegar-txt" rows="9">' + esc(S.pegarTxt || '') + '</textarea></label>'
       + '<label class="campo"><span>Cliente, si todo el mensaje es de uno solo con varias sucursales (opcional)</span><input type="text" id="pegar-cli" value="' + esc(S.pegarCli || '') + '"></label>'
+      + '<label class="campo"><span>Día de entrega (opcional: si lo elegís, todos los pedidos del mensaje van a ese día, aunque el mensaje diga otro)</span><input type="date" id="pegar-dia" value="' + esc(S.pegarDia || '') + '"></label>'
       + '<div class="acciones"><button class="btn pri" data-act="q-leer-texto">Leer</button><button class="btn" data-act="q-pegar">Cancelar</button></div></div>';
     if (!conIA) h += '<p class="small muted">Para leer fotos o texto falta cargar la clave de IA, en Pedidos, abajo, en Configuración.</p>';
     return h;
@@ -1811,7 +1814,7 @@
   }
   function irA(tab) { if (S.solo) tab = S.solo; S.volver = null; S.tab = tab; try { history.replaceState(null, '', '#' + tab); } catch (err) {} render(); window.scrollTo(0, 0); }
 
-  document.querySelector('.top').addEventListener('click', function (e) { var b = e.target.closest('[data-tab]'); if (!b) return; e.preventDefault(); if (b.dataset.tab === 'inicio') alInicio(); if (S.ep) { asentarEdicion(); S.ep = null; } S.ec = null; S.msg.fotos = ''; S.msg.log = ''; S.pegar = false; if (!S.leyendo) { S.pegarTxt = ''; S.pegarCli = ''; } irA(b.dataset.tab); });
+  document.querySelector('.top').addEventListener('click', function (e) { var b = e.target.closest('[data-tab]'); if (!b) return; e.preventDefault(); if (b.dataset.tab === 'inicio') alInicio(); if (S.ep) { asentarEdicion(); S.ep = null; } S.ec = null; S.msg.fotos = ''; S.msg.log = ''; S.pegar = false; if (!S.leyendo) { S.pegarTxt = ''; S.pegarCli = ''; S.pegarDia = ''; } irA(b.dataset.tab); });
 
   document.addEventListener('click', function (e) {
     var b = e.target.closest('[data-act]'); if (!b) return;
@@ -1912,7 +1915,7 @@
     else if (a === 'p-estado' && S.ep) { S.ep.doc.estado = D.v; S.ep.base = clone(S.ep.doc); guardar('prod', true); render(); }
 
     // pedidos: carga
-    else if (a === 'q-pegar') { S.pegar = !S.pegar; if (!S.pegar) { S.pegarTxt = ''; S.pegarCli = ''; } S.msg.fotos = ''; renderPedidos(); var ft = $('pegar-txt'); if (ft) ft.focus(); }
+    else if (a === 'q-pegar') { S.pegar = !S.pegar; if (!S.pegar) { S.pegarTxt = ''; S.pegarCli = ''; S.pegarDia = ''; } S.msg.fotos = ''; renderPedidos(); var ft = $('pegar-txt'); if (ft) ft.focus(); }
     else if (a === 'q-leer-texto') { leerPegado(); }
     else if (a === 'q-nuevo') { S.prop.push(pedidoVacio()); renderPedidos(); var fq = $('q' + (S.prop.length - 1) + 'cliente'); if (fq) fq.focus(); }
     else if (a === 'q-corte') { S.prop[+D.q].cortes.push({ corte: CORTES_BASE[0], texto: '', orden: true }); renderPedidos(); }
@@ -2030,6 +2033,7 @@
     if (t.id === 'pd-buscar') { var ss = t.selectionStart; S.pdBuscar = t.value; renderPedidos(); var nb = $('pd-buscar'); if (nb) { nb.focus(); try { nb.setSelectionRange(ss, ss); } catch (err) {} } return; }
     if (D.cli != null) return;
     if (t.id === 'pegar-cli') { S.pegarCli = t.value; return; }
+    if (t.id === 'pegar-dia') { S.pegarDia = t.value; return; }
     if (t.id === 'pegar-txt') { S.pegarTxt = t.value; if (S.msg.fotos) { S.msg.fotos = ''; pintarMsg('fotos'); } return; }
     if (t.id === 'cam-nombre') { S.camNombre = t.value; return; }
     if (t.id === 'cam-nota') { S.camNota = t.value; return; }
