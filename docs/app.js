@@ -679,14 +679,14 @@
     if (k === 'm') doc.ivaMedias = doc.ivaMedias === v ? '' : v;
     else doc.cortes = cortesDe(doc).map(function (c) { if (c.k === k) c.iva = c.iva === v ? '' : v; return c; });
     S.pedidos = poner(S.pedidos, id, doc);
-    return store.set('pedidos', id, doc);
+    return store.set('pedidos', id, doc).then(function () { return publicarLog(doc.entrega); });
   }
   function guardarPrecio(id, k, valor) {
     var p = pedidoDe(id); if (!p) return Promise.resolve();
     var doc = clone(p), v = valor === '' ? '' : +String(valor).replace(',', '.') || 0; delete doc.id;
     if (k === 'm') doc.precioMedias = v; else doc.cortes = cortesDe(doc).map(function (c) { if (c.k === k) c.precio = v; return c; });
     S.pedidos = poner(S.pedidos, id, doc);
-    return store.set('pedidos', id, doc);
+    return store.set('pedidos', id, doc).then(function () { return publicarLog(doc.entrega); });
   }
   function fleteDe(f, camId) { var d = (S.fletes || {})[f]; return (d && d.camiones && d.camiones[camId]) || { modo: 'viaje', valor: '' }; }
   function guardarFlete(f, camId, cambio) {
@@ -852,15 +852,23 @@
   function camionesDe(f) { var l = logDe(f); return (l && l.camiones) || []; }
   // El número de camión lo pone Renzo (no se numera solo); sin nombre, el camión se llama por su número.
   function nomCam(c) { return c ? (String(c.nombre || '').trim() || (c.num ? 'Camión ' + c.num : 'Camión sin nombre')) : ''; }
+  // Si la hora de salida quedó escrita en la nota del camión ("02:00HS", "6:30 hs") y no en su lugar, se pasa a la hora.
+  function horaDeNota(c) {
+    if (!c || String(c.hora || '').trim()) return c;
+    var m = String(c.nota || '').trim().match(/^(\d{1,2})\s*[:.]\s*(\d{2})\s*(?:H|HS|HRS|HORAS)?\.?$/i);
+    if (m && +m[1] < 24 && +m[2] < 60) { c.hora = (m[1].length < 2 ? '0' : '') + m[1] + ':' + m[2]; c.nota = ''; }
+    return c;
+  }
   function nombreCamion(f, id) { var c = camionesDe(f).filter(function (x) { return x.id === id; })[0]; return c ? nomCam(c) : ''; }
   function publicarLog(f, camiones) {
     if (!f) return Promise.resolve();
-    var cams = (camiones || camionesDe(f)).map(function (c) { return { id: c.id, nombre: c.nombre || '', num: String(c.num || '').trim(), hora: String(c.hora || '').trim(), nota: c.nota || '', kg: +c.kg || 0, orden: (c.orden || []).slice() }; }), hay = {};
+    var cams = (camiones || camionesDe(f)).map(function (c) { c = horaDeNota(clone(c)); return { id: c.id, nombre: c.nombre || '', num: String(c.num || '').trim(), hora: String(c.hora || '').trim(), nota: c.nota || '', kg: +c.kg || 0, orden: (c.orden || []).slice() }; }), hay = {};
     cams.forEach(function (c) { hay[c.id] = c; });
     var peds = (S.pedidos || []).filter(function (p) { return p.entrega === f; }).map(function (p) {
       var k = kgPedido(p);
       return { id: p.id, cliente: p.cliente || '', cuenta: cuentaPedido(p), medias: +p.medias || 0, peso: p.peso || '', frio: p.frio || '', nota: p.nota || '', camion: p.camion && hay[p.camion] ? p.camion : '', kg: k.kg, kgFalta: !!k.falta, kgManual: !!k.manual,
-        cortes: (p.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { corte: c.corte, texto: sinCliente(c.texto, p.cliente) }; }) };
+        precioMedias: p.precioMedias === 0 || p.precioMedias ? +p.precioMedias : '', ivaMedias: p.ivaMedias || '',
+        cortes: (p.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { corte: c.corte, texto: sinCliente(c.texto, p.cliente), precio: c.precio === 0 || c.precio ? +c.precio : '', iva: c.iva || '' }; }) };
     });
     // Dentro de cada camión, los pedidos van en el orden que se les dio; los nuevos, al final.
     var lugar = function (x) { var o = x.camion ? hay[x.camion].orden : [], i = o.indexOf(x.id); return i < 0 ? 1e6 : i; };
@@ -872,6 +880,9 @@
     S.log[f] = clone(doc); S.log[f].id = 'log-' + f;
     return store.set('config', 'log-' + f, doc);
   }
+  function firmaPrecios(pm, im, cs) { var v = function (x) { return x === 0 || x ? +x : ''; }; return [v(pm), im || ''].concat(cs.map(function (c) { return v(c.precio) + '/' + (c.iva || ''); })).join('|'); }
+  // Precio para Logística: "$ 1.234 / kg + IVA" (o "final").
+  function precioTxt(v, iva) { if (!(v === 0 || v)) return ''; return '$ ' + new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(+v) + ' / kg' + (iva === 'iva' ? ' + IVA' : iva === 'final' ? ' final' : ''); }
   // Si lo publicado no coincide con los pedidos (por ejemplo, pedidos cargados antes de que existiera Logística), se vuelve a publicar.
   function conciliarLog() {
     if (!S.editor || !S.pedidos || !S.logListo) return;
@@ -880,7 +891,7 @@
     Object.keys(S.log || {}).forEach(function (f) { if (f >= desde && !porFecha[f]) porFecha[f] = []; });
     Object.keys(porFecha).forEach(function (f) {
       var lg = logDe(f), kgDe = {}; S.pedidos.forEach(function (p) { if (p.entrega === f) kgDe[p.id] = kgPedido(p).kg; });
-      var a = porFecha[f].slice().sort().map(function (id) { return id + ':' + kgDe[id] + ':' + ((pedidoDe(id) || {}).frio || '') + ':' + cuentaPedido(pedidoDe(id) || {}); }).join(','), b = ((lg && lg.pedidos) || []).map(function (x) { return x.id + ':' + (+x.kg || 0) + ':' + (x.frio || '') + ':' + (x.cuenta || ''); }).sort().join(',');
+      var a = porFecha[f].slice().sort().map(function (id) { var pp = pedidoDe(id) || {}; return id + ':' + kgDe[id] + ':' + (pp.frio || '') + ':' + cuentaPedido(pp) + ':' + firmaPrecios(pp.precioMedias, pp.ivaMedias, (pp.cortes || []).filter(function (c) { return c.texto; })); }).join(','), b = ((lg && lg.pedidos) || []).map(function (x) { return x.id + ':' + (+x.kg || 0) + ':' + (x.frio || '') + ':' + (x.cuenta || '') + ':' + firmaPrecios(x.precioMedias, x.ivaMedias, x.cortes || []); }).sort().join(',');
       if (a !== b) publicarLog(f).then(null, function () {});
     });
   }
@@ -1586,8 +1597,8 @@
     return h + '</div>';
   }
   function logPedidoHTML(p, cam, cams, pos, total) {
-    var id = esc(p.id), filas = (p.cortes || []).map(function (c) { return { corte: c.corte, texto: sinCliente(c.texto, p.cliente) }; });
-    if (+p.medias) filas.unshift({ corte: 'MEDIAS', texto: textoMedias(p) });
+    var id = esc(p.id), filas = (p.cortes || []).map(function (c) { return { corte: c.corte, texto: sinCliente(c.texto, p.cliente), precio: precioTxt(c.precio, c.iva) }; });
+    if (+p.medias) filas.unshift({ corte: 'MEDIAS', texto: textoMedias(p), precio: precioTxt(p.precioMedias, p.ivaMedias) });
     var h = '<div class="log-ped"><div class="log-cab">' + (cam ? (S.editor && total > 1 ? posSelHTML('data-pos-ped="' + id + '" data-cam="' + esc(cam.id) + '"', pos, total, 'Lugar de ' + p.cliente + ' en el camión', { act: 'cam', attr: 'data-id="' + id + '" data-cam="' + esc(cam.id) + '"' }) : '<span class="log-pos">' + (pos + 1) + '</span>') : '') + '<strong>' + esc(p.cliente || 'Sin cliente') + '</strong>' + ctaHTML(p.cuenta)
       + frioBadge(p.frio)
       + '<span class="small muted">' + esc(kgTxt({ kg: +p.kg || 0, falta: p.kgFalta, manual: p.kgManual })) + '</span>';
@@ -1595,7 +1606,7 @@
       ? '<button class="btn sm" data-act="cam-quitar-ped" data-id="' + id + '">Sacar</button>'
       : opcionesCamion(p, cams)) + '</span>';
     h += '</div>';
-    if (filas.length) h += '<div class="log-cortes">' + filas.map(function (c) { return '<p><u>' + esc(c.corte) + '</u>: ' + esc(c.texto) + '</p>'; }).join('') + '</div>';
+    if (filas.length) h += '<div class="log-cortes">' + filas.map(function (c) { return '<p><u>' + esc(c.corte) + '</u>: ' + esc(c.texto) + (c.precio ? ' <span class="log-precio">' + esc(c.precio) + '</span>' : '') + '</p>'; }).join('') + '</div>';
     if (p.nota) h += '<p class="small muted">' + esc(p.nota) + '</p>';
     return h + '</div>';
   }
@@ -2264,7 +2275,7 @@
     store.sub('produccion', function (l) { if (S.fuente === 'respaldo' && !l.length) return; S.prod = ordenar(l.map(function (x) { x.fecha = x.fecha || x.id; return x; })); llego('prod'); }, fallo);
     store.sub('config', function (l) {
       var c = l.filter(function (x) { return x.id === 'general'; })[0], lg = {};
-      l.forEach(function (x) { if (String(x.id).indexOf('log-') === 0) lg[x.id.slice(4)] = x; });
+      l.forEach(function (x) { if (String(x.id).indexOf('log-') === 0) { (x.camiones || []).forEach(horaDeNota); lg[x.id.slice(4)] = x; } });
       // Mientras se edita el stock de camiones, lo que se está escribiendo no se pisa con lo que llega.
       if (c && S.ef) { c.flota = S.config.flota; c.kgMedia = S.config.kgMedia; c.kgCaja = S.config.kgCaja; }
       S.log = lg; S.logListo = true; if (c) S.config = c;
