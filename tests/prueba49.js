@@ -1,0 +1,11 @@
+const {chromium}=require('playwright');const SP=process.argv[2];
+const L=t=>({t,p:'p1'});
+const prod={'2026-10-13':{fecha:'2026-10-13',estado:'confirmada',medias:400,cortes:[{corte:'JAMON',lineas:[L('15KG NALGA (COD 319) “QUALITA EXPRESS”'),L('150KG JAMON 5 MUSCULOS (COD 344) “QUALITA EXPRESS”'),L('5 CAJAS CON HUESO SIN CUERO “CRUDI”')]},{corte:'PECHO',lineas:[L('2 CANASTOS PECHITO CON MANTA (COD 211) “QUALITA EXPRESS”'),L('3KG PUNTA DE FALDITA (COD 422) “QUALITA EXPRESS”'),L('1 CAJA PARRILLERO SIN CUERO “AGUZIN”')]},{corte:'MATAMBRE',lineas:[L('2 MATAMBRE “X”')]}]}};
+(async()=>{const b=await chromium.launch();const p=await b.newPage({viewport:{width:1100,height:900}});const errs=[];p.on('pageerror',e=>errs.push(e.message));
+await p.clock.install({time:new Date('2026-10-13T10:00:00-03:00')});
+await p.addInitScript(d=>{window.__mock={data:{faena:{},produccion:d,config:{general:{}},pedidos:{},privado:{}},user:{email:'yo@x.com'},editores:['yo@x.com']}},prod);
+await p.goto('http://127.0.0.1:8765/index.html#produccion');await p.clock.runFor(1500);await p.waitForSelector('.hoja-corte');
+console.log((await p.locator('.hoja-cortes').innerText()).replace(/\n+/g,' / '));
+console.log('texto:',(await p.locator('#txt-orden').inputValue()).replace(/\n/g,' / '));
+await p.click('[data-act="p-editar"]');await p.waitForTimeout(200);console.log('editor conserva original:',(await p.inputValue('#p-doc')).includes('2 CANASTOS'));
+console.log('errores:',errs.join('|')||'ninguno');await b.close();})();
