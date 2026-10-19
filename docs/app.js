@@ -881,7 +881,9 @@
   function logDe(f) { return (S.log || {})[f] || null; }
   function camionesDe(f) { var l = logDe(f); return (l && l.camiones) || []; }
   // El número de camión lo pone Renzo (no se numera solo); sin nombre, el camión se llama por su número.
-  function nomCam(c) { return c ? (String(c.nombre || '').trim() || (c.num ? 'Camión ' + c.num : 'Camión sin nombre')) : ''; }
+  // El nombre se muestra tal cual lo puso Renzo, sin la palabra "Camión" adelante.
+  function nomLimpio(x) { return String(x || '').replace(/^\s*cami[oó]n\b[\s:.\-]*/i, '').trim(); }
+  function nomCam(c) { return c ? (nomLimpio(c.nombre) || (c.num ? 'Camión ' + c.num : 'Camión sin nombre')) : ''; }
   // Si la hora de salida quedó escrita en la nota del camión ("02:00HS", "6:30 hs") y no en su lugar, se pasa a la hora.
   function horaDeNota(c) {
     if (!c || String(c.hora || '').trim()) return c;
@@ -892,7 +894,7 @@
   function nombreCamion(f, id) { var c = camionesDe(f).filter(function (x) { return x.id === id; })[0]; return c ? nomCam(c) : ''; }
   function publicarLog(f, camiones) {
     if (!f) return Promise.resolve();
-    var cams = (camiones || camionesDe(f)).map(function (c) { c = horaDeNota(clone(c)); return { id: c.id, nombre: c.nombre || '', num: String(c.num || '').trim(), hora: String(c.hora || '').trim(), nota: c.nota || '', kg: +c.kg || 0, orden: (c.orden || []).slice() }; }), hay = {};
+    var cams = (camiones || camionesDe(f)).map(function (c) { c = horaDeNota(clone(c)); return { id: c.id, nombre: nomLimpio(c.nombre), num: String(c.num || '').trim(), hora: String(c.hora || '').trim(), nota: c.nota || '', kg: +c.kg || 0, orden: (c.orden || []).slice() }; }), hay = {};
     cams.forEach(function (c) { hay[c.id] = c; });
     var peds = (S.pedidos || []).filter(function (p) { return p.entrega === f; }).map(function (p) {
       var k = kgPedido(p);
@@ -1507,7 +1509,7 @@
     };
     var h = '<div class="resumen-dia"><h2 class="res-dia"><mark>' + esc(titulo) + '</mark></h2>' + (ed && cams.length > 1 ? '<p class="small muted res-ayuda">Arrastrá cada camión desde ⠿ para ordenarlos (queda igual en "Ver por camión"). La hora se cambia tocándola.</p>' : '') + '<div class="res-grilla">';
     cams.forEach(function (c) {
-      var tit = (c.num && String(c.nombre || '').trim() ? 'N° ' + c.num + ' · ' : '') + nomCam(c);
+      var tit = (c.num && nomLimpio(c.nombre) ? 'N° ' + c.num + ' · ' : '') + nomCam(c);
       h += bloque(tit, c.hora, peds.filter(function (p) { return p.camion === c.id; }), c.nota, c.id);
     });
     var sueltos = peds.filter(function (p) { return !p.camion; });
@@ -1549,7 +1551,7 @@
     var h = '<div class="cam-barra"><strong>' + tild.length + (tild.length === 1 ? ' tildado' : ' tildados') + ' · ≈ ' + n(pesoT) + ' kg</strong>';
     if (cams.length || fl.length) h += '<select id="cam-a" aria-label="Elegir el camión"><option value="">Elegí el camión…</option>'
       + cams.map(function (c) { var t = capTxt(c, cargaDe(pubs, c.id)); return '<option value="d:' + esc(c.id) + '">' + esc(nomCam(c)) + (t ? ' — ' + esc(t) : '') + '</option>'; }).join('')
-      + libres.map(function (c) { return '<option value="f:' + esc(c.id) + '">' + esc(c.nombre) + (+c.kg ? ' — ' + n(+c.kg) + ' kg libres' : '') + '</option>'; }).join('')
+      + libres.map(function (c) { return '<option value="f:' + esc(c.id) + '">' + esc(nomLimpio(c.nombre)) + (+c.kg ? ' — ' + n(+c.kg) + ' kg libres' : '') + '</option>'; }).join('')
       + '<option value="nuevo">Otro camión…</option></select>';
     if (escribir) h += '<input type="text" id="cam-num" class="n" value="' + esc(S.camNum || '') + '" placeholder="N°" aria-label="Número del camión">'
       + '<input type="text" id="cam-nombre" value="' + esc(S.camNombre || '') + '" placeholder="Nombre (opcional)" aria-label="Nombre del camión">'
@@ -1610,7 +1612,7 @@
     if (!cams.length && !libres.length) return '';
     return '<select data-pasar="' + esc(p.id) + '" aria-label="Pasar ' + esc(p.cliente) + ' a un camión"><option value="">Pasar a un camión…</option>'
       + cams.map(function (c) { return '<option value="d:' + esc(c.id) + '">' + esc(nomCam(c)) + '</option>'; }).join('')
-      + libres.map(function (c) { return '<option value="f:' + esc(c.id) + '">' + esc(c.nombre) + (+c.kg ? ' (' + n(+c.kg) + ' kg)' : '') + '</option>'; }).join('') + '</select>';
+      + libres.map(function (c) { return '<option value="f:' + esc(c.id) + '">' + esc(nomLimpio(c.nombre)) + (+c.kg ? ' (' + n(+c.kg) + ' kg)' : '') + '</option>'; }).join('') + '</select>';
   }
   // Stock de camiones: los disponibles, con su capacidad y cuánto llevan cargado ese día.
   function stockCamionesHTML(f, peds, cams) {
@@ -1631,7 +1633,7 @@
     if (!fl.length) return h + '<p class="muted">Sin camiones cargados.</p></div>';
     h += '<table class="pl stk-cam"><thead><tr><th>Camión</th><th>Capacidad</th><th>Cargado</th><th>Queda</th></tr></thead><tbody>' + fl.map(function (c) {
       var dia = cams.filter(function (d) { return d.id === 'f' + c.id; })[0], cap = dia && +dia.kg ? +dia.kg : +c.kg || 0, car = dia ? cargaDe(peds, dia.id) : 0, libre = cap - car;
-      return '<tr><td>' + esc(c.nombre) + (c.nota ? ' <span class="small muted" style="text-transform:none;font-weight:400">' + esc(c.nota) + '</span>' : '') + '</td><td>' + (cap ? n(cap) : '—') + '</td><td>' + (car ? n(car) : '') + '</td><td' + (cap && libre < 0 ? ' class="neg"' : '') + '>' + (cap ? n(libre) : '—') + '</td></tr>';
+      return '<tr><td>' + esc(nomLimpio(c.nombre)) + (c.nota ? ' <span class="small muted" style="text-transform:none;font-weight:400">' + esc(c.nota) + '</span>' : '') + '</td><td>' + (cap ? n(cap) : '—') + '</td><td>' + (car ? n(car) : '') + '</td><td' + (cap && libre < 0 ? ' class="neg"' : '') + '>' + (cap ? n(libre) : '—') + '</td></tr>';
     }).join('') + '</tbody></table>';
     return h + '</div>';
   }
@@ -1679,7 +1681,7 @@
       var suyos = peds.filter(function (p) { return p.camion === cam.id; }), ed = S.ec === cam.id;
       var car = cargaDe(peds, cam.id), ct = capTxt(cam, car), pasa = +cam.kg > 0 && car > +cam.kg;
       h += '<section class="cam' + (pasa ? ' pasa' : '') + '" data-cam="' + esc(cam.id) + '"><header class="cam-cab">' + (S.editor && cams.length > 1 && !ed ? '<label class="cam-ord"><span>Orden</span>' + posSelHTML('data-pos-cam="' + esc(cam.id) + '"', k, cams.length, 'Orden del camión ' + nomCam(cam), { act: 'camion', attr: 'data-id="' + esc(cam.id) + '"' }) + '</label>' : '')
-        + (cam.num ? (String(cam.nombre || '').trim() ? '<span class="cam-num">N° ' + esc(cam.num) + '</span>' : '') : S.editor ? '<button class="cam-num falta" data-act="cam-editar" data-id="' + esc(cam.id) + '">Poner N°</button>' : '') + '<h2>' + esc(nomCam(cam)) + '</h2>' + (cam.hora ? '<span class="cam-hora">' + esc(cam.hora) + ' hs</span>' : '')
+        + (cam.num ? (nomLimpio(cam.nombre) ? '<span class="cam-num">N° ' + esc(cam.num) + '</span>' : '') : S.editor ? '<button class="cam-num falta" data-act="cam-editar" data-id="' + esc(cam.id) + '">Poner N°</button>' : '') + '<h2>' + esc(nomCam(cam)) + '</h2>' + (cam.hora ? '<span class="cam-hora">' + esc(cam.hora) + ' hs</span>' : '')
         + (cam.nota && !ed ? '<span class="cam-nota">' + esc(cam.nota) + '</span>' : '')
         + (!ed ? '<span class="log-acc"><button class="btn sm" data-act="cam-imprimir" data-id="' + esc(cam.id) + '">Imprimir</button>'
           + (S.editor ? '<button class="btn sm" data-act="cam-editar" data-id="' + esc(cam.id) + '">Editar</button>' + botonBorrar('cam-borrar', cam.id, 'Borrar camión') : '') + '</span>' : '') + '</header>';
@@ -2041,7 +2043,7 @@
     else if (a === 'pd-ir') { S.pd = D.f; S.abierto = {}; renderPedidos(); window.scrollTo(0, 0); }
     else if (a === 'fl') { var yl = S.fl; do { yl = mas(yl, +D.d); } while (!esHabil(yl)); S.fl = yl; S.ec = null; S.msg.log = ''; render(); }
     else if (a === 'cam-nuevo') { crearCamion(S.fl, '', '', []).then(function (cam) { S.ec = cam.id; S.ecNum = ''; S.ecHora = ''; S.ecNombre = ''; S.ecNota = ''; S.ecKg = ''; render(); var fn = $('cam-e-num'); if (fn) fn.focus(); }, function () { S.msg.log = '!No se pudo crear el camión.'; pintarMsg('log'); }); }
-    else if (a === 'cam-editar') { var ce = camionesDe(S.fl).filter(function (c) { return c.id === D.id; })[0]; if (ce) { S.ec = ce.id; S.ecNum = ce.num || ''; S.ecHora = ce.hora || ''; S.ecNombre = ce.nombre || ''; S.ecNota = ce.nota || ''; S.ecKg = ce.kg || ''; render(); var fn2 = $('cam-e-num'); if (fn2) fn2.focus(); } }
+    else if (a === 'cam-editar') { var ce = camionesDe(S.fl).filter(function (c) { return c.id === D.id; })[0]; if (ce) { S.ec = ce.id; S.ecNum = ce.num || ''; S.ecHora = ce.hora || ''; S.ecNombre = nomLimpio(ce.nombre); S.ecNota = ce.nota || ''; S.ecKg = ce.kg || ''; render(); var fn2 = $('cam-e-num'); if (fn2) fn2.focus(); } }
     else if (a === 'cam-cancelar') { S.ec = null; render(); }
     else if (a === 'cam-por-hora') { publicarLog(S.fl, porHorario(clone(camionesDe(S.fl)))).then(function () { tocar(); render(); }, function () { S.msg.log = '!No se pudo guardar.'; render(); }); }
     else if (a === 'camion-subir' || a === 'camion-bajar') { moverCamion(S.fl, D.id, a === 'camion-subir' ? -1 : 1).then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); }
