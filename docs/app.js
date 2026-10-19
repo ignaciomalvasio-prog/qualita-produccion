@@ -688,6 +688,36 @@
     S.pedidos = poner(S.pedidos, id, doc);
     return store.set('pedidos', id, doc).then(function () { return publicarLog(doc.entrega); });
   }
+  /* Unidad de un renglón ("20 JAMON" → sin unidad; "20 KG JAMON" → kg). Se elige en Logística y se escribe en el texto,
+     así los kilos, la planilla de producción y los totales la toman igual que si hubiera venido en el pedido. */
+  var UNIDADES = [['kg', 'KG'], ['cajas', 'CAJAS'], ['und', 'UNIDADES']];
+  var RE_UNI = /^(\s*[\d.,]+)\s*(?:(KGS?|KILOS?|K|CAJAS?|CJS?|UND|UNIDAD(?:ES)?|UNID|U)\.?(?:\s+(?:DE|X)\s*[\d.,]+\s*(?:KGS?|KILOS?)\.?)?)?(?=\s|$)/i;
+  function unidadDe(t) {
+    var m = String(t || '').match(RE_UNI); if (!m) return null;
+    var u = (m[2] || '').toUpperCase();
+    return !u ? '' : /^K/.test(u) ? 'kg' : /^C/.test(u) ? 'cajas' : 'und';
+  }
+  function conUnidad(t, u) {
+    var s = String(t || ''), m = s.match(RE_UNI), uu = UNIDADES.filter(function (x) { return x[0] === u; })[0];
+    if (!m || !uu) return s;
+    var resto = s.slice(m[0].length).trim();
+    return m[1].trim() + ' ' + uu[1] + (resto ? ' ' + resto : '');
+  }
+  function guardarUnidad(id, k, u) {
+    var p = pedidoDe(id); if (!p) return Promise.resolve();
+    var antes = clone(p), doc = clone(p); delete doc.id;
+    doc.cortes = cortesDe(doc).map(function (c) { if (c.k === k) c.texto = conUnidad(c.texto, u); return c; });
+    var nuevo = clone(doc); nuevo.id = id;
+    S.pedidos = poner(S.pedidos, id, doc);
+    return store.set('pedidos', id, doc).then(function () { return revincularProduccion(nuevo, antes); }).then(function () { return publicarLog(doc.entrega); });
+  }
+  function unidadSelHTML(pid, c) {
+    var u = unidadDe(c.texto);
+    if (u === null || !c.k) return '';
+    return '<select class="uni' + (u ? '' : ' falta') + '" data-uni="' + esc(pid) + '" data-k="' + esc(c.k) + '" aria-label="Unidad de ' + esc(c.corte) + '">'
+      + (u ? '' : '<option value="">¿Unidad?</option>')
+      + UNIDADES.map(function (x) { return '<option value="' + x[0] + '"' + (u === x[0] ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('') + '</select>';
+  }
   function fleteDe(f, camId) { var d = (S.fletes || {})[f]; return (d && d.camiones && d.camiones[camId]) || { modo: 'viaje', valor: '' }; }
   function guardarFlete(f, camId, cambio) {
     var d = clone((S.fletes || {})[f] || { fecha: f, camiones: {} }), x = fleteDe(f, camId); delete d.id;
@@ -868,7 +898,7 @@
       var k = kgPedido(p);
       return { id: p.id, cliente: p.cliente || '', cuenta: cuentaPedido(p), medias: +p.medias || 0, peso: p.peso || '', frio: p.frio || '', nota: p.nota || '', camion: p.camion && hay[p.camion] ? p.camion : '', kg: k.kg, kgFalta: !!k.falta, kgManual: !!k.manual,
         precioMedias: p.precioMedias === 0 || p.precioMedias ? +p.precioMedias : '', ivaMedias: p.ivaMedias || '',
-        cortes: (p.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { corte: c.corte, texto: sinCliente(c.texto, p.cliente), precio: c.precio === 0 || c.precio ? +c.precio : '', iva: c.iva || '' }; }) };
+        cortes: (p.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { k: c.k, corte: c.corte, texto: sinCliente(c.texto, p.cliente), precio: c.precio === 0 || c.precio ? +c.precio : '', iva: c.iva || '' }; }) };
     });
     // Dentro de cada camión, los pedidos van en el orden que se les dio; los nuevos, al final.
     var lugar = function (x) { var o = x.camion ? hay[x.camion].orden : [], i = o.indexOf(x.id); return i < 0 ? 1e6 : i; };
@@ -1606,7 +1636,7 @@
     return h + '</div>';
   }
   function logPedidoHTML(p, cam, cams, pos, total) {
-    var id = esc(p.id), filas = (p.cortes || []).map(function (c) { return { corte: c.corte, texto: sinCliente(c.texto, p.cliente), precio: precioTxt(c.precio, c.iva) }; });
+    var id = esc(p.id), filas = (p.cortes || []).map(function (c) { return { corte: c.corte, texto: sinCliente(c.texto, p.cliente), precio: precioTxt(c.precio, c.iva), uni: S.editor && !S.solo ? unidadSelHTML(p.id, c) : '' }; });
     if (+p.medias) filas.unshift({ corte: 'MEDIAS', texto: textoMedias(p), precio: precioTxt(p.precioMedias, p.ivaMedias) });
     var h = '<div class="log-ped"><div class="log-cab">' + (cam ? (S.editor && total > 1 ? posSelHTML('data-pos-ped="' + id + '" data-cam="' + esc(cam.id) + '"', pos, total, 'Lugar de ' + p.cliente + ' en el camión', { act: 'cam', attr: 'data-id="' + id + '" data-cam="' + esc(cam.id) + '"' }) : '<span class="log-pos">' + (pos + 1) + '</span>') : '') + '<strong>' + esc(p.cliente || 'Sin cliente') + '</strong>' + ctaHTML(p.cuenta)
       + frioBadge(p.frio)
@@ -1618,7 +1648,7 @@
     h += '</div>';
     // Editar el pedido ahí mismo, sin ir a Pedidos.
     if (ke >= 0) return h + '<div class="log-edit">' + propHTML(S.prop[ke], ke) + '</div></div>';
-    if (filas.length) h += '<div class="log-cortes">' + filas.map(function (c) { return '<p><u>' + esc(c.corte) + '</u>: ' + esc(c.texto) + (c.precio ? ' <span class="log-precio">' + esc(c.precio) + '</span>' : '') + '</p>'; }).join('') + '</div>';
+    if (filas.length) h += '<div class="log-cortes">' + filas.map(function (c) { return '<p>' + (c.uni || '') + '<u>' + esc(c.corte) + '</u>: ' + esc(c.texto) + (c.precio ? ' <span class="log-precio">' + esc(c.precio) + '</span>' : '') + '</p>'; }).join('') + '</div>';
     if (p.nota) h += '<p class="small muted">' + esc(p.nota) + '</p>';
     return h + '</div>';
   }
@@ -2164,6 +2194,9 @@
       if (t.value === 'otra') { S.ctaOtro = D.cta; renderPedidos(); var ci2 = document.querySelector('[data-cta-in="' + D.cta + '"]'); if (ci2) ci2.focus(); return; }
       var pq = pedidoDe(D.cta), nq = t.value;
       ponerCuenta(D.cta, nq).then(function () { avisar('Cuenta ' + nq + ' guardada para ' + (pq ? pq.cliente : 'el cliente') + '.', 5000); renderPedidos(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); renderPedidos(); });
+    }
+    else if (D.uni && t.value) {
+      guardarUnidad(D.uni, D.k, t.value).then(function () { avisar('Unidad guardada.', 2500); render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); render(); });
     }
     else if (D.precio) {
       guardarPrecio(D.precio, D.k, t.value).then(function () { avisar('Precio guardado.', 2500); }, function () { avisar('!No se pudo guardar el precio. Revisá la conexión.', 6000); });
