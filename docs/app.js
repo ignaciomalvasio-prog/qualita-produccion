@@ -711,13 +711,6 @@
     S.pedidos = poner(S.pedidos, id, doc);
     return store.set('pedidos', id, doc).then(function () { return revincularProduccion(nuevo, antes); }).then(function () { return publicarLog(doc.entrega); });
   }
-  // En Logística la unidad se ve una sola vez: el selector va en el lugar de la palabra ("6 [CAJAS] MATAMBRITOS").
-  function textoConSelHTML(t, sel) {
-    var s = String(t || ''), m = s.match(RE_UNI); if (!m) return esc(s);
-    var resto = s.slice(m[0].length).trim();
-    var pal = s.slice(m[1].length, m[0].length).trim();
-    return esc(m[1].trim()) + ' ' + sel + (pal ? '<span class="solo-print">' + esc(pal) + '</span>' : '') + (resto ? ' ' + esc(resto) : '');
-  }
   function unidadSelHTML(pid, c) {
     var u = unidadDe(c.texto);
     if (u === null || !c.k) return '';
@@ -1644,22 +1637,33 @@
     }).join('') + '</tbody></table>';
     return h + '</div>';
   }
+  // Cantidad al principio del renglón ("20 KG", "6 CAJAS", "100 MEDIAS"), para resaltarla. Con selector de unidad, va en su lugar.
+  var RE_CANT = /^\s*([\d.,½]+)\s*((?:KGS?|KILOS?|K|CAJAS?|CJS?|UND|UNIDAD(?:ES)?|UNID|U|MEDIAS?|CANASTOS?|CANASTAS?|BINES?)\.?(?:\s+(?:DE|X)\s*[\d.,]+\s*(?:KGS?|KILOS?)\.?)?)?(?=\s|$)/i;
+  function cantHTML(t, sel) {
+    var s = String(t || ''), m = s.match(RE_CANT); if (!m) return esc(s);
+    var resto = s.slice(m[0].length).trim(), pal = (m[2] || '').trim();
+    var cant = sel && !/^MEDIA|^CANAST|^BIN/i.test(pal) ? esc(m[1]) + ' ' + sel + (pal ? '<span class="solo-print">' + esc(pal) + '</span>' : '') : esc(m[1] + (pal ? ' ' + pal : ''));
+    return '<b class="lc-cant">' + cant + '</b>' + (resto ? ' ' + esc(resto) : '');
+  }
+  // Un cliente dentro del camión: su lugar bien grande, el nombre y los cortes en columnas; cada cliente en su recuadro.
   function logPedidoHTML(p, cam, cams, pos, total) {
-    var id = esc(p.id), filas = (p.cortes || []).map(function (c) { return { corte: c.corte, texto: sinCliente(c.texto, p.cliente), precio: precioTxt(c.precio, c.iva), uni: S.editor && !S.solo ? unidadSelHTML(p.id, c) : '', k: c.k }; });
+    var id = esc(p.id), filas = (p.cortes || []).map(function (c) { return { corte: c.corte, texto: sinCliente(c.texto, p.cliente), precio: precioTxt(c.precio, c.iva), uni: S.editor && !S.solo ? unidadSelHTML(p.id, c) : '' }; });
     if (+p.medias) filas.unshift({ corte: 'MEDIAS', texto: textoMedias(p), precio: precioTxt(p.precioMedias, p.ivaMedias) });
-    var h = '<div class="log-ped"><div class="log-cab">' + (cam ? (S.editor && total > 1 ? posSelHTML('data-pos-ped="' + id + '" data-cam="' + esc(cam.id) + '"', pos, total, 'Lugar de ' + p.cliente + ' en el camión', { act: 'cam', attr: 'data-id="' + id + '" data-cam="' + esc(cam.id) + '"' }) : '<span class="log-pos">' + (pos + 1) + '</span>') : '') + '<strong>' + esc(p.cliente || 'Sin cliente') + '</strong>' + ctaHTML(p.cuenta)
-      + frioBadge(p.frio)
+    var num = cam && pos != null;
+    var h = '<div class="log-ped' + (num ? '' : ' sin-num') + '">' + (num ? '<span class="log-num" aria-label="Lugar ' + (pos + 1) + '">' + (pos + 1) + '</span>' : '') + '<div class="log-body"><div class="log-cab">'
+      + '<strong>' + esc(p.cliente || 'Sin cliente') + '</strong>' + ctaHTML(p.cuenta) + frioBadge(p.frio)
       + '<span class="small muted">' + esc(kgTxt({ kg: +p.kg || 0, falta: p.kgFalta, manual: p.kgManual })) + '</span>';
     var ke = -1; if (S.editor) (S.prop || []).forEach(function (x, i) { if (x.editaId === p.id) ke = i; });
-    if (S.editor) h += '<span class="log-acc">' + (ke < 0 && pedidoDe(p.id) ? '<button class="btn sm" data-act="log-editar" data-id="' + id + '">Editar</button>' : '') + (cam
+    if (S.editor) h += '<span class="log-acc">' + (cam && total > 1 ? posSelHTML('data-pos-ped="' + id + '" data-cam="' + esc(cam.id) + '"', pos, total, 'Lugar de ' + p.cliente + ' en el camión', { act: 'cam', attr: 'data-id="' + id + '" data-cam="' + esc(cam.id) + '"' }) : '')
+      + (ke < 0 && pedidoDe(p.id) ? '<button class="btn sm" data-act="log-editar" data-id="' + id + '">Editar</button>' : '') + (cam
       ? '<button class="btn sm" data-act="cam-quitar-ped" data-id="' + id + '">Sacar</button>'
       : opcionesCamion(p, cams)) + '</span>';
     h += '</div>';
     // Editar el pedido ahí mismo, sin ir a Pedidos.
-    if (ke >= 0) return h + '<div class="log-edit">' + propHTML(S.prop[ke], ke) + '</div></div>';
-    if (filas.length) h += '<div class="log-cortes">' + filas.map(function (c) { return '<p><u>' + esc(c.corte) + '</u>: ' + (c.uni ? textoConSelHTML(c.texto, c.uni) : esc(c.texto)) + (c.precio ? ' <span class="log-precio">' + esc(c.precio) + '</span>' : '') + '</p>'; }).join('') + '</div>';
-    if (p.nota) h += '<p class="small muted">' + esc(p.nota) + '</p>';
-    return h + '</div>';
+    if (ke >= 0) return h + '<div class="log-edit">' + propHTML(S.prop[ke], ke) + '</div></div></div>';
+    if (filas.length) h += '<div class="log-cortes">' + filas.map(function (c) { return '<p><span class="lc-corte">' + esc(c.corte) + '</span><span class="lc-txt">' + cantHTML(c.texto, c.uni) + (c.precio ? ' <span class="log-precio">' + esc(c.precio) + '</span>' : '') + '</span></p>'; }).join('') + '</div>';
+    if (p.nota) h += '<p class="log-nota">' + esc(p.nota) + '</p>';
+    return h + '</div></div>';
   }
   function resumenLog(lista) {
     var tm = lista.reduce(function (t, p) { return t + (+p.medias || 0); }, 0), tc = kgPedidos(lista);
