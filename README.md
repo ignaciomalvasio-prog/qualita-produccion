@@ -81,3 +81,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Hora del camión escrita en la nota ("02:00HS"): se toma como hora de salida, así se puede cambiar desde el Resumen del día y ordena por horario.
 - Pegar texto: campo opcional "Día de entrega". Si se elige, todos los pedidos leídos de ese mensaje van a ese día aunque el mensaje diga otro (solo en Pegar texto, no en fotos).
 - Logística: botón "Editar" en cada pedido (solo editores) para cambiar el pedido ahí mismo, con el mismo formulario de Pedidos; al guardar sigue en su camión y se actualiza Logística.
+- Pedidos: cada renglón del listado muestra si sus cortes ya se mandaron a producción, sin abrirlo: "✓ En producción" (verde) si están todos, "En producción 2 de 3" (amarillo) si falta alguno, y nada si todavía no se mandó ninguno. Los pedidos que son solo medias no llevan marca.

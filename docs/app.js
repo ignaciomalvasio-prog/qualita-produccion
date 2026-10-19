@@ -1342,6 +1342,12 @@
     return h;
   }
   function cuandoEs(f) { return f === mas(hoy(), 1) ? 'mañana' : f === hoy() ? 'hoy' : 'el ' + tituloDe(f).toLowerCase(); }
+  // Marca en el listado: cuántos cortes del pedido ya se mandaron a producción.
+  function prodBadgeHTML(enP, tot) {
+    if (!tot || !enP) return '';
+    return enP >= tot ? '<span class="badge ok" title="Todos los cortes están en producción">✓ En producción</span>'
+      : '<span class="badge warn" title="Faltan cortes por mandar a producción">En producción ' + enP + ' de ' + tot + '</span>';
+  }
   // Un pedido del listado: cerrado muestra el resumen; abierto, el desglose por corte.
   function pedidoHTML(p, m) {
     var cs = cortesDe(p).filter(function (c) { return c.texto; }), enP = cs.filter(function (c) { return fechaProdDe(m, p, c); }).length;
@@ -1351,7 +1357,7 @@
     var h = '<div class="ped' + (ab ? ' abierto' : '') + (sel ? ' sel' : '') + '"><div class="ped-cab">'
       + '<label class="chk"><input type="checkbox" data-sel="' + id + '"' + (sel ? ' checked' : '') + ' aria-label="Tildar el pedido de ' + esc(p.cliente) + ' para un camión"></label>'
       + '<button class="ped-tit" data-act="ped-abrir" data-id="' + id + '" aria-expanded="' + ab + '"><span class="nom">' + esc(p.cliente || 'Sin cliente') + '</span>' + ctaHTML(cuentaPedido(p), true) + '<span class="res">' + res.join(' · ') + (p.frio ? ' ' + frioBadge(p.frio) : '') + '</span>'
-      + (cam || p.vendedor ? '<span class="marcas">' + (p.vendedor ? '<span class="badge vend" title="' + esc(p.vendedor) + '">Vendedor: ' + esc(p.vendedorNombre || p.vendedor.split('@')[0]) + '</span>' : '') + (cam ? '<span class="badge plain">' + esc(cam) + '</span>' : '') + '</span>' : '') + '<span class="chev" aria-hidden="true">' + (ab ? '▴' : '▾') + '</span></button></div>';
+      + (cam || p.vendedor || enP ? '<span class="marcas">' + prodBadgeHTML(enP, cs.length) + (p.vendedor ? '<span class="badge vend" title="' + esc(p.vendedor) + '">Vendedor: ' + esc(p.vendedorNombre || p.vendedor.split('@')[0]) + '</span>' : '') + (cam ? '<span class="badge plain">' + esc(cam) + '</span>' : '') + '</span>' : '') + '<span class="chev" aria-hidden="true">' + (ab ? '▴' : '▾') + '</span></button></div>';
     if (!ab) return h + '</div>';
     h += '<div class="ped-det">' + elegirCuentaHTML(p) + '<div class="op-ped">';
     if (+p.medias) h += '<p class="lp"><span><b>Medias</b> ' + esc(textoMedias(p)) + '</span><span class="lp-der">' + precioHTML(p.id, 'm', p.precioMedias, 'las medias', p.ivaMedias) + '</span></p>';
