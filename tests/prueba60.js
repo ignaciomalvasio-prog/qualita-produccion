@@ -22,6 +22,11 @@ await p.selectOption('.log-ped select.uni[data-k="k2"]','und');await p.clock.run
 console.log(w,'pedido:',await p.evaluate(()=>window.__mock.data.pedidos.a.cortes.map(c=>c.texto).join(' / ')));
 console.log(w,'kg:',await kg(),'· producción:',await p.evaluate(()=>JSON.stringify(window.__mock.data.produccion['2026-10-19'].cortes.map(c=>c.lineas.map(l=>l.t+'@'+l.p+'/'+l.ck)))));
 await p.screenshot({path:SP+'/uni-despues'+w+'.png',fullPage:true});
+const linea=()=>p.evaluate(()=>[...document.querySelectorAll('.log-cortes p')].map(x=>{const c=x.cloneNode(true);c.querySelectorAll('select').forEach(s=>s.replaceWith('['+(s.value||'?')+']'));c.querySelectorAll('.solo-print').forEach(s=>s.remove());return c.textContent.replace(/\s+/g,' ').trim();}).join(' | '));
+console.log(w,'en pantalla:',await linea());
+await p.emulateMedia({media:'print'});
+console.log(w,'impreso:',await p.evaluate(()=>[...document.querySelectorAll('.log-cortes p')].map(x=>x.innerText.replace(/\s+/g,' ').trim()).join(' | ')));
+await p.emulateMedia({media:'screen'});
 console.log(w,'desborde',await p.evaluate(()=>document.documentElement.scrollWidth-innerWidth),'· errores',errs.join('|')||'ninguno');
 // Link para compartir: sin selectores.
 const q=await b.newPage({viewport:{width:w,height:900}});await q.clock.install({time:new Date('2026-10-16T12:00:00-03:00')});

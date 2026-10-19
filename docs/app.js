@@ -711,6 +711,13 @@
     S.pedidos = poner(S.pedidos, id, doc);
     return store.set('pedidos', id, doc).then(function () { return revincularProduccion(nuevo, antes); }).then(function () { return publicarLog(doc.entrega); });
   }
+  // En Logística la unidad se ve una sola vez: el selector va en el lugar de la palabra ("6 [CAJAS] MATAMBRITOS").
+  function textoConSelHTML(t, sel) {
+    var s = String(t || ''), m = s.match(RE_UNI); if (!m) return esc(s);
+    var resto = s.slice(m[0].length).trim();
+    var pal = s.slice(m[1].length, m[0].length).trim();
+    return esc(m[1].trim()) + ' ' + sel + (pal ? '<span class="solo-print">' + esc(pal) + '</span>' : '') + (resto ? ' ' + esc(resto) : '');
+  }
   function unidadSelHTML(pid, c) {
     var u = unidadDe(c.texto);
     if (u === null || !c.k) return '';
@@ -882,7 +889,7 @@
   function camionesDe(f) { var l = logDe(f); return (l && l.camiones) || []; }
   // El número de camión lo pone Renzo (no se numera solo); sin nombre, el camión se llama por su número.
   // El nombre se muestra tal cual lo puso Renzo, sin la palabra "Camión" adelante.
-  function nomLimpio(x) { return String(x || '').replace(/^\s*cami[oó]n\b[\s:.\-]*/i, '').trim(); }
+  function nomLimpio(x) { var s = String(x || '').trim(), r = s.replace(/^cami[oó]n\b[\s:.\-]*/i, '').trim(); return /[A-ZÁÉÍÓÚÑ]/i.test(r) ? r : s; }
   function nomCam(c) { return c ? (nomLimpio(c.nombre) || (c.num ? 'Camión ' + c.num : 'Camión sin nombre')) : ''; }
   // Si la hora de salida quedó escrita en la nota del camión ("02:00HS", "6:30 hs") y no en su lugar, se pasa a la hora.
   function horaDeNota(c) {
@@ -1638,7 +1645,7 @@
     return h + '</div>';
   }
   function logPedidoHTML(p, cam, cams, pos, total) {
-    var id = esc(p.id), filas = (p.cortes || []).map(function (c) { return { corte: c.corte, texto: sinCliente(c.texto, p.cliente), precio: precioTxt(c.precio, c.iva), uni: S.editor && !S.solo ? unidadSelHTML(p.id, c) : '' }; });
+    var id = esc(p.id), filas = (p.cortes || []).map(function (c) { return { corte: c.corte, texto: sinCliente(c.texto, p.cliente), precio: precioTxt(c.precio, c.iva), uni: S.editor && !S.solo ? unidadSelHTML(p.id, c) : '', k: c.k }; });
     if (+p.medias) filas.unshift({ corte: 'MEDIAS', texto: textoMedias(p), precio: precioTxt(p.precioMedias, p.ivaMedias) });
     var h = '<div class="log-ped"><div class="log-cab">' + (cam ? (S.editor && total > 1 ? posSelHTML('data-pos-ped="' + id + '" data-cam="' + esc(cam.id) + '"', pos, total, 'Lugar de ' + p.cliente + ' en el camión', { act: 'cam', attr: 'data-id="' + id + '" data-cam="' + esc(cam.id) + '"' }) : '<span class="log-pos">' + (pos + 1) + '</span>') : '') + '<strong>' + esc(p.cliente || 'Sin cliente') + '</strong>' + ctaHTML(p.cuenta)
       + frioBadge(p.frio)
@@ -1650,7 +1657,7 @@
     h += '</div>';
     // Editar el pedido ahí mismo, sin ir a Pedidos.
     if (ke >= 0) return h + '<div class="log-edit">' + propHTML(S.prop[ke], ke) + '</div></div>';
-    if (filas.length) h += '<div class="log-cortes">' + filas.map(function (c) { return '<p>' + (c.uni || '') + '<u>' + esc(c.corte) + '</u>: ' + esc(c.texto) + (c.precio ? ' <span class="log-precio">' + esc(c.precio) + '</span>' : '') + '</p>'; }).join('') + '</div>';
+    if (filas.length) h += '<div class="log-cortes">' + filas.map(function (c) { return '<p><u>' + esc(c.corte) + '</u>: ' + (c.uni ? textoConSelHTML(c.texto, c.uni) : esc(c.texto)) + (c.precio ? ' <span class="log-precio">' + esc(c.precio) + '</span>' : '') + '</p>'; }).join('') + '</div>';
     if (p.nota) h += '<p class="small muted">' + esc(p.nota) + '</p>';
     return h + '</div>';
   }
