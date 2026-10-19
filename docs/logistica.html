@@ -294,6 +294,13 @@ h1 a{color:inherit;text-decoration:none}
 .op-ped{display:flex;flex-direction:column;gap:8px;font-size:15px;text-transform:uppercase;font-weight:600;overflow-wrap:anywhere}
 .op-ped p.lp b{color:var(--accent);font-weight:700;margin-right:6px}
 .op-ped p.lp{align-items:center}
+.op-ped{gap:0}
+.op-ped p.lp{padding:8px 0;border-bottom:1px dashed var(--line)}
+.op-ped p.lp:last-child{border-bottom:0}
+.op-ped .lp-izq{display:grid;grid-template-columns:140px minmax(0,1fr);gap:12px;align-items:baseline;flex:1 1 auto}
+.op-ped .lc-txt{font-weight:500}
+.op-ped p.lp b.lc-cant{color:var(--ink);font-weight:800;margin-right:2px}
+@media (max-width:560px){ .op-ped .lp-izq{grid-template-columns:minmax(0,1fr);gap:2px} .op-ped .lp-der{justify-content:flex-start} }
 .op-ped .en{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto}
 .op-ped .nota-lp{text-transform:none;font-weight:400;text-align:right}
 .cam-barra{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;border:1px solid var(--accent);border-radius:6px;background:var(--accent-soft)}
