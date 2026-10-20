@@ -2543,8 +2543,10 @@
     var t = norm(nom);
     return /CUERO/.test(t) ? 'cuero' : /HUESO/.test(t) ? 'hueso' : /DESPOJO DE FAENA/.test(t) ? 'dfaena' : /DESPOJO/.test(t) ? 'ddesposte' : /GRASA/.test(t) ? 'grasa' : 'otros';
   }
-  var ESQUEMA_REND = { type: 'object', additionalProperties: false, required: ['es_reporte', 'desde', 'hasta', 'tipo', 'articulos', 'total_kilos', 'dudas'], properties: {
-    es_reporte: { type: 'boolean', description: 'true si la imagen es el reporte Resumen de Insumos' },
+  function rendProducto(cod, nom) { var t = norm(nom); return +cod === 810 || /HARINA/.test(t) ? 'harina' : /SEBO|GRASA FUNDIDA/.test(t) ? 'sebo' : null; }
+  var ESQUEMA_REND = { type: 'object', additionalProperties: false, required: ['es_reporte', 'reporte', 'desde', 'hasta', 'tipo', 'articulos', 'total_kilos', 'dudas'], properties: {
+    es_reporte: { type: 'boolean', description: 'true si la imagen es el reporte Resumen de Insumos o Resumen de Produccion' },
+    reporte: { type: 'string', enum: ['insumos', 'produccion', 'otro'], description: 'insumos = Resumen de Insumos; produccion = Resumen de Produccion' },
     desde: { type: 'string', description: 'AAAA-MM-DD' }, hasta: { type: 'string', description: 'AAAA-MM-DD' }, tipo: { type: 'string', description: 'lo que dice Tipo Ciclo II' },
     articulos: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['codigo', 'nombre', 'unidades', 'kilos'], properties: { codigo: { type: 'integer' }, nombre: { type: 'string' }, unidades: { type: 'number' }, kilos: { type: 'number' } } } },
     total_kilos: { type: 'number' }, dudas: { type: 'array', items: { type: 'string' } } } };
@@ -2555,7 +2557,7 @@
       return fetch('https://api.anthropic.com/v1/messages', { method: 'POST',
         headers: { 'content-type': 'application/json', 'x-api-key': S.ia.clave, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
         body: JSON.stringify({ model: S.ia.modelo || IA_MODELO, max_tokens: 4000,
-          system: 'Leés capturas del sistema de producción del Frigorífico Qualitá. El reporte "Resumen de Insumos" tiene arriba "Fecha: dd/mm/aa-dd/mm/aa" (desde-hasta) y "Tipo Ciclo II", y una tabla con código, artículo, unidades y kilos, más una fila TOTALES. Copiá cada fila de la tabla tal cual (los kilos usan punto decimal: 2158.96 son dos mil ciento cincuenta y ocho kilos). Las fechas van en AAAA-MM-DD (el año "26" es 2026). No copies la fila TOTALES como artículo: va en total_kilos. Si algo no se lee bien, avisalo en dudas. Si la imagen no es ese reporte, es_reporte=false.',
+          system: 'Leés capturas del sistema de producción del Frigorífico Qualitá. Los reportes "Resumen de Insumos" (lo que entra) y "Resumen de Produccion" (lo que sale) tienen arriba "Fecha: dd/mm/aa-dd/mm/aa" (desde-hasta) y "Tipo Ciclo II", y una tabla con código, artículo, unidades y kilos, más una fila TOTALES. Copiá cada fila de la tabla tal cual (los kilos usan punto decimal: 2158.96 son dos mil ciento cincuenta y ocho kilos). Las fechas van en AAAA-MM-DD (el año "26" es 2026). No copies la fila TOTALES como artículo: va en total_kilos. Si algo no se lee bien, avisalo en dudas. En "reporte" decí cuál de los dos es, según el título. Si la imagen no es ninguno de esos reportes, es_reporte=false.',
           output_config: { format: { type: 'json_schema', schema: ESQUEMA_REND } },
           messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } }, { type: 'text', text: 'Leé este reporte.' }] }] }) })
         .then(function (r) { return r.json().then(function (j) {
@@ -2568,22 +2570,27 @@
   function cargarReporteRend(file) {
     S.msg.rend = 'Leyendo el reporte…'; pintarMsg('rend'); avisar('Leyendo el reporte de insumos…', 4000);
     return leerReporteRend(file).then(function (j) {
-      if (!j || !j.es_reporte || !(j.articulos || []).length) throw new Error('No parece el reporte "Resumen de Insumos". Mandá la captura de ese reporte.');
+      if (!j || !j.es_reporte || j.reporte === 'otro' || !(j.articulos || []).length) throw new Error('No parece el reporte "Resumen de Insumos" ni el "Resumen de Producción". Mandá la captura de uno de esos reportes.');
+      var esProd = j.reporte === 'produccion';
       if (!/^\d{4}-\d{2}-\d{2}$/.test(j.desde || '')) throw new Error('No se pudo leer la fecha del reporte.');
       if (j.hasta && j.hasta !== j.desde) throw new Error('El reporte es de varios días (' + diaCorto(j.desde) + ' a ' + diaCorto(j.hasta) + '). Sacalo de un solo día: desde y hasta con la misma fecha.');
       if (j.tipo && !/RENDER/.test(norm(j.tipo))) throw new Error('El reporte es de "' + j.tipo + '", no de Rendering. Elegí Tipo Ciclo II: Rendering.');
-      var f = j.desde, v = {}, suma = 0;
-      REND_INS.forEach(function (x) { if (x.id !== 'compras') v[x.id] = 0; });
-      j.articulos.forEach(function (a) { var k = rendCategoria(a.codigo, a.nombre); v[k] = Math.round(((v[k] || 0) + (+a.kilos || 0)) * 100) / 100; suma += +a.kilos || 0; });
+      var f = j.desde, v = {}, suma = 0, sinUbicar = [];
+      if (!esProd) REND_INS.forEach(function (x) { if (x.id !== 'compras') v[x.id] = 0; });
+      j.articulos.forEach(function (a) {
+        var k = esProd ? rendProducto(a.codigo, a.nombre) : rendCategoria(a.codigo, a.nombre);
+        if (!k) { sinUbicar.push(a.nombre); return; }
+        v[k] = Math.round(((v[k] || 0) + (+a.kilos || 0)) * 100) / 100; suma += +a.kilos || 0;
+      });
       var doc = clone((S.rend || {})[f] || { fecha: f, v: {} }); delete doc.id; doc.fecha = f; doc.v = doc.v || {};
       Object.keys(v).forEach(function (k) { doc.v[k] = v[k]; });
-      doc.arts = j.articulos.map(function (a) { return { c: +a.codigo || 0, n: String(a.nombre || ''), u: +a.unidades || 0, kg: +a.kilos || 0 }; });
-      doc.fuente = 'Resumen de Insumos del sistema'; doc.actualizado = ahoraTxt();
-      var aviso = Math.abs(suma - (+j.total_kilos || suma)) > 1 ? ' Ojo: la suma de los renglones (' + n(Math.round(suma)) + ' kg) no da el total del reporte (' + n(Math.round(+j.total_kilos)) + ' kg); revisalo.' : '';
+      doc[esProd ? 'artsProd' : 'arts'] = j.articulos.map(function (a) { return { c: +a.codigo || 0, n: String(a.nombre || ''), u: +a.unidades || 0, kg: +a.kilos || 0 }; });
+      doc.actualizado = ahoraTxt();
+      var aviso = sinUbicar.length ? ' No se sumó (no es harina ni sebo): ' + sinUbicar.join(', ') + '.' : Math.abs(suma - (+j.total_kilos || suma)) > 1 ? ' Ojo: la suma de los renglones (' + n(Math.round(suma)) + ' kg) no da el total del reporte (' + n(Math.round(+j.total_kilos)) + ' kg); revisalo.' : '';
       if ((j.dudas || []).length) aviso += ' Dudas: ' + j.dudas.join(' ');
       S.rend = S.rend || {}; S.rend[f] = clone(doc); S._rendAp = null;
       return store.set('config', 'rend-' + f, doc).then(function () {
-        S.fr = f; S.msg.rend = (aviso ? '!' : '') + 'Cargado el real del ' + diaCorto(f) + ': ' + n(Math.round(suma)) + ' kg de insumos.' + aviso;
+        S.fr = f; S.msg.rend = (aviso ? '!' : '') + 'Cargado el real del ' + diaCorto(f) + ': ' + n(Math.round(suma)) + (esProd ? ' kg producidos' + (v.sebo == null ? ' (el sebo no figura en el reporte: queda estimado)' : '') : ' kg de insumos') + '.' + aviso;
         avisar(S.msg.rend, aviso ? 12000 : 6000); render();
       });
     }).then(null, function (e) { S.msg.rend = '!' + e.message; avisar(S.msg.rend, 9000); pintarMsg('rend'); });
@@ -2611,7 +2618,7 @@
       + (f !== rendFechaInicial() ? '<button class="btn" data-act="fr-hoy">Hoy</button>' : '')
       + '<button class="btn" data-act="imprimir">Imprimir</button>'
       + (ed ? '<label class="btn pri" style="display:inline-flex;align-items:center">Cargar reporte del sistema<input type="file" id="rend-rep" accept="image/*" hidden></label><button class="btn" data-act="link-rend">Copiar link para compartir</button>' : '') + '<span class="guardado" id="g-rend"></span></div>'
-      + (ed ? '<p class="small muted rend-ayuda">Para cargar el real: en el sistema, Producción › Reportes › Ciclo II › Resumen de insumos, Tipo Ciclo II: Rendering, de un solo día. Sacale una captura y pegala acá con Ctrl+V (o tocá "Cargar reporte del sistema").</p>' : '');
+      + (ed ? '<p class="small muted rend-ayuda">Para cargar el real: en el sistema, Producción › Reportes › Ciclo II › Resumen de insumos y Resumen de producción, Tipo Ciclo II: Rendering, de un solo día. Sacale una captura a cada uno y pegala acá con Ctrl+V (o tocá "Cargar reporte del sistema").</p>' : '');
     var rinde = r.tIns ? Math.round(r.tProd / r.tIns * 1000) / 10 : null;
     var estado = !r.manual ? (r.estim ? 'estim' : '') : r.estim ? 'parcial' : 'real';
     h += '<section class="rend-hero"><div><p class="dh-sup">Rendering · ' + esc(cuandoEs(f) === 'hoy' ? 'hoy' : diaCorto(f)) + '</p><h2>' + esc(tituloDe(f)) + ' ' + (estado === 'real' ? '<span class="badge ok">Datos reales</span>' : estado === 'parcial' ? '<span class="badge warn">Parte real, parte estimado</span>' : estado ? '<span class="badge warn">Estimado</span>' : '') + '</h2>'
@@ -2625,7 +2632,10 @@
     };
     h += '<div class="rend-grid">' + tabla('Insumos (lo que entra)', r.ins, r.tIns) + tabla('Producidos (lo que sale)', r.prod, r.tProd) + '</div>';
     var rd0 = (S.rend || {})[f];
-    if (rd0 && (rd0.arts || []).length) h += '<details class="panel rend-det"><summary>Detalle del reporte del sistema (' + rd0.arts.length + ' artículos · ' + n(Math.round(rd0.arts.reduce(function (t, a) { return t + a.kg; }, 0))) + ' kg)</summary><table class="pl"><thead><tr><th>Cód.</th><th>Artículo</th><th class="num">Unid.</th><th class="num">Kg</th></tr></thead><tbody>' + rd0.arts.map(function (a) { return '<tr><td>' + a.c + '</td><td>' + esc(a.n) + '</td><td class="num">' + n(a.u) + '</td><td class="num">' + n(a.kg) + '</td></tr>'; }).join('') + '</tbody></table></details>';
+    [['arts', 'Resumen de insumos'], ['artsProd', 'Resumen de producción']].forEach(function (z) {
+      var l = rd0 && rd0[z[0]]; if (!l || !l.length) return;
+      h += '<details class="panel rend-det"><summary>' + z[1] + ' del sistema (' + l.length + (l.length === 1 ? ' artículo' : ' artículos') + ' · ' + n(Math.round(l.reduce(function (t, a) { return t + a.kg; }, 0))) + ' kg)</summary><table class="pl"><thead><tr><th>Cód.</th><th>Artículo</th><th class="num">Unid.</th><th class="num">Kg</th></tr></thead><tbody>' + l.map(function (a) { return '<tr><td>' + a.c + '</td><td>' + esc(a.n) + '</td><td class="num">' + n(a.u) + '</td><td class="num">' + n(a.kg) + '</td></tr>'; }).join('') + '</tbody></table></details>';
+    });
     if (ed) h += '<p class="small muted rend-ayuda">Los números en gris son estimados. Cuando llega la planilla del día, escribí encima el real de cada renglón; si lo borrás, vuelve al estimado. Con cada día real el estimado aprende.</p>';
     // Días anteriores
     var dias = [], x = f; for (var i = 0; i < 10; i++) { dias.push(x); x = habilAnterior(x); }
