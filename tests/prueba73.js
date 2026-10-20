@@ -12,6 +12,7 @@ for(const w of [1280,400]){const p=await b.newPage({viewport:{width:w,height:900
 await p.clock.install({time:new Date('2026-10-20T16:00:00-03:00')});
 await p.addInitScript(d=>{window.print=()=>{};window.__mock={data:JSON.parse(JSON.stringify(d)),user:{email:'yo@x.com'},editores:['yo@x.com']}},data);
 await p.goto('http://127.0.0.1:8765/index.html#produccion');await p.clock.runFor(1500);await p.waitForSelector('.pv-tabs');
+console.log(w,'abre en:',await p.locator('.pv-tabs [aria-selected="true"]').innerText());await p.click('[data-act="pv"][data-v="op"]');await p.waitForTimeout(100);
 console.log(w,'solapas:',await p.$$eval('.pv-tabs .btn',x=>x.map(e=>e.innerText.replace(/\s+/g,' ')+(e.getAttribute('aria-selected')==='true'?' *':'')).join(' | ')),'· día:',await p.locator('.nav .tit').innerText());
 console.log(w,'vacía:',(await p.locator('#view-produccion .panel .acciones').first().innerText()).replace(/\s+/g,' '));
 // desde la base

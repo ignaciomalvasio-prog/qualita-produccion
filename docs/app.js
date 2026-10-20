@@ -560,7 +560,7 @@
     if (cargando(el, S.prod)) return;
     if (!S.fecha || !S.fechaFija) S.fecha = fechaProdInicial();
     var f = S.fecha, o = solo3 ? null : prodDe(f), o3 = prodDe('c3-' + f), op = solo3 ? null : prodDe('op-' + f), edit = !!(S.ep && (S.ep.fecha === f || S.ep.fecha === 'c3-' + f || S.ep.fecha === 'op-' + f));
-    var pv = solo3 ? 'frescos' : (S.pv || 'op'); if (edit) pv = esOP(S.ep.fecha) ? 'op' : 'frescos';
+    var pv = solo3 ? 'frescos' : (S.pv || (op ? 'op' : 'frescos')); if (edit) pv = esOP(S.ep.fecha) ? 'op' : 'frescos';
     var h = '<div class="nav"><button class="btn step" data-act="fecha" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + esc(tituloDe(f)) + '</span><button class="btn step" data-act="fecha" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="p-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">';
     if (pv === 'op' ? op : (o || o3)) h += '<button class="btn" data-act="imprimir">Imprimir</button>';
@@ -2345,7 +2345,7 @@
     else if (a === 'fr') { var y = S.fr; do { y = mas(y, +D.d); } while (!esHabil(y)); S.fr = y; render(); }
     else if (a === 'fr-hoy') { S.fr = rendFechaInicial(); render(); }
     else if (a === 'fr-ir') { S.fr = D.f; render(); window.scrollTo(0, 0); }
-    else if (a === 'fecha') { S.fechaFija = true; if (S.ep) guardar('prod', true); S.ep = null; var x = S.fecha; do { x = mas(x, +D.d); } while (!esHabil(x)); S.fecha = x; render(); }
+    else if (a === 'fecha') { S.pv = null; S.fechaFija = true; if (S.ep) guardar('prod', true); S.ep = null; var x = S.fecha; do { x = mas(x, +D.d); } while (!esHabil(x)); S.fecha = x; render(); }
     else if (a === 'pv') { if (S.ep) { guardar('prod', true); S.ep = null; } S.pv = D.v; render(); }
     else if (a === 'op-nueva') {
       S.fechaFija = true; var idn = 'op-' + S.fecha, dn = opNueva(S.fecha, D.v);
@@ -2606,7 +2606,7 @@
     if (D.rend) { var fq = S.fr; S.msg.rend = 'Guardando…'; pintarMsg('rend'); guardarRend(fq, D.rend, t.value).then(function () { S.msg.rend = 'Guardado.'; if (!escribiendo()) render(); else pintarMsg('rend'); }, function () { S.msg.rend = '!No se pudo guardar. Revisá la conexión.'; pintarMsg('rend'); }); return; }
     if (D.rcfg) { S.rcfgAb = true; guardarRendCfg(D.rcfg, D.id, t.value).then(function () { S.msg.rend = 'Guardado.'; render(); }, function () { S.msg.rend = '!No se pudo guardar. Revisá la conexión.'; pintarMsg('rend'); }); return; }
     if (D.hora != null && t.classList.contains('res-hora')) { ponerHora(S.fl, D.hora, t.value).then(null, function () { S.msg.log = '!No se pudo guardar.'; render(); }); return; }
-    if (t.id === 'p-fecha' && t.value) { if (S.ep) guardar('prod', true); S.ep = null; S.fechaFija = true; S.fecha = t.value; render(); }
+    if (t.id === 'p-fecha' && t.value) { S.pv = null; if (S.ep) guardar('prod', true); S.ep = null; S.fechaFija = true; S.fecha = t.value; render(); }
     else if (t.id === 'm-fecha' && t.value) { S.fm = t.value; render(); }
     else if (t.id === 'e-fecha' && t.value) { S.entrega = t.value; S.sel = {}; renderPedidos(); }
     else if (t.id === 'pd-fecha' && t.value) { S.pd = t.value; S.abierto = {}; renderPedidos(); }
