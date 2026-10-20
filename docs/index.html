@@ -475,9 +475,9 @@ body:has(.res-cam.arrastrando){cursor:grabbing;user-select:none}
 .lc-txt{font-weight:500}
 .lc-cant{font-weight:800;color:var(--ink);margin-right:2px}
 @media (max-width:560px){ .log-ped{padding:10px;gap:10px} .log-num{width:34px;height:34px;font-size:19px} .log-cortes p{grid-template-columns:minmax(0,1fr);gap:0} .log-cab .log-acc{margin-left:0;flex-basis:100%;flex-wrap:nowrap;gap:4px} .log-cab .log-acc .btn.sm{padding-left:8px;padding-right:8px} }
-.log-cortes select.uni{font:600 12px var(--body);text-transform:uppercase;padding:1px 4px;margin:1px 2px;border:1px solid var(--line);border-radius:4px;background:var(--surface);color:var(--ink);vertical-align:middle}
-.log-cortes select.uni.falta{border-color:var(--warn);background:var(--warn-soft);color:var(--warn)}
-@media print{.log-cortes select.uni{display:none}}
+.op-ped select.uni,.log-cortes select.uni{font:600 12px var(--body);text-transform:uppercase;padding:1px 4px;margin:1px 2px;border:1px solid var(--line);border-radius:4px;background:var(--surface);color:var(--ink);vertical-align:middle}
+.op-ped select.uni.falta,.log-cortes select.uni.falta{border-color:var(--warn);background:var(--warn-soft);color:var(--warn)}
+@media print{.log-cortes select.uni,.op-ped select.uni{display:none}}
 @media (max-width:560px){ .ped-det{padding-left:8px} .ped-tit .res{flex:1 1 auto} .ped-tit .chev{order:2} .ped-tit .marcas{order:3;margin-left:0;flex-basis:100%} .ped-tit .col-kg,.ped-tit .col-prod{order:4;flex:0 0 auto;margin-left:0;text-align:left} .op-ped p.lp{flex-direction:column;align-items:flex-start;gap:6px} .op-ped .nota-lp{text-align:left} }
 /* Celular: más aire y un orden fijo */
 @media (max-width:560px){

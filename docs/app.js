@@ -1683,7 +1683,7 @@
     if (+p.medias) h += '<p class="lp"><span class="lp-izq"><span class="lc-corte">Medias</span><span class="lc-txt">' + cantHTML(textoMedias(p)) + '</span></span><span class="lp-der">' + precioHTML(p.id, 'm', p.precioMedias, 'las medias', p.ivaMedias) + '</span></p>';
     cs.forEach(function (c) {
       var f = fechaProdDe(m, p, c);
-      h += '<p class="lp"><span class="lp-izq"><span class="lc-corte">' + esc(c.corte) + '</span><span class="lc-txt">' + cantHTML(sinCliente(c.texto, p.cliente)) + (c.frio && c.frio !== p.frio ? ' ' + frioBadge(c.frio) : '') + '</span></span><span class="lp-der">' + precioHTML(p.id, c.k, c.precio, c.corte, c.iva) + (f
+      h += '<p class="lp"><span class="lp-izq"><span class="lc-corte">' + esc(c.corte) + '</span><span class="lc-txt">' + cantHTML(sinCliente(c.texto, p.cliente), unidadSelHTML(p.id, c)) + (c.frio && c.frio !== p.frio ? ' ' + frioBadge(c.frio) : '') + '</span></span><span class="lp-der">' + precioHTML(p.id, c.k, c.precio, c.corte, c.iva) + (f
         ? '<span class="en"><span class="badge ok">' + (esC3(f) ? 'En producción · embutidos' : 'En producción') + '</span><button class="btn sm" data-act="c-quitar" data-id="' + id + '" data-k="' + esc(c.k) + '">Quitar</button></span>'
         : '<button class="btn sm pri" data-act="c-sumar" data-id="' + id + '" data-k="' + esc(c.k) + '">' + 'Sumar a producción' + '</button>') + '</span></p>';
     });
