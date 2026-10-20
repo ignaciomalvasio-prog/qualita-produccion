@@ -448,6 +448,32 @@ body:has(.res-cam.arrastrando){cursor:grabbing;user-select:none}
 .log-cortes select.uni.falta{border-color:var(--warn);background:var(--warn-soft);color:var(--warn)}
 @media print{.log-cortes select.uni{display:none}}
 @media (max-width:560px){ .ped-det{padding-left:8px} .ped-tit .res{flex:1 1 auto} .ped-tit .chev{order:2} .ped-tit .marcas{order:3;margin-left:0;flex-basis:100%} .ped-tit .col-kg,.ped-tit .col-prod{order:4;flex:0 0 auto;margin-left:0;text-align:left} .op-ped p.lp{flex-direction:column;align-items:flex-start;gap:6px} .op-ped .nota-lp{text-align:left} }
+/* Celular: más aire y un orden fijo */
+@media (max-width:560px){
+  .wrap{gap:14px}
+  .nav{gap:6px}
+  .nav .tit{order:-1;flex-basis:100%;font-size:22px}
+  .nav .btn{padding:7px 11px;font-size:14px}
+  .nav .btn.step{min-width:44px}
+  .ped-tit{gap:6px 8px;padding:12px 4px}
+  .ped-tit .nom{order:1;flex:1 1 calc(100% - 40px);font-size:17px;line-height:1.15}
+  .ped-tit .chev{order:2;margin-left:auto;align-self:flex-start;padding-top:2px}
+  .ped-tit .cta{order:3}
+  .ped-tit .res{order:4;flex:1 1 auto;font-size:14px}
+  .ped-tit .marcas{order:5;margin-left:0;flex-basis:100%}
+  .ped-tit::after{content:"";order:6;flex-basis:100%;height:0}
+  .ped-tit .col-kg{order:7;flex:0 0 auto;margin-left:0;text-align:left}
+  .ped-tit .col-prod{order:8;flex:0 0 auto}
+  .ped .chk{padding:0 8px 0 4px;align-items:flex-start;padding-top:14px}
+  .kg-ped{font-size:15px}
+  .pr-est{font-size:12px;padding:3px 8px}
+  .cam>.cam-cab{gap:8px}
+  .cam-cuerpo{padding:4px 10px 12px}
+  .log-ped{padding:12px 10px}
+  .log-cab strong{font-size:18px}
+  .log-cortes{font-size:15px}
+  .log-cortes p{padding:7px 0}
+}
 details > summary{cursor:pointer;font-weight:600;color:var(--accent)}
 details[open] > summary{margin-bottom:10px}
 .pie{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;justify-content:space-between}
