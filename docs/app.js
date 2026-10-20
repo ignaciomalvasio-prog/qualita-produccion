@@ -434,6 +434,14 @@
     var x = clone(o); quitarDeOrden(x, p.id, c.k, c.texto);
     return guardarOrden(f, x, true).then(tocar);
   }
+  // Un renglón de la planilla: el cliente en su etiqueta adelante, los kilos bien marcados y después el detalle.
+  function lineaHojaHTML(t) {
+    var s = String(t || ''), cli = '', m = s.match(/\s*[“"]([^”"]+)[”"]\s*/);
+    if (m) { cli = m[1].trim(); s = (s.slice(0, m.index) + ' ' + s.slice(m.index + m[0].length)).replace(/\s+/g, ' ').trim(); }
+    var q = s.match(/^\s*([\d.,½]+)\s*((?:KGS?|KILOS?|K|CAJAS?|CJS?|UND|UNIDAD(?:ES)?|UNID|U|CANASTOS?|BINES?)\b\.?)?/i), cant = '', desc = s;
+    if (q && q[0].trim()) { cant = (q[1] + (q[2] ? ' ' + q[2].toUpperCase().replace(/^KGS?$|^KILOS?$/, 'KG') : '')).trim(); desc = s.slice(q[0].length).trim(); }
+    return '<span class="h-cli' + (cli ? '' : ' vacio') + '">' + esc(cli) + '</span><span class="h-txt">' + (cant ? '<b class="h-cant">' + esc(cant) + '</b> ' : '') + esc(desc) + '</span>';
+  }
   /* En producción todo se muestra en kilos: una caja o un canasto pesa 20 kg (o lo que diga "CAJAS DE 15KG").
      Lo que va en canastos lo aclara al final. Lo guardado no cambia: es solo cómo se muestra e imprime. */
   function kgCanasto() { return +S.config.kgCanasto || 20; }
@@ -475,7 +483,7 @@
     if (!nl) h += '<p class="muted">Todavía no se sumó ningún ' + (c3 ? 'embutido' : 'corte') + '.</p>';
     else h += '<div class="hoja-cortes">' + (o.cortes || []).map(function (c) {
       var tot = totalCorte(c);
-      return '<div class="hoja-corte"><div class="hoja-nom"><h3>' + esc(c.corte || 'Sin corte') + '</h3>' + (tot ? '<p class="hoja-tot"><span>Total</span> ' + esc(tot) + '</p>' : '') + '</div><ul>' + c.lineas.map(function (l) { return '<li>' + esc(enKg(l.t)) + (l.f ? ' ' + frioBadge(l.f) : '') + '</li>'; }).join('') + '</ul></div>';
+      return '<div class="hoja-corte"><div class="hoja-nom"><h3>' + esc(c.corte || 'Sin corte') + '</h3>' + (tot ? '<p class="hoja-tot"><span>Total</span> ' + esc(tot) + '</p>' : '') + '</div><ul>' + c.lineas.map(function (l) { return '<li>' + lineaHojaHTML(enKg(l.t)) + (l.f ? ' ' + frioBadge(l.f) : '') + '</li>'; }).join('') + '</ul></div>';
     }).join('') + '</div>';
     h += '<div class="acciones"><button class="btn" data-act="copiar" data-t="' + k + '">Copiar como texto</button>'
       + (S.editor ? '<button class="btn" data-act="p-editar" data-id="' + (c3 ? 'c3-' : '') + f + '">' + (c3 ? 'Editar embutidos' : 'Editar') + '</button>' : '')
