@@ -386,6 +386,20 @@ button.cam-num{background:none;color:inherit;cursor:pointer}
 .solo-print{display:none!important}
 .pos-ctl{display:inline-flex;align-items:center;gap:4px}
 .hoja-c3 .hoja-sup{color:var(--accent)}
+.pv-tabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:2px solid var(--line);padding-bottom:0}
+.pv-tabs .btn{border-radius:6px 6px 0 0;border-bottom:0;margin-bottom:-2px;font-weight:700;padding:9px 16px}
+.pv-tabs .btn[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.pv-tabs small{font-weight:500;opacity:.75}
+.op-lista{display:flex;flex-direction:column}
+.op-c{padding:7px 2px;border-bottom:1px dashed var(--line);break-inside:avoid}
+.op-c:last-child{border-bottom:0}
+.op-c p{margin:0;font-weight:600;text-transform:uppercase;font-size:16px;line-height:1.4;overflow-wrap:anywhere}
+.op-c p.op-sig{padding-left:18px;margin-top:3px}
+.op-corte{font-weight:800;color:var(--ink);text-decoration-thickness:2px;text-underline-offset:3px}
+.op-cant{font-weight:800}
+.op-resto{color:var(--muted);font-weight:800}
+.op-cli{color:var(--accent);font-weight:800}
+@media print{ .pv-tabs{display:none} .op-c{padding:3px 0;border-bottom:0} .op-c p{font-size:12px;line-height:1.3} .op-cli,.op-resto{color:#000} }
 .pd-busca{display:flex;gap:8px;align-items:center;margin:8px 0}.pd-busca input{flex:1;max-width:520px;font-size:16px;padding:9px 10px}
 .busq{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
 .busq-f{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;padding:8px 10px;border-top:1px solid var(--line)}.busq-f:first-child{border-top:0}

@@ -79,7 +79,7 @@
     (d.clientes || []).forEach(function (r) { c += +r.cant || 0; });
     return { propios: p, usuarios: u, clientes: c, desposte: p - c, medias: (p - c) * 2 };
   }
-  function desposteDe(f) { var o = prodDe(f); return o && o.medias !== '' && o.medias != null ? +o.medias || 0 : +S.config.desposteHabitual || 750; }
+  function desposteDe(f) { var o = prodDe('op-' + f) || prodDe(f); return o && o.medias !== '' && o.medias != null ? +o.medias || 0 : +S.config.desposteHabitual || 750; }
 
   // Stock de la semana. El stock inicial es lo que hay en cámara, propio y sin vender, al empezar el lunes.
   // Si no está cargado se deduce de la semana anterior.
@@ -374,6 +374,52 @@
      en la misma colección "produccion" con el id "c3-AAAA-MM-DD"; la de desposte sigue con el id "AAAA-MM-DD".
      El link del Ciclo III (/ciclo3) muestra solo los embutidos. */
   function esC3(id) { return /^c3-/.test(String(id || '')); }
+  /* Orden de producción completa (como la que se mandaba en Word): todos los cortes con su destino, un documento por día
+     (produccion/op-AAAA-MM-DD). Arranca de la orden anterior o de la orden base, y se modifica a mano. Va aparte de la
+     planilla de frescos (produccion/AAAA-MM-DD), que se arma desde los pedidos. */
+  function esOP(id) { return /^op-/.test(String(id || '')); }
+  var OP_BASE = ['JAMON: RESTO: RECORTE DE JAMON CON GRASA 3º (COD 359) FRESCO EN BINES “ARGENCARNES”',
+    'PALETA: RESTO: PALETA SIN HUESO SIN CUERO SIN GRASA SIN GARRON CAJAS A CONGELAR (COD 377)',
+    'PECHO: CONGELAR EN CAJAS “CARREFOUR” (COD 30216)', 'CARRE: CAJAS A CONGELAR “CARREFOUR” (COD 30276)',
+    'SOLOMILLO: CAJAS A CONGELAR INTERFOLIADOS EN ONDAS “CARREFOUR” (COD 30287)', 'MATAMBRE: CAJAS A CONGELAR “SUR” (COD 240)',
+    'BONDIOLA: CAJAS A CONGELAR “CARREFOUR” (COD 30105)', 'RECORTE: 1000KG 80/20 FRESCOS EN CANASTOS CICLO 3\nRESTO: 60/40 FRESCO EN BINES “ARGENCARNES”',
+    'GRASA: CANASTOS A CONGELAR (COD 479)', 'CUERO: CANASTOS A CONGELAR (COD 412)',
+    'TAPA DE PALETA: CAJAS A CONGELAR (COD 156 – CONTRATO 10) “ARGENCARNES”', 'TAPA DE JAMON: BONELES A CONGELAR (COD 336 – CONTRATO 2)',
+    'TORTUGA: FRESCA EN BINES “ARGENCARNES”', 'GARRON: FRESCO EN BINES “ARGENCARNES”', 'TOCINO: FRESCO EN BINES “ARGENCARNES”',
+    'CHURRASCO: CAJAS A CONGELAR INTERFOLIADOS POR CAPAS “CARREFOUR” (COD 30246)', 'PAPADA: PRODUCIR CHURRASCO “P” (COD 245) ETIQUETAS ADENTRO',
+    'OREJAS: CONGELAR EN CAJAS DE 10KG (CONSUMO INTERNO - COD 611)', 'CABEZA: LENGUA - RECORTE DE CABEZA - OREJAS',
+    'PULMON: FRESCO “RENDERING – QUALITA”', 'HIGADO: FRESCO ALICAN', 'PATAS Y MANOS: NO SACAR'].join('\n\n');
+  function opBaseTxt() { return String((S.config && S.config.opBase) || OP_BASE); }
+  function opVacia(f) { return { fecha: f, linea: 'op', medias: +S.config.desposteHabitual || 750, mercado: 'CONSUMO', estado: 'borrador', cortes: [] }; }
+  function opAnterior(f) { return (S.prod || []).filter(function (o) { return esOP(o.id) && o.id.slice(3) < f && (o.cortes || []).length; }).sort(function (a, b) { return a.id < b.id ? 1 : -1; })[0] || null; }
+  function opNueva(f, desde) {
+    var ant = desde === 'ant' ? opAnterior(f) : null, o = opVacia(f);
+    if (ant) { o.medias = ant.medias; o.mercado = ant.mercado || 'CONSUMO'; o.cortes = clone(ant.cortes || []); return o; }
+    return parsearOrden(opBaseTxt(), o);
+  }
+  function opTexto(o) { return [diaDe(o.fecha).toUpperCase() + ' ' + fechaCorta(o.fecha), docDeOrden(o)].join('\n\n'); }
+  // Un renglón de la orden: la cantidad del principio y los nombres entre comillas, resaltados.
+  function opLineaHTML(t) {
+    var s = String(t || ''), pre = '', m = s.match(/^\s*RESTO:\s*/i);
+    if (m) { pre = '<b class="op-resto">RESTO:</b> '; s = s.slice(m[0].length); }
+    var q = s.match(/^\d[\d.,]*\s*(?:KGS?|KILOS?|UND|UNIDADES|CAJAS?|CANASTOS?|BINES?)\b|^\d[\d.,]*(?=\s)/i), cant = '';
+    if (q) { cant = '<b class="op-cant">' + esc(q[0]) + '</b>'; s = s.slice(q[0].length); }
+    var cuerpo = s.split(/([“"][^”"]+[”"])/).map(function (x, i) { return i % 2 ? '<b class="op-cli">' + esc(x) + '</b>' : esc(x); }).join('');
+    return pre + cant + cuerpo;
+  }
+  function opHTML(o, f) {
+    var h = '<div class="panel hoja op-hoja"><header class="hoja-cab"><div><p class="hoja-sup">Orden de producción</p><h2>' + esc(tituloDe(f)) + '</h2></div>'
+      + '<div class="hoja-dato"><b>' + n(+o.medias || 0) + '½</b><span>' + esc(o.mercado || 'medias') + '</span></div>'
+      + (o.estado === 'borrador' ? '<span class="badge warn">Borrador</span>' : '<span class="badge ok">Confirmada</span>') + '</header>';
+    h += '<div class="op-lista">' + (o.cortes || []).map(function (c) {
+      var ls = c.lineas.length ? c.lineas : [{ t: '' }];
+      return '<div class="op-c"><p><u class="op-corte">' + esc(c.corte || '') + '</u>: ' + opLineaHTML(ls[0].t) + '</p>' + ls.slice(1).map(function (l) { return '<p class="op-sig">' + opLineaHTML(l.t) + '</p>'; }).join('') + '</div>';
+    }).join('') + '</div>';
+    h += '<div class="acciones"><button class="btn" data-act="copiar" data-t="op">Copiar como texto</button>'
+      + (S.editor ? '<button class="btn" data-act="p-editar" data-id="op-' + f + '">Editar la orden</button>' : '')
+      + '<span class="small muted" id="copiado-op" aria-live="polite"></span></div><textarea id="txt-op" class="txt" readonly hidden aria-label="Orden en texto">' + esc(opTexto(o)) + '</textarea></div>';
+    return h;
+  }
   function diaProd(id) { return String(id || '').replace(/^c3-/, ''); }
   function idActual() { return (S.solo === 'ciclo3' ? 'c3-' : '') + S.fecha; }
   function esEmbutido(c) { var t = norm((c.corte || '') + ' ' + (c.texto || '')); return norm(c.corte) === 'EMBUTIDOS' || /CHORIZ|MORCILL|SALCHICH/.test(t); }
@@ -513,14 +559,26 @@
     var solo3 = S.solo === 'ciclo3', el = $(solo3 ? 'view-ciclo3' : 'view-produccion');
     if (cargando(el, S.prod)) return;
     if (!S.fecha || !S.fechaFija) S.fecha = fechaProdInicial();
-    var f = S.fecha, o = solo3 ? null : prodDe(f), o3 = prodDe('c3-' + f), edit = !!(S.ep && (S.ep.fecha === f || S.ep.fecha === 'c3-' + f));
+    var f = S.fecha, o = solo3 ? null : prodDe(f), o3 = prodDe('c3-' + f), op = solo3 ? null : prodDe('op-' + f), edit = !!(S.ep && (S.ep.fecha === f || S.ep.fecha === 'c3-' + f || S.ep.fecha === 'op-' + f));
+    var pv = solo3 ? 'frescos' : (S.pv || 'op'); if (edit) pv = esOP(S.ep.fecha) ? 'op' : 'frescos';
     var h = '<div class="nav"><button class="btn step" data-act="fecha" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + esc(tituloDe(f)) + '</span><button class="btn step" data-act="fecha" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="p-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">';
-    if (o || o3) h += '<button class="btn" data-act="imprimir">Imprimir</button>';
+    if (pv === 'op' ? op : (o || o3)) h += '<button class="btn" data-act="imprimir">Imprimir</button>';
     if (edit) h += '<button class="btn pri" data-act="p-editar">Listo</button>';
     if (S.editor) h += '<button class="btn" data-act="link-prod">Copiar link para compartir</button><span class="guardado" id="g-prod"></span>';
     h += '</div>';
+    if (!solo3) h += '<div class="pv-tabs" role="tablist" aria-label="Qué planilla ver"><button class="btn" role="tab" data-act="pv" data-v="op" aria-selected="' + (pv === 'op') + '">Orden de producción' + (op ? '' : ' <small>(sin armar)</small>') + '</button><button class="btn" role="tab" data-act="pv" data-v="frescos" aria-selected="' + (pv === 'frescos') + '">Planilla de frescos' + (o ? '' : ' <small>(vacía)</small>') + '</button></div>';
     if (edit) { h += prodEditHTML(S.ep.doc); el.innerHTML = h; pintarMsg('prod'); crecer($('p-doc')); return; }
+    if (pv === 'op') {
+      if (op) h += opHTML(op, f);
+      else {
+        var ant = opAnterior(f);
+        h += '<div class="panel"><p class="state">Todavía no está armada la orden de producción de este día.</p>';
+        if (S.editor) h += '<div class="acciones" style="justify-content:center">' + (ant ? '<button class="btn pri" data-act="op-nueva" data-v="ant">Armar desde la orden del ' + esc(diaCorto(ant.id.slice(3)).toLowerCase()) + '</button>' : '') + '<button class="btn' + (ant ? '' : ' pri') + '" data-act="op-nueva" data-v="base">Armar desde la orden base</button></div>';
+        h += '</div>';
+      }
+      el.innerHTML = h; return;
+    }
     if (solo3) {
       h += o3 ? hojaHTML(o3, f, true) : '<div class="panel"><p class="state">Todavía no hay embutidos para este día.</p></div>';
       el.innerHTML = h; return;
@@ -585,6 +643,7 @@
       ? '<button class="btn pri" data-act="p-estado" data-v="lista">Confirmar planilla</button>'
       : '<span class="badge ok">Confirmada</span><button class="btn sm" data-act="p-estado" data-v="borrador">Volver a borrador</button>')
       + botonBorrar('p-borrar', null, 'Borrar la planilla') + '</div></div>';
+    if (o.linea === 'op') h += '<div class="panel"><div class="acciones"><button class="btn" data-act="op-base">Guardar como orden base</button><span class="small muted">La orden base es la que se usa para armar un día nuevo: los destinos de siempre de cada corte.</span></div></div>';
     h += '<div class="panel"><p class="small muted">Cada corte empieza con su nombre y dos puntos (JAMON: …); los renglones de abajo son de ese corte. Se guarda solo.</p>'
       + '<article class="op"><p class="op-f">' + esc(diaDe(o.fecha)) + ' ' + esc(fechaCorta(o.fecha)) + (o.linea === 'ciclo3' ? ' · Embutidos' : '') + '</p>'
       + '<textarea id="p-doc" class="op-doc" spellcheck="false" autocapitalize="characters" aria-label="Planilla de producción">' + esc(docDeOrden(o)) + '</textarea></article></div>';
@@ -1355,7 +1414,7 @@
   function instrucciones() {
     var clientes = {}, ejemplos = [];
     (S.faena || []).forEach(function (s) { s.dias.forEach(function (d) { d.clientes.forEach(function (r) { if (r.cliente) clientes[r.cliente] = 1; }); }); });
-    (S.prod || []).filter(function (o) { return !esC3(o.id); }).slice(-3).forEach(function (o) { ejemplos.push(textoOrden(o, true)); });
+    (S.prod || []).filter(function (o) { return !esC3(o.id) && !esOP(o.id); }).slice(-3).forEach(function (o) { ejemplos.push(textoOrden(o, true)); });
     return 'Sos el asistente de carga de pedidos del Frigorífico Qualitá, un frigorífico de cerdo. Recibís una foto, una captura de pantalla o un texto pegado (por ejemplo de WhatsApp) con uno o varios pedidos de clientes y devolvés los pedidos leídos como datos estructurados, sin texto adicional.\n\n'
       + 'Hoy es ' + diaDe(hoy()) + ' ' + hoy() + '.\n\n'
       + 'PRIMERO MIRÁ SI ES LA PLANILLA SEMANAL\n'
@@ -2287,6 +2346,15 @@
     else if (a === 'fr-hoy') { S.fr = rendFechaInicial(); render(); }
     else if (a === 'fr-ir') { S.fr = D.f; render(); window.scrollTo(0, 0); }
     else if (a === 'fecha') { S.fechaFija = true; if (S.ep) guardar('prod', true); S.ep = null; var x = S.fecha; do { x = mas(x, +D.d); } while (!esHabil(x)); S.fecha = x; render(); }
+    else if (a === 'pv') { if (S.ep) { guardar('prod', true); S.ep = null; } S.pv = D.v; render(); }
+    else if (a === 'op-nueva') {
+      S.fechaFija = true; var idn = 'op-' + S.fecha, dn = opNueva(S.fecha, D.v);
+      S.ep = { fecha: idn, doc: dn }; S.ep.base = clone(dn); S.pv = 'op'; S.msg.prod = ''; guardar('prod', true); render();
+      var pn2 = $('p-doc'); if (pn2) { pn2.focus(); pn2.setSelectionRange(0, 0); window.scrollTo(0, 0); }
+    }
+    else if (a === 'op-base' && S.ep && esOP(S.ep.fecha)) {
+      S.config.opBase = docDeOrden(S.ep.doc).replace(/^[^\n]*½[^\n]*\n+/, ''); guardarConfig(); avisar('Guardada como orden base. Los días nuevos van a arrancar con esta orden.', 5000);
+    }
     else if (a === 'p-nueva') { S.fechaFija = true; S.ep = { fecha: idActual(), doc: prodVacia(idActual()) }; S.ep.base = clone(S.ep.doc); S.msg.prod = ''; guardar('prod', true); render(); var pn = $('p-doc'); if (pn) { pn.focus(); pn.setSelectionRange(pn.value.length, pn.value.length); } }
     else if (a === 'p-editar') { S.fechaFija = true; if (S.ep) { guardar('prod', true); S.ep = null; } else { var ide = D.id || idActual(); S.ep = { fecha: ide, doc: clone(prodDe(ide)) }; S.ep.base = clone(S.ep.doc); S.msg.prod = ''; } render(); if (S.ep) { var pd = $('p-doc'); if (pd) { pd.focus(); pd.setSelectionRange(0, 0); window.scrollTo(0, 0); } } }
     else if (a === 'p-borrar' && S.ep) { if (!confirma('p-borrar')) { render(); return; } clearTimeout(timers.prod); var fb = S.ep.fecha; S.ep = null; S.prod = (S.prod || []).filter(function (x) { return x.id !== fb; }); store.del('produccion', fb).then(tocar, function () {}); render(); }
