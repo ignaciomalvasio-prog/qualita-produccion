@@ -1519,9 +1519,7 @@
   }
   // Los tres caminos de carga: fotos, texto pegado o a mano.
   /* ---------- pedidos por voz ----------
-     1) Dictar: el navegador (Chrome) pasa a texto lo que se dice y queda en "Pegar texto" para revisarlo y leerlo.
-     2) Subir audio: un audio grabado (por ejemplo de WhatsApp) se pasa a texto con el servicio de OpenAI (clave aparte,
-        en Configuración) y queda también en "Pegar texto". En los dos casos la lectura del pedido es la de siempre. */
+     Dictar: el navegador (Chrome) pasa a texto lo que se dice y queda en "Pegar texto" para revisarlo y leerlo como siempre. */
   var reconocedor = null;
   function ponerTextoPegado(txt) { S.pegarTxt = txt; var ta = $('pegar-txt'); if (ta) { ta.value = txt; ta.scrollTop = ta.scrollHeight; } }
   // Al parar queda todo lo que se ve escrito, también lo último que se estaba diciendo.
@@ -1552,38 +1550,12 @@
     };
     try { r.start(); } catch (e) { S.dictando = false; avisar('!No se pudo empezar a dictar.', 6000); renderPedidos(); }
   }
-  function transcribir(file) {
-    if (window.__mock && window.__mock.audio) return Promise.resolve(window.__mock.audio(file.name));
-    var clave = S.ia && S.ia.claveAudio;
-    if (!clave) return Promise.reject(new Error('Falta la clave para audios (OpenAI). Cargala en Pedidos, abajo, en Configuración.'));
-    if (file.size > 25 * 1024 * 1024) return Promise.reject(new Error('El audio es muy largo (más de 25 MB). Partilo o mandalo más corto.'));
-    // Los audios de WhatsApp vienen como .opus: son ogg, y con ese nombre el servicio los acepta.
-    var nombre = /\.opus$/i.test(file.name || '') || /opus/.test(file.type || '') ? String(file.name || 'audio').replace(/\.opus$/i, '') + '.ogg' : (file.name || 'audio.webm');
-    var pista = 'Pedido de un frigorífico de cerdo en Córdoba, Argentina. Palabras habituales: medias, medias reses, bondiola, matambre, matambrito, pechito, pecho, carré, jamón, pierna, paleta, solomillo, cinta de lomo, churrasquito, costilla, chorizo, morcilla, cajas, canastos, kilos, unidades, fresco, congelado.';
-    var pedir = function (modelo) {
-      var fd = new FormData(); fd.append('file', file, nombre); fd.append('model', modelo); fd.append('language', 'es'); fd.append('prompt', pista);
-      return fetch('https://api.openai.com/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: 'Bearer ' + clave }, body: fd })
-        .then(function (r) { return r.json().then(function (j) { if (!r.ok) { var err = new Error(r.status === 401 ? 'La clave para audios no es válida.' : (j && j.error && j.error.message) || ('Error ' + r.status)); err.status = r.status; throw err; } return String(j.text || '').trim(); }); });
-    };
-    return pedir('gpt-4o-mini-transcribe').catch(function (e) { if (e.status === 400 || e.status === 404) return pedir('whisper-1'); throw e; });
-  }
-  function subirAudio(file) {
-    S.msg.fotos = 'Pasando el audio a texto…'; pintarMsg('fotos');
-    transcribir(file).then(function (txt) {
-      if (!txt) { S.msg.fotos = '!No se entendió nada en el audio.'; pintarMsg('fotos'); return; }
-      var base = String(S.pegarTxt || '').trim();
-      S.pegar = true; S.pegarTxt = (base ? base + '\n' : '') + txt;
-      S.msg.fotos = 'Audio pasado a texto. Revisalo abajo y tocá "Leer" para cargar el pedido.'; renderPedidos();
-      var ta = $('pegar-txt'); if (ta) ta.focus();
-    }, function (e) { S.msg.fotos = '!' + ((e && e.message) || 'No se pudo pasar el audio a texto.'); pintarMsg('fotos'); });
-  }
   function cargaHTML(actMano) {
     var conIA = !!(S.ia && S.ia.clave) || !!(window.__mock && window.__mock.ia);
     var h = '<div class="acciones"><label class="btn pri" style="display:inline-flex;align-items:center' + (conIA ? '' : ';opacity:.45') + '">Subir fotos o capturas<input type="file" id="fotos" accept="image/*" multiple hidden' + (conIA ? '' : ' disabled') + '></label>'
       + '<button class="btn" data-act="q-pegar"' + (conIA ? '' : ' disabled') + '>Pegar texto</button>'
       + '<button class="btn" data-act="' + actMano + '">Cargar a mano</button>'
-      + (actMano === 'q-nuevo' ? '<button class="btn' + (S.dictando ? ' pri dictando' : '') + '" data-act="q-dictar"' + (conIA ? '' : ' disabled') + '>' + (S.dictando ? '⏹ Detener dictado' : '🎤 Dictar pedido') + '</button>'
-        + '<label class="btn" style="display:inline-flex;align-items:center' + (conIA ? '' : ';opacity:.45') + '">🔊 Subir audio<input type="file" id="audio" accept="audio/*,.opus,.ogg,.oga,.m4a,.mp3,.wav,.webm,.mp4" hidden' + (conIA ? '' : ' disabled') + '></label>' : '')
+      + (actMano === 'q-nuevo' ? '<button class="btn' + (S.dictando ? ' pri dictando' : '') + '" data-act="q-dictar"' + (conIA ? '' : ' disabled') + '>' + (S.dictando ? '⏹ Detener dictado' : '🎤 Dictar pedido') + '</button>' : '')
       + (conIA ? '<span class="small muted pega-tip">o pegá una captura con Ctrl+V</span>' : '') + '<span class="guardado" id="g-fotos"></span></div>'
       + (S.dictando ? '<p class="escuchando">● Escuchando… hablá tranquilo; lo que digas se va escribiendo abajo. Cuando termines tocá "Detener dictado" y después "Leer".</p>' : '');
     if (S.pegar && conIA) h += '<div class="pegar"><label class="campo"><span>Mensaje con los pedidos</span><textarea id="pegar-txt" rows="9">' + esc(S.pegarTxt || '') + '</textarea></label>'
@@ -1823,7 +1795,6 @@
 
     h += '<div class="panel"><details' + (S._conf ? ' open' : '') + '><summary>Configuración</summary><div class="campos">'
       + '<label class="campo"><span>Clave de IA (Anthropic)</span><input type="password" id="cfg-clave" autocomplete="off" placeholder="' + (S.ia && S.ia.clave ? 'Cargada. Escribí otra para cambiarla.' : 'sk-ant-…') + '"></label>'
-      + '<label class="campo"><span>Clave para audios (OpenAI, para "Subir audio")</span><input type="password" id="cfg-clave-audio" autocomplete="off" placeholder="' + (S.ia && S.ia.claveAudio ? 'Cargada. Escribí otra para cambiarla.' : 'sk-…') + '"></label>'
       + '<label class="campo"><span>Desposte habitual (medias por día)</span><input type="number" inputmode="numeric" id="cfg-desposte" value="' + esc(S.config.desposteHabitual || 750) + '"></label>'
       + '<label class="campo"><span>Capacidad de cámaras (medias)</span><input type="number" inputmode="numeric" id="cfg-cap" value="' + esc(S.config.capacidadCamara || '') + '"></label></div>'
       + '<div class="acciones"><button class="btn" data-act="cfg-guardar">Guardar configuración</button><span class="guardado" id="g-cfg"></span>'
@@ -2310,13 +2281,13 @@
     else if (a === 'ir-log') { S.fl = S.entrega; S.ec = null; irA('logistica'); }
     else if (a === 'cfg-guardar') {
       S._conf = true;
-      var clave = $('cfg-clave').value.trim(), claveAudio = ($('cfg-clave-audio') || { value: '' }).value.trim(), cfg = clone(S.config || {}), tareas = []; delete cfg.id;
-      var iaNueva = { clave: clave || (S.ia && S.ia.clave) || '', modelo: (S.ia && S.ia.modelo) || IA_MODELO, claveAudio: claveAudio || (S.ia && S.ia.claveAudio) || '' };
+      var clave = $('cfg-clave').value.trim(), cfg = clone(S.config || {}), tareas = []; delete cfg.id;
+      var iaNueva = { clave: clave, modelo: (S.ia && S.ia.modelo) || IA_MODELO };
       cfg.desposteHabitual = +$('cfg-desposte').value || 750; cfg.capacidadCamara = +$('cfg-cap').value || 0; cfg.actualizado = ahoraTxt();
       tareas.push(store.set('config', 'general', cfg));
-      if (clave || claveAudio) tareas.push(store.set('privado', 'ia', iaNueva));
+      if (clave) tareas.push(store.set('privado', 'ia', iaNueva));
       S.msg.cfg = 'Guardando…'; pintarMsg('cfg');
-      Promise.all(tareas).then(function () { S.msg.cfg = 'Guardado.'; if (clave || claveAudio) S.ia = iaNueva; renderPedidos(); }, function () { S.msg.cfg = '!No se pudo guardar.'; pintarMsg('cfg'); });
+      Promise.all(tareas).then(function () { S.msg.cfg = 'Guardado.'; if (clave) S.ia = iaNueva; renderPedidos(); }, function () { S.msg.cfg = '!No se pudo guardar.'; pintarMsg('cfg'); });
     }
   });
 
@@ -2436,7 +2407,6 @@
       try { t.value = ''; } catch (err) {}
     }
     else if (t.id === 'pf-foto' && t.files && t.files.length) { leerFaenaFoto(t.files[0]); try { t.value = ''; } catch (err) {} }
-    else if (t.id === 'audio' && t.files && t.files.length) { subirAudio(t.files[0]); try { t.value = ''; } catch (err) {} }
     else if (t.id === 'fotos' && t.files && t.files.length) { subirFotos(t.files); try { t.value = ''; } catch (err) {} }
     else if (D.sel) {
       var ps = pedidoDe(D.sel);
