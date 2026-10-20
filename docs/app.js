@@ -2140,6 +2140,21 @@
     if (msg) { el.innerHTML = '<div class="panel"><p class="state">' + msg + '</p></div>'; return true; }
     return false;
   }
+  /* Barra de arriba de cada pantalla: el título a la izquierda, las flechas ‹ › con la fecha juntas en el medio
+     y los demás botones a la derecha. Se acomoda sola cada vez que se dibuja una barra. */
+  function armarNav(nav) {
+    if (nav.classList.contains('armada')) return;
+    var steps = nav.querySelectorAll(':scope > .btn.step'), tit = nav.querySelector(':scope > .tit');
+    if (steps.length < 2 || !tit) return;
+    var dia = document.createElement('span'), acc = document.createElement('span');
+    dia.className = 'nav-dia'; acc.className = 'nav-acc';
+    var sig = steps[1].nextElementSibling, fecha = sig && sig.tagName === 'INPUT' && sig.type === 'date' ? sig : null;
+    dia.appendChild(steps[0]); dia.appendChild(steps[1]); if (fecha) dia.appendChild(fecha);
+    Array.prototype.slice.call(nav.children).forEach(function (x) { if (x !== tit) acc.appendChild(x); });
+    nav.appendChild(dia); nav.appendChild(acc);
+    nav.classList.add('armada');
+  }
+  if (window.MutationObserver) new MutationObserver(function () { document.querySelectorAll('.nav:not(.armada)').forEach(armarNav); }).observe(document.body, { childList: true, subtree: true });
   function render() {
     $('stamp').textContent = (S.config.actualizado ? 'Actualizado: ' + S.config.actualizado : '') + (S.fuente === 'cache' ? ' · sin conexión' : '');
     var ht = $('hoy-txt'); if (ht) ht.textContent = 'Hoy es ' + tituloDe(hoy()).toLowerCase();
