@@ -1917,7 +1917,7 @@
       + '<button class="btn lnk" data-act="sel-nada">Destildar</button></div>';
   }
   function renderPedidos() {
-    if (S.tab !== 'pedidos') return render();
+    if (S.tab !== 'pedidos') { if (S.tab === 'logistica' && S.msg.fotos) { avisar(S.msg.fotos, 6000); S.msg.fotos = ''; } return render(); }
     var el = $('view-pedidos');
     if (!S.editor) { el.innerHTML = '<div class="panel"><p class="state">Para cargar pedidos hay que ingresar con una cuenta autorizada.</p></div>'; return; }
     var h = '<datalist id="dl-clientes">' + clientes().map(function (x) { return '<option value="' + esc(String(x.n || '').toUpperCase()) + '">' + esc(x.c ? 'N° ' + x.c : '') + '</option>'; }).join('') + '</datalist>'
@@ -2010,6 +2010,7 @@
     var edPre = S.editor && !S.solo && pedidoDe(p.id);
     var num = cam && pos != null;
     var h = '<div class="log-ped' + (num ? '' : ' sin-num') + '">' + (num ? '<span class="log-num" aria-label="Lugar ' + (pos + 1) + '">' + (pos + 1) + '</span>' : '') + '<div class="log-body"><div class="log-cab">'
+      + (S.editor && !S.solo && pedidoDe(p.id) ? '<label class="chk log-chk"><input type="checkbox" data-sel="' + id + '"' + (S.sel[p.id] && S.selDia === S.fl ? ' checked' : '') + ' aria-label="Tildar a ' + esc(p.cliente) + ' para un camión"></label>' : '')
       + '<strong>' + esc(p.cliente || 'Sin cliente') + '</strong>' + ctaHTML(p.cuenta) + frioBadge(p.frio)
       + '<span class="small muted">' + esc(kgTxt({ kg: +p.kg || 0, falta: p.kgFalta, manual: p.kgManual })) + '</span>';
     var ke = -1; if (S.editor) (S.prop || []).forEach(function (x, i) { if (x.editaId === p.id) ke = i; });
@@ -2046,6 +2047,9 @@
       el.innerHTML = h; pintarMsg('log'); pintarMsg('flota'); return;
     }
     if (S.resumen) { el.innerHTML = h + resumenDiaHTML(f, cams, peds); pintarMsg('log'); return; }
+    var tildL = S.editor && !S.solo && S.selDia === f ? (S.pedidos || []).filter(function (p) { return S.sel[p.id] && p.entrega === f; }) : [];
+    if (tildL.length) h += '<div class="log-barra">' + barraCamionHTML(f, tildL) + '</div>';
+    if (S.editor && !S.solo) h += '<p class="small muted log-tip">Tildá clientes (☐ al lado del nombre) para mandarlos juntos a un camión del día, a uno del stock o a uno nuevo.</p>';
     h += '<p class="muted">Para entregar ' + esc(cuandoEs(f)) + ': ' + resumenLog(peds) + (cams.length ? ' · ' + cams.length + (cams.length === 1 ? ' camión' : ' camiones') : '') + '.</p>';
     cams.forEach(function (cam, k) {
       var suyos = peds.filter(function (p) { return p.camion === cam.id; }), ed = S.ec === cam.id;

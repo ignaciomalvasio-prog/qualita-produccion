@@ -386,6 +386,11 @@ button.cam-num{background:none;color:inherit;cursor:pointer}
 .solo-print{display:none!important}
 .pos-ctl{display:inline-flex;align-items:center;gap:4px}
 .hoja-c3 .hoja-sup{color:var(--accent)}
+.log-barra{position:fixed;left:12px;right:12px;bottom:12px;z-index:50;max-width:1200px;margin:0 auto;box-shadow:0 8px 28px rgba(0,40,60,.28);border-radius:6px;background:var(--surface)}
+#view-logistica:has(.log-barra){padding-bottom:150px}
+.log-chk{display:inline-flex;align-items:center;margin-right:2px}.log-chk input{width:20px;height:20px;accent-color:var(--accent);cursor:pointer}
+.log-tip{margin:0}
+@media print{ .log-barra,.log-chk,.log-tip{display:none!important} }
 .hoja-acc{margin:2px 0 10px;padding-bottom:10px;border-bottom:1px solid var(--line)}
 .pv-tabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:2px solid var(--line);padding-bottom:0}
 .pv-tabs .btn{border-radius:6px 6px 0 0;border-bottom:0;margin-bottom:-2px;font-weight:700;padding:9px 16px}
