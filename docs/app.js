@@ -411,13 +411,12 @@
     var h = '<div class="panel hoja op-hoja"><header class="hoja-cab"><div><p class="hoja-sup">Orden de producción</p><h2>' + esc(tituloDe(f)) + '</h2></div>'
       + '<div class="hoja-dato"><b>' + n(+o.medias || 0) + '½</b><span>' + esc(o.mercado || 'medias') + '</span></div>'
       + (o.estado === 'borrador' ? '<span class="badge warn">Borrador</span>' : '<span class="badge ok">Confirmada</span>') + '</header>';
+    h += '<div class="acciones hoja-acc">' + (S.editor ? '<button class="btn pri" data-act="p-editar" data-id="op-' + f + '">Editar la orden</button>' : '') + '<button class="btn" data-act="copiar" data-t="op">Copiar como texto</button><span class="small muted" id="copiado-op" aria-live="polite"></span></div>';
     h += '<div class="op-lista">' + (o.cortes || []).map(function (c) {
       var ls = c.lineas.length ? c.lineas : [{ t: '' }];
       return '<div class="op-c"><p><u class="op-corte">' + esc(c.corte || '') + '</u>: ' + opLineaHTML(ls[0].t) + '</p>' + ls.slice(1).map(function (l) { return '<p class="op-sig">' + opLineaHTML(l.t) + '</p>'; }).join('') + '</div>';
     }).join('') + '</div>';
-    h += '<div class="acciones"><button class="btn" data-act="copiar" data-t="op">Copiar como texto</button>'
-      + (S.editor ? '<button class="btn" data-act="p-editar" data-id="op-' + f + '">Editar la orden</button>' : '')
-      + '<span class="small muted" id="copiado-op" aria-live="polite"></span></div><textarea id="txt-op" class="txt" readonly hidden aria-label="Orden en texto">' + esc(opTexto(o)) + '</textarea></div>';
+    h += '<textarea id="txt-op" class="txt" readonly hidden aria-label="Orden en texto">' + esc(opTexto(o)) + '</textarea></div>';
     return h;
   }
   function diaProd(id) { return String(id || '').replace(/^c3-/, ''); }
@@ -543,16 +542,19 @@
     var h = '<div class="panel hoja' + (c3 ? ' hoja-c3' : '') + '"' + (c3 ? ' id="embutidos"' : '') + '><header class="hoja-cab"><div><p class="hoja-sup">' + (c3 ? (S.solo ? 'Ciclo III · Embutidos' : 'Ciclo III') : 'Planilla de producción') + '</p><h2>' + esc(c3 && !S.solo ? 'Embutidos' : tituloDe(f)) + '</h2></div>'
       + (c3 ? (kgOrden(o) ? '<div class="hoja-dato"><b>' + n(kgOrden(o)) + '</b><span>kg</span></div>' : '') : '<div class="hoja-dato"><b>' + n(+o.medias || 0) + '</b><span>medias' + (o.mercado ? ' · ' + esc(o.mercado) : '') + '</span></div>')
       + (o.estado === 'borrador' ? '<span class="badge warn">Borrador</span>' : '<span class="badge ok">Confirmada</span>') + '</header>';
+    var acc = '<div class="acciones hoja-acc">'
+      + (S.editor ? '<button class="btn pri" data-act="p-editar" data-id="' + (c3 ? 'c3-' : '') + f + '">' + (c3 ? 'Editar embutidos' : 'Editar') + '</button>' : '')
+      + '<button class="btn" data-act="copiar" data-t="' + k + '">Copiar como texto</button>'
+      + (S.editor && !c3 ? '<button class="btn" data-act="ir-pedidos" data-f="' + f + '">Sumar cortes desde los pedidos</button>' : '')
+      + (S.editor && c3 ? '<button class="btn" data-act="link-c3">Copiar link para el Ciclo III</button>' : '')
+      + '<span class="small muted" id="copiado-' + k + '" aria-live="polite"></span></div>';
+    h += acc;
     if (!nl) h += '<p class="muted">Todavía no se sumó ningún ' + (c3 ? 'embutido' : 'corte') + '.</p>';
     else h += '<div class="hoja-cortes">' + (o.cortes || []).map(function (c) {
       var tot = totalCorte(c);
       return '<div class="hoja-corte"><div class="hoja-nom"><h3>' + esc(c.corte || 'Sin corte') + '</h3>' + (tot ? '<p class="hoja-tot"><span>Total</span> ' + esc(tot) + '</p>' : '') + '</div><ul>' + c.lineas.map(function (l) { return '<li>' + lineaHojaHTML(enKg(l.t, c.corte)) + (l.f ? ' ' + frioBadge(l.f) : '') + '</li>'; }).join('') + '</ul></div>';
     }).join('') + '</div>';
-    h += '<div class="acciones"><button class="btn" data-act="copiar" data-t="' + k + '">Copiar como texto</button>'
-      + (S.editor ? '<button class="btn" data-act="p-editar" data-id="' + (c3 ? 'c3-' : '') + f + '">' + (c3 ? 'Editar embutidos' : 'Editar') + '</button>' : '')
-      + (S.editor && !c3 ? '<button class="btn" data-act="ir-pedidos" data-f="' + f + '">Sumar cortes desde los pedidos</button>' : '')
-      + (S.editor && c3 ? '<button class="btn" data-act="link-c3">Copiar link para el Ciclo III</button>' : '')
-      + '<span class="small muted" id="copiado-' + k + '" aria-live="polite"></span></div><textarea id="txt-' + k + '" class="txt" readonly hidden aria-label="Planilla en texto">' + esc(textoOrden(o)) + '</textarea></div>';
+    h += '<textarea id="txt-' + k + '" class="txt" readonly hidden aria-label="Planilla en texto">' + esc(textoOrden(o)) + '</textarea></div>';
     return h;
   }
   function renderProduccion() {
