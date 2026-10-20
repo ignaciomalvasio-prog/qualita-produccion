@@ -1533,9 +1533,10 @@
   function cuandoEs(f) { return f === mas(hoy(), 1) ? 'mañana' : f === hoy() ? 'hoy' : 'el ' + tituloDe(f).toLowerCase(); }
   // Marca en el listado: cuántos cortes del pedido ya se mandaron a producción.
   function prodBadgeHTML(enP, tot) {
-    if (!tot || !enP) return '';
-    return enP >= tot ? '<span class="badge ok" title="Todos los cortes están en producción">✓ En producción</span>'
-      : '<span class="badge warn" title="Faltan cortes por mandar a producción">En producción ' + enP + ' de ' + tot + '</span>';
+    if (!tot) return '<span class="pr-est nada" title="Solo medias: no hay cortes para mandar a producción">—</span>';
+    if (!enP) return '<span class="pr-est no" title="Todavía no se mandó a producción"><b aria-hidden="true">✗</b> Sin producción</span>';
+    return enP >= tot ? '<span class="pr-est si" title="Todos los cortes están en producción"><b aria-hidden="true">✓</b> En producción</span>'
+      : '<span class="pr-est parte" title="Faltan cortes por mandar a producción"><b aria-hidden="true">✓</b> ' + enP + ' de ' + tot + ' en producción</span>';
   }
   // Kilos totales del pedido (medias, cajas y unidades pasadas a kilos, o los que se cargaron a mano).
   function kgPedHTML(p) {
@@ -1550,8 +1551,8 @@
     if (cs.length) res.push(cs.length + (cs.length === 1 ? ' corte' : ' cortes'));
     var h = '<div class="ped' + (ab ? ' abierto' : '') + (sel ? ' sel' : '') + '"><div class="ped-cab">'
       + '<label class="chk"><input type="checkbox" data-sel="' + id + '"' + (sel ? ' checked' : '') + ' aria-label="Tildar el pedido de ' + esc(p.cliente) + ' para un camión"></label>'
-      + '<button class="ped-tit" data-act="ped-abrir" data-id="' + id + '" aria-expanded="' + ab + '"><span class="nom">' + esc(p.cliente || 'Sin cliente') + '</span>' + ctaHTML(cuentaPedido(p), true) + '<span class="res">' + res.join(' · ') + (p.frio ? ' ' + frioBadge(p.frio) : '') + '</span>' + kgPedHTML(p)
-      + (cam || p.vendedor || enP ? '<span class="marcas">' + prodBadgeHTML(enP, cs.length) + (p.vendedor ? '<span class="badge vend" title="' + esc(p.vendedor) + '">Vendedor: ' + esc(p.vendedorNombre || p.vendedor.split('@')[0]) + '</span>' : '') + (cam ? '<span class="badge plain">' + esc(cam) + '</span>' : '') + '</span>' : '') + '<span class="chev" aria-hidden="true">' + (ab ? '▴' : '▾') + '</span></button></div>';
+      + '<button class="ped-tit" data-act="ped-abrir" data-id="' + id + '" aria-expanded="' + ab + '"><span class="nom">' + esc(p.cliente || 'Sin cliente') + '</span>' + ctaHTML(cuentaPedido(p), true) + '<span class="res">' + res.join(' · ') + (p.frio ? ' ' + frioBadge(p.frio) : '') + '</span>'
+      + (cam || p.vendedor ? '<span class="marcas">' + (p.vendedor ? '<span class="badge vend" title="' + esc(p.vendedor) + '">Vendedor: ' + esc(p.vendedorNombre || p.vendedor.split('@')[0]) + '</span>' : '') + (cam ? '<span class="badge plain">' + esc(cam) + '</span>' : '') + '</span>' : '') + '<span class="col-kg">' + kgPedHTML(p) + '</span><span class="col-prod">' + prodBadgeHTML(enP, cs.length) + '</span><span class="chev" aria-hidden="true">' + (ab ? '▴' : '▾') + '</span></button></div>';
     if (!ab) return h + '</div>';
     h += '<div class="ped-det">' + elegirCuentaHTML(p) + '<div class="op-ped">';
     if (+p.medias) h += '<p class="lp"><span class="lp-izq"><span class="lc-corte">Medias</span><span class="lc-txt">' + cantHTML(textoMedias(p)) + '</span></span><span class="lp-der">' + precioHTML(p.id, 'm', p.precioMedias, 'las medias', p.ivaMedias) + '</span></p>';

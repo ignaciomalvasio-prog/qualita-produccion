@@ -17,7 +17,7 @@ for(const w of [1100,400]){const p=await b.newPage({viewport:{width:w,height:900
 await p.clock.install({time:new Date('2026-10-19T12:00:00-03:00')});
 await p.addInitScript(d=>{window.__mock={data:JSON.parse(JSON.stringify(d)),user:{email:'yo@x.com'},editores:['yo@x.com']}},data);
 await p.goto('http://127.0.0.1:8765/index.html#pedidos');await p.clock.runFor(1500);await p.waitForSelector('#view-pedidos .ped');
-const marca=async c=>((await p.locator('#view-pedidos .ped',{hasText:c}).locator('.ped-tit .marcas').innerText().catch(()=>''))||'(sin marca)').replace(/\s+/g,' ').trim();
+const marca=async c=>((await p.locator('#view-pedidos .ped',{hasText:c}).locator('.ped-tit .col-prod').innerText().catch(()=>''))||'(sin marca)').replace(/\s+/g,' ').trim();
 for(const c of ['GRION','ROVER','BOCANTINO','MONTEVERDE'])console.log(w,c,'→',await marca(c));
 // Sumar el corte que falta de ROVER desde el pedido abierto y ver que la marca cambia.
 await p.locator('#view-pedidos .ped',{hasText:'BOCANTINO'}).locator('[data-act="ped-abrir"]').click();await p.waitForTimeout(100);

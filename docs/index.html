@@ -291,7 +291,15 @@ h1 a{color:inherit;text-decoration:none}
 .ped-tit:hover .nom{text-decoration:underline}
 .ped-tit .nom{font:700 18px var(--display);text-transform:uppercase;letter-spacing:.02em}
 .ped-tit .res{color:var(--muted);font-size:15px;flex:1 1 auto}
-.kg-ped{flex:0 0 auto;font:700 16px var(--display);color:var(--ink);background:var(--accent-soft);border-radius:4px;padding:2px 8px;white-space:nowrap}
+.ped-tit .col-kg{flex:0 0 110px;text-align:right;margin-left:auto}
+.ped-tit .col-prod{flex:0 0 220px;display:flex}
+.kg-ped{display:inline-block;font:700 16px var(--display);color:var(--ink);background:var(--accent-soft);border-radius:4px;padding:2px 8px;white-space:nowrap}
+.pr-est{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;white-space:nowrap;padding:3px 10px;border-radius:4px}
+.pr-est b{font-size:17px;line-height:1}
+.pr-est.si{background:var(--ok-soft);color:var(--ok)}
+.pr-est.no{background:var(--crit-soft);color:var(--crit)}
+.pr-est.parte{background:var(--warn-soft);color:var(--warn)}
+.pr-est.nada{color:var(--muted);padding-left:14px}
 .kg-ped small{font:600 12px var(--body);color:var(--warn)}
 .ped-tit .marcas{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto}
 .ped-tit .chev{color:var(--muted);width:16px;text-align:center}
@@ -437,7 +445,7 @@ body:has(.res-cam.arrastrando){cursor:grabbing;user-select:none}
 .log-cortes select.uni{font:600 12px var(--body);text-transform:uppercase;padding:1px 4px;margin:1px 2px;border:1px solid var(--line);border-radius:4px;background:var(--surface);color:var(--ink);vertical-align:middle}
 .log-cortes select.uni.falta{border-color:var(--warn);background:var(--warn-soft);color:var(--warn)}
 @media print{.log-cortes select.uni{display:none}}
-@media (max-width:560px){ .ped-det{padding-left:8px} .ped-tit .res{flex:1 1 auto} .ped-tit .chev{order:2} .ped-tit .marcas{order:3;margin-left:0;flex-basis:100%} .op-ped p.lp{flex-direction:column;align-items:flex-start;gap:6px} .op-ped .nota-lp{text-align:left} }
+@media (max-width:560px){ .ped-det{padding-left:8px} .ped-tit .res{flex:1 1 auto} .ped-tit .chev{order:2} .ped-tit .marcas{order:3;margin-left:0;flex-basis:100%} .ped-tit .col-kg,.ped-tit .col-prod{order:4;flex:0 0 auto;margin-left:0;text-align:left} .op-ped p.lp{flex-direction:column;align-items:flex-start;gap:6px} .op-ped .nota-lp{text-align:left} }
 details > summary{cursor:pointer;font-weight:600;color:var(--accent)}
 details[open] > summary{margin-bottom:10px}
 .pie{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;justify-content:space-between}
