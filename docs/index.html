@@ -67,7 +67,7 @@ html,body{overflow-x:clip}
   .marca img{height:50px;margin-bottom:0}
   .marca-nom{font-size:19px}
   .tabs{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);width:100%;gap:3px}
-  .tabs.muchas{grid-auto-flow:row;grid-template-columns:repeat(3,minmax(0,1fr))}
+  .tabs.muchas{grid-auto-flow:row;grid-template-columns:repeat(4,minmax(0,1fr))}
   .tab{padding:8px 2px;min-height:40px;font-size:clamp(12.5px,3.7vw,16px);letter-spacing:.01em;background:var(--sunken)}
 }
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -391,6 +391,20 @@ button.cam-num{background:none;color:inherit;cursor:pointer}
 .res-cong{font-size:12px;font-weight:700;text-transform:uppercase;border:1px solid #111;border-radius:3px;padding:0 3px}
 .res-nota{font-size:14px;color:#444}
 .res-ayuda{margin-top:-6px;text-align:center}
+.rend-hero{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--line);border-left:5px solid var(--accent);border-radius:8px;padding:14px 16px}
+.rend-hero h2{font-size:24px}.rend-hero .kpis{display:flex;flex-wrap:wrap;gap:8px}.rend-hero .kpi{cursor:default;background:var(--sunken);border-color:var(--line);color:var(--ink);min-width:110px}
+.rend-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.rend-tabla h3,.rend-hist + h3{margin-bottom:6px}
+.rend-tabla td:first-child{text-transform:none}
+.rend-como{display:block;font-size:12px;color:var(--muted);font-weight:400;text-transform:none}
+.rend-tabla .num,.rend-hist .num{text-align:right;white-space:nowrap}
+.rend-in{width:110px;text-align:right;font-weight:700}
+.rend-in::placeholder{color:var(--muted);font-weight:400}
+.rend-tabla tfoot td{border-top:2px solid var(--ink);font-weight:700}
+.rend-hist tr.sel td{background:var(--accent-soft)}
+.rend-cfg summary{cursor:pointer;font-weight:700}
+.rend-ayuda{margin-top:-4px}
+@media (max-width:700px){ .rend-grid{grid-template-columns:1fr} .rend-in{width:90px} }
 .log-edit{margin-top:8px}.log-edit .card{border:1.5px solid var(--accent);border-radius:6px}
 .log-precio{display:inline-block;text-transform:none;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:4px;padding:0 6px;margin-left:4px;white-space:nowrap}
 .res-cam.movible .res-tit{display:flex;align-items:center;gap:6px}
@@ -533,6 +547,7 @@ details[open] > summary{margin-bottom:10px}
       <button class="tab" role="tab" id="tab-produccion" data-tab="produccion" aria-selected="false">Producción</button>
       <button class="tab" role="tab" id="tab-logistica" data-tab="logistica" aria-selected="false">Logística</button>
       <button class="tab" role="tab" id="tab-medias" data-tab="medias" aria-selected="false">Medias</button>
+      <button class="tab" role="tab" id="tab-rendering" data-tab="rendering" aria-selected="false">Rendering</button>
       <button class="tab" role="tab" id="tab-clientes" data-tab="clientes" aria-selected="false" hidden>Clientes</button>
     </nav>
   </header>
@@ -543,6 +558,7 @@ details[open] > summary{margin-bottom:10px}
     <section class="view" id="view-ciclo3" hidden></section>
     <section class="view" id="view-logistica" hidden></section>
     <section class="view" id="view-medias" hidden></section>
+    <section class="view" id="view-rendering" hidden></section>
     <section class="view" id="view-clientes" hidden></section>
   </main>
   <footer class="pie small muted"><span id="stamp"></span><span id="sesion" class="acciones"></span></footer>

@@ -6,6 +6,15 @@
     ],
     "headers": [
       {
+        "source": "/rendering",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      },
+      {
         "source": "/ciclo3",
         "headers": [
           {

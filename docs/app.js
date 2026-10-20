@@ -27,7 +27,7 @@
 
   var SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
   var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-  var TABS = ['inicio', 'pedidos', 'produccion', 'ciclo3', 'logistica', 'medias', 'clientes'];
+  var TABS = ['inicio', 'pedidos', 'produccion', 'ciclo3', 'logistica', 'medias', 'rendering', 'clientes'];
   var CORTES_BASE = ['JAMON', 'PALETA', 'PECHO', 'CARRE', 'SOLOMILLO', 'MATAMBRE', 'BONDIOLA', 'RECORTE', 'GRASA BUENA', 'GRASA MALA', 'CUERO', 'TAPA DE PALETA', 'TAPA DE JAMON', 'TORTUGA', 'GARRON', 'TOCINO', 'CHURRASCO', 'PAPADA', 'OREJAS', 'CABEZA', 'PULMON', 'HIGADO', 'PATAS Y MANOS', 'HUESITOS', 'UNTO', 'MENUDENCIAS', 'EMBUTIDOS', 'CHORIZO', 'MORCILLA', 'SALCHICHA'];
 
   var S = {
@@ -1919,6 +1919,7 @@
      Arriba, el día con el que se está trabajando y sus números clave; después los avisos de lo que falta
      (solo para quien carga), una tarjeta por sección y, para quien carga, los próximos días. */
   var ICONOS = {
+    rendering: '<path d="M6 20h12M8 20V9h8v11"/><path d="M10 9V5h4v4"/><path d="M10 13h4M10 16h4"/>',
     pedidos: '<path d="M9 4h6l1 2h3v14H5V6h3z"/><path d="M9 11h6M9 15h4"/>',
     produccion: '<path d="M4 20V10l5 3V10l5 3V6l6 4v10z"/><path d="M8 17h2M13 17h2"/>',
     ciclo3: '<path d="M6 8c0-2 2-3 3.5-1.5S12 9 14 7s4 0 4 2-2 3-3.5 1.5S12 9 10 11s-4 0-4-3z"/><path d="M6 16c0-2 2-3 3.5-1.5S12 17 14 15s4 0 4 2-2 3-3.5 1.5S12 17 10 19s-4 0-4-3z"/>',
@@ -2009,6 +2010,8 @@
     var ma = medNum(f), mb = medNum(sig);
     html += tarjeta('medias', 'Medias', rot(f), ma.c ? [[ma.c, plural(ma.c, 'cliente', 'clientes')], [ma.a, plural(ma.a, 'animal', 'animales')]] : [], 'Sin ventas cargadas', '',
       pie(mb.c ? neg(mb.c, 'cliente', 'clientes') + ' · ' + neg(mb.a, 'animal', 'animales') : 'Sin ventas cargadas'));
+    var rq = rendDia(rendFechaInicial());
+    html += tarjeta('rendering', 'Rendering', (rendFechaInicial() === h ? 'Hoy · ' : '') + diaCorto(rendFechaInicial()), rq.tIns ? [[rq.tIns, 'kg de insumos'], [rq.tProd, 'kg producidos']] : [], 'Sin faena ni desposte cargados', '', '');
     if (S.editor) {
       var lc = clientes(), sn = lc.filter(function (x) { return !x.c; }).length;
       html += tarjeta('clientes', 'Clientes', 'Números de cuenta', lc.length ? [[lc.length, plural(lc.length, 'cliente', 'clientes')]].concat(sn ? [[sn, 'sin número']] : []) : [], 'Todavía no hay clientes cargados', '', '');
@@ -2052,7 +2055,7 @@
     // Si la página se abrió (o se recargó sola) en Pedidos o Clientes, se vuelve ahí apenas se confirma el permiso.
     if ((S.tab === 'pedidos' || S.tab === 'clientes') && !S.editor) { S.volver = S.tab; S.tab = 'inicio'; }
     TABS.forEach(function (t) { $('view-' + t).hidden = S.tab !== t; if (S.tab !== t) $('view-' + t).innerHTML = ''; var tb = $('tab-' + t); if (tb) tb.setAttribute('aria-selected', String(S.tab === t)); });
-    if (S.tab === 'medias') renderMedias(); else if (S.tab === 'pedidos') renderPedidos(); else if (S.tab === 'produccion' || S.tab === 'ciclo3') renderProduccion(); else if (S.tab === 'logistica') renderLogistica(); else if (S.tab === 'clientes') renderClientes(); else renderInicio();
+    if (S.tab === 'medias') renderMedias(); else if (S.tab === 'pedidos') renderPedidos(); else if (S.tab === 'produccion' || S.tab === 'ciclo3') renderProduccion(); else if (S.tab === 'logistica') renderLogistica(); else if (S.tab === 'rendering') renderRendering(); else if (S.tab === 'clientes') renderClientes(); else renderInicio();
   }
   // Cuando llegan datos nuevos no se redibuja la pantalla en la que se está escribiendo.
   function renderDatos() {
@@ -2073,8 +2076,8 @@
     if (S._c2 && S._c2 !== a + (D.i == null ? '' : D.i)) S._c2 = null;
 
     if (a === 'actualizar') { recargar(); return; }
-    if (a === 'link-log' || a === 'link-prod' || a === 'link-c3') {
-      var pag = a === 'link-c3' ? 'ciclo3' : a === 'link-prod' ? 'produccion' : 'logistica', km = a === 'link-log' ? 'log' : 'prod', nom = a === 'link-c3' ? 'Ciclo III' : a === 'link-prod' ? 'Producción' : 'Logística';
+    if (a === 'link-log' || a === 'link-prod' || a === 'link-c3' || a === 'link-rend') {
+      var pag = a === 'link-rend' ? 'rendering' : a === 'link-c3' ? 'ciclo3' : a === 'link-prod' ? 'produccion' : 'logistica', km = a === 'link-log' ? 'log' : a === 'link-rend' ? 'rend' : 'prod', nom = a === 'link-rend' ? 'Rendering' : a === 'link-c3' ? 'Ciclo III' : a === 'link-prod' ? 'Producción' : 'Logística';
       var url = location.origin + location.pathname.replace(/[^\/]*$/, '') + pag, listo = function () { S.msg[km] = 'Link copiado: ' + url; pintarMsg(km); avisar('Link de ' + nom + ' copiado. Pegalo donde quieras compartirlo.', 6000); };
       var aMano = function () { S.msg[km] = 'Link para compartir: ' + url; pintarMsg(km); avisar('Link para compartir: ' + url, 15000); };
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(listo, aMano); else aMano();
@@ -2166,6 +2169,9 @@
     else if (a === 'm-quitar') { S.em.doc.dias[+D.i][D.m].splice(+D.r, 1); guardar('medias'); render(); }
 
     // producción
+    else if (a === 'fr') { var y = S.fr; do { y = mas(y, +D.d); } while (!esHabil(y)); S.fr = y; render(); }
+    else if (a === 'fr-hoy') { S.fr = rendFechaInicial(); render(); }
+    else if (a === 'fr-ir') { S.fr = D.f; render(); window.scrollTo(0, 0); }
     else if (a === 'fecha') { S.fechaFija = true; if (S.ep) guardar('prod', true); S.ep = null; var x = S.fecha; do { x = mas(x, +D.d); } while (!esHabil(x)); S.fecha = x; render(); }
     else if (a === 'p-nueva') { S.fechaFija = true; S.ep = { fecha: idActual(), doc: prodVacia(idActual()) }; S.ep.base = clone(S.ep.doc); S.msg.prod = ''; guardar('prod', true); render(); var pn = $('p-doc'); if (pn) { pn.focus(); pn.setSelectionRange(pn.value.length, pn.value.length); } }
     else if (a === 'p-editar') { S.fechaFija = true; if (S.ep) { guardar('prod', true); S.ep = null; } else { var ide = D.id || idActual(); S.ep = { fecha: ide, doc: clone(prodDe(ide)) }; S.ep.base = clone(S.ep.doc); S.msg.prod = ''; } render(); if (S.ep) { var pd = $('p-doc'); if (pd) { pd.focus(); pd.setSelectionRange(0, 0); window.scrollTo(0, 0); } } }
@@ -2385,6 +2391,9 @@
   });
   document.addEventListener('change', function (e) {
     var t = e.target, D = t.dataset;
+    if (t.id === 'r-fecha' && t.value) { S.fr = t.value; render(); return; }
+    if (D.rend) { var fq = S.fr; S.msg.rend = 'Guardando…'; pintarMsg('rend'); guardarRend(fq, D.rend, t.value).then(function () { S.msg.rend = 'Guardado.'; if (!escribiendo()) render(); else pintarMsg('rend'); }, function () { S.msg.rend = '!No se pudo guardar. Revisá la conexión.'; pintarMsg('rend'); }); return; }
+    if (D.rcfg) { S.rcfgAb = true; guardarRendCfg(D.rcfg, D.id, t.value).then(function () { S.msg.rend = 'Guardado.'; render(); }, function () { S.msg.rend = '!No se pudo guardar. Revisá la conexión.'; pintarMsg('rend'); }); return; }
     if (D.hora != null && t.classList.contains('res-hora')) { ponerHora(S.fl, D.hora, t.value).then(null, function () { S.msg.log = '!No se pudo guardar.'; render(); }); return; }
     if (t.id === 'p-fecha' && t.value) { if (S.ep) guardar('prod', true); S.ep = null; S.fechaFija = true; S.fecha = t.value; render(); }
     else if (t.id === 'm-fecha' && t.value) { S.fm = t.value; render(); }
@@ -2458,13 +2467,99 @@
   var h0 = (location.hash || '').slice(1); if (TABS.indexOf(h0) >= 0) S.tab = h0 === 'ciclo3' ? 'produccion' : h0;
   // Link para compartir con una sola pestaña: se ve esa sola, sin las demás y sin ingresar.
   // Es la página logistica.html (se arma con tools/paginas.py); el link viejo con ?solo=logistica sigue andando.
-  try { var qs = document.documentElement.getAttribute('data-solo') || new URLSearchParams(location.search).get('solo'); if (qs === 'logistica' || qs === 'produccion' || qs === 'ciclo3') { S.solo = qs; S.tab = qs; } } catch (err) {}
+  try { var qs = document.documentElement.getAttribute('data-solo') || new URLSearchParams(location.search).get('solo'); if (qs === 'logistica' || qs === 'produccion' || qs === 'ciclo3' || qs === 'rendering') { S.solo = qs; S.tab = qs; } } catch (err) {}
   if (S.solo) {
-    var tsolo = S.solo === 'produccion' ? 'Producción' : S.solo === 'ciclo3' ? 'Ciclo III' : 'Logística';
+    var tsolo = S.solo === 'produccion' ? 'Producción' : S.solo === 'ciclo3' ? 'Ciclo III' : S.solo === 'rendering' ? 'Rendering' : 'Logística';
     document.title = tsolo + ' Qualitá';
     var mf = document.querySelector('link[rel="manifest"]'); if (mf) mf.setAttribute('href', S.solo + '.webmanifest');
     var mn = document.querySelector('.marca-nom'); if (mn) mn.textContent = tsolo;
     document.documentElement.classList.add('solo');
+  }
+
+  /* ---------- rendering ----------
+     Solo informativo: los kilos que entran a rendering (insumos) y lo que sale (producidos), por día.
+     Se estiman solos con la faena (cerdos del día, de la planilla de Medias) y el desposte (medias de la
+     planilla de Producción); un editor puede corregir cualquier número del día y los factores del cálculo.
+     Se guarda en config/rendering (factores) y config/rend-AAAA-MM-DD (números corregidos a mano). */
+  var REND_INS = [
+    { id: 'sangre', nom: 'Sangre', por: 'cerdo', def: 3 },
+    { id: 'visceras', nom: 'Vísceras no comestibles', por: 'cerdo', def: 6 },
+    { id: 'hueso', nom: 'Hueso', por: 'media', def: 5 },
+    { id: 'grasa', nom: 'Grasa', por: 'media', def: 4 },
+    { id: 'recortes', nom: 'Recortes y descartes', por: 'media', def: 1.5 }
+  ];
+  var REND_PROD = [
+    { id: 'harina', nom: 'Harina de carne y hueso', de: ['hueso', 'visceras', 'recortes'], def: 28 },
+    { id: 'hsangre', nom: 'Harina de sangre', de: ['sangre'], def: 18 },
+    { id: 'gfundida', nom: 'Grasa fundida', de: ['grasa', 'hueso'], def: 45 }
+  ];
+  function rendFactor(tipo, x) { var c = S.rendCfg || {}, v = (c[tipo] || {})[x.id]; return v === 0 || v ? +v : x.def; }
+  function cerdosDe(f) { var sem = semDe(lunesDe(f)), i = Math.round((fecha(f) - fecha(lunesDe(f))) / 86400000), d = sem && sem.dias && sem.dias[i]; if (!d) return null; var t = sumas(d); return t.propios + t.usuarios || null; }
+  function mediasDe(f) { var o = prodDe(f); return o && +o.medias ? +o.medias : null; }
+  function rendDia(f) {
+    var man = ((S.rend || {})[f] || {}).v || {}, cer = cerdosDe(f), med = mediasDe(f), ins = {}, out = { f: f, cerdos: cer, medias: med, ins: [], prod: [], tIns: 0, tProd: 0, manual: 0 };
+    REND_INS.forEach(function (x) {
+      var k = rendFactor('ins', x), base = x.por === 'cerdo' ? cer : med, est = base ? Math.round(base * k) : null, m = man[x.id], v = m === 0 || m ? +m : est;
+      ins[x.id] = v || 0; if (m === 0 || m) out.manual++;
+      out.ins.push({ id: x.id, nom: x.nom, kg: v, est: est, manual: m === 0 || !!m, como: base ? n(k) + ' kg × ' + n(base) + (x.por === 'cerdo' ? ' cerdos' : ' medias') : (x.por === 'cerdo' ? 'falta la faena del día' : 'falta el desposte del día') });
+      out.tIns += v || 0;
+    });
+    REND_PROD.forEach(function (x) {
+      var p = rendFactor('prod', x), base = x.de.reduce(function (t, k) { return t + (ins[k] || 0); }, 0), est = base ? Math.round(base * p / 100) : null, m = man[x.id], v = m === 0 || m ? +m : est;
+      if (m === 0 || m) out.manual++;
+      out.prod.push({ id: x.id, nom: x.nom, kg: v, est: est, manual: m === 0 || !!m, como: n(p) + '% de ' + x.de.map(function (k) { return REND_INS.filter(function (y) { return y.id === k; })[0].nom.toLowerCase(); }).join(' + ') });
+      out.tProd += v || 0;
+    });
+    return out;
+  }
+  function guardarRend(f, id, valor) {
+    var doc = clone((S.rend || {})[f] || { fecha: f, v: {} }); delete doc.id; doc.v = doc.v || {};
+    if (valor === '' || valor == null) delete doc.v[id]; else doc.v[id] = +String(valor).replace(',', '.') || 0;
+    doc.actualizado = ahoraTxt(); S.rend = S.rend || {}; S.rend[f] = clone(doc);
+    return Object.keys(doc.v).length ? store.set('config', 'rend-' + f, doc) : (delete S.rend[f], store.del('config', 'rend-' + f));
+  }
+  function guardarRendCfg(tipo, id, valor) {
+    var c = clone(S.rendCfg || {}); delete c.id; c[tipo] = c[tipo] || {};
+    if (valor === '' || valor == null) delete c[tipo][id]; else c[tipo][id] = +String(valor).replace(',', '.') || 0;
+    c.actualizado = ahoraTxt(); S.rendCfg = clone(c);
+    return store.set('config', 'rendering', c);
+  }
+  function rendFechaInicial() { var h = hoy(); return esHabil(h) ? h : habilAnterior(h); }
+  function renderRendering() {
+    var el = $('view-rendering');
+    if (cargando(el, S.faena)) return;
+    if (!S.fr) S.fr = rendFechaInicial();
+    var f = S.fr, r = rendDia(f), ed = S.editor && !S.solo, kg = function (v) { return v == null ? '—' : n(v) + ' kg'; };
+    var h = '<div class="nav"><button class="btn step" data-act="fr" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + esc(tituloDe(f)) + '</span><button class="btn step" data-act="fr" data-d="1" aria-label="Día siguiente">›</button>'
+      + '<input type="date" id="r-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">'
+      + (f !== rendFechaInicial() ? '<button class="btn" data-act="fr-hoy">Hoy</button>' : '')
+      + '<button class="btn" data-act="imprimir">Imprimir</button>'
+      + (ed ? '<button class="btn" data-act="link-rend">Copiar link para compartir</button>' : '') + '<span class="guardado" id="g-rend"></span></div>';
+    var rinde = r.tIns ? Math.round(r.tProd / r.tIns * 1000) / 10 : null;
+    h += '<section class="rend-hero"><div><p class="dh-sup">Rendering · ' + esc(cuandoEs(f) === 'hoy' ? 'hoy' : diaCorto(f)) + '</p><h2>' + esc(tituloDe(f)) + '</h2>'
+      + '<p class="dh-sub">' + (r.cerdos ? n(r.cerdos) + ' cerdos faenados' : 'Sin faena cargada') + ' · ' + (r.medias ? n(r.medias) + ' medias despostadas' : 'sin desposte cargado') + '</p></div>'
+      + '<div class="kpis"><div class="kpi"><b>' + (r.tIns ? n(r.tIns) : '—') + '</b><span>kg de insumos</span></div><div class="kpi"><b>' + (r.tProd ? n(r.tProd) : '—') + '</b><span>kg producidos</span></div><div class="kpi"><b>' + (rinde == null ? '—' : n(rinde) + '%') + '</b><span>rendimiento</span></div></div></section>';
+    var tabla = function (tit, filas, tot) {
+      return '<div class="panel rend-tabla"><h3>' + tit + '</h3><table class="pl"><thead><tr><th>Producto</th><th class="num">Kg</th></tr></thead><tbody>' + filas.map(function (x) {
+        var val = ed ? '<input type="number" inputmode="decimal" step="any" min="0" class="rend-in" data-rend="' + x.id + '" value="' + esc(x.manual ? x.kg : '') + '" placeholder="' + esc(x.est == null ? '' : String(x.est)) + '" aria-label="Kilos de ' + esc(x.nom) + '"><span class="solo-print">' + kg(x.kg) + '</span>' : '<b>' + kg(x.kg) + '</b>';
+        return '<tr><td>' + esc(x.nom) + '<span class="rend-como">' + (x.manual ? 'Cargado a mano' + (x.est != null ? ' (estimado: ' + n(x.est) + ' kg)' : '') : 'Estimado: ' + esc(x.como)) + '</span></td><td class="num">' + val + '</td></tr>';
+      }).join('') + '</tbody><tfoot><tr><td>Total</td><td class="num"><b>' + kg(tot || null) + '</b></td></tr></tfoot></table></div>';
+    };
+    h += '<div class="rend-grid">' + tabla('Insumos (lo que entra)', r.ins, r.tIns) + tabla('Producidos (lo que sale)', r.prod, r.tProd) + '</div>';
+    if (ed) h += '<p class="small muted rend-ayuda">Los números en gris son estimados. Escribí encima para poner el real; si lo borrás, vuelve al estimado.</p>';
+    // Días anteriores
+    var dias = [], x = f; for (var i = 0; i < 10; i++) { dias.push(x); x = habilAnterior(x); }
+    h += '<div class="panel"><h3>Días anteriores</h3><table class="pl rend-hist"><thead><tr><th>Día</th><th class="num">Insumos</th><th class="num">Producidos</th><th class="num">Rend.</th></tr></thead><tbody>' + dias.map(function (d) {
+      var q = rendDia(d), rr = q.tIns ? Math.round(q.tProd / q.tIns * 1000) / 10 : null;
+      return '<tr' + (d === f ? ' class="sel"' : '') + '><td><button class="lnk" data-act="fr-ir" data-f="' + d + '">' + esc(diaCorto(d)) + '</button>' + (q.manual ? ' <span class="badge plain">con datos reales</span>' : '') + (q.tIns && (!q.cerdos || !q.medias) ? ' <span class="badge warn">' + (!q.medias ? 'falta desposte' : 'falta faena') + '</span>' : '') + '</td><td class="num">' + (q.tIns ? n(q.tIns) + ' kg' : '—') + '</td><td class="num">' + (q.tProd ? n(q.tProd) + ' kg' : '—') + '</td><td class="num">' + (rr == null ? '—' : n(rr) + '%') + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+    if (ed) {
+      h += '<details class="panel rend-cfg"' + (S.rcfgAb ? ' open' : '') + '><summary>Cómo se calcula el estimado</summary><p class="small muted">Valen para todos los días. Se cambian acá y se guardan solos.</p><div class="campos">'
+        + REND_INS.map(function (y) { return '<label class="campo"><span>' + esc(y.nom) + ' (kg por ' + y.por + ')</span><input type="number" inputmode="decimal" step="any" min="0" data-rcfg="ins" data-id="' + y.id + '" value="' + esc(rendFactor('ins', y)) + '"></label>'; }).join('')
+        + REND_PROD.map(function (y) { return '<label class="campo"><span>' + esc(y.nom) + ' (% de ' + y.de.join(' + ') + ')</span><input type="number" inputmode="decimal" step="any" min="0" data-rcfg="prod" data-id="' + y.id + '" value="' + esc(rendFactor('prod', y)) + '"></label>'; }).join('')
+        + '</div></details>';
+    }
+    el.innerHTML = h; pintarMsg('rend');
   }
 
   /* ---------- datos ---------- */
@@ -2555,7 +2650,9 @@
     store.sub('produccion', function (l) { if (S.fuente === 'respaldo' && !l.length) return; S.prod = ordenar(l.map(function (x) { x.fecha = x.fecha || x.id; return x; })); llego('prod'); }, fallo);
     store.sub('config', function (l) {
       var c = l.filter(function (x) { return x.id === 'general'; })[0], lg = {};
-      l.forEach(function (x) { if (String(x.id).indexOf('log-') === 0) { (x.camiones || []).forEach(horaDeNota); lg[x.id.slice(4)] = x; } });
+      var rd = {}, rc = null;
+      l.forEach(function (x) { var k = String(x.id); if (k.indexOf('log-') === 0) { (x.camiones || []).forEach(horaDeNota); lg[x.id.slice(4)] = x; } else if (k.indexOf('rend-') === 0) rd[k.slice(5)] = x; else if (k === 'rendering') rc = x; });
+      S.rend = rd; S.rendCfg = rc;
       // Mientras se edita el stock de camiones, lo que se está escribiendo no se pisa con lo que llega.
       if (c && S.ef) { c.flota = S.config.flota; c.kgMedia = S.config.kgMedia; c.kgCaja = S.config.kgCaja; }
       S.log = lg; S.logListo = true; if (c) S.config = c;
