@@ -29,7 +29,7 @@ for nombre, (titulo, desc) in PAGINAS.items():
         ('<meta property="og:description" content="Pedidos, producción, logística y medias del Frigorífico Qualitá.">', '<meta property="og:description" content="%s">' % desc),
         ('<link rel="manifest" href="manifest.webmanifest">', '<link rel="manifest" href="%s.webmanifest">' % nombre),
         ('<title>Producción y Logística Qualitá</title>', '<title>%s Qualitá</title>' % titulo),
-        ('<span class="marca-nom">Producción y logística</span>', '<span class="marca-nom">%s</span>' % titulo),
+        ('<span class="marca-nom">Centro de producción y logística</span>', '<span class="marca-nom">%s</span>' % titulo),
     ]
     for viejo, nuevo in cambios:
         if s.count(viejo) != 1:
