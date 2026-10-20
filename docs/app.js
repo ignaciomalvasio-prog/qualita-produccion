@@ -445,8 +445,25 @@
   /* En producción todo se muestra en kilos: una caja o un canasto pesa 20 kg (o lo que diga "CAJAS DE 15KG").
      Lo que va en canastos lo aclara al final. Lo guardado no cambia: es solo cómo se muestra e imprime. */
   function kgCanasto() { return +S.config.kgCanasto || 20; }
-  function enKg(t) {
-    var s = String(t || ''), m = s.match(/^\s*([\d.,]+)\s*(CANASTOS?|CANASTAS?|CAJAS?|CJS?\.?)(?:\s+(?:DE|X)\s*([\d.,]+)\s*(?:KGS?|KILOS?)\.?)?(?=\s|$)/i);
+  /* Peso de una unidad de cada producto (lo pasó Renzo). Un renglón en unidades ("4 UNIDADES BONDIOLA") se pasa a kilos con esto.
+     Se puede cambiar en Logística → Stock de camiones → Editar. El producto se busca en el texto y, si no está, en el corte. */
+  var KG_UNIDAD_BASE = [['PECHO', 5], ['CARRE', 5], ['BONDIOLA', 2.5], ['MATAMBRE', 1.5], ['JAMON', 12], ['PALETA', 7.5], ['MEDIA', 50], ['CINTA DE LOMO', 3.5]];
+  function kgUnidades() {
+    return kgUnidadesLista().filter(function (x) { return x[0] && x[1] > 0; }).sort(function (a, b) { return b[0].length - a[0].length; });
+  }
+  function kgUnidadesLista() { return Array.isArray(S.config && S.config.kgUnidad) ? S.config.kgUnidad.map(function (x) { return [norm(x.p), +x.kg || 0]; }) : KG_UNIDAD_BASE; }
+  function kgUnidadDe(texto, corte) {
+    var l = kgUnidades(), busca = function (t) { t = ' ' + norm(t) + ' '; for (var i = 0; i < l.length; i++) { if (new RegExp('[^A-Z]' + l[i][0].replace(/ /g, '\\s+') + '(S|ES)?[^A-Z]').test(t)) return l[i][1]; } return 0; };
+    return busca(texto) || (corte ? busca(corte) : 0);
+  }
+  function enKg(t, corte) {
+    var su = String(t || ''), mu = su.match(/^\s*([\d.,]+)\s*(UNIDADES|UNIDAD|UNID|UND|U)\.?(?=\s|$)/i);
+    if (mu) {
+      var porU = kgUnidadDe(su.slice(mu[0].length), corte);
+      if (porU) { var resto0 = su.slice(mu[0].length).trim(); return String(Math.round(numero(mu[1]) * porU * 100) / 100).replace('.', ',') + 'KG' + (resto0 ? ' ' + resto0 : ''); }
+      return su;
+    }
+    var s = su, m = s.match(/^\s*([\d.,]+)\s*(CANASTOS?|CANASTAS?|CAJAS?|CJS?\.?)(?:\s+(?:DE|X)\s*([\d.,]+)\s*(?:KGS?|KILOS?)\.?)?(?=\s|$)/i);
     if (!m) return s;
     var canasto = /^CANAST/i.test(m[2]), por = m[3] ? numero(m[3]) : canasto ? kgCanasto() : kgCaja();
     var kg = Math.round(numero(m[1]) * por * 100) / 100, resto = s.slice(m[0].length).trim();
@@ -456,7 +473,7 @@
   function totalCorte(c) {
     var t = {}, orden = ['kg', 'cajas', 'und', 'bines'];
     (c.lineas || []).forEach(function (l) {
-      var m = norm(enKg(l.t)).match(/^([\d.,]+)\s*(KGS?|KILOS?|K|CAJAS?|CJS?|UND|UNIDAD(?:ES)?|UNID|U|BINES?)\b/);
+      var m = norm(enKg(l.t, c.corte)).match(/^([\d.,]+)\s*(KGS?|KILOS?|K|CAJAS?|CJS?|UND|UNIDAD(?:ES)?|UNID|U|BINES?)\b/);
       if (!m) return;
       var u = /^K/.test(m[2]) ? 'kg' : /^C/.test(m[2]) ? 'cajas' : /^B/.test(m[2]) ? 'bines' : 'und';
       t[u] = (t[u] || 0) + numero(m[1]);
@@ -466,7 +483,7 @@
   function textoOrden(o, sinFrio) {
     var out = [diaDe(o.fecha).toUpperCase() + ' ' + fechaCorta(o.fecha)].concat(o.linea === 'ciclo3' ? ['EMBUTIDOS · CICLO III'] : [(o.medias || '') + '½ ' + String(o.mercado || '').toUpperCase()]);
     (o.cortes || []).forEach(function (c) {
-      (c.lineas.length ? c.lineas : [{ t: '' }]).forEach(function (l, i) { out.push(((i === 0 ? c.corte + ': ' : '') + enKg(l.t) + (l.f && !sinFrio ? ' (' + l.f + ')' : '')).toUpperCase()); });
+      (c.lineas.length ? c.lineas : [{ t: '' }]).forEach(function (l, i) { out.push(((i === 0 ? c.corte + ': ' : '') + enKg(l.t, c.corte) + (l.f && !sinFrio ? ' (' + l.f + ')' : '')).toUpperCase()); });
       var tot = totalCorte(c); if (tot && c.lineas.length > 1) out.push('TOTAL ' + c.corte + ': ' + tot.toUpperCase());
     });
     return out.join('\n');
@@ -483,7 +500,7 @@
     if (!nl) h += '<p class="muted">Todavía no se sumó ningún ' + (c3 ? 'embutido' : 'corte') + '.</p>';
     else h += '<div class="hoja-cortes">' + (o.cortes || []).map(function (c) {
       var tot = totalCorte(c);
-      return '<div class="hoja-corte"><div class="hoja-nom"><h3>' + esc(c.corte || 'Sin corte') + '</h3>' + (tot ? '<p class="hoja-tot"><span>Total</span> ' + esc(tot) + '</p>' : '') + '</div><ul>' + c.lineas.map(function (l) { return '<li>' + lineaHojaHTML(enKg(l.t)) + (l.f ? ' ' + frioBadge(l.f) : '') + '</li>'; }).join('') + '</ul></div>';
+      return '<div class="hoja-corte"><div class="hoja-nom"><h3>' + esc(c.corte || 'Sin corte') + '</h3>' + (tot ? '<p class="hoja-tot"><span>Total</span> ' + esc(tot) + '</p>' : '') + '</div><ul>' + c.lineas.map(function (l) { return '<li>' + lineaHojaHTML(enKg(l.t, c.corte)) + (l.f ? ' ' + frioBadge(l.f) : '') + '</li>'; }).join('') + '</ul></div>';
     }).join('') + '</div>';
     h += '<div class="acciones"><button class="btn" data-act="copiar" data-t="' + k + '">Copiar como texto</button>'
       + (S.editor ? '<button class="btn" data-act="p-editar" data-id="' + (c3 ? 'c3-' : '') + f + '">' + (c3 ? 'Editar embutidos' : 'Editar') + '</button>' : '')
@@ -995,8 +1012,8 @@
   function kgMedia() { return +S.config.kgMedia || 47; }
   function kgCaja() { return +S.config.kgCaja || 20; }
   function numero(x) { x = String(x); return /^\d{1,3}(\.\d{3})+$/.test(x) ? +x.replace(/\./g, '') : +x.replace(',', '.') || 0; }
-  function kgDeTexto(t) {
-    var s = norm(enKg(t)), m = s.match(/^([\d.,]+)\s*(KGS?|KILOS?|K)\b/);
+  function kgDeTexto(t, corte) {
+    var s = norm(enKg(t, corte)), m = s.match(/^([\d.,]+)\s*(KGS?|KILOS?|K)\b/);
     if (m) return { kg: numero(m[1]) };
     m = s.match(/^([\d.,]+)\s*(CAJAS?|CJS?)\b/);
     if (m) return { kg: numero(m[1]) * kgCaja() };
@@ -1006,7 +1023,7 @@
   function kgPedido(p) {
     if (+p.kg > 0) return { kg: +p.kg, manual: true };
     var kg = (+p.medias || 0) * kgMedia(), falta = false;
-    (p.cortes || []).forEach(function (c) { if (!c.texto) return; var r = kgDeTexto(c.texto); kg += r.kg; if (r.falta) falta = true; });
+    (p.cortes || []).forEach(function (c) { if (!c.texto) return; var r = kgDeTexto(c.texto, c.corte); kg += r.kg; if (r.falta) falta = true; });
     return { kg: Math.round(kg), falta: falta };
   }
   function kgTxt(k) { return (k.manual ? '' : '≈ ') + n(k.kg) + ' kg' + (k.falta ? ' + renglones sin peso' : ''); }
@@ -1520,6 +1537,11 @@
     return enP >= tot ? '<span class="badge ok" title="Todos los cortes están en producción">✓ En producción</span>'
       : '<span class="badge warn" title="Faltan cortes por mandar a producción">En producción ' + enP + ' de ' + tot + '</span>';
   }
+  // Kilos totales del pedido (medias, cajas y unidades pasadas a kilos, o los que se cargaron a mano).
+  function kgPedHTML(p) {
+    var k = kgPedido(p); if (!k.kg && !k.falta) return '';
+    return '<span class="kg-ped' + (k.falta ? ' falta' : '') + '" title="' + (k.falta ? 'Hay renglones que no se pueden pasar a kilos' : 'Kilos totales del pedido') + '">' + (k.kg ? '<b>' + (k.manual ? '' : '≈ ') + n(k.kg) + ' kg</b>' + (k.falta ? '<small> + sin peso</small>' : '') : '<small>sin peso</small>') + '</span>';
+  }
   // Un pedido del listado: cerrado muestra el resumen; abierto, el desglose por corte.
   function pedidoHTML(p, m) {
     var cs = cortesDe(p).filter(function (c) { return c.texto; }), enP = cs.filter(function (c) { return fechaProdDe(m, p, c); }).length;
@@ -1528,7 +1550,7 @@
     if (cs.length) res.push(cs.length + (cs.length === 1 ? ' corte' : ' cortes'));
     var h = '<div class="ped' + (ab ? ' abierto' : '') + (sel ? ' sel' : '') + '"><div class="ped-cab">'
       + '<label class="chk"><input type="checkbox" data-sel="' + id + '"' + (sel ? ' checked' : '') + ' aria-label="Tildar el pedido de ' + esc(p.cliente) + ' para un camión"></label>'
-      + '<button class="ped-tit" data-act="ped-abrir" data-id="' + id + '" aria-expanded="' + ab + '"><span class="nom">' + esc(p.cliente || 'Sin cliente') + '</span>' + ctaHTML(cuentaPedido(p), true) + '<span class="res">' + res.join(' · ') + (p.frio ? ' ' + frioBadge(p.frio) : '') + '</span>'
+      + '<button class="ped-tit" data-act="ped-abrir" data-id="' + id + '" aria-expanded="' + ab + '"><span class="nom">' + esc(p.cliente || 'Sin cliente') + '</span>' + ctaHTML(cuentaPedido(p), true) + '<span class="res">' + res.join(' · ') + (p.frio ? ' ' + frioBadge(p.frio) : '') + '</span>' + kgPedHTML(p)
       + (cam || p.vendedor || enP ? '<span class="marcas">' + prodBadgeHTML(enP, cs.length) + (p.vendedor ? '<span class="badge vend" title="' + esc(p.vendedor) + '">Vendedor: ' + esc(p.vendedorNombre || p.vendedor.split('@')[0]) + '</span>' : '') + (cam ? '<span class="badge plain">' + esc(cam) + '</span>' : '') + '</span>' : '') + '<span class="chev" aria-hidden="true">' + (ab ? '▴' : '▾') + '</span></button></div>';
     if (!ab) return h + '</div>';
     h += '<div class="ped-det">' + elegirCuentaHTML(p) + '<div class="op-ped">';
@@ -1767,6 +1789,7 @@
       }).join('') + '</tbody></table><div class="acciones"><button class="btn sm" data-act="fl-agregar">+ Camión</button></div>'
         + '<div class="campos"><label class="campo"><span>Peso estimado de una media (kg)</span><input type="number" inputmode="numeric" id="cfg-kgmedia" value="' + esc(kgMedia()) + '"></label>'
         + '<label class="campo"><span>Peso estimado de una caja (kg)</span><input type="number" inputmode="numeric" id="cfg-kgcaja" value="' + esc(kgCaja()) + '"></label></div>'
+        + '<label class="campo kg-und"><span>Peso por unidad (un producto por renglón: PRODUCTO = KG). Un pedido en unidades se pasa a kilos con esto.</span><textarea id="cfg-kgund" rows="8">' + esc(kgUnidadesLista().map(function (x) { return x[0] + ' = ' + String(x[1]).replace('.', ','); }).join('\n')) + '</textarea></label>'
         ;
       return h + '</div>';
     }
@@ -1876,10 +1899,10 @@
   }
   // Kilos de una planilla: lo que empieza en kg, cajas o canastos (las cajas y canastos pasados a kg).
   // Kilos de los cortes de unos pedidos (las cajas y canastos pasados a kg).
-  function kgPedidos(lista) { return kgOrden({ cortes: [{ lineas: [].concat.apply([], (lista || []).map(function (p) { return (p.cortes || []).map(function (c) { return { t: c.texto }; }); })) }] }); }
+  function kgPedidos(lista) { return kgOrden({ cortes: [{ lineas: [].concat.apply([], (lista || []).map(function (p) { return (p.cortes || []).map(function (c) { return { t: c.texto, c: c.corte }; }); })) }] }); }
   function kgOrden(o) {
     var t = 0;
-    ((o && o.cortes) || []).forEach(function (c) { c.lineas.forEach(function (l) { var m = norm(enKg(l.t)).match(/^([\d.,]+)\s*(KGS?|KILOS?|K)\b/); if (m) t += numero(m[1]); }); });
+    ((o && o.cortes) || []).forEach(function (c) { c.lineas.forEach(function (l) { var m = norm(enKg(l.t, l.c || c.corte)).match(/^([\d.,]+)\s*(KGS?|KILOS?|K)\b/); if (m) t += numero(m[1]); }); });
     return Math.round(t);
   }
   function renderInicio() {
@@ -2245,6 +2268,7 @@
     if (t.id === 'cam-kg') { S.camKg = t.value; return; }
     if (t.id === 'cam-e-kg') { S.ecKg = t.value; return; }
     if (D.fl != null && S.ef) { var ft = flota(); if (ft[+D.fl]) { ft[+D.fl][D.k] = D.k === 'kg' ? (t.value === '' ? '' : +t.value || 0) : t.value; S.config.flota = ft; guardarConfig(); } return; }
+    if (t.id === 'cfg-kgund') { S.config.kgUnidad = t.value.split('\n').map(function (r) { var m = r.match(/^\s*(?:UND\.?\s+|UNIDAD\s+)?(.+?)\s*[=:\-]?\s*([\d.,]+)\s*(?:KGS?|KILOS?)?\s*$/i); return m ? { p: norm(m[1]), kg: numero(m[2]) } : null; }).filter(function (x) { return x && x.p && x.kg > 0; }); guardarConfig(); return; }
     if (t.id === 'cfg-kgmedia' || t.id === 'cfg-kgcaja') { S.config[t.id === 'cfg-kgmedia' ? 'kgMedia' : 'kgCaja'] = +t.value || 0; guardarConfig(); return; }
     if (t.id === 'cam-e-nombre') { S.ecNombre = t.value; return; }
     if (t.id === 'cam-e-num') { S.ecNum = t.value; return; }

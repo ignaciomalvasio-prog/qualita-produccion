@@ -17,3 +17,10 @@ console.log(w,'en producción:',await p.locator('.ped.abierto .lp .badge.ok').co
 await p.locator('.ped.abierto').screenshot({path:SP+'/pedprolijo'+w+'.png'});
 console.log(w,'desborde',await p.evaluate(()=>document.documentElement.scrollWidth-innerWidth),'· errores',errs.join('|')||'ninguno');}
 await b.close();})();
+// (agregado) kilos totales en el renglón del pedido
+(async()=>{const {chromium}=require('playwright');const b=await chromium.launch();const p=await b.newPage({viewport:{width:1100,height:900}});
+await p.clock.install({time:new Date('2026-10-19T12:00:00-03:00')});
+await p.addInitScript(()=>{window.__mock={data:{faena:{},config:{general:{}},privado:{clientes:{lista:[]}},produccion:{},pedidos:{a:{cliente:'ACHAVAL',entrega:'2026-10-20',medias:4,peso:'',nota:'',origen:'manual',kg:'',camion:'',cuenta:'',cortes:[{k:'k0',corte:'MATAMBRE',texto:'6 CAJAS MATAMBRITOS'},{k:'k1',corte:'BONDIOLA',texto:'4 UNIDADES BONDIOLA'}]},b:{cliente:'ROVER',entrega:'2026-10-20',medias:0,peso:'',nota:'',origen:'manual',kg:'',camion:'',cuenta:'',cortes:[{k:'k0',corte:'RECORTE',texto:'TODO'}]}}},user:{email:'yo@x.com'},editores:['yo@x.com']}});
+await p.goto('http://127.0.0.1:8765/index.html#pedidos');await p.clock.runFor(1500);await p.waitForSelector('#view-pedidos .ped');
+console.log('kg en la lista:',await p.$$eval('#view-pedidos .ped',x=>x.map(e=>e.querySelector('.nom').textContent+' '+((e.querySelector('.kg-ped')||{}).textContent||'-')).join(' | ')),'(esperado ACHAVAL ≈ 318 kg)');
+await p.screenshot({path:process.argv[2]+'/kgped.png'});await b.close();})();
