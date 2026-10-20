@@ -262,6 +262,7 @@
   }
   // La semana sale de las fechas del encabezado ("Lunes 19"): la más cercana a la que se está mirando que coincida.
   function semanaPegada(res, base) {
+    if (res.lunes) return res.lunes;
     var nums = res.nums || {}, ks = Object.keys(nums);
     if (!ks.length) return base;
     var cand = [0, -7, 7, -14, 14, -21, 21, -28, 28].map(function (d) { return mas(base, d); });
@@ -280,6 +281,37 @@
       return h + '</section>';
     }).join('') + '</div>';
   }
+  // De una foto o captura de la planilla: la IA la lee y se toma solo la faena (los clientes salen de los pedidos).
+  function faenaDeLectura(datos) {
+    var res = {}, fechas = [];
+    (datos && datos.planilla || []).forEach(function (d) {
+      var i = DIAS_SEM.indexOf(norm(d.dia));
+      if (i < 0 && /^\d{4}-\d{2}-\d{2}$/.test(d.fecha || '')) { var g = fecha(d.fecha).getDay(); if (g >= 1 && g <= 5) i = g - 1; }
+      if (i < 0) return;
+      res[i] = (d.faena || []).map(function (r) { return { origen: String(r.origen || '').toUpperCase().replace(/\s+/g, ' ').trim(), propios: +r.propios || 0, usuarios: +r.usuarios || 0 }; })
+        .filter(function (x) { return x.origen || x.propios || x.usuarios; });
+      if (/^\d{4}-\d{2}-\d{2}$/.test(d.fecha || '')) fechas.push(d.fecha);
+    });
+    var lunes = fechas.length ? lunesDe(fechas[0]) : null;
+    if (lunes) Object.defineProperty(res, 'lunes', { value: lunes, enumerable: false });
+    return res;
+  }
+  function leerFaenaFoto(file) {
+    if (!S.pf) return;
+    S.pf.leyendo = true; S.pf.error = ''; S.pf.res = null; render();
+    var lectura = window.__mock && window.__mock.ia ? Promise.resolve(window.__mock.ia('faena', file.name)) : achicar(file).then(function (b64) {
+      return pedirIA([{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } }, { type: 'text', text: 'Esta imagen es la planilla semanal de faena y medias. Cargá "planilla" con cada día, prestando especial atención a la faena: cada fila con su origen y los números de PROPIOS y USUARIOS tal cual figuran. Dejá "pedidos" vacío.' }]);
+    });
+    lectura.then(function (datos) {
+      if (!S.pf) return;
+      var res = faenaDeLectura(datos);
+      S.pf.leyendo = false;
+      if (!Object.keys(res).some(function (k) { return res[k].length; })) S.pf.error = 'No encontré la faena en la imagen. Probá con una captura donde se vean los días y las columnas PROPIOS y USUARIOS.';
+      else { S.pf.res = res; S.pf.txt = ''; }
+      render();
+    }, function (err) { if (!S.pf) return; S.pf.leyendo = false; S.pf.error = (err && err.message) || 'No se pudo leer la imagen.'; render(); });
+  }
+  function resPegada() { return S.pf && S.pf.res ? S.pf.res : leerFaenaPegada(S.pf && S.pf.txt); }
   function guardarFaenaPegada(res, lunes) {
     var sem = clone(semDe(lunes) || semanaNueva(lunes)), nd = 0;
     Object.keys(res).forEach(function (k) { if (res[k].length && sem.dias[+k]) { sem.dias[+k].faena = clone(res[k]); nd++; } });
@@ -288,12 +320,15 @@
     return store.set('faena', lunes, sl).then(function () { tocar(); return nd; });
   }
   function pegarFaenaPanelHTML(lunes) {
-    var res = leerFaenaPegada(S.pf.txt), hay = Object.keys(res).some(function (k) { return res[k].length; });
+    var res = resPegada(), hay = !S.pf.leyendo && Object.keys(res).some(function (k) { return res[k].length; });
     lunes = semanaPegada(res, lunes);
-    return '<div class="panel pf"><h2>Pegar faena desde Excel</h2>'
-      + '<p class="small muted">En el Excel seleccioná la faena de la semana con los nombres de los días arriba (LUNES, MARTES…) y las columnas PROPIOS y USUARIOS, copiala (Ctrl+C) y pegala acá (Ctrl+V). Abajo ves cómo queda cada día antes de guardar. Solo cambia la faena: los clientes siguen saliendo de los pedidos.</p>'
-      + '<textarea id="pf-txt" rows="7" placeholder="Pegá acá las celdas del Excel">' + esc(S.pf.txt || '') + '</textarea>'
-      + '<div id="pf-prev">' + faenaPegadaHTML(res, lunes) + '</div>'
+    var conIA = !!(S.ia && S.ia.clave) || !!(window.__mock && window.__mock.ia);
+    var prev = S.pf.leyendo ? '<p class="state">Leyendo la imagen… tarda unos segundos.</p>' : (S.pf.error ? '<p class="aviso-pf">' + esc(S.pf.error) + '</p>' : '') + faenaPegadaHTML(res, lunes);
+    return '<div class="panel pf"><h2>Cargar faena: Excel, captura o foto</h2>'
+      + '<p class="small muted">Copiá en el Excel la faena de la semana (con los días arriba y las columnas PROPIOS y USUARIOS) y pegala acá con Ctrl+V. También podés pegar una captura o subir una foto de la planilla. Abajo ves cómo queda cada día antes de guardar. Solo cambia la faena: los clientes siguen saliendo de los pedidos.</p>'
+      + '<div class="acciones pf-foto">' + (conIA ? '<label class="btn"><input type="file" id="pf-foto" accept="image/*" hidden>Subir foto o captura</label><span class="small muted">o pegá la captura con Ctrl+V</span>' : '<span class="small muted">Para leer fotos o capturas falta cargar la clave de IA (en Pedidos, abajo, en Configuración).</span>') + '</div>'
+      + '<textarea id="pf-txt" rows="7" placeholder="Pegá acá las celdas del Excel o una captura">' + esc(S.pf.txt || '') + '</textarea>'
+      + '<div id="pf-prev">' + prev + '</div>'
       + '<div class="acciones"><button class="btn pri" data-act="pf-guardar" id="pf-guardar"' + (hay ? '' : ' disabled') + '>Guardar faena</button><button class="btn" data-act="pf-cancelar">Cancelar</button></div></div>';
   }
   function renderSemana() {
@@ -307,7 +342,7 @@
     if (sem) h += '<button class="btn" data-act="imprimir">Imprimir</button>';
     h += '<button class="btn" data-act="m-dia">Ver como la ven los demás</button>';
     if (S.editor && sem) h += '<button class="btn' + (edit ? ' pri' : '') + '" data-act="m-editar">' + (edit ? 'Listo' : 'Editar') + '</button><span class="guardado" id="g-medias"></span>';
-    if (S.editor && !edit && !S.pf) h += '<button class="btn" data-act="pf-abrir">Pegar faena desde Excel</button>';
+    if (S.editor && !edit && !S.pf) h += '<button class="btn" data-act="pf-abrir">Cargar faena (Excel o captura)</button>';
     h += '</div>';
     if (S.editor && S.pf && !edit) h += pegarFaenaPanelHTML(lunes);
     if (!sem) {
@@ -2052,7 +2087,8 @@
     else if (a === 'pf-abrir') { S.pf = { txt: '' }; render(); var pt = $('pf-txt'); if (pt) pt.focus(); }
     else if (a === 'pf-cancelar') { S.pf = null; render(); }
     else if (a === 'pf-guardar') {
-      var rp = leerFaenaPegada(S.pf && S.pf.txt), lp = semanaPegada(rp, S.sem);
+      if (S.pf && S.pf.leyendo) return;
+      var rp = resPegada(), lp = semanaPegada(rp, S.sem);
       guardarFaenaPegada(rp, lp).then(function (nd) { S.pf = null; S.sem = lp; S.msg.medias = nd ? 'Faena guardada: ' + nd + plural(nd, ' día', ' días') + ' de la semana del ' + etiquetaSemana(lp) + '.' : '!No había faena para guardar.'; render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); });
     }
     else if (a === 'm-editar') { if (S.em) { guardar('medias', true); S.em = null; } else { S.em = { lunes: S.sem, doc: clone(semDe(S.sem)) }; S.msg.medias = ''; } render(); }
@@ -2192,7 +2228,7 @@
     if (t.id === 'cli-buscar') { S.cliBuscar = t.value; filtrarClientes(); return; }
     if (t.id === 'pd-buscar') { var ss = t.selectionStart; S.pdBuscar = t.value; renderPedidos(); var nb = $('pd-buscar'); if (nb) { nb.focus(); try { nb.setSelectionRange(ss, ss); } catch (err) {} } return; }
     if (D.cli != null) return;
-    if (t.id === 'pf-txt' && S.pf) { S.pf.txt = t.value; var rs = leerFaenaPegada(t.value), pv = $('pf-prev'), bg = $('pf-guardar'); if (pv) pv.innerHTML = faenaPegadaHTML(rs, semanaPegada(rs, S.sem)); if (bg) bg.disabled = !Object.keys(rs).some(function (k) { return rs[k].length; }); return; }
+    if (t.id === 'pf-txt' && S.pf) { S.pf.txt = t.value; S.pf.res = null; S.pf.error = ''; var rs = leerFaenaPegada(t.value), pv = $('pf-prev'), bg = $('pf-guardar'); if (pv) pv.innerHTML = faenaPegadaHTML(rs, semanaPegada(rs, S.sem)); if (bg) bg.disabled = !Object.keys(rs).some(function (k) { return rs[k].length; }); return; }
     if (t.id === 'pegar-cli') { S.pegarCli = t.value; return; }
     if (t.id === 'pegar-dia') { S.pegarDia = t.value; return; }
     if (t.id === 'pegar-txt') { S.pegarTxt = t.value; if (S.msg.fotos) { S.msg.fotos = ''; pintarMsg('fotos'); } return; }
@@ -2264,6 +2300,11 @@
   });
   // Una captura copiada (o varias imágenes) se pega con Ctrl+V donde esté el botón "Subir fotos o capturas", también en el cuadro de texto.
   document.addEventListener('paste', function (e) {
+    if (S.pf && $('pf-txt') && e.clipboardData) {
+      var im = Array.prototype.slice.call(e.clipboardData.items || []).filter(function (it) { return it.kind === 'file' && /^image\//.test(it.type); }).map(function (it) { return it.getAsFile(); }).filter(Boolean)[0];
+      if (im) { e.preventDefault(); leerFaenaFoto(im); }
+      return;
+    }
     var inp = $('fotos'); if (!inp || inp.disabled || !e.clipboardData) return;
     var imgs = Array.prototype.slice.call(e.clipboardData.items || []).filter(function (it) { return it.kind === 'file' && /^image\//.test(it.type); }).map(function (it) { return it.getAsFile(); }).filter(Boolean);
     if (!imgs.length) return;
@@ -2295,6 +2336,7 @@
       lector.readAsText(t.files[0]);
       try { t.value = ''; } catch (err) {}
     }
+    else if (t.id === 'pf-foto' && t.files && t.files.length) { leerFaenaFoto(t.files[0]); try { t.value = ''; } catch (err) {} }
     else if (t.id === 'fotos' && t.files && t.files.length) { subirFotos(t.files); try { t.value = ''; } catch (err) {} }
     else if (D.sel) {
       var ps = pedidoDe(D.sel);
