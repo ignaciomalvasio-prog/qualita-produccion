@@ -1731,10 +1731,9 @@
   function cuandoEs(f) { return f === mas(hoy(), 1) ? 'mañana' : f === hoy() ? 'hoy' : 'el ' + tituloDe(f).toLowerCase(); }
   // Marca en el listado: cuántos cortes del pedido ya se mandaron a producción.
   function prodBadgeHTML(enP, tot) {
-    if (!tot) return '<span class="pr-est nada" title="Solo medias: no hay cortes para mandar a producción">—</span>';
-    if (!enP) return '<span class="pr-est no" title="Todavía no se mandó a producción"><b aria-hidden="true">✗</b> Sin producción</span>';
-    return enP >= tot ? '<span class="pr-est si" title="Todos los cortes están en producción"><b aria-hidden="true">✓</b> En producción</span>'
-      : '<span class="pr-est parte" title="Faltan cortes por mandar a producción"><b aria-hidden="true">✓</b> ' + enP + ' de ' + tot + ' en producción</span>';
+    if (!tot) return '<span class="pr-ic nada" title="Solo medias: no hay cortes para mandar a producción" aria-label="Solo medias">–</span>';
+    return enP >= tot ? '<span class="pr-ic si" title="En producción" aria-label="En producción">✓</span>'
+      : '<span class="pr-ic no" title="' + (enP ? 'Falta pasar a producción: ' + enP + ' de ' + tot + ' cortes' : 'Sin producción') + '" aria-label="Sin producción">✗</span>';
   }
   // Kilos totales del pedido (medias, cajas y unidades pasadas a kilos, o los que se cargaron a mano).
   function kgPedHTML(p) {
@@ -1751,7 +1750,7 @@
       + (mov ? '<button class="ped-mover" data-parr="' + id + '" aria-label="Arrastrar a ' + esc(p.cliente) + ' para cambiar el orden de bajada (o usar las flechas del teclado)" title="Arrastrar para ordenar">⠿</button>' : '')
       + '<label class="chk"><input type="checkbox" data-sel="' + id + '"' + (sel ? ' checked' : '') + ' aria-label="Tildar el pedido de ' + esc(p.cliente) + ' para un camión"></label>'
       + '<button class="ped-tit" data-act="ped-abrir" data-id="' + id + '" aria-expanded="' + ab + '"><span class="nom">' + esc(p.cliente || 'Sin cliente') + '</span>' + ctaHTML(cuentaPedido(p), true) + '<span class="res">' + res.join(' · ') + (p.frio ? ' ' + frioBadge(p.frio) : '') + '</span>'
-      + (cam || p.vendedor ? '<span class="marcas">' + (p.vendedor ? '<span class="badge vend" title="' + esc(p.vendedor) + '">Vendedor: ' + esc(p.vendedorNombre || p.vendedor.split('@')[0]) + '</span>' : '') + (cam ? '<span class="badge plain">' + esc(cam) + '</span>' : '') + '</span>' : '') + '<span class="col-kg">' + kgPedHTML(p) + '</span><span class="col-prod">' + prodBadgeHTML(enP, cs.length) + '</span><span class="chev" aria-hidden="true">' + (ab ? '▴' : '▾') + '</span></button></div>';
+      + (cam || p.vendedor ? '<span class="marcas">' + (p.vendedor ? '<span class="badge vend" title="' + esc(p.vendedor) + '">Vendedor: ' + esc(p.vendedorNombre || p.vendedor.split('@')[0]) + '</span>' : '') + (cam ? '<span class="badge cam-ped">' + esc(cam) + '</span>' : '') + '</span>' : '') + '<span class="col-kg">' + kgPedHTML(p) + '</span><span class="col-prod">' + prodBadgeHTML(enP, cs.length) + '</span><span class="chev" aria-hidden="true">' + (ab ? '▴' : '▾') + '</span></button></div>';
     if (!ab) return h + '</div>';
     h += '<div class="ped-det">' + elegirCuentaHTML(p) + '<div class="op-ped">';
     if (+p.medias) h += '<p class="lp"><span class="lp-izq"><span class="lc-corte">Medias</span><span class="lc-txt">' + cantHTML(textoMedias(p)) + '</span></span><span class="lp-der">' + precioHTML(p.id, 'm', p.precioMedias, 'las medias', p.ivaMedias) + '</span></p>';
@@ -1909,7 +1908,7 @@
     if (sin.length) h += grupo('Sin camión', resumenLog(sin), sin, 'sin-cam', '');
     cams.forEach(function (c) {
       var o = c.orden || [], l = lista.filter(function (p) { return p.camion === c.id; }).sort(function (a, b) { var i = o.indexOf(a.id), j = o.indexOf(b.id); return (i < 0 ? 1e6 : i) - (j < 0 ? 1e6 : j); });
-      if (l.length || !sinMover) h += grupo('<span class="badge plain">' + esc(nomCam(c)) + '</span>' + (c.hora ? ' ' + esc(c.hora) + ' hs' : ''), l.length ? resumenLog(l) : 'vacío: arrastrá clientes acá', l, l.length ? '' : 'vacio', c.id);
+      if (l.length || !sinMover) h += grupo('<span class="badge cam-ped">' + esc(nomCam(c)) + '</span>' + (c.hora ? ' ' + esc(c.hora) + ' hs' : ''), l.length ? resumenLog(l) : 'vacío: arrastrá clientes acá', l, l.length ? '' : 'vacio', c.id);
     });
     if (sinMover) return h;
     return '<p class="small muted arr-tip">Arrastrá cada cliente desde ⠿ para ordenar la bajada de cada camión (el primero baja primero) o para pasarlo a otro camión.</p>' + h;
@@ -1924,7 +1923,7 @@
       var cam = nombreCamion(p.entrega, p.camion), res = [];
       if (+p.medias) res.push(n(+p.medias) + ' medias'); if ((p.cortes || []).length) res.push(p.cortes.length + ((p.cortes.length === 1) ? ' corte' : ' cortes'));
       return '<div class="busq-f"><span class="busq-dia">' + esc(diaCorto(p.entrega)) + '</span><span class="nom">' + esc(p.cliente) + '</span>' + ctaHTML(cuentaPedido(p)) + '<span class="small muted">' + res.join(' · ') + '</span>'
-        + (cam ? '<span class="badge plain">' + esc(cam) + '</span>' : '<span class="badge warn">Sin camión</span>')
+        + (cam ? '<span class="badge cam-ped">' + esc(cam) + '</span>' : '<span class="badge warn">Sin camión</span>')
         + '<button class="btn sm" data-act="busq-ver" data-id="' + esc(p.id) + '">Ver</button></div>';
     }).join('') + '</div>';
   }
