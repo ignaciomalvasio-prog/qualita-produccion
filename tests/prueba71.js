@@ -1,25 +1,35 @@
-// Rendering: pegar la captura del reporte "Resumen de Insumos" del sistema y que quede el real del día.
+// Logística: precio sin IVA o final (IVA 10,5 %): se escribe uno y se calcula el otro; el link compartido los muestra sin poder cambiarlos.
 const {chromium}=require('playwright');const SP=process.argv[2];
-const dias=[0,1,2,3,4].map(i=>({fecha:'2026-10-'+(19+i),faena:[{origen:'X',propios:660,usuarios:20}],clientes:[]}));
-const data={faena:{'2026-10-19':{desde:'2026-10-19',stockInicial:0,dias}},produccion:{},config:{general:{}},pedidos:{},privado:{clientes:{lista:[]}}};
-const PROD={es_reporte:true,reporte:'produccion',desde:'2026-10-19',hasta:'2026-10-19',tipo:'Rendering',total_kilos:6000,dudas:[],articulos:[{codigo:810,nombre:'HARINA DE CARNE Y HUESO POR',unidades:5,kilos:6000}]};
-const REP={es_reporte:true,reporte:'insumos',desde:'2026-10-19',hasta:'2026-10-19',tipo:'Rendering',total_kilos:25751.46,dudas:[],articulos:[
- {codigo:417,nombre:'CUERO "CH"',unidades:87,kilos:2158.96},{codigo:420,nombre:'HUESO',unidades:8,kilos:3900},{codigo:425,nombre:'HUESO CABEZA',unidades:3,kilos:1170},
- {codigo:430,nombre:'DESPOJO DE DESPOSTADA',unidades:12,kilos:2571},{codigo:434,nombre:'HUESO',unidades:2,kilos:3631.2},{codigo:440,nombre:'DESPOJO DE FAENA',unidades:1,kilos:6720},
- {codigo:443,nombre:'DESPOJO',unidades:2,kilos:2584.8},{codigo:472,nombre:'GRASA EN RAMA',unidades:9,kilos:3015.5}]};
+const F='2026-10-21';
+const K=(k,corte,texto,ext)=>Object.assign({k,corte,texto},ext||{});
+const data={faena:{},produccion:{},privado:{clientes:{lista:[]}},config:{general:{},['log-'+F]:{fecha:F,camiones:[{id:'c1',nombre:'',num:'SEMI PASSERI 1 (DIGAR)',hora:'05:00',orden:['a']},{id:'c2',nombre:'',num:'7',hora:'06:00',orden:[]}],pedidos:[]}},
+ pedidos:{a:{cliente:'DIGAR',entrega:F,medias:360,peso:'',nota:'',origen:'manual',kg:'',camion:'c1',cuenta:'21580',frio:'FRESCO',cortes:[K('k0','BONDIOLA','2000 KG BONDIOLA FRESCA'),K('k1','PECHO','100 KG PECHITO',{precio:5000,iva:'final'})]}}};
 (async()=>{const b=await chromium.launch();
 for(const w of [1280,400]){const p=await b.newPage({viewport:{width:w,height:900}});const errs=[];p.on('pageerror',e=>errs.push(e.message));
-await p.clock.install({time:new Date('2026-10-20T09:40:00-03:00')});
-await p.addInitScript(([d,r,q])=>{window.print=()=>{};window.__mock={data:JSON.parse(JSON.stringify(d)),user:{email:'yo@x.com'},editores:['yo@x.com'],iaRep:(n)=>n==='varios.png'?Object.assign({},r,{hasta:'2026-10-20'}):n==='prod.png'?q:r}},[data,REP,PROD]);
-await p.goto('http://127.0.0.1:8765/index.html#rendering');await p.clock.runFor(1500);await p.waitForSelector('.rend-hero');
-const pegar=async(nom)=>{await p.evaluate(nom=>{const dt=new DataTransfer();dt.items.add(new File([new Uint8Array([1,2,3])],nom,{type:'image/png'}));document.body.dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true}));},nom);await p.clock.runFor(800);await p.waitForTimeout(200);};
-await pegar('varios.png');console.log(w,'varios días:',await p.locator('#g-rend').innerText());
-await pegar('image.png');
-console.log(w,'guardado:',await p.evaluate(()=>JSON.stringify(window.__mock.data.config['rend-2026-10-19'].v)));
-console.log(w,'aviso:',await p.locator('#g-rend').innerText());
-await pegar('prod.png');console.log(w,'prod:',await p.locator('#g-rend').innerText(),'·',await p.evaluate(()=>JSON.stringify(window.__mock.data.config['rend-2026-10-19'].v)));
-console.log(w,'hero:',(await p.locator('.rend-hero').innerText()).replace(/\s+/g,' '));
-console.log(w,'detalle:',(await p.locator('.rend-det summary').allInnerTexts()).join(' | '));
-await p.screenshot({path:SP+'/rend-rep'+w+'.png',fullPage:true});
-console.log(w,'desborde:',await p.evaluate(()=>document.documentElement.scrollWidth-innerWidth),'errores:',errs.join('|')||'ninguno');}
+await p.clock.install({time:new Date('2026-10-20T13:00:00-03:00')});
+await p.addInitScript(d=>{window.print=()=>{};window.__mock={data:JSON.parse(JSON.stringify(d)),user:{email:'yo@x.com'},editores:['yo@x.com']}},data);
+await p.goto('http://127.0.0.1:8765/index.html#logistica');await p.clock.runFor(1500);await p.waitForSelector('#view-logistica .nav');
+for(let k=0;k<3&&!(await p.locator('.log-ped').count());k++){await p.click('[data-act="fl"][data-d="1"]');await p.waitForTimeout(100);}
+console.log(w,'títulos:',await p.$$eval('.cam>.cam-cab h2',x=>x.map(e=>e.textContent).join(' | ')));
+const val=(k,c)=>p.inputValue('[data-plog="a"][data-k="'+k+'"][data-cual="'+c+'"]');
+console.log(w,'pecho ya cargado (5000 final): sin IVA',await val('k1','iva'),'· final',await val('k1','final'));
+// medias: escribir sin IVA
+await p.fill('[data-plog="a"][data-k="m"][data-cual="iva"]','3000');await p.locator('[data-plog="a"][data-k="m"][data-cual="iva"]').dispatchEvent('input');
+console.log(w,'medias en vivo → final:',await val('m','final'));
+await p.locator('[data-plog="a"][data-k="m"][data-cual="iva"]').dispatchEvent('change');await p.clock.runFor(1500);await p.waitForTimeout(200);
+// bondiola: escribir final
+await p.fill('[data-plog="a"][data-k="k0"][data-cual="final"]','4420');await p.locator('[data-plog="a"][data-k="k0"][data-cual="final"]').dispatchEvent('input');await p.locator('[data-plog="a"][data-k="k0"][data-cual="final"]').dispatchEvent('change');await p.clock.runFor(1500);await p.waitForTimeout(200);
+console.log(w,'guardado:',await p.evaluate(()=>{const x=window.__mock.data.pedidos.a;return 'medias '+x.precioMedias+' '+x.ivaMedias+' · '+x.cortes.map(c=>c.corte+' '+c.precio+' '+c.iva).join(' · ');}));
+console.log(w,'bondiola sin IVA calculado:',await val('k0','iva'));
+await p.screenshot({path:SP+'/precioslog'+w+'.png',fullPage:true});
+await p.emulateMedia({media:'print'});console.log(w,'impreso:',(await p.locator('.log-cortes').first().innerText()).replace(/\s+/g,' '));await p.emulateMedia({media:'screen'});
+console.log(w,'desborde',await p.evaluate(()=>document.documentElement.scrollWidth-innerWidth),'· errores',errs.join('|')||'ninguno');
+// link compartido con lo publicado
+const pub=await p.evaluate(()=>JSON.parse(JSON.stringify(window.__mock.data)));
+const q=await b.newPage({viewport:{width:w,height:900}});await q.clock.install({time:new Date('2026-10-20T13:00:00-03:00')});
+await q.addInitScript(d=>{window.__mock={data:d,user:{email:'yo@x.com'},editores:['yo@x.com']}},pub);
+await q.goto('http://127.0.0.1:8765/logistica.html');await q.clock.runFor(1500);await q.waitForTimeout(300);
+for(let k=0;k<3&&!(await q.locator('.log-ped').count());k++){await q.click('[data-act="fl"][data-d="1"]').catch(()=>{});await q.waitForTimeout(100);}
+console.log(w,'link: casilleros',await q.locator('[data-plog], input').count(),'· precios:',await q.$$eval('.log-precio',x=>x.map(e=>e.textContent).join(' | ')));
+await q.screenshot({path:SP+'/precioslink'+w+'.png',fullPage:true});}
 await b.close();})();

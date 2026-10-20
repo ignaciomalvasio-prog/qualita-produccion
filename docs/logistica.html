@@ -417,6 +417,13 @@ button.cam-num{background:none;color:inherit;cursor:pointer}
 @media (max-width:700px){ .rend-grid{grid-template-columns:1fr} .rend-in{width:90px} }
 .log-edit{margin-top:8px}.log-edit .card{border:1.5px solid var(--accent);border-radius:6px}
 .log-precio{display:inline-block;text-transform:none;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:4px;padding:0 6px;margin-left:4px;white-space:nowrap}
+.log-cortes p:has(.log-pre-ed){grid-template-columns:140px minmax(0,1fr) auto}
+.log-pre-ed{display:inline-flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;text-transform:none}
+.lp-pre{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap}
+.lp-pre input{width:96px;padding:3px 6px;font:600 14px var(--body);text-align:right}
+.lp-pre input[data-cual="final"]{border-color:var(--accent)}
+@media print{ .log-pre-ed{display:none!important} .log-cortes p:has(.log-pre-ed){grid-template-columns:120px minmax(0,1fr)} }
+@media (max-width:560px){ .log-cortes p:has(.log-pre-ed){grid-template-columns:minmax(0,1fr)} .log-pre-ed{justify-content:flex-start;margin-top:4px} .lp-pre input{width:84px} }
 .res-cam.movible .res-tit{display:flex;align-items:center;gap:6px}
 .res-mover{border:1px solid #bbb;background:#f4f4f4;color:#333;border-radius:4px;font-size:16px;line-height:1;padding:4px 5px;cursor:grab;touch-action:none;flex:none}
 .res-mover:focus-visible{outline:2px solid var(--accent);outline-offset:1px}

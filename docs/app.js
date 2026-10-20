@@ -839,6 +839,14 @@
     S.pedidos = poner(S.pedidos, id, doc);
     return store.set('pedidos', id, doc).then(function () { return publicarLog(doc.entrega); });
   }
+  function guardarPrecioIva(id, k, valor, iva) {
+    var p = pedidoDe(id); if (!p) return Promise.resolve();
+    var doc = clone(p), v = valor === '' ? '' : +String(valor).replace(',', '.') || 0; delete doc.id;
+    if (k === 'm') { doc.precioMedias = v; doc.ivaMedias = v === '' ? '' : iva; }
+    else doc.cortes = cortesDe(doc).map(function (c) { if (c.k === k) { c.precio = v; c.iva = v === '' ? '' : iva; } return c; });
+    S.pedidos = poner(S.pedidos, id, doc);
+    return store.set('pedidos', id, doc).then(function () { return publicarLog(doc.entrega); });
+  }
   function guardarPrecio(id, k, valor) {
     var p = pedidoDe(id); if (!p) return Promise.resolve();
     var doc = clone(p), v = valor === '' ? '' : +String(valor).replace(',', '.') || 0; delete doc.id;
@@ -1100,7 +1108,7 @@
   // El número de camión lo pone Renzo (no se numera solo); sin nombre, el camión se llama por su número.
   // El nombre se muestra tal cual lo puso Renzo, sin la palabra "Camión" adelante.
   function nomLimpio(x) { var s = String(x || '').trim(), r = s.replace(/^cami[oó]n\b[\s:.\-]*/i, '').trim(); return /[A-ZÁÉÍÓÚÑ]/i.test(r) ? r : s; }
-  function nomCam(c) { return c ? (nomLimpio(c.nombre) || (c.num ? 'Camión ' + c.num : 'Camión sin nombre')) : ''; }
+  function nomCam(c) { if (!c) return ''; var nm = nomLimpio(c.nombre), nu = nomLimpio(c.num); return nm || (nu ? (/[A-ZÁÉÍÓÚÑ]/i.test(nu) ? nu : 'N° ' + nu) : 'Sin nombre'); }
   // Si la hora de salida quedó escrita en la nota del camión ("02:00HS", "6:30 hs") y no en su lugar, se pasa a la hora.
   function horaDeNota(c) {
     if (!c || String(c.hora || '').trim()) return c;
@@ -1131,7 +1139,26 @@
   }
   function firmaPrecios(pm, im, cs) { var v = function (x) { return x === 0 || x ? +x : ''; }; return [v(pm), im || ''].concat(cs.map(function (c) { return v(c.precio) + '/' + (c.iva || ''); })).join('|'); }
   // Precio para Logística: "$ 1.234 / kg + IVA" (o "final").
-  function precioTxt(v, iva) { if (!(v === 0 || v)) return ''; return '$ ' + new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(+v) + ' / kg' + (iva === 'iva' ? ' + IVA' : iva === 'final' ? ' final' : ''); }
+  // IVA de la carne: 10,5 %. Con un precio y si es "+ IVA" o "final" se saca el otro.
+  var IVA = 1.105;
+  function pesos(v) { return '$ ' + new Intl.NumberFormat('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Math.round(+v * 100) / 100); }
+  function preciosDe(v, iva) {
+    if (!(v === 0 || v)) return null;
+    if (iva === 'iva') return { sin: +v, fin: +v * IVA };
+    if (iva === 'final') return { sin: +v / IVA, fin: +v };
+    return { solo: +v };
+  }
+  function precioTxt(v, iva) {
+    var x = preciosDe(v, iva); if (!x) return '';
+    return x.solo != null ? pesos(x.solo) + ' / kg' : pesos(x.sin) + ' + IVA · ' + pesos(x.fin) + ' final';
+  }
+  // En Logística (solo editores): dos casilleros, sin IVA y final; se escribe uno y el otro se calcula solo.
+  function precioLogHTML(id, k, v, iva, que) {
+    var x = preciosDe(v, iva) || {}, r = function (n) { return n == null ? '' : String(Math.round(n * 100) / 100); };
+    var sin = x.solo != null ? r(x.solo) : r(x.sin), fin = x.solo != null ? '' : r(x.fin);
+    var inp = function (cual, val, txt) { return '<label class="lp-pre"><span>' + txt + '</span><input type="number" inputmode="decimal" step="any" min="0" data-plog="' + esc(id) + '" data-k="' + esc(k) + '" data-cual="' + cual + '" value="' + esc(val) + '" aria-label="Precio por kilo ' + txt + ' de ' + esc(que) + '"></label>'; };
+    return '<span class="log-pre-ed">' + inp('iva', sin, '$/kg sin IVA') + inp('final', fin, '$/kg final') + '</span>';
+  }
   // Si lo publicado no coincide con los pedidos (por ejemplo, pedidos cargados antes de que existiera Logística), se vuelve a publicar.
   function conciliarLog() {
     if (!S.editor || !S.pedidos || !S.logListo) return;
@@ -1914,8 +1941,9 @@
   }
   // Un cliente dentro del camión: su lugar bien grande, el nombre y los cortes en columnas; cada cliente en su recuadro.
   function logPedidoHTML(p, cam, cams, pos, total) {
-    var id = esc(p.id), filas = (p.cortes || []).map(function (c) { return { corte: c.corte, texto: sinCliente(c.texto, p.cliente), precio: precioTxt(c.precio, c.iva), uni: S.editor && !S.solo ? unidadSelHTML(p.id, c) : '' }; });
-    if (+p.medias) filas.unshift({ corte: 'MEDIAS', texto: textoMedias(p), precio: precioTxt(p.precioMedias, p.ivaMedias) });
+    var id = esc(p.id), filas = (p.cortes || []).map(function (c) { return { corte: c.corte, texto: sinCliente(c.texto, p.cliente), precio: precioTxt(c.precio, c.iva), uni: S.editor && !S.solo ? unidadSelHTML(p.id, c) : '', k: c.k, v: c.precio, iv: c.iva }; });
+    if (+p.medias) filas.unshift({ corte: 'MEDIAS', texto: textoMedias(p), precio: precioTxt(p.precioMedias, p.ivaMedias), k: 'm', v: p.precioMedias, iv: p.ivaMedias });
+    var edPre = S.editor && !S.solo && pedidoDe(p.id);
     var num = cam && pos != null;
     var h = '<div class="log-ped' + (num ? '' : ' sin-num') + '">' + (num ? '<span class="log-num" aria-label="Lugar ' + (pos + 1) + '">' + (pos + 1) + '</span>' : '') + '<div class="log-body"><div class="log-cab">'
       + '<strong>' + esc(p.cliente || 'Sin cliente') + '</strong>' + ctaHTML(p.cuenta) + frioBadge(p.frio)
@@ -1928,7 +1956,7 @@
     h += '</div>';
     // Editar el pedido ahí mismo, sin ir a Pedidos.
     if (ke >= 0) return h + '<div class="log-edit">' + propHTML(S.prop[ke], ke) + '</div></div></div>';
-    if (filas.length) h += '<div class="log-cortes">' + filas.map(function (c) { return '<p><span class="lc-corte">' + esc(c.corte) + '</span><span class="lc-txt">' + cantHTML(c.texto, c.uni) + (c.precio ? ' <span class="log-precio">' + esc(c.precio) + '</span>' : '') + '</span></p>'; }).join('') + '</div>';
+    if (filas.length) h += '<div class="log-cortes">' + filas.map(function (c) { return '<p><span class="lc-corte">' + esc(c.corte) + '</span><span class="lc-txt">' + cantHTML(c.texto, c.uni) + (c.precio ? ' <span class="log-precio' + (edPre && c.k ? ' solo-print' : '') + '">' + esc(c.precio) + '</span>' : '') + '</span>' + (edPre && c.k ? precioLogHTML(p.id, c.k, c.v, c.iv, c.corte) : '') + '</p>'; }).join('') + '</div>';
     if (p.nota) h += '<p class="log-nota">' + esc(p.nota) + '</p>';
     return h + '</div></div>';
   }
@@ -2398,6 +2426,11 @@
     if (t.id === 'cam-kg') { S.camKg = t.value; return; }
     if (t.id === 'cam-e-kg') { S.ecKg = t.value; return; }
     if (D.fl != null && S.ef) { var ft = flota(); if (ft[+D.fl]) { ft[+D.fl][D.k] = D.k === 'kg' ? (t.value === '' ? '' : +t.value || 0) : t.value; S.config.flota = ft; guardarConfig(); } return; }
+    if (D.plog) {
+      var otro = document.querySelector('[data-plog="' + D.plog + '"][data-k="' + D.k + '"][data-cual="' + (D.cual === 'iva' ? 'final' : 'iva') + '"]'), vv = +String(t.value).replace(',', '.');
+      if (otro) otro.value = t.value === '' ? '' : String(Math.round((D.cual === 'iva' ? vv * IVA : vv / IVA) * 100) / 100);
+      return;
+    }
     if (t.id === 'cfg-kgund') { S.config.kgUnidad = t.value.split('\n').map(function (r) { var m = r.match(/^\s*(?:UND\.?\s+|UNIDAD\s+)?(.+?)\s*[=:\-]?\s*([\d.,]+)\s*(?:KGS?|KILOS?)?\s*$/i); return m ? { p: norm(m[1]), kg: numero(m[2]) } : null; }).filter(function (x) { return x && x.p && x.kg > 0; }); guardarConfig(); return; }
     if (t.id === 'cfg-kgmedia' || t.id === 'cfg-kgcaja') { S.config[t.id === 'cfg-kgmedia' ? 'kgMedia' : 'kgCaja'] = +t.value || 0; guardarConfig(); return; }
     if (t.id === 'cam-e-nombre') { S.ecNombre = t.value; return; }
@@ -2527,6 +2560,9 @@
     }
     else if (D.uni && t.value) {
       guardarUnidad(D.uni, D.k, t.value).then(function () { avisar('Unidad guardada.', 2500); render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); render(); });
+    }
+    else if (D.plog) {
+      guardarPrecioIva(D.plog, D.k, t.value, D.cual).then(function () { avisar('Precio guardado.', 2500); }, function () { avisar('!No se pudo guardar el precio. Revisá la conexión.', 6000); });
     }
     else if (D.precio) {
       guardarPrecio(D.precio, D.k, t.value).then(function () { avisar('Precio guardado.', 2500); }, function () { avisar('!No se pudo guardar el precio. Revisá la conexión.', 6000); });
