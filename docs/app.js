@@ -201,6 +201,101 @@
     el.innerHTML = h + '</div>';
   }
 
+  /* Faena pegada desde Excel: cada número va a su día (lunes a viernes) con su origen, propios y usuarios, tal cual.
+     Acepta la planilla con los días uno al lado del otro (como la semanal) o uno debajo del otro.
+     Solo reemplaza la faena de los días que trae; los clientes (que salen de los pedidos) no se tocan. */
+  var DIAS_SEM = ['LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES'];
+  function leerFaenaPegada(txt) {
+    var filas = String(txt || '').replace(/\r/g, '').split('\n').map(function (r) { return r.split('\t').map(function (c) { return c.replace(/ /g, ' ').trim(); }); });
+    filas = filas.filter(function (r) { return r.some(function (c) { return c; }); });
+    // Si todo viene corrido a la derecha (columnas vacías a la izquierda), se acomoda.
+    var corr = Math.min.apply(null, filas.map(function (r) { var i = 0; while (i < r.length && !r[i]) i++; return i; }).concat([999]));
+    if (corr > 0 && corr < 999) filas = filas.map(function (r) { return r.slice(corr); });
+    var diaDe = function (c) { var m = norm(c).match(/^(LUNES|MARTES|MIERCOLES|JUEVES|VIERNES)\b/); return m ? DIAS_SEM.indexOf(m[1]) : -1; };
+    var esNum = function (c) { return /^-?\d[\d.,]*$/.test(String(c || '').replace(/\s/g, '')); };
+    var num = function (c) { c = String(c || '').replace(/\s/g, ''); return esNum(c) ? (c.charAt(0) === '-' ? -numero(c.slice(1)) : numero(c)) : 0; };
+    var corta = function (c) { return /^(TOTAL|CLIENTES?|DESPOSTE|CERDOS|STOCK|REMANENTE|DISPONIBLE)\b/.test(norm(c)); };
+    var titulo = function (c) { return /^(FAENA|ORIGEN|PROPIOS?|USUARIOS?)$/.test(norm(c)); };
+    var res = {}, nums = {};
+    var hi = -1; filas.some(function (r, i) { if (r.filter(function (c) { return diaDe(c) >= 0; }).length >= 2) { hi = i; return true; } return false; });
+    if (hi >= 0) {
+      // Días uno al lado del otro: cada día ocupa sus columnas, hasta donde empieza el siguiente.
+      var ini = []; filas[hi].forEach(function (c, j) { var d = diaDe(c); if (d >= 0) { ini.push({ d: d, j: j }); var mn = norm(c).match(/\b(\d{1,2})\b/); if (mn) nums[d] = +mn[1]; } });
+      ini.forEach(function (x, k) {
+        var ancho = ini.length > 1 ? ini[1].j - ini[0].j : 1e6, fin = k + 1 < ini.length ? ini[k + 1].j : x.j + ancho, po = -1, uo = -1, desde = hi + 1;
+        for (var r = hi; r < Math.min(filas.length, hi + 4); r++) for (var j = x.j; j < Math.min(filas[r].length, fin); j++) {
+          var nc = norm(filas[r][j]);
+          if (/^PROPIO/.test(nc) && po < 0) { po = j; desde = Math.max(desde, r + 1); }
+          if (/^USUARI/.test(nc) && uo < 0) { uo = j; desde = Math.max(desde, r + 1); }
+        }
+        if (po < 0) po = uo > x.j + 1 ? uo - 1 : x.j + 1;
+        if (uo < 0) uo = po + 1;
+        var oc = po > x.j ? x.j : po - 1, lista = [];
+        for (var r2 = desde; r2 < filas.length; r2++) {
+          var f = filas[r2], o = f[oc] || '', pr = f[po] || '', us = f[uo] || '';
+          if (corta(o) || corta(pr) || diaDe(o) >= 0) break;
+          if (titulo(o) || titulo(pr)) continue;
+          if (!esNum(pr) && !esNum(us)) continue;
+          lista.push({ origen: esNum(o) ? '' : o.toUpperCase().replace(/\s+/g, ' '), propios: num(pr), usuarios: num(us) });
+        }
+        res[x.d] = lista;
+      });
+    } else {
+      // Días uno debajo del otro: una fila con el día y abajo sus orígenes (o el día al principio de cada fila).
+      var cur = -1, parado = false;
+      filas.forEach(function (r) {
+        var i = 0, d = diaDe(r[0]);
+        if (d >= 0) { cur = d; parado = false; res[cur] = res[cur] || []; var mn2 = norm(r[0]).match(/\b(\d{1,2})\b/); if (mn2) nums[d] = +mn2[1]; i = 1; while (i < r.length && !r[i]) i++; if (i >= r.length) return; }
+        if (cur < 0 || parado) return;
+        var o = r[i] || '';
+        if (corta(o)) { parado = true; return; }
+        if (titulo(o)) return;
+        var pr, us;
+        if (esNum(o)) { pr = o; us = r[i + 1]; o = ''; } else { pr = r[i + 1]; us = r[i + 2]; }
+        if (!esNum(pr) && !esNum(us)) return;
+        res[cur].push({ origen: o.toUpperCase().replace(/\s+/g, ' '), propios: num(pr), usuarios: num(us) });
+      });
+    }
+    Object.keys(res).forEach(function (k) { res[k] = res[k].filter(function (x) { return x.origen || x.propios || x.usuarios; }); });
+    Object.defineProperty(res, 'nums', { value: nums, enumerable: false });
+    return res;
+  }
+  // La semana sale de las fechas del encabezado ("Lunes 19"): la más cercana a la que se está mirando que coincida.
+  function semanaPegada(res, base) {
+    var nums = res.nums || {}, ks = Object.keys(nums);
+    if (!ks.length) return base;
+    var cand = [0, -7, 7, -14, 14, -21, 21, -28, 28].map(function (d) { return mas(base, d); });
+    return cand.filter(function (l) { return ks.every(function (k) { return fecha(mas(l, +k)).getDate() === nums[k]; }); })[0] || base;
+  }
+  function faenaPegadaHTML(res, lunes) {
+    var ks = Object.keys(res).filter(function (k) { return res[k].length; });
+    var pre = '<p class="small"><b>Va a la semana del ' + esc(etiquetaSemana(lunes)) + '.</b> Revisá que cada día tenga lo que corresponde y tocá Guardar faena.</p>';
+    if (!ks.length) return String((S.pf && S.pf.txt) || '').trim() ? '<p class="aviso-pf">No encontré la faena. Copiá las celdas con los nombres de los días (LUNES, MARTES…) y las columnas PROPIOS y USUARIOS.</p>' : '';
+    return pre + '<div class="dias pf-dias">' + [0, 1, 2, 3, 4].map(function (i) {
+      var l = res[i], f = mas(lunes, i), tp = 0, tu = 0;
+      var h = '<section class="dia"><h2>' + esc(diaDe(f)) + ' ' + fecha(f).getDate() + '</h2>';
+      if (!l || !l.length) return h + '<p class="small muted">No viene en lo pegado: queda como está.</p></section>';
+      h += '<table class="pl"><thead><tr><th>Faena</th><th>Propios</th><th>Usuarios</th></tr></thead><tbody>' + l.map(function (r) { tp += r.propios; tu += r.usuarios; return '<tr><td>' + esc(r.origen) + '</td><td>' + (r.propios ? n(r.propios) : '') + '</td><td>' + (r.usuarios ? n(r.usuarios) : '') + '</td></tr>'; }).join('')
+        + '</tbody><tfoot><tr><th>Total</th><td>' + n(tp) + '</td><td>' + n(tu) + '</td></tr></tfoot></table>';
+      return h + '</section>';
+    }).join('') + '</div>';
+  }
+  function guardarFaenaPegada(res, lunes) {
+    var sem = clone(semDe(lunes) || semanaNueva(lunes)), nd = 0;
+    Object.keys(res).forEach(function (k) { if (res[k].length && sem.dias[+k]) { sem.dias[+k].faena = clone(res[k]); nd++; } });
+    if (!nd) return Promise.resolve(0);
+    var sl = limpiarSemana(sem); S.faena = poner(S.faena, lunes, sl);
+    return store.set('faena', lunes, sl).then(function () { tocar(); return nd; });
+  }
+  function pegarFaenaPanelHTML(lunes) {
+    var res = leerFaenaPegada(S.pf.txt), hay = Object.keys(res).some(function (k) { return res[k].length; });
+    lunes = semanaPegada(res, lunes);
+    return '<div class="panel pf"><h2>Pegar faena desde Excel</h2>'
+      + '<p class="small muted">En el Excel seleccioná la faena de la semana con los nombres de los días arriba (LUNES, MARTES…) y las columnas PROPIOS y USUARIOS, copiala (Ctrl+C) y pegala acá (Ctrl+V). Abajo ves cómo queda cada día antes de guardar. Solo cambia la faena: los clientes siguen saliendo de los pedidos.</p>'
+      + '<textarea id="pf-txt" rows="7" placeholder="Pegá acá las celdas del Excel">' + esc(S.pf.txt || '') + '</textarea>'
+      + '<div id="pf-prev">' + faenaPegadaHTML(res, lunes) + '</div>'
+      + '<div class="acciones"><button class="btn pri" data-act="pf-guardar" id="pf-guardar"' + (hay ? '' : ' disabled') + '>Guardar faena</button><button class="btn" data-act="pf-cancelar">Cancelar</button></div></div>';
+  }
   function renderSemana() {
     var el = $('view-medias');
     if (cargando(el, S.faena)) return;
@@ -212,7 +307,9 @@
     if (sem) h += '<button class="btn" data-act="imprimir">Imprimir</button>';
     h += '<button class="btn" data-act="m-dia">Ver como la ven los demás</button>';
     if (S.editor && sem) h += '<button class="btn' + (edit ? ' pri' : '') + '" data-act="m-editar">' + (edit ? 'Listo' : 'Editar') + '</button><span class="guardado" id="g-medias"></span>';
+    if (S.editor && !edit && !S.pf) h += '<button class="btn" data-act="pf-abrir">Pegar faena desde Excel</button>';
     h += '</div>';
+    if (S.editor && S.pf && !edit) h += pegarFaenaPanelHTML(lunes);
     if (!sem) {
       h += '<div class="panel"><p class="state">No hay faena cargada para esta semana.</p>' + (S.editor ? cargaHTML('m-nueva') : '') + '</div>';
       el.innerHTML = h; pintarMsg('fotos'); return;
@@ -1950,8 +2047,14 @@
       render();
     }
     else if (a === 'm-dia') { if (S.em) guardar('medias', true); S.em = null; S.mv = 'dia'; if (S.sem && S.dia != null) S.fm = mas(S.sem, S.dia); render(); }
-    else if (a === 'sem') { S.msg.fotos = ''; S.msg.medias = ''; if (S.em) guardar('medias', true); S.em = null; S.sem = mas(S.sem, +D.d); S.dia = null; render(); }
+    else if (a === 'sem') { S.msg.fotos = ''; S.msg.medias = ''; S.pf = null; if (S.em) guardar('medias', true); S.em = null; S.sem = mas(S.sem, +D.d); S.dia = null; render(); }
     else if (a === 'dia') { S.dia = +D.i; var g = document.querySelector('.dias'); if (g) g.dataset.sel = D.i; document.querySelectorAll('.dtabs .btn').forEach(function (x) { x.setAttribute('aria-pressed', String(x.dataset.i === D.i)); }); }
+    else if (a === 'pf-abrir') { S.pf = { txt: '' }; render(); var pt = $('pf-txt'); if (pt) pt.focus(); }
+    else if (a === 'pf-cancelar') { S.pf = null; render(); }
+    else if (a === 'pf-guardar') {
+      var rp = leerFaenaPegada(S.pf && S.pf.txt), lp = semanaPegada(rp, S.sem);
+      guardarFaenaPegada(rp, lp).then(function (nd) { S.pf = null; S.sem = lp; S.msg.medias = nd ? 'Faena guardada: ' + nd + plural(nd, ' día', ' días') + ' de la semana del ' + etiquetaSemana(lp) + '.' : '!No había faena para guardar.'; render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); });
+    }
     else if (a === 'm-editar') { if (S.em) { guardar('medias', true); S.em = null; } else { S.em = { lunes: S.sem, doc: clone(semDe(S.sem)) }; S.msg.medias = ''; } render(); }
     else if (a === 'm-nueva') { S.em = { lunes: S.sem, doc: semanaNueva(S.sem) }; guardar('medias', true); render(); }
     else if (a === 'm-agregar') { S.em.doc.dias[+D.i][D.m].push(D.m === 'faena' ? { origen: '', propios: 0, usuarios: 0 } : { cliente: '', cant: 0 }); render(); var ult = S.em.doc.dias[+D.i][D.m].length - 1, foco = $((D.m === 'faena' ? 'f' : 'c') + D.i + '-' + ult + (D.m === 'faena' ? 'o' : 'c')); if (foco) foco.focus(); }
@@ -2089,6 +2192,7 @@
     if (t.id === 'cli-buscar') { S.cliBuscar = t.value; filtrarClientes(); return; }
     if (t.id === 'pd-buscar') { var ss = t.selectionStart; S.pdBuscar = t.value; renderPedidos(); var nb = $('pd-buscar'); if (nb) { nb.focus(); try { nb.setSelectionRange(ss, ss); } catch (err) {} } return; }
     if (D.cli != null) return;
+    if (t.id === 'pf-txt' && S.pf) { S.pf.txt = t.value; var rs = leerFaenaPegada(t.value), pv = $('pf-prev'), bg = $('pf-guardar'); if (pv) pv.innerHTML = faenaPegadaHTML(rs, semanaPegada(rs, S.sem)); if (bg) bg.disabled = !Object.keys(rs).some(function (k) { return rs[k].length; }); return; }
     if (t.id === 'pegar-cli') { S.pegarCli = t.value; return; }
     if (t.id === 'pegar-dia') { S.pegarDia = t.value; return; }
     if (t.id === 'pegar-txt') { S.pegarTxt = t.value; if (S.msg.fotos) { S.msg.fotos = ''; pintarMsg('fotos'); } return; }
@@ -2384,7 +2488,7 @@
     return fetch('sw.js?v=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.text() : ''; }).then(function (t) { var m = t.match(/produccion-qualita-v(\d+)/); return m ? m[1] : null; }, function () { return null; });
   }
   function recargar() { if (window.__mock) { if (window.__mock.recargar) window.__mock.recargar(); return; } location.reload(); }
-  function ocupado() { return !!(S.em || S.ep || S.ef || S.ec || S.pegar || (S.prop && S.prop.length) || cargas.activas || S._ocup) || escribiendo(); }
+  function ocupado() { return !!(S.em || S.ep || S.ef || S.ec || S.pegar || S.pf || (S.prop && S.prop.length) || cargas.activas || S._ocup) || escribiendo(); }
   function aplicarVersion() {
     if (!verNueva) return;
     if (!ocupado()) { recargar(); return; }
