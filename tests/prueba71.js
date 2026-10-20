@@ -3,7 +3,7 @@ const {chromium}=require('playwright');const SP=process.argv[2];
 const F='2026-10-21';
 const K=(k,corte,texto,ext)=>Object.assign({k,corte,texto},ext||{});
 const data={faena:{},produccion:{},privado:{clientes:{lista:[]}},config:{general:{},['log-'+F]:{fecha:F,camiones:[{id:'c1',nombre:'',num:'SEMI PASSERI 1 (DIGAR)',hora:'05:00',orden:['a']},{id:'c2',nombre:'',num:'7',hora:'06:00',orden:[]}],pedidos:[]}},
- pedidos:{a:{cliente:'DIGAR',entrega:F,medias:360,peso:'',nota:'',origen:'manual',kg:'',camion:'c1',cuenta:'21580',frio:'FRESCO',cortes:[K('k0','BONDIOLA','2000 KG BONDIOLA FRESCA'),K('k1','PECHO','100 KG PECHITO',{precio:5000,iva:'final'})]}}};
+ pedidos:{a:{cliente:'DIGAR',entrega:F,medias:360,peso:'',nota:'',origen:'manual',kg:'',camion:'c1',cuenta:'21580',frio:'FRESCO',cortes:[K('k0','BONDIOLA','2000 KG BONDIOLA FRESCA'),K('k1','PECHO','100 KG PECHITO',{precio:5000,iva:'final'}),K('k2','CHORIZO','50 KG CHORIZO FRESCO ESPECIAL'),K('k3','EMBUTIDOS','20 KG SALCHICHA COMUN E.V.',{precio:1000,iva:'iva'})]}}};
 (async()=>{const b=await chromium.launch();
 for(const w of [1280,400]){const p=await b.newPage({viewport:{width:w,height:900}});const errs=[];p.on('pageerror',e=>errs.push(e.message));
 await p.clock.install({time:new Date('2026-10-20T13:00:00-03:00')});
@@ -21,6 +21,9 @@ await p.locator('[data-plog="a"][data-k="m"][data-cual="iva"]').dispatchEvent('c
 await p.fill('[data-plog="a"][data-k="k0"][data-cual="final"]','4420');await p.locator('[data-plog="a"][data-k="k0"][data-cual="final"]').dispatchEvent('input');await p.locator('[data-plog="a"][data-k="k0"][data-cual="final"]').dispatchEvent('change');await p.clock.runFor(1500);await p.waitForTimeout(200);
 console.log(w,'guardado:',await p.evaluate(()=>{const x=window.__mock.data.pedidos.a;return 'medias '+x.precioMedias+' '+x.ivaMedias+' · '+x.cortes.map(c=>c.corte+' '+c.precio+' '+c.iva).join(' · ');}));
 console.log(w,'bondiola sin IVA calculado:',await val('k0','iva'));
+await p.fill('[data-plog="a"][data-k="k2"][data-cual="iva"]','4000');await p.locator('[data-plog="a"][data-k="k2"][data-cual="iva"]').dispatchEvent('input');
+console.log(w,'chorizo 4000 sin IVA → final (21%):',await val('k2','final'),'· salchicha 1000 + IVA → final:',await val('k3','final'));
+await p.locator('[data-plog="a"][data-k="k2"][data-cual="iva"]').dispatchEvent('change');await p.clock.runFor(1500);await p.waitForTimeout(200);
 await p.screenshot({path:SP+'/precioslog'+w+'.png',fullPage:true});
 await p.emulateMedia({media:'print'});console.log(w,'impreso:',(await p.locator('.log-cortes').first().innerText()).replace(/\s+/g,' '));await p.emulateMedia({media:'screen'});
 console.log(w,'desborde',await p.evaluate(()=>document.documentElement.scrollWidth-innerWidth),'· errores',errs.join('|')||'ninguno');
