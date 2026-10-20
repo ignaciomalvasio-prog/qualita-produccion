@@ -1293,6 +1293,18 @@
   }
   // Sube o baja un pedido dentro de su camión.
   // Lleva un pedido a un lugar del camión (0 = primero).
+  // Lo que quedó después de arrastrar en Pedidos: cada grupo con su camión ('' = sin camión) y sus pedidos en orden de bajada.
+  function reordenarPedidos(f, grupos) {
+    var cams = clone(camionesDe(f)), tareas = [];
+    grupos.forEach(function (g) {
+      g.ids.forEach(function (id) {
+        var p = pedidoDe(id); if (!p || (p.camion || '') === g.cam) return;
+        var doc = clone(p); delete doc.id; doc.camion = g.cam; S.pedidos = poner(S.pedidos, id, doc); tareas.push(store.set('pedidos', id, doc));
+      });
+      var c = g.cam && cams.filter(function (x) { return x.id === g.cam; })[0]; if (c) c.orden = g.ids.slice();
+    });
+    return Promise.all(tareas).then(function () { return publicarLog(f, cams); }).then(tocar);
+  }
   function moverEnCamionA(f, camId, pedId, j) {
     var lg = logDe(f), cams = clone(camionesDe(f)), cam = cams.filter(function (c) { return c.id === camId; })[0];
     if (!lg || !cam) return Promise.resolve();
@@ -1730,12 +1742,13 @@
     return '<span class="kg-ped' + (k.falta ? ' falta' : '') + '" title="' + (k.falta ? 'Hay renglones que no se pueden pasar a kilos' : 'Kilos totales del pedido') + '">' + (k.kg ? '<b>' + (k.manual ? '' : '≈ ') + n(k.kg) + ' kg</b>' + (k.falta ? '<small> + sin peso</small>' : '') : '<small>sin peso</small>') + '</span>';
   }
   // Un pedido del listado: cerrado muestra el resumen; abierto, el desglose por corte.
-  function pedidoHTML(p, m) {
+  function pedidoHTML(p, m, mov) {
     var cs = cortesDe(p).filter(function (c) { return c.texto; }), enP = cs.filter(function (c) { return fechaProdDe(m, p, c); }).length;
     var ab = !!S.abierto[p.id], sel = !!S.sel[p.id], cam = nombreCamion(p.entrega, p.camion), res = [], id = esc(p.id);
     if (+p.medias) res.push(n(+p.medias) + (+p.medias === 1 ? ' media' : ' medias') + (p.peso ? ' ' + esc(p.peso) : ''));
     if (cs.length) res.push(cs.length + (cs.length === 1 ? ' corte' : ' cortes'));
-    var h = '<div class="ped' + (ab ? ' abierto' : '') + (sel ? ' sel' : '') + '"><div class="ped-cab">'
+    var h = '<div class="ped' + (ab ? ' abierto' : '') + (sel ? ' sel' : '') + '" data-ped="' + id + '"><div class="ped-cab">'
+      + (mov ? '<button class="ped-mover" data-parr="' + id + '" aria-label="Arrastrar a ' + esc(p.cliente) + ' para cambiar el orden de bajada (o usar las flechas del teclado)" title="Arrastrar para ordenar">⠿</button>' : '')
       + '<label class="chk"><input type="checkbox" data-sel="' + id + '"' + (sel ? ' checked' : '') + ' aria-label="Tildar el pedido de ' + esc(p.cliente) + ' para un camión"></label>'
       + '<button class="ped-tit" data-act="ped-abrir" data-id="' + id + '" aria-expanded="' + ab + '"><span class="nom">' + esc(p.cliente || 'Sin cliente') + '</span>' + ctaHTML(cuentaPedido(p), true) + '<span class="res">' + res.join(' · ') + (p.frio ? ' ' + frioBadge(p.frio) : '') + '</span>'
       + (cam || p.vendedor ? '<span class="marcas">' + (p.vendedor ? '<span class="badge vend" title="' + esc(p.vendedor) + '">Vendedor: ' + esc(p.vendedorNombre || p.vendedor.split('@')[0]) + '</span>' : '') + (cam ? '<span class="badge plain">' + esc(cam) + '</span>' : '') + '</span>' : '') + '<span class="col-kg">' + kgPedHTML(p) + '</span><span class="col-prod">' + prodBadgeHTML(enP, cs.length) + '</span><span class="chev" aria-hidden="true">' + (ab ? '▴' : '▾') + '</span></button></div>';
@@ -1869,14 +1882,14 @@
   function pedidosAgrupadosHTML(f, lista, m) {
     var cams = camionesDe(f), hay = {}; cams.forEach(function (c) { hay[c.id] = c; });
     if (!cams.length || !lista.some(function (p) { return p.camion && hay[p.camion]; })) return '<div class="peds">' + lista.map(function (p) { return pedidoHTML(p, m); }).join('') + '</div>';
-    var grupo = function (tit, extra, l, cls) { return '<div class="grupo-cam' + (cls ? ' ' + cls : '') + '"><h3 class="grupo-tit">' + tit + ' <span class="small muted">' + esc(extra) + '</span></h3><div class="peds">' + l.map(function (p) { return pedidoHTML(p, m); }).join('') + '</div></div>'; };
+    var grupo = function (tit, extra, l, cls, camId) { return '<div class="grupo-cam' + (cls ? ' ' + cls : '') + '" data-gcam="' + esc(camId || '') + '"><h3 class="grupo-tit">' + tit + ' <span class="small muted">' + esc(extra) + '</span></h3><div class="peds">' + l.map(function (p) { return pedidoHTML(p, m, true); }).join('') + '</div></div>'; };
     var h = '', sin = lista.filter(function (p) { return !(p.camion && hay[p.camion]); });
-    if (sin.length) h += grupo('Sin camión', resumenLog(sin), sin, 'sin-cam');
+    if (sin.length) h += grupo('Sin camión', resumenLog(sin), sin, 'sin-cam', '');
     cams.forEach(function (c) {
       var o = c.orden || [], l = lista.filter(function (p) { return p.camion === c.id; }).sort(function (a, b) { var i = o.indexOf(a.id), j = o.indexOf(b.id); return (i < 0 ? 1e6 : i) - (j < 0 ? 1e6 : j); });
-      if (l.length) h += grupo('<span class="badge plain">' + esc(nomCam(c)) + '</span>' + (c.hora ? ' ' + esc(c.hora) + ' hs' : ''), resumenLog(l), l);
+      h += grupo('<span class="badge plain">' + esc(nomCam(c)) + '</span>' + (c.hora ? ' ' + esc(c.hora) + ' hs' : ''), l.length ? resumenLog(l) : 'vacío: arrastrá clientes acá', l, l.length ? '' : 'vacio', c.id);
     });
-    return h;
+    return '<p class="small muted arr-tip">Arrastrá cada cliente desde ⠿ para ordenar la bajada de cada camión (el primero baja primero) o para pasarlo a otro camión.</p>' + h;
   }
   // Buscador: en todos los pedidos (desde la semana pasada), por cliente o N° de cuenta.
   function buscarPedidosHTML(q) {
@@ -2584,6 +2597,38 @@
     var d = e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : 0; if (!d) return;
     e.preventDefault(); var id = hd.getAttribute('data-arr');
     moverCamion(S.fl, id, d).then(function () { render(); var b = document.querySelector('.res-mover[data-arr="' + id + '"]'); if (b) b.focus(); });
+  });
+  // Arrastrar clientes en Pedidos (agrupados por camión): cambia el orden de bajada y, si se suelta en otro grupo, el camión.
+  var arrP = null, tScroll = null;
+  document.addEventListener('pointerdown', function (e) {
+    var hd = e.target.closest && e.target.closest('.ped-mover'); if (!hd || e.button > 0) return;
+    var el = hd.closest('.ped'), zona = el && el.closest('.dia-ped'); if (!zona) return;
+    e.preventDefault(); S._ocup = true;
+    var foto = function () { return Array.prototype.map.call(zona.querySelectorAll('.grupo-cam'), function (g) { return { cam: g.getAttribute('data-gcam') || '', ids: Array.prototype.map.call(g.querySelectorAll('.ped[data-ped]'), function (x) { return x.getAttribute('data-ped'); }) }; }); };
+    arrP = { el: el, zona: zona, antes: JSON.stringify(foto()), foto: foto, y: e.clientY }; el.classList.add('arrastrando');
+    try { hd.setPointerCapture(e.pointerId); } catch (err) {}
+    clearInterval(tScroll); tScroll = setInterval(function () { if (!arrP) return; var h = window.innerHeight; if (arrP.y < 60) window.scrollBy(0, -12); else if (arrP.y > h - 60) window.scrollBy(0, 12); }, 30);
+  });
+  document.addEventListener('pointermove', function (e) {
+    if (!arrP) return; e.preventDefault(); arrP.y = e.clientY;
+    var bajo = document.elementFromPoint(e.clientX, e.clientY); if (!bajo || !bajo.closest) return;
+    var t = bajo.closest('.ped[data-ped]'), g = bajo.closest('.grupo-cam');
+    if (t && t !== arrP.el && arrP.zona.contains(t)) {
+      var r = t.getBoundingClientRect(), antesDe = e.clientY < r.top + r.height / 2;
+      t.parentNode.insertBefore(arrP.el, antesDe ? t : t.nextSibling);
+    } else if (g && arrP.zona.contains(g) && !t) { var l = g.querySelector('.peds'); if (l && arrP.el.parentNode !== l) l.appendChild(arrP.el); }
+  });
+  function soltarP() {
+    if (!arrP) return; var a = arrP; arrP = null; clearInterval(tScroll); a.el.classList.remove('arrastrando'); S._ocup = false;
+    var nuevo = a.foto(); if (JSON.stringify(nuevo) === a.antes) { renderPedidos(); return; }
+    reordenarPedidos(S.pd, nuevo).then(function () { avisar('Orden guardado.', 2500); renderPedidos(); }, function () { avisar('!No se pudo guardar el orden. Revisá la conexión.', 6000); renderPedidos(); });
+  }
+  document.addEventListener('pointerup', soltarP); document.addEventListener('pointercancel', soltarP);
+  document.addEventListener('keydown', function (e) {
+    var hd = e.target && e.target.classList && e.target.classList.contains('ped-mover') ? e.target : null; if (!hd) return;
+    var d = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0; if (!d) return;
+    e.preventDefault(); var id = hd.getAttribute('data-parr'), p = pedidoDe(id); if (!p || !p.camion) return;
+    moverEnCamion(S.pd, p.camion, id, d).then(function () { renderPedidos(); var b = document.querySelector('.ped-mover[data-parr="' + id + '"]'); if (b) b.focus(); });
   });
   // Una captura copiada (o varias imágenes) se pega con Ctrl+V donde esté el botón "Subir fotos o capturas", también en el cuadro de texto.
   document.addEventListener('paste', function (e) {

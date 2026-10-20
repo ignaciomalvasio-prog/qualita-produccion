@@ -292,6 +292,14 @@ h1 a{color:inherit;text-decoration:none}
 .ped.sel{background:var(--accent-soft)}
 .ped-cab{display:flex;align-items:stretch}
 .ped .chk{display:flex;align-items:center;padding:0 10px 0 6px;cursor:pointer}
+.ped-mover{flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:28px;padding:0;border:0;background:none;color:var(--muted);font-size:20px;cursor:grab;touch-action:none}
+.ped-mover:hover,.ped-mover:focus-visible{color:var(--accent)}
+.ped.arrastrando{opacity:.85;outline:2px dashed var(--accent);outline-offset:-2px;background:var(--accent-soft)!important;position:relative;z-index:5}
+.grupo-cam:not([data-gcam=""]) .peds{counter-reset:lug}
+.grupo-cam:not([data-gcam=""]) .ped-cab::before{counter-increment:lug;content:counter(lug);flex:0 0 auto;align-self:center;min-width:24px;height:24px;margin-left:2px;border-radius:12px;background:var(--accent);color:var(--accent-ink);font:700 13px/24px var(--display);text-align:center}
+.grupo-cam.vacio .peds{min-height:44px;border:2px dashed var(--line);border-radius:6px}
+.arr-tip{margin:0 0 4px}
+@media print{ .ped-mover,.arr-tip{display:none!important} }
 .ped .chk input{width:20px;height:20px;accent-color:var(--accent);cursor:pointer}
 .ped-tit{flex:1 1 auto;min-width:0;display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;padding:12px 6px;background:transparent;border:0;color:inherit;font:inherit;text-align:left;cursor:pointer}
 .ped-tit:hover .nom{text-decoration:underline}
