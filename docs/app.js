@@ -2376,6 +2376,11 @@
   });
   // Una captura copiada (o varias imágenes) se pega con Ctrl+V donde esté el botón "Subir fotos o capturas", también en el cuadro de texto.
   document.addEventListener('paste', function (e) {
+    if ($('rend-rep') && e.clipboardData) {
+      var ri = Array.prototype.slice.call(e.clipboardData.items || []).filter(function (it) { return it.kind === 'file' && /^image\//.test(it.type); }).map(function (it) { return it.getAsFile(); }).filter(Boolean);
+      if (ri.length) { e.preventDefault(); cargarReporteRend(ri[0]); }
+      return;
+    }
     if (S.pf && $('pf-txt') && e.clipboardData) {
       var im = Array.prototype.slice.call(e.clipboardData.items || []).filter(function (it) { return it.kind === 'file' && /^image\//.test(it.type); }).map(function (it) { return it.getAsFile(); }).filter(Boolean)[0];
       if (im) { e.preventDefault(); leerFaenaFoto(im); }
@@ -2392,6 +2397,7 @@
   document.addEventListener('change', function (e) {
     var t = e.target, D = t.dataset;
     if (t.id === 'r-fecha' && t.value) { S.fr = t.value; render(); return; }
+    if (t.id === 'rend-rep' && t.files && t.files[0]) { cargarReporteRend(t.files[0]); try { t.value = ''; } catch (err) {} return; }
     if (D.rend) { var fq = S.fr; S.msg.rend = 'Guardando…'; pintarMsg('rend'); guardarRend(fq, D.rend, t.value).then(function () { S.msg.rend = 'Guardado.'; if (!escribiendo()) render(); else pintarMsg('rend'); }, function () { S.msg.rend = '!No se pudo guardar. Revisá la conexión.'; pintarMsg('rend'); }); return; }
     if (D.rcfg) { S.rcfgAb = true; guardarRendCfg(D.rcfg, D.id, t.value).then(function () { S.msg.rend = 'Guardado.'; render(); }, function () { S.msg.rend = '!No se pudo guardar. Revisá la conexión.'; pintarMsg('rend'); }); return; }
     if (D.hora != null && t.classList.contains('res-hora')) { ponerHora(S.fl, D.hora, t.value).then(null, function () { S.msg.log = '!No se pudo guardar.'; render(); }); return; }
@@ -2526,12 +2532,66 @@
       out.prod.push({ id: x.id, nom: x.nom, kg: v, est: est, manual: m != null, como: n(Math.round(p * 10) / 10) + '% de lo que entra' + (a ? ' (promedio real de ' + a.n + ' días)' : '') });
       out.tProd += v || 0;
     });
+    out.tIns = Math.round(out.tIns); out.tProd = Math.round(out.tProd);
     return out;
+  }
+  /* Lectura del reporte del sistema "Resumen de Insumos" (Producción > Reportes > Ciclo II, tipo Rendering), de un día.
+     Cada artículo se suma a su renglón por código (o por nombre si el código no es conocido). */
+  var REND_COD = { hueso: [420, 425, 434], dfaena: [440], ddesposte: [430, 443], grasa: [472, 473, 484], cuero: [412, 414, 417] };
+  function rendCategoria(cod, nom) {
+    var k = Object.keys(REND_COD).filter(function (x) { return REND_COD[x].indexOf(+cod) >= 0; })[0]; if (k) return k;
+    var t = norm(nom);
+    return /CUERO/.test(t) ? 'cuero' : /HUESO/.test(t) ? 'hueso' : /DESPOJO DE FAENA/.test(t) ? 'dfaena' : /DESPOJO/.test(t) ? 'ddesposte' : /GRASA/.test(t) ? 'grasa' : 'otros';
+  }
+  var ESQUEMA_REND = { type: 'object', additionalProperties: false, required: ['es_reporte', 'desde', 'hasta', 'tipo', 'articulos', 'total_kilos', 'dudas'], properties: {
+    es_reporte: { type: 'boolean', description: 'true si la imagen es el reporte Resumen de Insumos' },
+    desde: { type: 'string', description: 'AAAA-MM-DD' }, hasta: { type: 'string', description: 'AAAA-MM-DD' }, tipo: { type: 'string', description: 'lo que dice Tipo Ciclo II' },
+    articulos: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['codigo', 'nombre', 'unidades', 'kilos'], properties: { codigo: { type: 'integer' }, nombre: { type: 'string' }, unidades: { type: 'number' }, kilos: { type: 'number' } } } },
+    total_kilos: { type: 'number' }, dudas: { type: 'array', items: { type: 'string' } } } };
+  function leerReporteRend(file) {
+    if (window.__mock && window.__mock.iaRep) return Promise.resolve(window.__mock.iaRep(file.name));
+    if (!(S.ia && S.ia.clave)) return Promise.reject(new Error('Falta cargar la clave de IA (en Pedidos, abajo, en Configuración).'));
+    return achicar(file).then(function (b64) {
+      return fetch('https://api.anthropic.com/v1/messages', { method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': S.ia.clave, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({ model: S.ia.modelo || IA_MODELO, max_tokens: 4000,
+          system: 'Leés capturas del sistema de producción del Frigorífico Qualitá. El reporte "Resumen de Insumos" tiene arriba "Fecha: dd/mm/aa-dd/mm/aa" (desde-hasta) y "Tipo Ciclo II", y una tabla con código, artículo, unidades y kilos, más una fila TOTALES. Copiá cada fila de la tabla tal cual (los kilos usan punto decimal: 2158.96 son dos mil ciento cincuenta y ocho kilos). Las fechas van en AAAA-MM-DD (el año "26" es 2026). No copies la fila TOTALES como artículo: va en total_kilos. Si algo no se lee bien, avisalo en dudas. Si la imagen no es ese reporte, es_reporte=false.',
+          output_config: { format: { type: 'json_schema', schema: ESQUEMA_REND } },
+          messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } }, { type: 'text', text: 'Leé este reporte.' }] }] }) })
+        .then(function (r) { return r.json().then(function (j) {
+          if (!r.ok) throw new Error(r.status === 401 ? 'La clave de IA no es válida.' : (j && j.error && j.error.message) || ('Error ' + r.status));
+          var t = (j.content || []).filter(function (b) { return b.type === 'text'; }).map(function (b) { return b.text; }).join('');
+          try { return JSON.parse(t); } catch (e) { throw new Error('No se pudo leer el reporte.'); }
+        }); });
+    });
+  }
+  function cargarReporteRend(file) {
+    S.msg.rend = 'Leyendo el reporte…'; pintarMsg('rend'); avisar('Leyendo el reporte de insumos…', 4000);
+    return leerReporteRend(file).then(function (j) {
+      if (!j || !j.es_reporte || !(j.articulos || []).length) throw new Error('No parece el reporte "Resumen de Insumos". Mandá la captura de ese reporte.');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(j.desde || '')) throw new Error('No se pudo leer la fecha del reporte.');
+      if (j.hasta && j.hasta !== j.desde) throw new Error('El reporte es de varios días (' + diaCorto(j.desde) + ' a ' + diaCorto(j.hasta) + '). Sacalo de un solo día: desde y hasta con la misma fecha.');
+      if (j.tipo && !/RENDER/.test(norm(j.tipo))) throw new Error('El reporte es de "' + j.tipo + '", no de Rendering. Elegí Tipo Ciclo II: Rendering.');
+      var f = j.desde, v = {}, suma = 0;
+      REND_INS.forEach(function (x) { if (x.id !== 'compras') v[x.id] = 0; });
+      j.articulos.forEach(function (a) { var k = rendCategoria(a.codigo, a.nombre); v[k] = Math.round(((v[k] || 0) + (+a.kilos || 0)) * 100) / 100; suma += +a.kilos || 0; });
+      var doc = clone((S.rend || {})[f] || { fecha: f, v: {} }); delete doc.id; doc.fecha = f; doc.v = doc.v || {};
+      Object.keys(v).forEach(function (k) { doc.v[k] = v[k]; });
+      doc.arts = j.articulos.map(function (a) { return { c: +a.codigo || 0, n: String(a.nombre || ''), u: +a.unidades || 0, kg: +a.kilos || 0 }; });
+      doc.fuente = 'Resumen de Insumos del sistema'; doc.actualizado = ahoraTxt();
+      var aviso = Math.abs(suma - (+j.total_kilos || suma)) > 1 ? ' Ojo: la suma de los renglones (' + n(Math.round(suma)) + ' kg) no da el total del reporte (' + n(Math.round(+j.total_kilos)) + ' kg); revisalo.' : '';
+      if ((j.dudas || []).length) aviso += ' Dudas: ' + j.dudas.join(' ');
+      S.rend = S.rend || {}; S.rend[f] = clone(doc); S._rendAp = null;
+      return store.set('config', 'rend-' + f, doc).then(function () {
+        S.fr = f; S.msg.rend = (aviso ? '!' : '') + 'Cargado el real del ' + diaCorto(f) + ': ' + n(Math.round(suma)) + ' kg de insumos.' + aviso;
+        avisar(S.msg.rend, aviso ? 12000 : 6000); render();
+      });
+    }).then(null, function (e) { S.msg.rend = '!' + e.message; avisar(S.msg.rend, 9000); pintarMsg('rend'); });
   }
   function guardarRend(f, id, valor) {
     var doc = clone((S.rend || {})[f] || { fecha: f, v: {} }); delete doc.id; doc.v = doc.v || {};
     if (valor === '' || valor == null) delete doc.v[id]; else doc.v[id] = +String(valor).replace(',', '.') || 0;
-    doc.actualizado = ahoraTxt(); S.rend = S.rend || {}; S.rend[f] = clone(doc);
+    doc.actualizado = ahoraTxt(); S.rend = S.rend || {}; S.rend[f] = clone(doc); S._rendAp = null;
     return Object.keys(doc.v).length ? store.set('config', 'rend-' + f, doc) : (delete S.rend[f], store.del('config', 'rend-' + f));
   }
   function guardarRendCfg(tipo, id, valor) {
@@ -2550,7 +2610,8 @@
       + '<input type="date" id="r-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">'
       + (f !== rendFechaInicial() ? '<button class="btn" data-act="fr-hoy">Hoy</button>' : '')
       + '<button class="btn" data-act="imprimir">Imprimir</button>'
-      + (ed ? '<button class="btn" data-act="link-rend">Copiar link para compartir</button>' : '') + '<span class="guardado" id="g-rend"></span></div>';
+      + (ed ? '<label class="btn pri" style="display:inline-flex;align-items:center">Cargar reporte del sistema<input type="file" id="rend-rep" accept="image/*" hidden></label><button class="btn" data-act="link-rend">Copiar link para compartir</button>' : '') + '<span class="guardado" id="g-rend"></span></div>'
+      + (ed ? '<p class="small muted rend-ayuda">Para cargar el real: en el sistema, Producción › Reportes › Ciclo II › Resumen de insumos, Tipo Ciclo II: Rendering, de un solo día. Sacale una captura y pegala acá con Ctrl+V (o tocá "Cargar reporte del sistema").</p>' : '');
     var rinde = r.tIns ? Math.round(r.tProd / r.tIns * 1000) / 10 : null;
     var estado = !r.manual ? (r.estim ? 'estim' : '') : r.estim ? 'parcial' : 'real';
     h += '<section class="rend-hero"><div><p class="dh-sup">Rendering · ' + esc(cuandoEs(f) === 'hoy' ? 'hoy' : diaCorto(f)) + '</p><h2>' + esc(tituloDe(f)) + ' ' + (estado === 'real' ? '<span class="badge ok">Datos reales</span>' : estado === 'parcial' ? '<span class="badge warn">Parte real, parte estimado</span>' : estado ? '<span class="badge warn">Estimado</span>' : '') + '</h2>'
@@ -2563,6 +2624,8 @@
       }).join('') + '</tbody><tfoot><tr><td>Total</td><td class="num"><b>' + kg(tot || null) + '</b></td></tr></tfoot></table></div>';
     };
     h += '<div class="rend-grid">' + tabla('Insumos (lo que entra)', r.ins, r.tIns) + tabla('Producidos (lo que sale)', r.prod, r.tProd) + '</div>';
+    var rd0 = (S.rend || {})[f];
+    if (rd0 && (rd0.arts || []).length) h += '<details class="panel rend-det"><summary>Detalle del reporte del sistema (' + rd0.arts.length + ' artículos · ' + n(Math.round(rd0.arts.reduce(function (t, a) { return t + a.kg; }, 0))) + ' kg)</summary><table class="pl"><thead><tr><th>Cód.</th><th>Artículo</th><th class="num">Unid.</th><th class="num">Kg</th></tr></thead><tbody>' + rd0.arts.map(function (a) { return '<tr><td>' + a.c + '</td><td>' + esc(a.n) + '</td><td class="num">' + n(a.u) + '</td><td class="num">' + n(a.kg) + '</td></tr>'; }).join('') + '</tbody></table></details>';
     if (ed) h += '<p class="small muted rend-ayuda">Los números en gris son estimados. Cuando llega la planilla del día, escribí encima el real de cada renglón; si lo borrás, vuelve al estimado. Con cada día real el estimado aprende.</p>';
     // Días anteriores
     var dias = [], x = f; for (var i = 0; i < 10; i++) { dias.push(x); x = habilAnterior(x); }
@@ -2669,7 +2732,7 @@
       var c = l.filter(function (x) { return x.id === 'general'; })[0], lg = {};
       var rd = {}, rc = null;
       l.forEach(function (x) { var k = String(x.id); if (k.indexOf('log-') === 0) { (x.camiones || []).forEach(horaDeNota); lg[x.id.slice(4)] = x; } else if (k.indexOf('rend-') === 0) rd[k.slice(5)] = x; else if (k === 'rendering2') rc = x; });
-      S.rend = rd; S.rendCfg = rc;
+      S.rend = rd; S.rendCfg = rc; S._rendAp = null;
       // Mientras se edita el stock de camiones, lo que se está escribiendo no se pisa con lo que llega.
       if (c && S.ef) { c.flota = S.config.flota; c.kgMedia = S.config.kgMedia; c.kgCaja = S.config.kgCaja; }
       S.log = lg; S.logListo = true; if (c) S.config = c;
