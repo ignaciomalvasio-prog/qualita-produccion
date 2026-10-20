@@ -2481,33 +2481,49 @@
      Se estiman solos con la faena (cerdos del día, de la planilla de Medias) y el desposte (medias de la
      planilla de Producción); un editor puede corregir cualquier número del día y los factores del cálculo.
      Se guarda en config/rendering (factores) y config/rend-AAAA-MM-DD (números corregidos a mano). */
+  /* Factores de partida sacados de lo real de julio a septiembre de 2026 (traspasos Frigorífico → Rendering,
+     compras de afuera, kg producidos y cabezas faenadas del informe mensual): kg por cerdo faenado. Producidos:
+     37% de lo que entra, repartido 54% harina y 46% sebo (planillas de venta de harina y sebo). Cuando hay días con
+     datos reales cargados, el estimado aprende de esos días (últimos 20 hábiles con dato real). */
   var REND_INS = [
-    { id: 'sangre', nom: 'Sangre', por: 'cerdo', def: 3 },
-    { id: 'visceras', nom: 'Vísceras no comestibles', por: 'cerdo', def: 6 },
-    { id: 'hueso', nom: 'Hueso', por: 'media', def: 5 },
-    { id: 'grasa', nom: 'Grasa', por: 'media', def: 4 },
-    { id: 'recortes', nom: 'Recortes y descartes', por: 'media', def: 1.5 }
+    { id: 'hueso', nom: 'Hueso (incluye cabeza)', def: 9.5 },
+    { id: 'dfaena', nom: 'Despojo de faena', def: 11.3 },
+    { id: 'ddesposte', nom: 'Despojo de despostada', def: 5.6 },
+    { id: 'grasa', nom: 'Grasa en rama', def: 1.5 },
+    { id: 'cuero', nom: 'Cuero y recorte de cuero', def: 1.8 },
+    { id: 'otros', nom: 'Decomisos y varios', def: 0.2 },
+    { id: 'compras', nom: 'Compras de afuera', def: 4.2 }
   ];
   var REND_PROD = [
-    { id: 'harina', nom: 'Harina de carne y hueso', de: ['hueso', 'visceras', 'recortes'], def: 28 },
-    { id: 'hsangre', nom: 'Harina de sangre', de: ['sangre'], def: 18 },
-    { id: 'gfundida', nom: 'Grasa fundida', de: ['grasa', 'hueso'], def: 45 }
+    { id: 'harina', nom: 'Harina de carne y hueso', def: 20 },
+    { id: 'sebo', nom: 'Sebo', def: 17 }
   ];
   function rendFactor(tipo, x) { var c = S.rendCfg || {}, v = (c[tipo] || {})[x.id]; return v === 0 || v ? +v : x.def; }
-  function cerdosDe(f) { var sem = semDe(lunesDe(f)), i = Math.round((fecha(f) - fecha(lunesDe(f))) / 86400000), d = sem && sem.dias && sem.dias[i]; if (!d) return null; var t = sumas(d); return t.propios + t.usuarios || null; }
+  function cerdosDe(f) { var sem = semDe(lunesDe(f)), i = Math.round((fecha(f) - fecha(lunesDe(f))) / 86400000), d = sem && sem.dias && sem.dias[i], c = null; if (d) { var t = sumas(d); c = t.propios + t.usuarios || null; } if (!c) { var o = prodDe(f); if (o && +o.medias) c = Math.round(+o.medias / 2); } return c; }
   function mediasDe(f) { var o = prodDe(f); return o && +o.medias ? +o.medias : null; }
+  function realDe(f, id) { var v = (((S.rend || {})[f] || {}).v || {})[id]; return v === 0 || v ? +v : null; }
+  // Lo aprendido de los días con dato real: kg por cerdo (insumos) o % de lo que entró (producidos).
+  function rendAprendido(f) {
+    var memo = S._rendAp || (S._rendAp = {}), clave = f + '|' + JSON.stringify(S.rend || {}).length + '|' + (S.faena || []).length;
+    if (memo[clave]) return memo[clave];
+    var ap = { ins: {}, prod: {} }, d = f, dias = [];
+    for (var i = 0; i < 60 && dias.length < 20; i++) { d = habilAnterior(d); if ((S.rend || {})[d]) dias.push(d); }
+    REND_INS.forEach(function (x) { var k = 0, b = 0, nd = 0; dias.forEach(function (q) { var r = realDe(q, x.id), c = cerdosDe(q); if (r != null && c) { k += r; b += c; nd++; } }); if (nd >= 3 && b) ap.ins[x.id] = { k: k / b, n: nd }; });
+    REND_PROD.forEach(function (x) { var k = 0, b = 0, nd = 0; dias.forEach(function (q) { var r = realDe(q, x.id); if (r == null) return; var t = 0; REND_INS.forEach(function (y) { var ry = realDe(q, y.id), c = cerdosDe(q); t += ry != null ? ry : c ? c * rendFactor('ins', y) : 0; }); if (t) { k += r; b += t; nd++; } }); if (nd >= 3 && b) ap.prod[x.id] = { k: k / b * 100, n: nd }; });
+    memo[clave] = ap; return ap;
+  }
   function rendDia(f) {
-    var man = ((S.rend || {})[f] || {}).v || {}, cer = cerdosDe(f), med = mediasDe(f), ins = {}, out = { f: f, cerdos: cer, medias: med, ins: [], prod: [], tIns: 0, tProd: 0, manual: 0 };
+    var cer = cerdosDe(f), ap = rendAprendido(f), out = { f: f, cerdos: cer, medias: mediasDe(f), ins: [], prod: [], tIns: 0, tProd: 0, manual: 0, estim: 0 };
     REND_INS.forEach(function (x) {
-      var k = rendFactor('ins', x), base = x.por === 'cerdo' ? cer : med, est = base ? Math.round(base * k) : null, m = man[x.id], v = m === 0 || m ? +m : est;
-      ins[x.id] = v || 0; if (m === 0 || m) out.manual++;
-      out.ins.push({ id: x.id, nom: x.nom, kg: v, est: est, manual: m === 0 || !!m, como: base ? n(k) + ' kg × ' + n(base) + (x.por === 'cerdo' ? ' cerdos' : ' medias') : (x.por === 'cerdo' ? 'falta la faena del día' : 'falta el desposte del día') });
+      var a = ap.ins[x.id], k = a ? a.k : rendFactor('ins', x), est = cer ? Math.round(cer * k) : null, m = realDe(f, x.id), v = m != null ? m : est;
+      if (m != null) out.manual++; else if (est != null) out.estim++;
+      out.ins.push({ id: x.id, nom: x.nom, kg: v, est: est, manual: m != null, como: cer ? n(Math.round(k * 100) / 100) + ' kg × ' + n(cer) + ' cerdos' + (a ? ' (promedio real de ' + a.n + ' días)' : '') : 'falta la faena del día' });
       out.tIns += v || 0;
     });
     REND_PROD.forEach(function (x) {
-      var p = rendFactor('prod', x), base = x.de.reduce(function (t, k) { return t + (ins[k] || 0); }, 0), est = base ? Math.round(base * p / 100) : null, m = man[x.id], v = m === 0 || m ? +m : est;
-      if (m === 0 || m) out.manual++;
-      out.prod.push({ id: x.id, nom: x.nom, kg: v, est: est, manual: m === 0 || !!m, como: n(p) + '% de ' + x.de.map(function (k) { return REND_INS.filter(function (y) { return y.id === k; })[0].nom.toLowerCase(); }).join(' + ') });
+      var a = ap.prod[x.id], p = a ? a.k : rendFactor('prod', x), est = out.tIns ? Math.round(out.tIns * p / 100) : null, m = realDe(f, x.id), v = m != null ? m : est;
+      if (m != null) out.manual++; else if (est != null) out.estim++;
+      out.prod.push({ id: x.id, nom: x.nom, kg: v, est: est, manual: m != null, como: n(Math.round(p * 10) / 10) + '% de lo que entra' + (a ? ' (promedio real de ' + a.n + ' días)' : '') });
       out.tProd += v || 0;
     });
     return out;
@@ -2522,7 +2538,7 @@
     var c = clone(S.rendCfg || {}); delete c.id; c[tipo] = c[tipo] || {};
     if (valor === '' || valor == null) delete c[tipo][id]; else c[tipo][id] = +String(valor).replace(',', '.') || 0;
     c.actualizado = ahoraTxt(); S.rendCfg = clone(c);
-    return store.set('config', 'rendering', c);
+    return store.set('config', 'rendering2', c);
   }
   function rendFechaInicial() { var h = hoy(); return esHabil(h) ? h : habilAnterior(h); }
   function renderRendering() {
@@ -2536,27 +2552,28 @@
       + '<button class="btn" data-act="imprimir">Imprimir</button>'
       + (ed ? '<button class="btn" data-act="link-rend">Copiar link para compartir</button>' : '') + '<span class="guardado" id="g-rend"></span></div>';
     var rinde = r.tIns ? Math.round(r.tProd / r.tIns * 1000) / 10 : null;
-    h += '<section class="rend-hero"><div><p class="dh-sup">Rendering · ' + esc(cuandoEs(f) === 'hoy' ? 'hoy' : diaCorto(f)) + '</p><h2>' + esc(tituloDe(f)) + '</h2>'
-      + '<p class="dh-sub">' + (r.cerdos ? n(r.cerdos) + ' cerdos faenados' : 'Sin faena cargada') + ' · ' + (r.medias ? n(r.medias) + ' medias despostadas' : 'sin desposte cargado') + '</p></div>'
+    var estado = !r.manual ? (r.estim ? 'estim' : '') : r.estim ? 'parcial' : 'real';
+    h += '<section class="rend-hero"><div><p class="dh-sup">Rendering · ' + esc(cuandoEs(f) === 'hoy' ? 'hoy' : diaCorto(f)) + '</p><h2>' + esc(tituloDe(f)) + ' ' + (estado === 'real' ? '<span class="badge ok">Datos reales</span>' : estado === 'parcial' ? '<span class="badge warn">Parte real, parte estimado</span>' : estado ? '<span class="badge warn">Estimado</span>' : '') + '</h2>'
+      + '<p class="dh-sub">' + (r.cerdos ? n(r.cerdos) + ' cerdos faenados' : 'Sin faena cargada') + (r.medias ? ' · ' + n(r.medias) + ' medias despostadas' : '') + '</p>' + (estado === 'estim' || estado === 'parcial' ? '<p class="small rend-nota">Los datos reales se cargan al final del día. Mientras tanto se muestra un estimado hecho con lo que pasó en días anteriores; cuando se cargan los reales, se reemplaza.</p>' : '') + '</div>'
       + '<div class="kpis"><div class="kpi"><b>' + (r.tIns ? n(r.tIns) : '—') + '</b><span>kg de insumos</span></div><div class="kpi"><b>' + (r.tProd ? n(r.tProd) : '—') + '</b><span>kg producidos</span></div><div class="kpi"><b>' + (rinde == null ? '—' : n(rinde) + '%') + '</b><span>rendimiento</span></div></div></section>';
     var tabla = function (tit, filas, tot) {
       return '<div class="panel rend-tabla"><h3>' + tit + '</h3><table class="pl"><thead><tr><th>Producto</th><th class="num">Kg</th></tr></thead><tbody>' + filas.map(function (x) {
         var val = ed ? '<input type="number" inputmode="decimal" step="any" min="0" class="rend-in" data-rend="' + x.id + '" value="' + esc(x.manual ? x.kg : '') + '" placeholder="' + esc(x.est == null ? '' : String(x.est)) + '" aria-label="Kilos de ' + esc(x.nom) + '"><span class="solo-print">' + kg(x.kg) + '</span>' : '<b>' + kg(x.kg) + '</b>';
-        return '<tr><td>' + esc(x.nom) + '<span class="rend-como">' + (x.manual ? 'Cargado a mano' + (x.est != null ? ' (estimado: ' + n(x.est) + ' kg)' : '') : 'Estimado: ' + esc(x.como)) + '</span></td><td class="num">' + val + '</td></tr>';
+        return '<tr><td>' + esc(x.nom) + '<span class="rend-como">' + (x.manual ? 'Real' + (x.est != null ? ' · el estimado era ' + n(x.est) + ' kg' : '') : 'Estimado: ' + esc(x.como)) + '</span></td><td class="num">' + val + '</td></tr>';
       }).join('') + '</tbody><tfoot><tr><td>Total</td><td class="num"><b>' + kg(tot || null) + '</b></td></tr></tfoot></table></div>';
     };
     h += '<div class="rend-grid">' + tabla('Insumos (lo que entra)', r.ins, r.tIns) + tabla('Producidos (lo que sale)', r.prod, r.tProd) + '</div>';
-    if (ed) h += '<p class="small muted rend-ayuda">Los números en gris son estimados. Escribí encima para poner el real; si lo borrás, vuelve al estimado.</p>';
+    if (ed) h += '<p class="small muted rend-ayuda">Los números en gris son estimados. Cuando llega la planilla del día, escribí encima el real de cada renglón; si lo borrás, vuelve al estimado. Con cada día real el estimado aprende.</p>';
     // Días anteriores
     var dias = [], x = f; for (var i = 0; i < 10; i++) { dias.push(x); x = habilAnterior(x); }
     h += '<div class="panel"><h3>Días anteriores</h3><table class="pl rend-hist"><thead><tr><th>Día</th><th class="num">Insumos</th><th class="num">Producidos</th><th class="num">Rend.</th></tr></thead><tbody>' + dias.map(function (d) {
       var q = rendDia(d), rr = q.tIns ? Math.round(q.tProd / q.tIns * 1000) / 10 : null;
-      return '<tr' + (d === f ? ' class="sel"' : '') + '><td><button class="lnk" data-act="fr-ir" data-f="' + d + '">' + esc(diaCorto(d)) + '</button>' + (q.manual ? ' <span class="badge plain">con datos reales</span>' : '') + (q.tIns && (!q.cerdos || !q.medias) ? ' <span class="badge warn">' + (!q.medias ? 'falta desposte' : 'falta faena') + '</span>' : '') + '</td><td class="num">' + (q.tIns ? n(q.tIns) + ' kg' : '—') + '</td><td class="num">' + (q.tProd ? n(q.tProd) + ' kg' : '—') + '</td><td class="num">' + (rr == null ? '—' : n(rr) + '%') + '</td></tr>';
+      return '<tr' + (d === f ? ' class="sel"' : '') + '><td><button class="lnk" data-act="fr-ir" data-f="' + d + '">' + esc(diaCorto(d)) + '</button>' + (q.manual && !q.estim ? ' <span class="badge ok">real</span>' : q.manual ? ' <span class="badge warn">parte real</span>' : q.tIns ? ' <span class="badge plain">estimado</span>' : '') + '</td><td class="num">' + (q.tIns ? n(q.tIns) + ' kg' : '—') + '</td><td class="num">' + (q.tProd ? n(q.tProd) + ' kg' : '—') + '</td><td class="num">' + (rr == null ? '—' : n(rr) + '%') + '</td></tr>';
     }).join('') + '</tbody></table></div>';
     if (ed) {
-      h += '<details class="panel rend-cfg"' + (S.rcfgAb ? ' open' : '') + '><summary>Cómo se calcula el estimado</summary><p class="small muted">Valen para todos los días. Se cambian acá y se guardan solos.</p><div class="campos">'
-        + REND_INS.map(function (y) { return '<label class="campo"><span>' + esc(y.nom) + ' (kg por ' + y.por + ')</span><input type="number" inputmode="decimal" step="any" min="0" data-rcfg="ins" data-id="' + y.id + '" value="' + esc(rendFactor('ins', y)) + '"></label>'; }).join('')
-        + REND_PROD.map(function (y) { return '<label class="campo"><span>' + esc(y.nom) + ' (% de ' + y.de.join(' + ') + ')</span><input type="number" inputmode="decimal" step="any" min="0" data-rcfg="prod" data-id="' + y.id + '" value="' + esc(rendFactor('prod', y)) + '"></label>'; }).join('')
+      h += '<details class="panel rend-cfg"' + (S.rcfgAb ? ' open' : '') + '><summary>Cómo se calcula el estimado</summary><p class="small muted">Valores de partida, sacados de lo real de julio a septiembre. Cuando hay 3 o más días con datos reales en las últimas semanas, el estimado usa el promedio de esos días en vez de estos números.</p><div class="campos">'
+        + REND_INS.map(function (y) { return '<label class="campo"><span>' + esc(y.nom) + ' (kg por cerdo)</span><input type="number" inputmode="decimal" step="any" min="0" data-rcfg="ins" data-id="' + y.id + '" value="' + esc(rendFactor('ins', y)) + '"></label>'; }).join('')
+        + REND_PROD.map(function (y) { return '<label class="campo"><span>' + esc(y.nom) + ' (% de lo que entra)</span><input type="number" inputmode="decimal" step="any" min="0" data-rcfg="prod" data-id="' + y.id + '" value="' + esc(rendFactor('prod', y)) + '"></label>'; }).join('')
         + '</div></details>';
     }
     el.innerHTML = h; pintarMsg('rend');
@@ -2651,7 +2668,7 @@
     store.sub('config', function (l) {
       var c = l.filter(function (x) { return x.id === 'general'; })[0], lg = {};
       var rd = {}, rc = null;
-      l.forEach(function (x) { var k = String(x.id); if (k.indexOf('log-') === 0) { (x.camiones || []).forEach(horaDeNota); lg[x.id.slice(4)] = x; } else if (k.indexOf('rend-') === 0) rd[k.slice(5)] = x; else if (k === 'rendering') rc = x; });
+      l.forEach(function (x) { var k = String(x.id); if (k.indexOf('log-') === 0) { (x.camiones || []).forEach(horaDeNota); lg[x.id.slice(4)] = x; } else if (k.indexOf('rend-') === 0) rd[k.slice(5)] = x; else if (k === 'rendering2') rc = x; });
       S.rend = rd; S.rendCfg = rc;
       // Mientras se edita el stock de camiones, lo que se está escribiendo no se pisa con lo que llega.
       if (c && S.ef) { c.flota = S.config.flota; c.kgMedia = S.config.kgMedia; c.kgCaja = S.config.kgCaja; }
