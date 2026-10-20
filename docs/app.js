@@ -2011,7 +2011,7 @@
     html += tarjeta('medias', 'Medias', rot(f), ma.c ? [[ma.c, plural(ma.c, 'cliente', 'clientes')], [ma.a, plural(ma.a, 'animal', 'animales')]] : [], 'Sin ventas cargadas', '',
       pie(mb.c ? neg(mb.c, 'cliente', 'clientes') + ' · ' + neg(mb.a, 'animal', 'animales') : 'Sin ventas cargadas'));
     var rq = rendDia(rendFechaInicial());
-    html += tarjeta('rendering', 'Rendering', (rendFechaInicial() === h ? 'Hoy · ' : '') + diaCorto(rendFechaInicial()), rq.tIns ? [[rq.tIns, 'kg de insumos'], [rq.tProd, 'kg producidos']] : [], 'Sin faena ni desposte cargados', '', '');
+    html += tarjeta('rendering', 'Rendering', (rendFechaInicial() === h ? 'Hoy · ' : '') + diaCorto(rendFechaInicial()), rq.tIns ? [[rq.tIns, 'kg de insumos'], [rq.tProd, 'kg producidos']] : [], rq.hoy ? 'Sin faena cargada para estimar' : 'Sin datos cargados', rq.hoy && rq.estim ? '<span class="badge warn">Estimado</span>' : '', '');
     if (S.editor) {
       var lc = clientes(), sn = lc.filter(function (x) { return !x.c; }).length;
       html += tarjeta('clientes', 'Clientes', 'Números de cuenta', lc.length ? [[lc.length, plural(lc.length, 'cliente', 'clientes')]].concat(sn ? [[sn, 'sin número']] : []) : [], 'Todavía no hay clientes cargados', '', '');
@@ -2497,12 +2497,11 @@
     { id: 'ddesposte', nom: 'Despojo de despostada', def: 5.6 },
     { id: 'grasa', nom: 'Grasa en rama', def: 1.5 },
     { id: 'cuero', nom: 'Cuero y recorte de cuero', def: 1.8 },
-    { id: 'otros', nom: 'Decomisos y varios', def: 0.2 },
-    { id: 'compras', nom: 'Compras de afuera', def: 4.2 }
+    { id: 'otros', nom: 'Decomisos y varios', def: 0.2 }
   ];
   var REND_PROD = [
-    { id: 'harina', nom: 'Harina de carne y hueso', def: 20 },
-    { id: 'sebo', nom: 'Sebo', def: 17 }
+    { id: 'harina', nom: 'Harina de carne y hueso', def: 22.8 },
+    { id: 'sebo', nom: 'Sebo', def: 19.4 }
   ];
   function rendFactor(tipo, x) { var c = S.rendCfg || {}, v = (c[tipo] || {})[x.id]; return v === 0 || v ? +v : x.def; }
   function cerdosDe(f) { var sem = semDe(lunesDe(f)), i = Math.round((fecha(f) - fecha(lunesDe(f))) / 86400000), d = sem && sem.dias && sem.dias[i], c = null; if (d) { var t = sumas(d); c = t.propios + t.usuarios || null; } if (!c) { var o = prodDe(f); if (o && +o.medias) c = Math.round(+o.medias / 2); } return c; }
@@ -2512,27 +2511,32 @@
   function rendAprendido(f) {
     var memo = S._rendAp || (S._rendAp = {}), clave = f + '|' + JSON.stringify(S.rend || {}).length + '|' + (S.faena || []).length;
     if (memo[clave]) return memo[clave];
-    var ap = { ins: {}, prod: {} }, d = f, dias = [];
+    var ap = { ins: {}, prod: {}, dias: 0 }, d = f, dias = [];
     for (var i = 0; i < 60 && dias.length < 20; i++) { d = habilAnterior(d); if ((S.rend || {})[d]) dias.push(d); }
+    ap.dias = dias.length;
     REND_INS.forEach(function (x) { var k = 0, b = 0, nd = 0; dias.forEach(function (q) { var r = realDe(q, x.id), c = cerdosDe(q); if (r != null && c) { k += r; b += c; nd++; } }); if (nd >= 3 && b) ap.ins[x.id] = { k: k / b, n: nd }; });
-    REND_PROD.forEach(function (x) { var k = 0, b = 0, nd = 0; dias.forEach(function (q) { var r = realDe(q, x.id); if (r == null) return; var t = 0; REND_INS.forEach(function (y) { var ry = realDe(q, y.id), c = cerdosDe(q); t += ry != null ? ry : c ? c * rendFactor('ins', y) : 0; }); if (t) { k += r; b += t; nd++; } }); if (nd >= 3 && b) ap.prod[x.id] = { k: k / b * 100, n: nd }; });
+    REND_PROD.forEach(function (x) { var k = 0, b = 0, nd = 0; dias.forEach(function (q) { var r = realDe(q, x.id); if (r == null) return; var t = 0, todos = true; REND_INS.forEach(function (y) { var ry = realDe(q, y.id); if (ry != null) t += ry; else todos = false; }); if (todos && t) { k += r; b += t; nd++; } }); if (nd >= 3 && b) ap.prod[x.id] = { k: k / b * 100, n: nd }; });
     memo[clave] = ap; return ap;
   }
+  /* Solo el día de hoy se estima (con lo que pasó en días anteriores). Los días pasados muestran únicamente lo
+     cargado de los reportes del sistema (o a mano); lo que no se cargó queda sin dato. */
   function rendDia(f) {
-    var cer = cerdosDe(f), ap = rendAprendido(f), out = { f: f, cerdos: cer, medias: mediasDe(f), ins: [], prod: [], tIns: 0, tProd: 0, manual: 0, estim: 0 };
+    var esHoy = f === hoy(), cer = cerdosDe(f), ap = esHoy ? rendAprendido(f) : { ins: {}, prod: {} };
+    var out = { f: f, hoy: esHoy, cerdos: cer, medias: mediasDe(f), ins: [], prod: [], tIns: 0, tProd: 0, manual: 0, estim: 0, faltan: 0 };
     REND_INS.forEach(function (x) {
-      var a = ap.ins[x.id], k = a ? a.k : rendFactor('ins', x), est = cer ? Math.round(cer * k) : null, m = realDe(f, x.id), v = m != null ? m : est;
-      if (m != null) out.manual++; else if (est != null) out.estim++;
-      out.ins.push({ id: x.id, nom: x.nom, kg: v, est: est, manual: m != null, como: cer ? n(Math.round(k * 100) / 100) + ' kg × ' + n(cer) + ' cerdos' + (a ? ' (promedio real de ' + a.n + ' días)' : '') : 'falta la faena del día' });
+      var a = ap.ins[x.id], k = a ? a.k : rendFactor('ins', x), est = esHoy && cer ? Math.round(cer * k) : null, m = realDe(f, x.id), v = m != null ? m : est;
+      if (m != null) out.manual++; else if (est != null) out.estim++; else out.faltan++;
+      out.ins.push({ id: x.id, nom: x.nom, kg: v, est: est, manual: m != null, como: !esHoy ? 'Sin dato cargado' : cer ? n(Math.round(k * 100) / 100) + ' kg × ' + n(cer) + ' cerdos' + (a ? ' (promedio de ' + a.n + ' días reales)' : ' (promedio julio–septiembre)') : 'falta la faena del día para estimar' });
       out.tIns += v || 0;
     });
     REND_PROD.forEach(function (x) {
-      var a = ap.prod[x.id], p = a ? a.k : rendFactor('prod', x), est = out.tIns ? Math.round(out.tIns * p / 100) : null, m = realDe(f, x.id), v = m != null ? m : est;
-      if (m != null) out.manual++; else if (est != null) out.estim++;
-      out.prod.push({ id: x.id, nom: x.nom, kg: v, est: est, manual: m != null, como: n(Math.round(p * 10) / 10) + '% de lo que entra' + (a ? ' (promedio real de ' + a.n + ' días)' : '') });
+      var a = ap.prod[x.id], p = a ? a.k : rendFactor('prod', x), est = esHoy && out.tIns ? Math.round(out.tIns * p / 100) : null, m = realDe(f, x.id), v = m != null ? m : est;
+      if (m != null) out.manual++; else if (est != null) out.estim++; else out.faltan++;
+      out.prod.push({ id: x.id, nom: x.nom, kg: v, est: est, manual: m != null, como: !esHoy ? 'Sin dato cargado' : n(Math.round(p * 10) / 10) + '% de lo que entra' + (a ? ' (promedio de ' + a.n + ' días reales)' : ' (promedio julio–septiembre)') });
       out.tProd += v || 0;
     });
     out.tIns = Math.round(out.tIns); out.tProd = Math.round(out.tProd);
+    out.sinSebo = !out.hoy && realDe(f, 'sebo') == null && out.tProd > 0;
     return out;
   }
   /* Lectura del reporte del sistema "Resumen de Insumos" (Producción > Reportes > Ciclo II, tipo Rendering), de un día.
@@ -2576,7 +2580,7 @@
       if (j.hasta && j.hasta !== j.desde) throw new Error('El reporte es de varios días (' + diaCorto(j.desde) + ' a ' + diaCorto(j.hasta) + '). Sacalo de un solo día: desde y hasta con la misma fecha.');
       if (j.tipo && !/RENDER/.test(norm(j.tipo))) throw new Error('El reporte es de "' + j.tipo + '", no de Rendering. Elegí Tipo Ciclo II: Rendering.');
       var f = j.desde, v = {}, suma = 0, sinUbicar = [];
-      if (!esProd) REND_INS.forEach(function (x) { if (x.id !== 'compras') v[x.id] = 0; });
+      if (!esProd) REND_INS.forEach(function (x) { v[x.id] = 0; });
       j.articulos.forEach(function (a) {
         var k = esProd ? rendProducto(a.codigo, a.nombre) : rendCategoria(a.codigo, a.nombre);
         if (!k) { sinUbicar.push(a.nombre); return; }
@@ -2590,7 +2594,7 @@
       if ((j.dudas || []).length) aviso += ' Dudas: ' + j.dudas.join(' ');
       S.rend = S.rend || {}; S.rend[f] = clone(doc); S._rendAp = null;
       return store.set('config', 'rend-' + f, doc).then(function () {
-        S.fr = f; S.msg.rend = (aviso ? '!' : '') + 'Cargado el real del ' + diaCorto(f) + ': ' + n(Math.round(suma)) + (esProd ? ' kg producidos' + (v.sebo == null ? ' (el sebo no figura en el reporte: queda estimado)' : '') : ' kg de insumos') + '.' + aviso;
+        S.fr = f; S.msg.rend = (aviso ? '!' : '') + 'Cargado el real del ' + diaCorto(f) + ': ' + n(Math.round(suma)) + (esProd ? ' kg producidos' + (v.sebo == null ? ' (el sebo no figura en el reporte: queda sin dato)' : '') : ' kg de insumos') + '.' + aviso;
         avisar(S.msg.rend, aviso ? 12000 : 6000); render();
       });
     }).then(null, function (e) { S.msg.rend = '!' + e.message; avisar(S.msg.rend, 9000); pintarMsg('rend'); });
@@ -2620,14 +2624,14 @@
       + (ed ? '<label class="btn pri" style="display:inline-flex;align-items:center">Cargar reporte del sistema<input type="file" id="rend-rep" accept="image/*" hidden></label><button class="btn" data-act="link-rend">Copiar link para compartir</button>' : '') + '<span class="guardado" id="g-rend"></span></div>'
       + (ed ? '<p class="small muted rend-ayuda">Para cargar el real: en el sistema, Producción › Reportes › Ciclo II › Resumen de insumos y Resumen de producción, Tipo Ciclo II: Rendering, de un solo día. Sacale una captura a cada uno y pegala acá con Ctrl+V (o tocá "Cargar reporte del sistema").</p>' : '');
     var rinde = r.tIns ? Math.round(r.tProd / r.tIns * 1000) / 10 : null;
-    var estado = !r.manual ? (r.estim ? 'estim' : '') : r.estim ? 'parcial' : 'real';
-    h += '<section class="rend-hero"><div><p class="dh-sup">Rendering · ' + esc(cuandoEs(f) === 'hoy' ? 'hoy' : diaCorto(f)) + '</p><h2>' + esc(tituloDe(f)) + ' ' + (estado === 'real' ? '<span class="badge ok">Datos reales</span>' : estado === 'parcial' ? '<span class="badge warn">Parte real, parte estimado</span>' : estado ? '<span class="badge warn">Estimado</span>' : '') + '</h2>'
-      + '<p class="dh-sub">' + (r.cerdos ? n(r.cerdos) + ' cerdos faenados' : 'Sin faena cargada') + (r.medias ? ' · ' + n(r.medias) + ' medias despostadas' : '') + '</p>' + (estado === 'estim' || estado === 'parcial' ? '<p class="small rend-nota">Los datos reales se cargan al final del día. Mientras tanto se muestra un estimado hecho con lo que pasó en días anteriores; cuando se cargan los reales, se reemplaza.</p>' : '') + '</div>'
-      + '<div class="kpis"><div class="kpi"><b>' + (r.tIns ? n(r.tIns) : '—') + '</b><span>kg de insumos</span></div><div class="kpi"><b>' + (r.tProd ? n(r.tProd) : '—') + '</b><span>kg producidos</span></div><div class="kpi"><b>' + (rinde == null ? '—' : n(rinde) + '%') + '</b><span>rendimiento</span></div></div></section>';
+    var estado = r.hoy ? (r.manual && !r.estim ? 'real' : r.manual ? 'parcial' : r.estim ? 'estim' : '') : r.manual ? (r.faltan ? 'incompleto' : 'real') : 'vacio';
+    h += '<section class="rend-hero"><div><p class="dh-sup">Rendering · ' + esc(cuandoEs(f) === 'hoy' ? 'hoy' : diaCorto(f)) + '</p><h2>' + esc(tituloDe(f)) + ' ' + (estado === 'real' ? '<span class="badge ok">Datos reales</span>' : estado === 'parcial' ? '<span class="badge warn">Parte real, parte estimado</span>' : estado === 'estim' ? '<span class="badge warn">Estimado</span>' : estado === 'incompleto' ? '<span class="badge plain">Datos reales · faltan renglones</span>' : estado === 'vacio' ? '<span class="badge plain">Sin datos cargados</span>' : '') + '</h2>'
+      + '<p class="dh-sub">' + (r.cerdos ? n(r.cerdos) + ' cerdos faenados' : 'Sin faena cargada') + (r.medias ? ' · ' + n(r.medias) + ' medias despostadas' : '') + '</p>' + (estado === 'estim' || estado === 'parcial' ? '<p class="small rend-nota">Estimación en base a lo que pasó en días anteriores. Los datos reales se cargan al final del día y reemplazan a la estimación.</p>' : estado === 'vacio' ? '<p class="small rend-nota">Este día no tiene cargados los reportes del sistema. Los días pasados no se estiman: se muestra solo lo real.</p>' : '') + '</div>'
+      + '<div class="kpis"><div class="kpi"><b>' + (r.tIns ? n(r.tIns) : '—') + '</b><span>kg de insumos' + (estado === 'estim' ? ' (estimado)' : '') + '</span></div><div class="kpi"><b>' + (r.tProd ? n(r.tProd) : '—') + '</b><span>kg producidos' + (estado === 'estim' ? ' (estimado)' : r.sinSebo ? ' (sin sebo)' : '') + '</span></div><div class="kpi"><b>' + (rinde == null || !r.tProd ? '—' : n(rinde) + '%') + '</b><span>rendimiento' + (r.sinSebo ? ' (solo harina)' : '') + '</span></div></div></section>';
     var tabla = function (tit, filas, tot) {
       return '<div class="panel rend-tabla"><h3>' + tit + '</h3><table class="pl"><thead><tr><th>Producto</th><th class="num">Kg</th></tr></thead><tbody>' + filas.map(function (x) {
         var val = ed ? '<input type="number" inputmode="decimal" step="any" min="0" class="rend-in" data-rend="' + x.id + '" value="' + esc(x.manual ? x.kg : '') + '" placeholder="' + esc(x.est == null ? '' : String(x.est)) + '" aria-label="Kilos de ' + esc(x.nom) + '"><span class="solo-print">' + kg(x.kg) + '</span>' : '<b>' + kg(x.kg) + '</b>';
-        return '<tr><td>' + esc(x.nom) + '<span class="rend-como">' + (x.manual ? 'Real' + (x.est != null ? ' · el estimado era ' + n(x.est) + ' kg' : '') : 'Estimado: ' + esc(x.como)) + '</span></td><td class="num">' + val + '</td></tr>';
+        return '<tr><td>' + esc(x.nom) + '<span class="rend-como">' + (x.manual ? 'Real' + (x.est != null ? ' · se estimaba ' + n(x.est) + ' kg' : '') : x.est != null ? 'Estimado: ' + esc(x.como) : esc(x.como)) + '</span></td><td class="num">' + val + '</td></tr>';
       }).join('') + '</tbody><tfoot><tr><td>Total</td><td class="num"><b>' + kg(tot || null) + '</b></td></tr></tfoot></table></div>';
     };
     h += '<div class="rend-grid">' + tabla('Insumos (lo que entra)', r.ins, r.tIns) + tabla('Producidos (lo que sale)', r.prod, r.tProd) + '</div>';
@@ -2636,15 +2640,15 @@
       var l = rd0 && rd0[z[0]]; if (!l || !l.length) return;
       h += '<details class="panel rend-det"><summary>' + z[1] + ' del sistema (' + l.length + (l.length === 1 ? ' artículo' : ' artículos') + ' · ' + n(Math.round(l.reduce(function (t, a) { return t + a.kg; }, 0))) + ' kg)</summary><table class="pl"><thead><tr><th>Cód.</th><th>Artículo</th><th class="num">Unid.</th><th class="num">Kg</th></tr></thead><tbody>' + l.map(function (a) { return '<tr><td>' + a.c + '</td><td>' + esc(a.n) + '</td><td class="num">' + n(a.u) + '</td><td class="num">' + n(a.kg) + '</td></tr>'; }).join('') + '</tbody></table></details>';
     });
-    if (ed) h += '<p class="small muted rend-ayuda">Los números en gris son estimados. Cuando llega la planilla del día, escribí encima el real de cada renglón; si lo borrás, vuelve al estimado. Con cada día real el estimado aprende.</p>';
+    if (ed) h += '<p class="small muted rend-ayuda">' + (r.hoy ? 'Los números en gris son la estimación de hoy. ' : '') + 'También se puede escribir el real de un renglón a mano; si lo borrás, queda sin dato' + (r.hoy ? ' (vuelve a la estimación)' : '') + '.</p>';
     // Días anteriores
     var dias = [], x = f; for (var i = 0; i < 10; i++) { dias.push(x); x = habilAnterior(x); }
     h += '<div class="panel"><h3>Días anteriores</h3><table class="pl rend-hist"><thead><tr><th>Día</th><th class="num">Insumos</th><th class="num">Producidos</th><th class="num">Rend.</th></tr></thead><tbody>' + dias.map(function (d) {
       var q = rendDia(d), rr = q.tIns ? Math.round(q.tProd / q.tIns * 1000) / 10 : null;
-      return '<tr' + (d === f ? ' class="sel"' : '') + '><td><button class="lnk" data-act="fr-ir" data-f="' + d + '">' + esc(diaCorto(d)) + '</button>' + (q.manual && !q.estim ? ' <span class="badge ok">real</span>' : q.manual ? ' <span class="badge warn">parte real</span>' : q.tIns ? ' <span class="badge plain">estimado</span>' : '') + '</td><td class="num">' + (q.tIns ? n(q.tIns) + ' kg' : '—') + '</td><td class="num">' + (q.tProd ? n(q.tProd) + ' kg' : '—') + '</td><td class="num">' + (rr == null ? '—' : n(rr) + '%') + '</td></tr>';
+      return '<tr' + (d === f ? ' class="sel"' : '') + '><td><button class="lnk" data-act="fr-ir" data-f="' + d + '">' + esc(diaCorto(d)) + '</button>' + (q.hoy ? (q.estim ? ' <span class="badge warn">estimado</span>' : q.manual ? ' <span class="badge ok">real</span>' : '') : q.manual ? (q.sinSebo ? ' <span class="badge plain">real · sin sebo</span>' : ' <span class="badge ok">real</span>') : ' <span class="badge plain">sin cargar</span>') + '</td><td class="num">' + (q.tIns ? n(q.tIns) + ' kg' : '—') + '</td><td class="num">' + (q.tProd ? n(q.tProd) + ' kg' : '—') + '</td><td class="num">' + (rr == null ? '—' : n(rr) + '%') + '</td></tr>';
     }).join('') + '</tbody></table></div>';
     if (ed) {
-      h += '<details class="panel rend-cfg"' + (S.rcfgAb ? ' open' : '') + '><summary>Cómo se calcula el estimado</summary><p class="small muted">Valores de partida, sacados de lo real de julio a septiembre. Cuando hay 3 o más días con datos reales en las últimas semanas, el estimado usa el promedio de esos días en vez de estos números.</p><div class="campos">'
+      h += '<details class="panel rend-cfg"' + (S.rcfgAb ? ' open' : '') + '><summary>Cómo se calcula la estimación de hoy</summary><p class="small muted">Solo el día de hoy se estima. Valores de partida, sacados de lo real de julio a septiembre. Cuando hay 3 o más días con datos reales en las últimas semanas, la estimación usa el promedio de esos días en vez de estos números.</p><div class="campos">'
         + REND_INS.map(function (y) { return '<label class="campo"><span>' + esc(y.nom) + ' (kg por cerdo)</span><input type="number" inputmode="decimal" step="any" min="0" data-rcfg="ins" data-id="' + y.id + '" value="' + esc(rendFactor('ins', y)) + '"></label>'; }).join('')
         + REND_PROD.map(function (y) { return '<label class="campo"><span>' + esc(y.nom) + ' (% de lo que entra)</span><input type="number" inputmode="decimal" step="any" min="0" data-rcfg="prod" data-id="' + y.id + '" value="' + esc(rendFactor('prod', y)) + '"></label>'; }).join('')
         + '</div></details>';
