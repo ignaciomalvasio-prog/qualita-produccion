@@ -20,7 +20,7 @@ await p.goto('http://127.0.0.1:8765/index.html#pedidos');await p.clock.runFor(15
 const marca=async c=>((await p.locator('#view-pedidos .ped',{hasText:c}).locator('.ped-tit .col-prod').innerText().catch(()=>''))||'(sin marca)').replace(/\s+/g,' ').trim();
 for(const c of ['GRION','ROVER','BOCANTINO','MONTEVERDE'])console.log(w,c,'→',await marca(c));
 // Sumar el corte que falta de ROVER desde el pedido abierto y ver que la marca cambia.
-await p.locator('#view-pedidos .ped',{hasText:'BOCANTINO'}).locator('[data-act="ped-abrir"]').click();await p.waitForTimeout(100);
+await p.locator('#view-pedidos .ped',{hasText:'BOCANTINO'}).locator('[data-act="ped-abrir"] .nom').click();await p.waitForTimeout(100);
 const sumar=p.locator('#view-pedidos .ped.abierto button',{hasText:/sumar|producci/i}).first();
 if(await sumar.count()){await sumar.click();await p.clock.runFor(1000);await p.waitForTimeout(200);console.log(w,'BOCANTINO después de sumar →',await marca('BOCANTINO'));}
 await p.screenshot({path:SP+'/marca-prod'+w+'.png',fullPage:true});

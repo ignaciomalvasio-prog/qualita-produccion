@@ -11,10 +11,10 @@ await p.clock.install({time:new Date('2026-10-20T12:00:00-03:00')});
 await p.addInitScript(d=>{window.__mock={data:JSON.parse(JSON.stringify(d)),user:{email:'yo@x.com'},editores:['yo@x.com']}},data);
 await p.goto('http://127.0.0.1:8765/index.html#pedidos');await p.clock.runFor(1500);await p.waitForTimeout(200);
 if(!(await p.locator('#view-pedidos .ped').count())){await p.click('[data-act="pd"][data-d="-1"]');await p.waitForTimeout(150);}
-await p.click('#view-pedidos [data-act="ped-abrir"]');await p.waitForTimeout(150);
+await p.click('#view-pedidos [data-act="ped-abrir"] .nom');await p.waitForTimeout(150);
 console.log(w,'selectores:',await p.$$eval('.ped.abierto select.uni',x=>x.map(s=>s.value||'?').join(',')),'· kg antes:',await p.locator('.ped .col-kg').innerText());
 await p.selectOption('.ped.abierto select.uni[data-k="k0"]','kg');await p.clock.runFor(1500);await p.waitForTimeout(200);
-if(!(await p.locator('.ped.abierto').count())){await p.click('#view-pedidos [data-act="ped-abrir"]');await p.waitForTimeout(150);}
+if(!(await p.locator('.ped.abierto').count())){await p.click('#view-pedidos [data-act="ped-abrir"] .nom');await p.waitForTimeout(150);}
 await p.selectOption('.ped.abierto select.uni[data-k="k1"]','und');await p.clock.runFor(1500);await p.waitForTimeout(200);
 console.log(w,'pedido:',await p.evaluate(()=>window.__mock.data.pedidos.a.cortes.map(c=>c.texto).join(' / ')),'· producción:',await p.evaluate(()=>window.__mock.data.produccion['2026-10-20'].cortes.map(c=>c.lineas.map(l=>l.t).join(';')).join(' | ')));
 console.log(w,'sigue abierto:',await p.locator('.ped.abierto').count(),'· kg:',await p.locator('.ped .col-kg').innerText());

@@ -21,7 +21,7 @@ await p.click('[data-act="pd"][data-d="1"]');console.log('› (salta el fin de s
 await p.click('.otros-dias [data-act="pd-ir"] >> nth=-1');console.log('chip último:',await ver());
 await p.fill('#pd-fecha','2026-10-07');await p.locator('#pd-fecha').dispatchEvent('change');console.log('fecha 7/10:',await ver());
 // cambiar de día un pedido: me quedo en el día donde estaba
-await p.click('[data-act="pd-ir"]:has-text("Volver a mañana")');await p.locator('.ped',{hasText:'MAÑANA 1'}).locator('[data-act="ped-abrir"]').click();
+await p.click('[data-act="pd-ir"]:has-text("Volver a mañana")');await p.locator('.ped',{hasText:'MAÑANA 1'}).locator('[data-act="ped-abrir"] .nom').click();
 await p.locator('.ped',{hasText:'MAÑANA 1'}).locator('select[data-mover]').selectOption('2026-10-12');await esp(900);
 console.log('después de mover MAÑANA 1 al lunes:',await ver(),'· aviso:',await p.locator('#toast').innerText());
 // ir a inicio y volver: arranca otra vez en mañana

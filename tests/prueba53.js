@@ -11,7 +11,7 @@ await p.goto('http://127.0.0.1:8765/index.html');await p.clock.runFor(1500);awai
 console.log('inicio:',(await p.locator('.dash').innerText()).replace(/\s+/g,' ').slice(0,700));
 await p.screenshot({path:SP+'/ini1280.png',fullPage:true});
 await p.click('#tab-pedidos');await p.waitForSelector('.ped');await p.click('[data-act="pd-ir"][data-f="2026-10-14"]').catch(()=>{});await p.waitForTimeout(100);
-await p.locator('.ped',{hasText:'URCA'}).locator('[data-act="ped-abrir"]').click();
+await p.locator('.ped',{hasText:'URCA'}).locator('[data-act="ped-abrir"] .nom').click();
 console.log('botones:',(await p.locator('.ped.abierto .lp').allInnerTexts()).map(t=>t.replace(/\s+/g,' ')).join(' | '));
 await p.locator('.ped.abierto [data-act="c-todos"]').click();await p.clock.runFor(1500);await p.waitForTimeout(200);
 const m=await p.evaluate(()=>window.__mock.data.produccion);

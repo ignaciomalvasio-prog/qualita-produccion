@@ -10,7 +10,7 @@ for(const w of [1100,400]){const p=await b.newPage({viewport:{width:w,height:900
 await p.clock.install({time:new Date('2026-10-19T12:00:00-03:00')});
 await p.addInitScript(d=>{window.__mock={data:JSON.parse(JSON.stringify(d)),user:{email:'yo@x.com'},editores:['yo@x.com']}},data);
 await p.goto('http://127.0.0.1:8765/index.html#pedidos');await p.clock.runFor(1500);await p.waitForSelector('#view-pedidos .ped');
-await p.click('#view-pedidos [data-act="ped-abrir"]');await p.waitForTimeout(150);
+await p.click('#view-pedidos [data-act="ped-abrir"] .nom');await p.waitForTimeout(150);
 console.log(w,'cortes:',await p.$$eval('.ped.abierto .lc-corte',x=>x.map(e=>e.textContent).join(',')),'· cantidades:',await p.$$eval('.ped.abierto .lc-cant',x=>x.map(e=>e.textContent).join(' | ')),'· nota:',await p.locator('.ped.abierto .log-nota').innerText());
 await p.click('.ped.abierto [data-act="c-sumar"][data-k="k0"]');await p.clock.runFor(1000);await p.waitForTimeout(200);
 console.log(w,'en producción:',await p.locator('.ped.abierto .lp .badge.ok').count());

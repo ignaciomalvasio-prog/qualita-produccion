@@ -38,7 +38,7 @@ await p.click('.deshacer [data-act="pap-recuperar"]');await p.clock.runFor(2500)
 console.log(w,'recuperados:',await lista(),'· producción:',await p.evaluate(()=>JSON.stringify(window.__mock.data.produccion['2026-10-20'].cortes.map(c=>c.lineas.map(l=>l.p+'/'+(l.ck||''))))),'· medias:',await p.evaluate(()=>window.__mock.data.faena['2026-10-19'].dias[0].clientes.map(c=>c.cliente+' '+c.cant).join(',')),'· papelera:',await p.evaluate(()=>window.__mock.data.privado.papelera.items.length));
 console.log(w,'en producción ALBERTO:',(await p.locator('#view-pedidos .ped',{hasText:'ALBERTO BRAVO'}).locator('.col-prod').innerText()).trim());
 // 5) borrar 1 y recuperar desde "Borrados recientes" después de recargar
-await p.locator('#view-pedidos .ped',{hasText:'DOS DE FIERRO'}).locator('[data-act="ped-abrir"]').click();await p.waitForTimeout(100);
+await p.locator('#view-pedidos .ped',{hasText:'DOS DE FIERRO'}).locator('[data-act="ped-abrir"] .nom').click();await p.waitForTimeout(100);
 await p.click('.ped.abierto [data-act="ped-borrar"]');await p.click('.ped.abierto [data-act="ped-borrar"]');await p.clock.runFor(1500);await p.waitForTimeout(200);
 await p.click('.deshacer [data-act="pap-cerrar"]');await p.waitForTimeout(100);
 await p.click('#pap-det summary');await p.waitForTimeout(100);

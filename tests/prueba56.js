@@ -17,7 +17,7 @@ console.log('precios en log:',await p.evaluate(()=>JSON.stringify(window.__mock.
 // cambio de precio en pedidos se publica
 await p.click('#tab-pedidos');await p.waitForSelector('.ped');
 for(let k=0;k<4&&!(await p.locator('.ped',{hasText:'URCA'}).count());k++){await p.click('[data-act="pd-ir"]').catch(()=>{});await p.waitForTimeout(100);}
-const u=p.locator('.ped',{hasText:'URCA'});await u.locator('[data-act="ped-abrir"]').click();
+const u=p.locator('.ped',{hasText:'URCA'});await u.locator('[data-act="ped-abrir"] .nom').click();
 const inp=p.locator('.ped.abierto input[data-precio][data-k="k1"]');await inp.fill('3100');await inp.dispatchEvent('change');await p.clock.runFor(600);await p.waitForTimeout(200);
 await p.locator('.ped.abierto [data-act="iva"][data-k="k1"][data-v="iva"]').click();await p.clock.runFor(600);await p.waitForTimeout(200);
 console.log('tras cambiar precio:',await p.evaluate(()=>JSON.stringify(window.__mock.data.config['log-2026-10-19'].pedidos.find(x=>x.cliente==='URCA').cortes)));
