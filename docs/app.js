@@ -1762,6 +1762,10 @@
     return guardarPropuesta({ editaId: p.id, cliente: p.cliente, entrega: p.entrega, medias: p.medias, peso: p.peso, frio: v, cuenta: p.cuenta || '', nota: p.nota, kg: p.kg, origen: p.origen,
       precioMedias: p.precioMedias === 0 || p.precioMedias ? p.precioMedias : '', ivaMedias: p.ivaMedias || '', cortes: clone(cortesDe(p)) });
   }
+  function cambiarNota(p, v) {
+    return guardarPropuesta({ editaId: p.id, cliente: p.cliente, entrega: p.entrega, medias: p.medias, peso: p.peso, frio: p.frio || '', cuenta: p.cuenta || '', nota: v, kg: p.kg, origen: p.origen,
+      precioMedias: p.precioMedias === 0 || p.precioMedias ? p.precioMedias : '', ivaMedias: p.ivaMedias || '', cortes: clone(cortesDe(p)) });
+  }
   function pedidoHTML(p, m, mov) {
     var cs = cortesDe(p).filter(function (c) { return c.texto; }), enP = cs.filter(function (c) { return fechaProdDe(m, p, c); }).length;
     var ab = !!S.abierto[p.id], sel = !!S.sel[p.id], cam = nombreCamion(p.entrega, p.camion), res = [], id = esc(p.id);
@@ -2076,7 +2080,7 @@
     if (+p.medias) filas.unshift({ corte: 'MEDIAS', texto: textoMedias(p), precio: precioTxt(p.precioMedias, p.ivaMedias), k: 'm', v: p.precioMedias, iv: p.ivaMedias });
     var edPre = S.editor && !S.solo && pedidoDe(p.id);
     var num = cam && pos != null;
-    var h = '<div class="log-ped' + (num ? '' : ' sin-num') + '">' + (num ? (S.editor && !S.solo && total > 1 ? '<span class="log-num log-num-sel"><select data-pos-ped="' + id + '" data-cam="' + esc(cam.id) + '" aria-label="Lugar de ' + esc(p.cliente) + ' en el camión (elegí el número)">' + (function () { var o = ''; for (var i = 0; i < total; i++) o += '<option value="' + i + '"' + (i === pos ? ' selected' : '') + '>' + (i + 1) + '</option>'; return o; })() + '</select></span>' : '<span class="log-num" aria-label="Lugar ' + (pos + 1) + '">' + (pos + 1) + '</span>') : '') + '<div class="log-body"><div class="log-cab">'
+    var h = '<div class="log-ped' + (num ? '' : ' sin-num') + '" data-lp="' + id + '">' + (num ? (S.editor && !S.solo && total > 1 ? '<span class="log-num log-num-sel"><select data-pos-ped="' + id + '" data-cam="' + esc(cam.id) + '" aria-label="Lugar de ' + esc(p.cliente) + ' en el camión (elegí el número)">' + (function () { var o = ''; for (var i = 0; i < total; i++) o += '<option value="' + i + '"' + (i === pos ? ' selected' : '') + '>' + (i + 1) + '</option>'; return o; })() + '</select></span>' : '<span class="log-num" aria-label="Lugar ' + (pos + 1) + '">' + (pos + 1) + '</span>') : '') + '<div class="log-body"><div class="log-cab">'
       + (S.editor && !S.solo && pedidoDe(p.id) ? '<label class="chk log-chk"><input type="checkbox" data-sel="' + id + '"' + (S.sel[p.id] && S.selDia === S.fl ? ' checked' : '') + ' aria-label="Tildar a ' + esc(p.cliente) + ' para un camión"></label>' : '')
       + '<strong>' + esc(p.cliente || 'Sin cliente') + '</strong>' + ctaHTML(p.cuenta) + frioBadge(p.frio)
       + '<span class="small muted">' + esc(kgTxt({ kg: +p.kg || 0, falta: p.kgFalta, manual: p.kgManual })) + '</span>';
@@ -2089,12 +2093,48 @@
     // Editar el pedido ahí mismo, sin ir a Pedidos.
     if (ke >= 0) return h + '<div class="log-edit">' + propHTML(S.prop[ke], ke) + '</div></div></div>';
     if (filas.length) h += '<div class="log-cortes">' + filas.map(function (c) { return '<p><span class="lc-corte">' + esc(c.corte) + '</span><span class="lc-txt">' + cantHTML(c.texto, c.uni) + (c.precio ? ' <span class="log-precio' + (edPre && c.k ? ' solo-print' : '') + '">' + esc(c.precio) + '</span>' : '') + '</span>' + (edPre && c.k ? precioLogHTML(p.id, c.k, c.v, c.iv, c.corte, c.tasa) : '') + '</p>'; }).join('') + '</div>';
-    if (p.nota) h += '<p class="log-nota">' + esc(p.nota) + '</p>';
+    // La nota se escribe ahí mismo (sin apretar Editar): se guarda sola al salir del recuadro o con Enter.
+    if (edPre && (p.nota || S.notaAbierta === p.id)) h += '<textarea class="log-nota log-nota-ed" rows="1" data-nota-ped="' + id + '" placeholder="Escribí la nota…" aria-label="Nota de ' + esc(p.cliente) + '">' + esc(p.nota || '') + '</textarea>' + (p.nota ? '<p class="log-nota solo-print">' + esc(p.nota) + '</p>' : '');
+    else if (edPre) h += '<button class="btn lnk sm log-nota-mas" data-act="nota-abrir" data-id="' + id + '">+ Nota</button>';
+    else if (p.nota) h += '<p class="log-nota">' + esc(p.nota) + '</p>';
     return h + '</div></div>';
   }
   function resumenLog(lista) {
     var tm = lista.reduce(function (t, p) { return t + (+p.medias || 0); }, 0), tc = kgPedidos(lista);
     return lista.length + (lista.length === 1 ? ' pedido' : ' pedidos') + (tm ? ' · ' + n(tm) + ' medias' : '') + (tc ? ' · ' + n(tc) + ' kg de cortes' : '');
+  }
+  // Buscadores de Logística (cliente o camión), sobre lo publicado desde la semana pasada. Quien mira sin cuenta ve solo lo que tiene camión.
+  function buscarLogHTML(q, camion) {
+    var t = norm(q).trim(), desde = mas(hoy(), -7), l = [];
+    Object.keys(S.log || {}).sort().forEach(function (f) {
+      if (f < desde) return;
+      var lg = logDe(f), cams = (lg && lg.camiones) || [], peds = ((lg && lg.pedidos) || []).filter(function (p) { return S.editor || p.camion; });
+      var cam = function (id) { return cams.filter(function (c) { return c.id === id; })[0]; };
+      if (camion) cams.forEach(function (c) {
+        if (norm(nomCam(c)).indexOf(t) < 0 && norm(c.nombre || '').indexOf(t) < 0 && String(c.num || '').indexOf(t) !== 0) return;
+        var o = c.orden || [], ps = peds.filter(function (p) { return p.camion === c.id; }).sort(function (a, b) { var i = o.indexOf(a.id), j = o.indexOf(b.id); return (i < 0 ? 1e6 : i) - (j < 0 ? 1e6 : j); });
+        if (ps.length) l.push({ f: f, c: c, ps: ps });
+      });
+      else peds.forEach(function (p) { if (norm(p.cliente).indexOf(t) >= 0 || (p.cuenta && String(p.cuenta).indexOf(t) === 0)) l.push({ f: f, p: p, c: cam(p.camion) }); });
+    });
+    if (!l.length) return '<p class="muted sin">No hay ' + (camion ? 'camiones con clientes que se llamen' : 'clientes') + ' "' + esc(q) + '" desde el ' + esc(diaCorto(desde)) + '.</p>';
+    var cuantos = l.length + (camion ? (l.length === 1 ? ' camión encontrado' : ' camiones encontrados') : (l.length === 1 ? ' cliente encontrado' : ' clientes encontrados'));
+    return '<p class="small muted">' + cuantos + ':</p><div class="busq">' + l.map(function (x) {
+      var cb = x.c ? '<span class="badge cam-ped">' + esc(nomCam(x.c)) + '</span>' + (x.c.hora ? '<span class="cam-hora">' + esc(x.c.hora) + ' hs</span>' : '') : '<span class="badge warn">Sin camión</span>';
+      if (camion) {
+        var kg = x.ps.reduce(function (t, p) { return t + (+p.kg || 0); }, 0);
+        return '<div class="busq-f busq-cam"><span class="busq-dia">' + esc(diaCorto(x.f)) + '</span>' + cb
+          + '<span class="small muted">' + x.ps.length + (x.ps.length === 1 ? ' cliente' : ' clientes') + (kg ? ' · ≈ ' + n(Math.round(kg)) + ' kg' : '') + '</span>'
+          + '<button class="btn sm" data-act="lbusq-ver" data-f="' + esc(x.f) + '" data-cam="' + esc(x.c.id) + '">Ver</button>'
+          + '<span class="busq-clis">' + x.ps.map(function (p, i) { return '<span>' + (i + 1) + '. ' + esc(p.cliente) + '</span>'; }).join('') + '</span></div>';
+      }
+      var p = x.p, res = [];
+      if (+p.medias) res.push(n(+p.medias) + ' medias'); if ((p.cortes || []).length) res.push(p.cortes.length + (p.cortes.length === 1 ? ' corte' : ' cortes'));
+      var lugar = x.c ? (x.c.orden || []).indexOf(p.id) : -1;
+      return '<div class="busq-f"><span class="busq-dia">' + esc(diaCorto(x.f)) + '</span><span class="nom">' + esc(p.cliente) + '</span>' + ctaHTML(p.cuenta) + '<span class="small muted">' + res.join(' · ') + '</span>' + cb
+        + (lugar >= 0 ? '<span class="small muted">lugar ' + (lugar + 1) + '</span>' : '')
+        + '<button class="btn sm" data-act="lbusq-ver" data-f="' + esc(x.f) + '" data-ped="' + esc(p.id) + '">Ver</button></div>';
+    }).join('') + '</div>';
   }
   function renderLogistica() {
     var el = $('view-logistica');
@@ -2108,6 +2148,10 @@
       + (peds.length ? '<button class="btn" data-act="resumen" aria-pressed="' + !!S.resumen + '">' + (S.resumen ? 'Ver por camión' : 'Resumen del día') + '</button><button class="btn" data-act="imprimir">' + (S.resumen ? 'Imprimir resumen' : 'Imprimir') + '</button>' : '')
       + (S.editor && cams.filter(function (c) { return c.hora; }).length > 1 ? '<button class="btn" data-act="cam-por-hora">Ordenar por horario</button>' : '')
       + (S.editor ? '<button class="btn" data-act="cam-nuevo">+ Camión para este día</button><button class="btn" data-act="link-log">Copiar link para compartir</button><span class="guardado" id="g-log"></span>' : '') + '</div>';
+    h += '<div class="pd-busca"><input type="search" id="lg-buscar" value="' + esc(S.lgBuscar || '') + '" placeholder="Buscar cliente o N° de cuenta (en todos los días)" aria-label="Buscar un cliente en Logística" autocomplete="off">'
+      + '<input type="search" id="lg-cam-buscar" value="' + esc(S.lgCamBuscar || '') + '" placeholder="Buscar camión (con clientes cargados)" aria-label="Buscar un camión en Logística" autocomplete="off">'
+      + (S.lgBuscar || S.lgCamBuscar ? '<button class="btn sm" data-act="lbusq-limpiar">Borrar búsqueda</button>' : '') + '</div>';
+    if (String(S.lgBuscar || '').trim() || String(S.lgCamBuscar || '').trim()) { el.innerHTML = h + buscarLogHTML(String(S.lgBuscar || '').trim() ? S.lgBuscar : S.lgCamBuscar, !String(S.lgBuscar || '').trim()); return; }
     if (!peds.length && !cams.length) {
       h += '<div class="panel"><p class="state">No hay pedidos para entregar este día.</p>' + (S.editor ? '<div class="acciones" style="justify-content:center"><button class="btn pri" data-act="ir-pedidos" data-f="' + f + '">Ir a los pedidos de este día</button></div>' : '') + '</div>';
       if (S.editor || flota().length) h += stockCamionesHTML(f, peds, cams);
@@ -2471,6 +2515,13 @@
       render(); var kl = -1; S.prop.forEach(function (x, i) { if (x.editaId === D.id) kl = i; }); var fl1 = $('q' + kl + 'c0texto') || $('q' + kl + 'cliente'); if (fl1) fl1.focus();
     }
     else if (a === 'busq-cam') { S.camBuscar = ''; S.pdBuscar = ''; S.pd = D.f; renderPedidos(); var gc = document.querySelector('#view-pedidos .grupo-cam[data-gcam="' + D.cam + '"]'); if (gc) { gc.scrollIntoView({ block: 'start', behavior: 'smooth' }); gc.classList.add('destello'); setTimeout(function () { gc.classList.remove('destello'); }, 2200); } }
+    else if (a === 'lbusq-ver') {
+      S.lgBuscar = ''; S.lgCamBuscar = ''; S.resumen = false; S.fl = D.f; render();
+      var lv = D.ped ? document.querySelector('#view-logistica .log-ped[data-lp="' + D.ped + '"]') : document.querySelector('#view-logistica section.cam[data-cam="' + D.cam + '"]');
+      if (lv) { lv.scrollIntoView({ block: D.ped ? 'center' : 'start', behavior: 'smooth' }); lv.classList.add('destello'); setTimeout(function () { lv.classList.remove('destello'); }, 2200); }
+    }
+    else if (a === 'nota-abrir') { S.notaAbierta = D.id; render(); var na = document.querySelector('textarea[data-nota-ped="' + D.id + '"]'); if (na) na.focus(); }
+    else if (a === 'lbusq-limpiar') { S.lgBuscar = ''; S.lgCamBuscar = ''; render(); var lq = $('lg-buscar'); if (lq) lq.focus(); }
     else if (a === 'busq-limpiar') { S.camBuscar = ''; S.pdBuscar = ''; renderPedidos(); var bq = $('pd-buscar'); if (bq) bq.focus(); }
     else if (a === 'busq-ver') { var pv = pedidoDe(D.id); if (pv) { S.pdBuscar = ''; S.pd = pv.entrega; S.abierto = {}; S.abierto[pv.id] = true; renderPedidos(); var dv = document.querySelector('[data-act="ped-abrir"][data-id="' + pv.id + '"]'); if (dv) dv.scrollIntoView({ block: 'center' }); } }
     else if (a === 'v-ver') { S.vgrande = S.vgrande || {}; S.vgrande[D.id] = !S.vgrande[D.id]; renderPedidos(); }
@@ -2576,10 +2627,13 @@
     }
   });
 
+  document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey && e.target && e.target.dataset && e.target.dataset.notaPed) { e.preventDefault(); e.target.blur(); } });
+  document.addEventListener('focusout', function (e) { var t = e.target; if (t && t.dataset && t.dataset.notaPed && !t.value.trim() && S.notaAbierta === t.dataset.notaPed) { S.notaAbierta = null; setTimeout(render, 0); } });
   document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target && e.target.dataset && e.target.dataset.ctaIn) { e.preventDefault(); var bg = document.querySelector('[data-act="cta-guardar"][data-id="' + e.target.dataset.ctaIn + '"]'); if (bg) bg.click(); } });
   document.addEventListener('input', function (e) {
     var t = e.target, D = t.dataset;
     if (t.id === 'cli-buscar') { S.cliBuscar = t.value; filtrarClientes(); return; }
+    if (t.id === 'lg-buscar' || t.id === 'lg-cam-buscar') { var sl = t.selectionStart, idl = t.id; if (idl === 'lg-buscar') { S.lgBuscar = t.value; S.lgCamBuscar = ''; } else { S.lgCamBuscar = t.value; S.lgBuscar = ''; } render(); var nl = $(idl); if (nl) { nl.focus(); try { nl.setSelectionRange(sl, sl); } catch (err) {} } return; }
     if (t.id === 'pd-cam-buscar') { var sc = t.selectionStart; S.camBuscar = t.value; S.pdBuscar = ''; renderPedidos(); var nc = $('pd-cam-buscar'); if (nc) { nc.focus(); try { nc.setSelectionRange(sc, sc); } catch (err) {} } return; }
     if (t.id === 'pd-buscar') { var ss = t.selectionStart; S.pdBuscar = t.value; S.camBuscar = ''; renderPedidos(); var nb = $('pd-buscar'); if (nb) { nb.focus(); try { nb.setSelectionRange(ss, ss); } catch (err) {} } return; }
     if (D.cli != null) return;
@@ -2714,6 +2768,12 @@
   });
   document.addEventListener('change', function (e) {
     var t = e.target, D = t.dataset;
+    if (D.notaPed) {
+      var pn = pedidoDe(D.notaPed), vn = t.value.replace(/\s+/g, ' ').trim(); if (S.notaAbierta === D.notaPed) S.notaAbierta = null;
+      if (!pn || vn === String(pn.nota || '').trim()) { if (!vn) render(); return; }
+      t.blur(); cambiarNota(pn, vn).then(function () { avisar(vn ? 'Nota de ' + pn.cliente + ' guardada.' : 'Nota de ' + pn.cliente + ' borrada.', 2500); render(); }, function () { avisar('!No se pudo guardar la nota. Revisá la conexión.', 6000); render(); });
+      return;
+    }
     if (t.id === 'r-fecha' && t.value) { S.fr = t.value; render(); return; }
     if (t.id === 'rend-rep' && t.files && t.files[0]) { cargarReporteRend(t.files[0]); try { t.value = ''; } catch (err) {} return; }
     if (D.rend) { var fq = S.fr; S.msg.rend = 'Guardando…'; pintarMsg('rend'); guardarRend(fq, D.rend, t.value).then(function () { S.msg.rend = 'Guardado.'; if (!escribiendo()) render(); else pintarMsg('rend'); }, function () { S.msg.rend = '!No se pudo guardar. Revisá la conexión.'; pintarMsg('rend'); }); return; }

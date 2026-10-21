@@ -438,7 +438,8 @@ button.cam-num{background:none;color:inherit;cursor:pointer}
 @media print{ .pv-tabs{display:none} .op-c{padding:3px 0;border-bottom:0} .op-c p{font-size:12px;line-height:1.3} .op-cli,.op-resto{color:#000} }
 .pd-busca{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}.pd-busca input{flex:1 1 240px;min-width:0;max-width:420px;font-size:16px;padding:9px 10px}
 .busq-clis{flex-basis:100%;display:flex;flex-wrap:wrap;gap:2px 14px;font-size:13px;color:var(--ink,inherit)}.busq-clis span{white-space:nowrap}
-.grupo-cam.destello{animation:destello 2s ease-out}@keyframes destello{0%,40%{box-shadow:0 0 0 5px var(--accent)}100%{box-shadow:0 0 0 0 transparent}}
+.grupo-cam.destello,section.cam.destello,.log-ped.destello{animation:destello 2s ease-out}
+@media print{ #view-logistica .pd-busca{display:none} }@keyframes destello{0%,40%{box-shadow:0 0 0 5px var(--accent)}100%{box-shadow:0 0 0 0 transparent}}
 .busq{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
 .busq-f{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;padding:8px 10px;border-top:1px solid var(--line)}.busq-f:first-child{border-top:0}
 .busq-f .nom{font-weight:700}.busq-dia{font:700 13px var(--body);color:var(--accent);min-width:78px}.busq-f .btn{margin-left:auto}
@@ -554,6 +555,10 @@ body:has(.res-cam.arrastrando){cursor:grabbing;user-select:none}
 .log-cab{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;min-height:40px}
 .log-cab strong{font-size:19px;text-transform:uppercase;letter-spacing:.01em}
 .log-nota{margin:0;font-size:16px;font-weight:700;color:#3d3200;text-transform:uppercase;background:#fff3c4;border:1px solid #f0d77a;border-left:5px solid #e0b43c;padding:5px 10px;border-radius:0 4px 4px 0}
+.log-nota-ed{display:block;width:100%;box-sizing:border-box;font-family:inherit;resize:none;overflow:hidden;field-sizing:content;min-height:0;cursor:text;outline:0}
+.log-nota-ed:hover{border-color:#e0b43c}.log-nota-ed:focus{box-shadow:0 0 0 2px #e0b43c;text-transform:none}.log-nota-ed::placeholder{color:#8a7a3a;text-transform:none;font-weight:400}
+.log-nota-mas{align-self:flex-start;color:#9a7b12;font-weight:700;padding:2px 4px}
+@media print{ .log-nota-ed,.log-nota-mas{display:none!important} }
 @media print{ .log-nota{background:none!important;border:0;border-left:3px solid #000;color:#000} }
 .log-cab .med{font-weight:600}
 .log-pos{flex:0 0 auto;min-width:26px;height:26px;padding:0 6px;border-radius:13px;background:var(--accent);color:var(--accent-ink);font:700 15px var(--display);display:inline-flex;align-items:center;justify-content:center}
