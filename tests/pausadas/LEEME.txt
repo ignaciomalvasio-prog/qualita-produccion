@@ -1,0 +1,2 @@
+Pruebas del portal de vendedores. Está pausado (VENDEDORES = false en app.js y ACTIVO = false en vendedor.js);
+cuando se vuelva a prender, devolver estos archivos a tests/ para que corran con bash tests/correr.sh.

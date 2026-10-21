@@ -118,11 +118,14 @@
   function formVacio() { return { id: null, cliente: '', entrega: habilSiguiente(hoy()), medias: '', peso: '', nota: '', cortes: [{ corte: '', texto: '', frio: '' }] }; }
 
   /* ---------- pantalla ---------- */
+  // Portal pausado por ahora (lo pidió Renzo). Con true vuelve a funcionar.
+  var ACTIVO = false;
   function render() {
     var ses = $('sesion');
     ses.innerHTML = S.user ? '<span>' + esc(S.user.email) + '</span><button class="btn sm lnk" data-act="salir">Salir</button>' : '';
     var el = $('app'), h = '';
-    if (S.estado === 'cargando') h = '<div class="panel"><p class="state muted">Cargando…</p></div>';
+    if (!ACTIVO) h = '<div class="panel"><h2>Por ahora la carga de pedidos está pausada</h2><p>Pasale tus pedidos directamente a Qualitá. Cuando se vuelva a habilitar, vas a poder cargarlos acá otra vez.</p></div>';
+    else if (S.estado === 'cargando') h = '<div class="panel"><p class="state muted">Cargando…</p></div>';
     else if (S.estado === 'error') h = '<div class="panel"><p class="state">' + (/permission/.test(S.errTxt || '') ? 'Qualitá todavía no te dio permiso para cargar pedidos con esta cuenta. Avisales y volvé a abrir la página.' : 'No se pudo conectar. Revisá la conexión y volvé a abrir la página.') + '</p>' + (S.errTxt ? '<p class="small muted">Detalle: ' + esc(S.errTxt) + '</p>' : '') + '<div class="acciones"><button class="btn" data-act="reintentar">Probar de nuevo</button></div></div>';
     else if (!S.user) h = '<div class="panel"><h2>Cargá tus pedidos</h2><p>Ingresá para cargar los pedidos de tus clientes. Le llegan directo a Qualitá y desde acá ves si ya los aceptaron.</p>'
       + '<div class="acciones"><button class="btn pri grande" data-act="ingresar">Ingresar</button></div><p class="small muted">Con tu cuenta de Google o con tu mail y una contraseña.</p></div>';

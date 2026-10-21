@@ -1750,7 +1750,7 @@
       + (mov ? '<button class="ped-mover" data-parr="' + id + '" aria-label="Arrastrar a ' + esc(p.cliente) + ' para cambiar el orden de bajada (o usar las flechas del teclado)" title="Arrastrar para ordenar">⠿</button>' : '')
       + '<label class="chk"><input type="checkbox" data-sel="' + id + '"' + (sel ? ' checked' : '') + ' aria-label="Tildar el pedido de ' + esc(p.cliente) + ' para un camión"></label>'
       + '<button class="ped-tit" data-act="ped-abrir" data-id="' + id + '" aria-expanded="' + ab + '"><span class="nom">' + esc(p.cliente || 'Sin cliente') + '</span>' + ctaHTML(cuentaPedido(p), true) + '<span class="res">' + res.join(' · ') + (p.frio && p.frio !== 'CONGELADO' ? ' ' + frioBadge(p.frio) : '') + '</span>'
-      + (cam || p.vendedor ? '<span class="marcas">' + (p.vendedor ? '<span class="badge vend" title="' + esc(p.vendedor) + '">Vendedor: ' + esc(p.vendedorNombre || p.vendedor.split('@')[0]) + '</span>' : '') + (cam ? '<span class="badge cam-ped">' + esc(cam) + '</span>' : '') + '</span>' : '') + '<span class="col-kg">' + kgPedHTML(p) + '</span><span class="col-prod">' + prodBadgeHTML(enP, cs.length) + '</span><span class="chev" aria-hidden="true">' + (ab ? '▴' : '▾') + '</span></button></div>';
+      + (cam || (VENDEDORES && p.vendedor) ? '<span class="marcas">' + (VENDEDORES && p.vendedor ? '<span class="badge vend" title="' + esc(p.vendedor) + '">Vendedor: ' + esc(p.vendedorNombre || p.vendedor.split('@')[0]) + '</span>' : '') + (cam ? '<span class="badge cam-ped">' + esc(cam) + '</span>' : '') + '</span>' : '') + '<span class="col-kg">' + kgPedHTML(p) + '</span><span class="col-prod">' + prodBadgeHTML(enP, cs.length) + '</span><span class="chev" aria-hidden="true">' + (ab ? '▴' : '▾') + '</span></button></div>';
     if (!ab) return h + '</div>';
     h += '<div class="ped-det">' + elegirCuentaHTML(p) + '<div class="op-ped">';
     if (+p.medias) h += '<p class="lp"><span class="lp-izq"><span class="lc-corte">Medias</span><span class="lc-txt">' + cantHTML(textoMedias(p)) + '</span></span><span class="lp-der">' + precioHTML(p.id, 'm', p.precioMedias, 'las medias', p.ivaMedias) + '</span></p>';
@@ -1771,7 +1771,11 @@
      Los vendedores externos cargan desde /vendedor; quedan en "ventas" como pendientes hasta que acá
      se aceptan (pasan a ser un pedido más) o se rechazan. El vendedor ve el estado desde su página. */
   // Filtro por vendedor (S.fv): '' todos, '-' los cargados por Qualitá, o el mail del vendedor.
-  function pasaFiltro(mail) { return !S.fv || (S.fv === '-' ? !mail : mail === S.fv); }
+  // Vendedores: por ahora apagado (lo pidió Renzo). Con true vuelve todo: filtro, recuadro "Pedidos de vendedores", aviso en Inicio y marca en cada pedido.
+  var VENDEDORES = false;
+  function pasaFiltro(mail) { if (!VENDEDORES) return true;
+    return pasaFiltro0(mail); }
+  function pasaFiltro0(mail) { return !S.fv || (S.fv === '-' ? !mail : mail === S.fv); }
   function vendedoresConocidos() {
     var vs = {};
     (S.ventas || []).forEach(function (v) { if (v.vendedor) vs[v.vendedor] = nombreVend(v); });
@@ -1779,6 +1783,7 @@
     return vs;
   }
   function filtroVendHTML() {
+    if (!VENDEDORES) return '';
     var vs = vendedoresConocidos(), ks = Object.keys(vs).sort(function (a, b) { return vs[a].localeCompare(vs[b]); });
     if (!ks.length) return '';
     if (S.fv && S.fv !== '-' && !vs[S.fv]) S.fv = '';
@@ -1790,6 +1795,7 @@
   function textoVenta(c) { return [c.texto, c.producto ? c.producto + (c.art ? ' (ART ' + c.art + ')' : '') : ''].filter(Boolean).join(' '); }
   function nombreVend(v) { return v.nombre || String(v.vendedor || '').split('@')[0]; }
   function ventasHTML() {
+    if (!VENDEDORES) return '';
     var l = ventasPendientes();
     if (!l.length) return '';
     var h = '<div class="panel ventas" id="ventas"><h2>Pedidos de vendedores <span class="badge vend">' + l.length + ' para revisar</span></h2>'
@@ -2149,7 +2155,7 @@
     // Lo que falta hacer (solo para quien carga).
     if (S.editor) {
       var av = [], aviso = function (num, txt, act, extra) { av.push('<button class="aviso" data-act="' + act + '"' + (extra || '') + '><strong>' + n(num) + '</strong> ' + esc(txt) + ' <span aria-hidden="true">›</span></button>'); };
-      var nv = ventasPendientes(true).length; if (nv) aviso(nv, plural(nv, 'pedido de vendedor para revisar', 'pedidos de vendedores para revisar'), 'ir-ventas');
+      var nv = VENDEDORES ? ventasPendientes(true).length : 0; if (nv) aviso(nv, plural(nv, 'pedido de vendedor para revisar', 'pedidos de vendedores para revisar'), 'ir-ventas');
       var m = enProduccion(), sinSumar = 0; ph.forEach(function (p) { cortesDe(p).forEach(function (c) { if (c.texto && !fechaProdDe(m, p, c)) sinSumar++; }); });
       if (sinSumar) aviso(sinSumar, plural(sinSumar, 'corte sin sumar a producción', 'cortes sin sumar a producción') + ' (' + diaCorto(f) + ')', 'ini-dia', ' data-f="' + f + '"');
       if (la.s) aviso(la.s, plural(la.s, 'pedido sin camión', 'pedidos sin camión') + ' (' + diaCorto(f) + ')', 'ir', ' data-tab="logistica"');
