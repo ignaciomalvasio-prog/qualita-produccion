@@ -543,6 +543,11 @@ body:has(.res-cam.arrastrando){cursor:grabbing;user-select:none}
 .log-ped{display:flex;gap:14px;align-items:flex-start;padding:12px 14px;border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:8px;background:var(--surface)}
 .log-ped.sin-num{border-left-color:var(--line)}
 .log-num{flex:0 0 auto;width:40px;height:40px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font:700 22px/1 var(--display);display:inline-flex;align-items:center;justify-content:center}
+.log-num-sel{position:relative;padding:0;cursor:pointer;box-shadow:0 0 0 2px #fff,0 0 0 4px var(--accent)}
+.log-num-sel select{appearance:none;-webkit-appearance:none;width:100%;height:100%;border:0;border-radius:50%;background:transparent;color:inherit;font:inherit;text-align:center;text-align-last:center;padding:0;cursor:pointer}
+.log-num-sel select option{color:#000;font:16px var(--body)}
+.log-num-sel::after{content:"▾";position:absolute;right:-3px;bottom:-5px;font-size:11px;color:var(--fuerte,var(--accent));background:#fff;border-radius:50%;width:15px;height:15px;line-height:15px;text-align:center}
+@media print{ .log-num-sel{box-shadow:none} .log-num-sel::after{display:none} }
 .log-body{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:8px}
 .log-cab{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;min-height:40px}
 .log-cab strong{font-size:19px;text-transform:uppercase;letter-spacing:.01em}
