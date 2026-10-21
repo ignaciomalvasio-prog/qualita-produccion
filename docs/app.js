@@ -1749,6 +1749,19 @@
     return '<span class="kg-ped' + (k.falta ? ' falta' : '') + '" title="' + (k.falta ? 'Hay renglones que no se pueden pasar a kilos' : 'Kilos totales del pedido') + '">' + (k.kg ? '<b>' + (k.manual ? '' : '≈ ') + n(k.kg) + ' kg</b>' + (k.falta ? '<small> + sin peso</small>' : '') : '<small>sin peso</small>') + '</span>';
   }
   // Un pedido del listado: cerrado muestra el resumen; abierto, el desglose por corte.
+  // Fresco o congelado, elegible desde el renglón del pedido: se toca el cartelito y aparecen las opciones.
+  function frioChipHTML(p) {
+    var f = p.frio || '', cls = f === 'CONGELADO' ? 'cong' : f === 'FRESCO' ? 'fresco' : 'nada';
+    return '<span class="frio-chip ' + cls + '" data-act="frio-menu" data-id="' + esc(p.id) + '" role="button" tabindex="0" title="Tocá para elegir fresco o congelado">' + (f || '¿Fresco o congelado?') + ' ▾</span>';
+  }
+  function frioMenuHTML(p) {
+    var b = function (v, t) { return '<button class="btn sm' + ((p.frio || '') === v ? ' pri' : '') + '" data-act="frio-set" data-id="' + esc(p.id) + '" data-v="' + v + '">' + t + '</button>'; };
+    return '<div class="frio-menu"><span class="small muted">Este pedido es:</span>' + b('FRESCO', 'Fresco') + b('CONGELADO', 'Congelado') + b('', 'Sin aclarar') + '<button class="btn sm lnk" data-act="frio-menu" data-id="' + esc(p.id) + '">Cerrar</button></div>';
+  }
+  function cambiarFrio(p, v) {
+    return guardarPropuesta({ editaId: p.id, cliente: p.cliente, entrega: p.entrega, medias: p.medias, peso: p.peso, frio: v, cuenta: p.cuenta || '', nota: p.nota, kg: p.kg, origen: p.origen,
+      precioMedias: p.precioMedias === 0 || p.precioMedias ? p.precioMedias : '', ivaMedias: p.ivaMedias || '', cortes: clone(cortesDe(p)) });
+  }
   function pedidoHTML(p, m, mov) {
     var cs = cortesDe(p).filter(function (c) { return c.texto; }), enP = cs.filter(function (c) { return fechaProdDe(m, p, c); }).length;
     var ab = !!S.abierto[p.id], sel = !!S.sel[p.id], cam = nombreCamion(p.entrega, p.camion), res = [], id = esc(p.id);
@@ -1757,8 +1770,9 @@
     var h = '<div class="ped' + (ab ? ' abierto' : '') + (sel ? ' sel' : '') + '" data-ped="' + id + '"><div class="ped-cab">'
       + (mov ? '<button class="ped-mover" data-parr="' + id + '" aria-label="Arrastrar a ' + esc(p.cliente) + ' para cambiar el orden de bajada (o usar las flechas del teclado)" title="Arrastrar para ordenar">⠿</button>' : '')
       + '<label class="chk"><input type="checkbox" data-sel="' + id + '"' + (sel ? ' checked' : '') + ' aria-label="Tildar el pedido de ' + esc(p.cliente) + ' para un camión"></label>'
-      + '<button class="ped-tit" data-act="ped-abrir" data-id="' + id + '" aria-expanded="' + ab + '"><span class="nom">' + esc(p.cliente || 'Sin cliente') + '</span>' + ctaHTML(cuentaPedido(p), true) + '<span class="res">' + res.join(' · ') + (p.frio && p.frio !== 'CONGELADO' ? ' ' + frioBadge(p.frio) : '') + '</span>'
+      + '<button class="ped-tit" data-act="ped-abrir" data-id="' + id + '" aria-expanded="' + ab + '"><span class="nom">' + esc(p.cliente || 'Sin cliente') + '</span>' + ctaHTML(cuentaPedido(p), true) + '<span class="res">' + res.join(' · ') + ' ' + frioChipHTML(p) + '</span>'
       + (cam || (VENDEDORES && p.vendedor) ? '<span class="marcas">' + (VENDEDORES && p.vendedor ? '<span class="badge vend" title="' + esc(p.vendedor) + '">Vendedor: ' + esc(p.vendedorNombre || p.vendedor.split('@')[0]) + '</span>' : '') + (cam ? '<span class="badge cam-ped">' + esc(cam) + '</span>' : '') + '</span>' : '') + '<span class="col-kg">' + kgPedHTML(p) + '</span><span class="col-prod">' + prodBadgeHTML(enP, cs.length) + '</span><span class="chev" aria-hidden="true">' + (ab ? '▴' : '▾') + '</span></button></div>';
+    if (S.frioMenu === p.id) h += frioMenuHTML(p);
     if (!ab) return h + '</div>';
     h += '<div class="ped-det">' + elegirCuentaHTML(p) + '<div class="op-ped">';
     if (+p.medias) h += '<p class="lp"><span class="lp-izq"><span class="lc-corte">Medias</span><span class="lc-txt">' + cantHTML(textoMedias(p)) + '</span></span><span class="lp-der">' + precioHTML(p.id, 'm', p.precioMedias, 'las medias', p.ivaMedias) + '</span></p>';
@@ -2473,6 +2487,11 @@
       renderPedidos();
     }
     else if (a === 'e-dia') { var ye = S.entrega; do { ye = mas(ye, +D.d); } while (!esHabil(ye)); S.entrega = ye; S.sel = {}; renderPedidos(); }
+    else if (a === 'frio-menu') { e.preventDefault(); e.stopPropagation(); S.frioMenu = S.frioMenu === D.id ? null : D.id; renderPedidos(); }
+    else if (a === 'frio-set') {
+      var pf = pedidoDe(D.id); S.frioMenu = null; if (!pf) { renderPedidos(); return; }
+      cambiarFrio(pf, D.v).then(function () { avisar(D.v ? 'Pedido de ' + pf.cliente + ': ' + D.v.toLowerCase() + '.' : 'Pedido de ' + pf.cliente + ': sin aclarar.', 3000); renderPedidos(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); renderPedidos(); });
+    }
     else if (a === 'sel-nada') { S.sel = {}; S.selOtra = false; renderPedidos(); }
     else if (a === 'sel-borrar') {
       var tb = (S.pedidos || []).filter(function (x) { return S.sel[x.id]; });
@@ -2641,6 +2660,7 @@
   }
   document.addEventListener('pointerup', soltarP); document.addEventListener('pointercancel', soltarP);
   document.addEventListener('keydown', function (e) {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target && e.target.classList && e.target.classList.contains('frio-chip')) { e.preventDefault(); e.stopPropagation(); e.target.click(); return; }
     var hd = e.target && e.target.classList && e.target.classList.contains('ped-mover') ? e.target : null; if (!hd) return;
     var d = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0; if (!d) return;
     e.preventDefault(); var id = hd.getAttribute('data-parr'), p = pedidoDe(id); if (!p || !p.camion) return;

@@ -442,6 +442,13 @@ button.cam-num{background:none;color:inherit;cursor:pointer}
 .busq-f .nom{font-weight:700}.busq-dia{font:700 13px var(--body);color:var(--accent);min-width:78px}.busq-f .btn{margin-left:auto}
 .grupo-cam{margin-top:12px}.grupo-tit{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:16px;margin:0 0 6px}
 .grupo-cam.sin-cam .grupo-tit{color:var(--warn)}
+.frio-chip{display:inline-block;font:700 12px var(--body);letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:3px;white-space:nowrap;cursor:pointer;border:1px solid transparent}
+.frio-chip.fresco{background:var(--ok-soft);color:var(--ok);border-color:#b9dfc8}
+.frio-chip.cong{background:#dcecf6;color:#24607a;border-color:#a9d0e4}
+.frio-chip.nada{background:none;color:var(--muted);border:1px dashed var(--line);font-weight:600;text-transform:none;letter-spacing:0}
+.frio-chip:hover,.frio-chip:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.frio-menu{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 10px 10px 40px}
+@media print{ .frio-chip.nada,.frio-menu{display:none!important} }
 .grupo-kg{text-transform:none;margin-left:auto;font:800 18px var(--display);color:#000;background:#a9d6ee;border:1px solid #6fb4d6;border-radius:5px;padding:3px 12px;white-space:nowrap}
 .grupo-kg small{font:600 13px var(--body);color:#1d3b48}
 .grupo-kg.pasa{background:var(--crit-soft);border-color:var(--crit);color:var(--crit)}
