@@ -140,3 +140,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Pedidos: al lado del buscador de clientes hay un buscador de camiones (los que ya tienen clientes cargados, desde la semana pasada); muestra día, hora, kilos y clientes en orden, y "Ver" lleva a ese día y marca el camión.
 - Logística: buscadores de cliente (o N° de cuenta) y de camión, igual que en Pedidos; "Ver" lleva al día y marca el cliente o el camión. También en el link para compartir (solo lo que tiene camión).
 - Logística: la nota del cliente se escribe ahí mismo (tocar el recuadro amarillo, o "+ Nota" si no tiene); se guarda sola con Enter o al salir. Sin apretar Editar.
+- Pedidos: al lado de "N cortes" dice cuántos están sumados a producción (verde, "3 sum") y cuántos no (rojo, "3 no"); si los que faltan son congelados lo aclara "(cong)".
