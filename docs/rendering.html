@@ -357,8 +357,8 @@ h1 a{color:inherit;text-decoration:none}
 .op-ped p.lp{padding:8px 0;border-bottom:1px dashed var(--line)}
 .op-ped p.lp:last-child{border-bottom:0}
 .op-ped .lp-izq{display:grid;grid-template-columns:140px minmax(0,1fr);gap:12px;align-items:baseline;flex:1 1 auto}
-.op-ped .lc-txt{font-weight:500}
-.op-ped p.lp b.lc-cant{color:var(--ink);font-weight:800;margin-right:2px}
+.op-ped .lc-txt{font-weight:600}
+.op-ped p.lp b.lc-cant{color:#000;font-weight:800;margin-right:4px}
 @media (max-width:560px){ .op-ped .lp-izq{grid-template-columns:minmax(0,1fr);gap:2px} .op-ped .lp-der{justify-content:flex-start} }
 .op-ped .en{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto}
 .op-ped .nota-lp{text-transform:none;font-weight:400;text-align:right}
@@ -490,13 +490,14 @@ button.cam-num{background:none;color:inherit;cursor:pointer}
 @media print{ .log-pre-ed{display:none!important} .log-cortes p:has(.log-pre-ed){grid-template-columns:120px minmax(0,1fr)} }
 @media (max-width:560px){
   .log-cortes p,.log-cortes p:has(.log-pre-ed){grid-template-columns:auto minmax(0,1fr);gap:2px 8px;padding:6px 0}
-  .log-cortes .lc-corte{font-size:13px;align-self:baseline}
+  .log-cortes .lc-corte{font-size:15px;align-self:baseline}
+  .lc-cant{font-size:16px}
   .log-pre-ed{grid-column:1 / -1;justify-content:flex-start;gap:6px;margin-top:2px;flex-wrap:nowrap}
   .lp-pre{gap:3px;font-size:11px}
   .lp-pre>span{display:none}
   .lp-pre input{width:110px;padding:3px 6px;font-size:13px}
   .lp-pre:first-child::before{content:"$/kg";font-size:11px;font-weight:700;color:var(--muted);margin-right:2px}
-  .log-cortes select.uni,.op-ped select.uni{width:auto!important;min-width:0!important;max-width:92px!important;padding:0 2px!important;font-size:11px!important}
+  .log-cortes select.uni,.op-ped select.uni{width:72px!important;min-width:0!important;max-width:72px!important;padding:0 2px!important;font-size:11px!important}
 }
 .res-cam.movible .res-tit{display:flex;align-items:center;gap:6px}
 .res-mover{border:1px solid #bbb;background:#f4f4f4;color:#333;border-radius:4px;font-size:16px;line-height:1;padding:4px 5px;cursor:grab;touch-action:none;flex:none}
@@ -545,9 +546,11 @@ body:has(.res-cam.arrastrando){cursor:grabbing;user-select:none}
 .log-cortes{text-transform:uppercase;font-size:15px;line-height:1.35;overflow-wrap:anywhere;border-top:1px solid var(--line)}
 .log-cortes p{margin:0;display:grid;grid-template-columns:140px minmax(0,1fr);gap:12px;align-items:baseline;padding:5px 0;border-bottom:1px dashed var(--line)}
 .log-cortes p:last-child{border-bottom:0}
-.lc-corte{font-size:15px;font-weight:800;letter-spacing:.03em;color:var(--ink);text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px}
-.lc-txt{font-weight:500}
-.lc-cant{font-weight:800;color:var(--ink);margin-right:2px;white-space:nowrap}
+.lc-corte{font-size:16px;font-weight:800;letter-spacing:.03em;color:#000;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px}
+.lc-txt{font-weight:600;color:#1f2d34}
+.lc-cant{font:800 17px var(--display);color:#000;background:#d6ecf7;border:1px solid #a9d6ee;border-radius:4px;padding:0 6px;margin-right:4px;white-space:nowrap;letter-spacing:.02em}
+.lc-cant select.uni{background:#fff;font-weight:800!important;color:#000}
+@media print{ .lc-cant{background:none!important;border:0;padding:0} }
 @media (max-width:560px){ .log-ped{padding:8px 8px 8px 6px;gap:8px} .log-num{width:28px;height:28px;font-size:16px} .log-body{gap:4px} .log-cab{min-height:0} .log-cortes p{grid-template-columns:minmax(0,1fr);gap:0} .log-cab .log-acc{margin-left:0;flex-basis:100%;flex-wrap:nowrap;gap:4px} .log-cab .log-acc .btn.sm{padding-left:8px;padding-right:8px} }
 .op-ped select.uni,.log-cortes select.uni{font:600 12px var(--body);text-transform:uppercase;padding:1px 4px;margin:1px 2px;border:1px solid var(--line);border-radius:4px;background:var(--surface);color:var(--ink);vertical-align:middle}
 .op-ped select.uni.falta,.log-cortes select.uni.falta{border-color:var(--warn);background:var(--warn-soft);color:var(--warn)}
