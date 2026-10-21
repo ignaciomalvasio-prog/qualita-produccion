@@ -153,3 +153,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Logística, Imprimir (el día o un camión): sale como se ve, pero se achica solo lo justo para usar la menor cantidad de hojas A4; los camiones pueden seguir en la hoja siguiente pero cada cliente (con sus cortes y nota) nunca se corta. Se arregló la primera hoja vacía y el número de lugar que salía vacío en el círculo.
 - Logística, Imprimir: letra de tamaño normal; solo se achica un poco (como mucho 15%) cuando así se ahorra una hoja. Clientes enteros en la misma hoja.
 - Logística, Imprimir: sale el número de ORDEN de cada camión al lado de su nombre.
+- Inicio: los cuadros de cada sección tienen el título en una franja celeste fuerte con letra blanca y el cuerpo celeste clarito (opción C que eligió Renzo).
