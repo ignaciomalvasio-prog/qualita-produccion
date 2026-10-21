@@ -1220,7 +1220,7 @@
     tasa = tasa || IVA;
     var x = preciosDe(v, iva, tasa) || {}, r = function (n) { return n == null ? '' : String(Math.round(n * 100) / 100); };
     var sin = x.solo != null ? r(x.solo) : r(x.sin), fin = x.solo != null ? '' : r(x.fin);
-    var inp = function (cual, val, txt) { return '<label class="lp-pre"><span>' + txt + '</span><input type="number" inputmode="decimal" step="any" min="0" data-plog="' + esc(id) + '" data-k="' + esc(k) + '" data-cual="' + cual + '" data-tasa="' + tasa + '" value="' + esc(val) + '" aria-label="Precio por kilo ' + txt + ' de ' + esc(que) + '"></label>'; };
+    var inp = function (cual, val, txt) { return '<label class="lp-pre"><span>' + txt + '</span><input type="number" inputmode="decimal" step="any" min="0" placeholder="' + (cual === 'iva' ? 'sin IVA' : 'final') + '" data-plog="' + esc(id) + '" data-k="' + esc(k) + '" data-cual="' + cual + '" data-tasa="' + tasa + '" value="' + esc(val) + '" aria-label="Precio por kilo ' + txt + ' de ' + esc(que) + '"></label>'; };
     return '<span class="log-pre-ed">' + inp('iva', sin, '$/kg sin IVA') + inp('final', fin, '$/kg final' + (tasa === IVA_EMB ? ' (IVA 21%)' : '')) + '</span>';
   }
   // Si lo publicado no coincide con los pedidos (por ejemplo, pedidos cargados antes de que existiera Logística), se vuelve a publicar.
