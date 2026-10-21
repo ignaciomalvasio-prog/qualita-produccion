@@ -411,7 +411,7 @@
     var h = '<div class="panel hoja op-hoja"><header class="hoja-cab"><div><p class="hoja-sup">Orden de producción</p><h2>' + esc(tituloDe(f)) + '</h2></div>'
       + '<div class="hoja-dato"><b>' + n(+o.medias || 0) + '½</b><span>' + esc(o.mercado || 'medias') + '</span></div>'
       + (o.estado === 'borrador' ? '<span class="badge warn">Borrador</span>' : '<span class="badge ok">Confirmada</span>') + '</header>';
-    h += '<div class="acciones hoja-acc">' + (S.editor ? '<button class="btn pri" data-act="p-editar" data-id="op-' + f + '">Editar la orden</button>' : '') + '<button class="btn" data-act="copiar" data-t="op">Copiar como texto</button><span class="small muted" id="copiado-op" aria-live="polite"></span></div>';
+    h += '<div class="acciones hoja-acc">' + (S.editor ? '<button class="btn pri" data-act="p-editar" data-id="op-' + f + '">Editar la orden</button>' : '') + '<button class="btn" data-act="copiar" data-t="op">Copiar como texto</button><button class="btn" data-act="hoja-pdf">Compartir PDF</button><span class="small muted" id="copiado-op" aria-live="polite"></span></div>';
     h += '<div class="op-lista">' + (o.cortes || []).map(function (c) {
       var ls = c.lineas.length ? c.lineas : [{ t: '' }];
       return '<div class="op-c"><p><u class="op-corte">' + esc(c.corte || '') + '</u>: ' + opLineaHTML(ls[0].t) + '</p>' + ls.slice(1).map(function (l) { return '<p class="op-sig">' + opLineaHTML(l.t) + '</p>'; }).join('') + '</div>';
@@ -544,7 +544,7 @@
       + (o.estado === 'borrador' ? '<span class="badge warn">Borrador</span>' : '<span class="badge ok">Confirmada</span>') + '</header>';
     var acc = '<div class="acciones hoja-acc">'
       + (S.editor ? '<button class="btn pri" data-act="p-editar" data-id="' + (c3 ? 'c3-' : '') + f + '">' + (c3 ? 'Editar embutidos' : 'Editar') + '</button>' : '')
-      + '<button class="btn" data-act="copiar" data-t="' + k + '">Copiar como texto</button>'
+      + '<button class="btn" data-act="copiar" data-t="' + k + '">Copiar como texto</button><button class="btn" data-act="hoja-pdf">Compartir PDF</button>'
       + (S.editor && !c3 ? '<button class="btn" data-act="ir-pedidos" data-f="' + f + '">Sumar cortes desde los pedidos</button>' : '')
       + (S.editor && c3 ? '<button class="btn" data-act="link-c3">Copiar link para el Ciclo III</button>' : '')
       + '<span class="small muted" id="copiado-' + k + '" aria-live="polite"></span></div>';
@@ -557,6 +557,109 @@
     h += '<textarea id="txt-' + k + '" class="txt" readonly hidden aria-label="Planilla en texto">' + esc(textoOrden(o)) + '</textarea></div>';
     return h;
   }
+  // PDF de una sola hoja (la orden, la planilla de frescos o la de embutidos), para mandarla por WhatsApp o mail.
+  // Se arma con el texto de la hoja (nítido y liviano). En el celular abre "Compartir"; en la compu se descarga.
+  // La librería (pdf-lib, en docs/lib) se baja recién la primera vez que se usa.
+  function cargarScript(src) {
+    return new Promise(function (ok, mal) { if (document.querySelector('script[src="' + src + '"]')) return window.PDFLib ? ok() : setTimeout(function () { window.PDFLib ? ok() : mal(new Error('sin conexión')); }, 1500); var sc = document.createElement('script'); sc.src = src; sc.onload = function () { ok(); }; sc.onerror = function () { sc.remove(); mal(new Error('sin conexión')); }; document.head.appendChild(sc); });
+  }
+  // Lo que se ve en la hoja, en renglones con trozos de estilo (negrita, subrayado, color del cliente).
+  function hojaEnRenglones(hoja) {
+    var txt = function (el) { return el ? (el.children.length ? Array.prototype.map.call(el.childNodes, function (k) { return k.textContent; }).join(' ') : el.textContent).replace(/\s+/g, ' ').trim() : ''; };
+    var cab = { sup: txt(hoja.querySelector('.hoja-sup')), tit: txt(hoja.querySelector('.hoja-cab h2')), dato: txt(hoja.querySelector('.hoja-dato')), estado: txt(hoja.querySelector('.hoja-cab .badge')) };
+    var trozos = function (el) {
+      var r = [];
+      (function ir(nd) {
+        if (nd.nodeType === 3) {
+          var t = nd.nodeValue.replace(/\s+/g, ' '); if (!t) return;
+          var p = nd.parentElement;
+          r.push({ t: t, b: !!p.closest('b,strong,h3,.op-corte,.badge'), u: !!p.closest('u'), azul: !!p.closest('.op-cli,.h-cli'), gris: !!p.closest('.muted,.op-resto,.hoja-tot span') });
+          return;
+        }
+        if (nd.nodeType !== 1 || /^(BUTTON|SELECT|TEXTAREA|SCRIPT)$/.test(nd.tagName) || nd.hidden || nd.classList.contains('solo-print')) return;
+        if (nd.classList.contains('h-cli') && !nd.classList.contains('vacio')) { r.push({ t: nd.textContent.trim(), b: true, azul: true }); r.push({ t: '  ' }); return; }
+        if (r.length && /^(P|DIV|H3|LI)$/.test(nd.tagName)) r.push({ t: ' ' });
+        for (var k = nd.firstChild; k; k = k.nextSibling) ir(k);
+      })(el);
+      return r;
+    };
+    var rs = [];
+    hoja.querySelectorAll('.op-c > p, .hoja-nom, .hoja-corte li, .hoja > p.muted').forEach(function (el) {
+      if (el.matches('.hoja-nom')) rs.push({ tipo: 'tit', trozos: trozos(el) });
+      else if (el.matches('li')) rs.push({ tipo: 'li', trozos: trozos(el) });
+      else rs.push({ tipo: el.classList.contains('op-sig') ? 'sig' : el.classList.contains('muted') ? 'nota' : 'op', trozos: trozos(el) });
+    });
+    return { cab: cab, renglones: rs };
+  }
+  function armarPDF(hoja) {
+    var L = window.PDFLib, datos = hojaEnRenglones(hoja);
+    return L.PDFDocument.create().then(function (doc) {
+      return Promise.all([doc.embedFont(L.StandardFonts.Helvetica), doc.embedFont(L.StandardFonts.HelveticaBold)]).then(function (fs) {
+        var F = fs[0], FB = fs[1], AN = 595.28, AL = 841.89, M = 40, maxX = AN - M, cache = {};
+        var negro = L.rgb(0.07, 0.07, 0.07), azul = L.rgb(0.17, 0.48, 0.59), gris = L.rgb(0.42, 0.45, 0.48), linea = L.rgb(0.8, 0.82, 0.84);
+        var REEMPLAZO = { '≈': '~', '✓': 'v', '✗': 'x', '→': '->', '⠿': '', '·': '·', ' ': ' ' };
+        var limpio = function (t) { return Array.from(String(t || '')).map(function (ch) { if (cache[ch] != null) return cache[ch]; var v = ch; try { F.encodeText(ch); } catch (e) { v = REEMPLAZO[ch] != null ? REEMPLAZO[ch] : '?'; } cache[ch] = v; return v; }).join(''); };
+        // Ancho sin "kerning" (la librería lo descuenta al medir pero no al dibujar, y las palabras quedaban pegadas).
+        var anchos = {}, ancho = function (fu, t, tam) { var k = fu === FB ? 'b' : 'r', w = 0; Array.from(t).forEach(function (ch) { var c2 = k + ch; if (anchos[c2] == null) anchos[c2] = fu.widthOfTextAtSize(ch, 1000); w += anchos[c2]; }); return w * tam / 1000; };
+        var pag, y, nPag = 0, pags = [];
+        var nueva = function () { pag = doc.addPage([AN, AL]); pags.push(pag); y = AL - M; nPag++; };
+        nueva();
+        // Encabezado: qué hoja es, el día y las medias.
+        var c = datos.cab;
+        pag.drawText(limpio(c.sup.toUpperCase()), { x: M, y: y - 9, size: 9, font: FB, color: gris });
+        if (c.estado) { var ew = ancho(FB, limpio(c.estado.toUpperCase()), 8); pag.drawText(limpio(c.estado.toUpperCase()), { x: maxX - ew, y: y - 9, size: 8, font: FB, color: gris }); }
+        y -= 30; pag.drawText(limpio(c.tit.toUpperCase()), { x: M, y: y, size: 19, font: FB, color: negro });
+        if (c.dato) { var dw = ancho(FB, limpio(c.dato.toUpperCase()), 15); pag.drawText(limpio(c.dato.toUpperCase()), { x: maxX - dw, y: y, size: 15, font: FB, color: negro }); }
+        y -= 10; pag.drawLine({ start: { x: M, y: y }, end: { x: maxX, y: y }, thickness: 1.5, color: negro }); y -= 8;
+        var TAM = 10.5, ALTO = 14.5;
+        datos.renglones.forEach(function (r, k) {
+          var sangria = r.tipo === 'sig' ? 18 : r.tipo === 'li' ? 14 : 0, tam = r.tipo === 'tit' ? 12 : TAM, alto = r.tipo === 'tit' ? 17 : ALTO;
+          var antes = r.tipo === 'tit' ? 12 : r.tipo === 'op' ? 7 : 2;
+          if (y - antes - alto < M + 20) nueva(); else y -= antes;
+          if (r.tipo === 'op' && k > 0 && y < AL - M - 60) pag.drawLine({ start: { x: M, y: y + 4 }, end: { x: maxX, y: y + 4 }, thickness: 0.5, color: linea, dashArray: [2, 2] });
+          y -= alto - 3;
+          var x0 = M + sangria, x = x0;
+          if (r.tipo === 'li') pag.drawText('•', { x: M + 4, y: y, size: tam, font: F, color: gris });
+          r.trozos.forEach(function (tr) {
+            var fuente = tr.b || r.tipo === 'tit' ? FB : F, color = tr.azul ? azul : tr.gris ? gris : negro;
+            limpio(tr.t).split(/(\s+)/).forEach(function (pal) {
+              if (!pal) return;
+              if (/^\s+$/.test(pal)) { if (x > x0) x += ancho(fuente, ' ', tam) * Math.min(pal.length, 2); return; }
+              var w = ancho(fuente, pal, tam);
+              if (x + w > maxX && x > x0) { y -= alto - 3; if (y < M + 20) { nueva(); y -= alto - 3; } x = x0 + (r.tipo === 'op' ? 10 : 0); }
+              pag.drawText(pal, { x: x, y: y, size: tam, font: fuente, color: color });
+              if (tr.u) pag.drawLine({ start: { x: x, y: y - 2 }, end: { x: x + w, y: y - 2 }, thickness: 0.8, color: color });
+              x += w;
+            });
+          });
+          if (r.tipo === 'tit') { y -= 5; pag.drawLine({ start: { x: M, y: y }, end: { x: maxX, y: y }, thickness: 0.8, color: negro }); y -= 2; }
+        });
+        var ahora = new Date(), pie = 'Frigorífico Qualitá · ' + ahora.toLocaleDateString('es-AR') + ' ' + ahora.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+        pags.forEach(function (p, i) {
+          p.drawText(limpio(pie), { x: M, y: 22, size: 8, font: F, color: gris });
+          var pt = (i + 1) + ' / ' + pags.length; p.drawText(pt, { x: maxX - ancho(F, pt, 8), y: 22, size: 8, font: F, color: gris });
+        });
+        doc.setTitle(limpio(c.sup + ' — ' + c.tit)); doc.setCreator('Producción Qualitá');
+        return doc.save();
+      });
+    });
+  }
+  function compartirPDF(hoja, btn) {
+    if (!hoja || (btn && btn.disabled)) return;
+    var dia = S.fecha || '';
+    var nombre = (hoja.classList.contains('op-hoja') ? 'Orden de produccion' : hoja.classList.contains('hoja-c3') ? 'Embutidos' : 'Planilla de frescos') + ' ' + dia.slice(8, 10) + '-' + dia.slice(5, 7) + '.pdf';
+    var txt0 = btn ? btn.textContent : ''; if (btn) { btn.disabled = true; btn.textContent = 'Armando el PDF…'; }
+    var fin = function (m) { if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = txt0; } if (m) avisar(m, m.charAt(0) === '!' ? 7000 : 4000); };
+    cargarScript('lib/pdf-lib.min.js').then(function () { return armarPDF(hoja); }).then(function (bytes) {
+      var blob = new Blob([bytes], { type: 'application/pdf' }), file = null; try { file = new File([blob], nombre, { type: 'application/pdf' }); } catch (e) {}
+      if (window.__mock) window.__mock.ultimoPDF = { nombre: nombre, blob: blob };
+      if (file && navigator.canShare && /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) && navigator.canShare({ files: [file] })) {
+        return navigator.share({ files: [file], title: nombre.replace(/\.pdf$/, '') }).then(function () { return ''; }, function (e) { if (e && e.name === 'AbortError') return ''; bajar(blob, nombre); return 'PDF descargado: ' + nombre; });
+      }
+      bajar(blob, nombre); return 'PDF descargado: ' + nombre + '. Adjuntalo en WhatsApp o en el mail.';
+    }).then(function (m) { fin(m); }, function () { fin('!No se pudo armar el PDF. Revisá la conexión y probá de nuevo.'); });
+  }
+  function bajar(blob, nombre) { var u = URL.createObjectURL(blob), a = document.createElement('a'); a.href = u; a.download = nombre; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(u); }, 4000); }
   function renderProduccion() {
     var solo3 = S.solo === 'ciclo3', el = $(solo3 ? 'view-ciclo3' : 'view-produccion');
     if (cargando(el, S.prod)) return;
@@ -2445,6 +2548,7 @@
     }
     else if (a === 'cam-subir' || a === 'cam-bajar') { moverEnCamion(S.fl, D.cam, D.id, a === 'cam-subir' ? -1 : 1).then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); }
     else if (a === 'resumen') { S.resumen = !S.resumen; render(); }
+    else if (a === 'hoja-pdf') { compartirPDF(b.closest('.hoja'), b); }
     else if (a === 'imprimir') {
       // Se imprime siempre la vista de lectura, no la de edición.
       if (S.em) { guardar('medias', true); S.em = null; }
