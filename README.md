@@ -142,3 +142,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Logística: la nota del cliente se escribe ahí mismo (tocar el recuadro amarillo, o "+ Nota" si no tiene); se guarda sola con Enter o al salir. Sin apretar Editar.
 - Pedidos: se sacó el "sum / no" al lado de los cortes (volvió como antes).
 - Logística: el nombre de cada camión va en un recuadro azul oscuro con letra blanca y más grande, para distinguirlo bien (al imprimir sale normal).
+- Pedidos: el nombre de cada camión (arriba de su grupo) va en el mismo recuadro azul oscuro con letra blanca que en Logística.
