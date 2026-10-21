@@ -1738,13 +1738,6 @@
   }
   function cuandoEs(f) { return f === mas(hoy(), 1) ? 'mañana' : f === hoy() ? 'hoy' : 'el ' + tituloDe(f).toLowerCase(); }
   // Marca en el listado: cuántos cortes del pedido ya se mandaron a producción.
-  // Cuántos cortes del pedido están sumados a producción y cuántos no (y, de los que no, cuántos son congelados).
-  function cuentaProdHTML(p, cs, m) {
-    var si = 0, no = 0, cong = 0;
-    cs.forEach(function (c) { if (fechaProdDe(m, p, c)) si++; else { no++; if ((c.frio || p.frio) === 'CONGELADO') cong++; } });
-    return ' <span class="cp-cnt">' + (si ? '<span class="cp si" title="' + si + ' sumados a producción">' + si + ' sum</span>' : '')
-      + (no ? '<span class="cp no" title="' + no + ' sin sumar a producción' + (cong ? ' (' + cong + ' congelados)' : '') + '">' + no + ' no' + (cong ? ' <small>(' + (cong === no ? 'cong' : cong + ' cong') + ')</small>' : '') + '</span>' : '') + '</span>';
-  }
   function prodBadgeHTML(enP, tot) {
     if (!tot) return '<span class="pr-ic nada" title="Solo medias: no hay cortes para mandar a producción" aria-label="Solo medias">–</span>';
     return enP >= tot ? '<span class="pr-ic si" title="En producción" aria-label="En producción">✓</span>'
@@ -1777,7 +1770,7 @@
     var cs = cortesDe(p).filter(function (c) { return c.texto; }), enP = cs.filter(function (c) { return fechaProdDe(m, p, c); }).length;
     var ab = !!S.abierto[p.id], sel = !!S.sel[p.id], cam = nombreCamion(p.entrega, p.camion), res = [], id = esc(p.id);
     if (+p.medias) res.push(n(+p.medias) + (+p.medias === 1 ? ' media' : ' medias') + (p.peso ? ' ' + esc(p.peso) : ''));
-    if (cs.length) res.push(cs.length + (cs.length === 1 ? ' corte' : ' cortes') + cuentaProdHTML(p, cs, m));
+    if (cs.length) res.push(cs.length + (cs.length === 1 ? ' corte' : ' cortes'));
     var h = '<div class="ped' + (ab ? ' abierto' : '') + (sel ? ' sel' : '') + '" data-ped="' + id + '"><div class="ped-cab">'
       + (mov ? '<button class="ped-mover" data-parr="' + id + '" aria-label="Arrastrar a ' + esc(p.cliente) + ' para cambiar el orden de bajada (o usar las flechas del teclado)" title="Arrastrar para ordenar">⠿</button>' : '')
       + '<label class="chk"><input type="checkbox" data-sel="' + id + '"' + (sel ? ' checked' : '') + ' aria-label="Tildar el pedido de ' + esc(p.cliente) + ' para un camión"></label>'
