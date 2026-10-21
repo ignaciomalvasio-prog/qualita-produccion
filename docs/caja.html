@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Planilla de caja · Qualitá Express</title>
+<link rel="icon" type="image/png" href="/icon-192.png">
+<meta name="robots" content="noindex">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="/control-estilo.css">
+<link rel="stylesheet" href="/control.css">
+<style>
+main{max-width:1500px;margin:0 auto;padding:18px 20px 60px}
+.hoja{background:#fff;border:2px solid #1d262c;border-radius:6px;padding:18px 20px}
+.top{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.top h1{font-size:20px;margin:0;letter-spacing:.5px}
+.top .fecha{display:flex;align-items:center;gap:8px;border:1.5px solid #1d262c;padding:4px 10px;border-radius:4px;font-weight:600}
+.top .fecha input{width:auto;border:none;font-size:16px;font-weight:600;padding:2px}
+.cols{display:grid;grid-template-columns:minmax(300px,1fr) minmax(300px,1fr) minmax(320px,1.1fr);gap:22px;align-items:start}
+@media (max-width:1100px){.cols{grid-template-columns:1fr}}
+.caja-t{width:100%;border-collapse:collapse;border:1.5px solid #1d262c}
+.caja-t td,.caja-t th{border:1px solid #9aa6ad;padding:3px 6px;font-size:14.5px}
+.caja-t th{background:#eef1f3;color:#1d262c;text-transform:none;letter-spacing:0;font-size:13px;text-align:left}
+.caja-t td.l{width:46%;white-space:nowrap}
+.caja-t input{border:none;border-radius:0;text-align:right;font-size:15px;padding:5px 4px;background:transparent;font-variant-numeric:tabular-nums}
+.caja-t input:focus{background:#eef6f9;box-shadow:none}
+.caja-t input.txt{text-align:left}
+.caja-t select{border:none;font-size:14px;padding:4px 2px;background:transparent}
+.caja-t tr.tot td{font-weight:700;background:#f3f6f7}
+.caja-t td.v{text-align:right;font-variant-numeric:tabular-nums;font-weight:600;padding-right:8px}
+.caja-t .h{display:block;font-size:11px;color:var(--muted);text-align:right;padding:0 4px 2px}
+.caja-t .h.bad{color:var(--bad);font-weight:600}
+.gap{height:14px}
+.res{width:100%;border-collapse:collapse;border:1.5px solid #1d262c;margin-top:14px}
+.res th,.res td{border:1px solid #9aa6ad;padding:6px 8px;text-align:center}
+.res th{background:#eef1f3;color:#1d262c;text-transform:none;letter-spacing:0;font-size:13px}
+.res td{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}
+.ttl{font-weight:700;font-size:13.5px;letter-spacing:.4px;margin:0 0 6px;text-align:center;border:1.5px solid #1d262c;padding:5px;background:#eef1f3}
+textarea.notas{min-height:150px;font-size:15px;border:1.5px solid #1d262c;border-radius:0;line-height:1.6;background:repeating-linear-gradient(#fff,#fff 23px,#e3e7ea 24px)}
+.acciones{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;margin-top:16px}
+@media print{
+  header,.acciones,.no-print,.toast{display:none!important}
+  body{background:#fff} main{padding:0;max-width:none} .hoja{border:none;padding:0}
+  section{box-shadow:none;border:none;padding:0;margin:0}
+  .cols{grid-template-columns:1fr 1fr 1.1fr}
+  input,select,textarea{color:#000}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><img src="/logo.png" alt="Qualitá"><div><div class="t">Planilla de caja</div><div class="s">Qualitá Express · local</div></div></div>
+  <div class="stat" id="st"></div>
+</header>
+<main>
+  <div class="hoja">
+    <div class="top">
+      <h1>PLANILLA DE CAJA</h1>
+      <div class="fecha">FECHA: <input type="date" id="f" onchange="cargarDia()"></div>
+      <span class="muted" id="cargo"></span>
+      <span style="flex:1"></span>
+      <span class="no-print muted" style="font-size:13px">Se pasa a la planilla de Carlos al tocar <b>Guardar</b>.</span>
+    </div>
+    <div class="cols">
+      <!-- columna 1: ingresos y egresos -->
+      <div>
+        <table class="caja-t">
+          <tr><td class="l">Saldo ant</td><td><input id="sa"></td></tr>
+          <tr><td class="l">Zeta</td><td><input id="zeta"><span class="h" id="zeta-h"></span></td></tr>
+          <tr><td class="l">"2"</td><td><input id="dos"><span class="h" id="dos-h"></span></td></tr>
+          <tr><td class="l">Cta Cte "1"</td><td><input id="p1"></td></tr>
+          <tr><td class="l">Cta Cte "2"</td><td><input id="p2"></td></tr>
+          <tr><td class="l">A cta</td><td><input id="acta"></td></tr>
+          <tr class="tot"><td class="l">Total (1)</td><td class="v" id="t1"></td></tr>
+        </table>
+        <div class="gap"></div>
+        <table class="caja-t">
+          <tr><td class="l">Empleados</td><td><input id="emp"></td></tr>
+          <tr><td class="l">Cta Cte "1"</td><td><input id="ctad"></td></tr>
+          <tr><td class="l">Cta Cte "2"</td><td><input id="ctad2"></td></tr>
+          <tr class="tot"><td class="l">Total "2"</td><td class="v" id="t2"></td></tr>
+        </table>
+        <table class="res">
+          <tr><th>Total "1" − "2"</th><th>Caja "1"</th><th>Diferencia</th></tr>
+          <tr><td id="neto"></td><td id="caja1"></td><td id="dif"></td></tr>
+        </table>
+        <p class="nota no-print">Caja "1" = suma del detalle de la caja (columna del medio). Diferencia = Caja "1" − (Total "1" − "2").</p>
+      </div>
+      <!-- columna 2: detalle de la caja -->
+      <div>
+        <div class="ttl">DETALLE DE LA CAJA</div>
+        <table class="caja-t" id="det"><tbody></tbody>
+          <tfoot><tr class="tot"><td class="l">Total</td><td class="v" id="tdet"></td></tr></tfoot>
+        </table>
+        <button class="small no-print" style="margin-top:6px" onclick="filaDet('', '')">＋ Otra línea</button>
+      </div>
+      <!-- columna 3: cuentas pagas, entrega y notas -->
+      <div>
+        <div class="ttl">CUENTAS PAGAS</div>
+        <table class="caja-t" id="ctas"><thead><tr><th style="width:26%">Cta Nº</th><th>Importe</th><th style="width:30%">Forma pago</th><th class="no-print" style="width:28px"></th></tr></thead><tbody></tbody></table>
+        <button class="small no-print" style="margin-top:6px" onclick="filaCta({})">＋ Otra cuenta</button>
+        <table class="caja-t" style="margin-top:14px"><tr><th style="text-align:center">Entrega</th><th style="text-align:center">Saldo caja</th></tr><tr><td><input id="ent"></td><td><input id="scaja"></td></tr></table>
+        <div class="ttl" style="margin-top:14px">NOTAS Y COMENTARIOS</div>
+        <textarea class="notas" id="obs" placeholder="Cuentas que pagaron, cheques, faltantes, devoluciones, lo que Carlos tenga que saber…"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <section style="margin-top:18px">
+    <h2>Detalle de la venta "2"</h2>
+    <p class="sub">Qué productos y cuántos kilos (y el $ si lo tenés). Si dejás vacío el "2" de arriba, se usa la suma de esta tabla.</p>
+    <table class="caja-t" id="l2" style="max-width:760px"><thead><tr><th>Producto</th><th style="width:130px">kg</th><th style="width:150px">$</th><th class="no-print" style="width:28px"></th></tr></thead><tbody></tbody></table>
+    <button class="small no-print" style="margin-top:8px" onclick="filaL2({})">＋ Otro producto</button>
+  </section>
+
+  <div class="acciones">
+    <button class="no-print" onclick="$('subir').click()">⬆ Subir planilla de Excel</button><input type="file" id="subir" accept=".xlsx,.xls" style="display:none" onchange="subirExcel(this.files[0]);this.value=''">
+    <button onclick="bajarExcel()">⬇ Descargar en Excel</button>
+    <button onclick="window.print()">🖨 Imprimir</button>
+    <button class="primary big" id="btn-guardar" onclick="guardar()">Guardar</button>
+  </div>
+
+  <section class="no-print" style="margin-top:20px">
+    <h2>Últimos días</h2>
+    <div id="ult"></div>
+  </section>
+</main>
+<dialog id="dlg"><div class="dlg-h" id="dlg-h"></div><div class="dlg-b" id="dlg-b"></div><div class="dlg-f" id="dlg-f"></div></dialog>
+<div class="toast" id="toast"></div>
+<script src="/acceso.js"></script>
+<script src="/control-base.js"></script>
+<script src="/control-comun.js"></script>
+<script>
+'use strict';
+let S = null, DOC = {}, DOCP = {}, MES = '';
+const CAMPOS = ['sa', 'zeta', 'dos', 'p1', 'p2', 'acta', 'emp', 'ctad', 'ctad2', 'ent', 'scaja'];
+const FORMAS = ['', 'Débito', 'Cheque', 'Transf.', 'Efectivo', 'QR', 'Crédito'];
+const etiq = k => ({ sa: 'Saldo ant', zeta: 'Zeta', dos: '"2"', p1: 'Cta Cte "1"', p2: 'Cta Cte "2"', acta: 'A cta', emp: 'Empleados', ctad: 'Cta Cte "1"', ctad2: 'Cta Cte "2"', ent: 'Entrega', scaja: 'Saldo caja' }[k] || k);
+
+async function cargarMes(m, forzar) {
+  if (m === MES && S && !forzar) return;
+  MES = m;
+  const [txt, a, b] = await Promise.all([sisTexto('mes-' + m).catch(() => ''), leerDoc('local-' + m), leerDoc('local-' + mesAnterior(m))]);
+  S = parseSistema(txt || ''); DOC = a.d; DOCP = b.d;
+  $('st').innerHTML = (S.hora ? '<span class="dot"></span>Sistema al ' + esc(ddmm(S.hora.slice(0, 10)) + ' ' + S.hora.slice(11)) : '<span class="dot off"></span>Sin datos del sistema') + '<br>' + esc(quien()) + ' · <a href="#" onclick="C3API.salir();return false">Salir</a>' + (C3API.rol !== 'caja' ? ' · <a href="/control">Tablero</a>' : '');
+}
+const sistemaDia = f => S.vl.filter(v => v.f === f).reduce((s, v) => s + v.total, 0);
+const fmtIn = v => v == null || v === '' ? '' : fmtN(v, 2);
+
+async function cargarDia() {
+  const f = $('f').value; if (!f) return;
+  history.replaceState(null, '', '/caja?f=' + f);
+  try { await cargarMes(f.slice(0, 7), true); } catch (e) { toast(e.message, true); return; }
+  mostrar((DOC.dias || {})[f] || {});
+}
+function mostrar(d) {
+  const c = d.caja || {};
+  for (const k of CAMPOS) $(k).value = nv(c[k]) != null ? fmtN(k === 'sa' ? nv(c[k]) : Math.abs(nv(c[k])), 2) : '';
+  $('obs').value = d.obs || '';
+  $('cargo').textContent = d.por ? 'Cargó: ' + d.por + (d.ts ? ' · ' + new Date(d.ts).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' }) : '') : '';
+  $('det').tBodies[0].innerHTML = '';
+  const det = d.det && d.det.length ? d.det : CAJA_DET.map(c => ({ c, imp: null }));
+  det.forEach(x => filaDet(x.c, x.imp));
+  for (let i = det.length; i < CAJA_DET.length + 3; i++) filaDet('', '');
+  // sin detalle pero con "lo que hay" cargado por Carlos: se muestra en la primera línea
+  if (!hayDet(d.det) && nv(c.contado) != null) $('det').tBodies[0].rows[0].querySelectorAll('input')[1].value = fmtN(c.contado, 2);
+  $('ctas').tBodies[0].innerHTML = '';
+  const ctas = d.ctas || [];
+  ctas.forEach(filaCta);
+  for (let i = ctas.length; i < 7; i++) filaCta({});
+  $('l2').tBodies[0].innerHTML = '';
+  (d.l2 && d.l2.length ? d.l2 : [{}, {}, {}]).forEach(filaL2);
+  recalcular(); ultimos();
+}
+function filaDet(c, imp) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = '<td class="l"><input class="txt" value="' + esc(c || '') + '" placeholder="concepto"></td><td><input value="' + fmtIn(imp) + '"></td>';
+  $('det').tBodies[0].appendChild(tr);
+}
+function filaCta(x) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = '<td><input class="txt" value="' + esc(x.cta || '') + '" placeholder="Nº"></td><td><input value="' + fmtIn(x.imp) + '"></td><td><select>' + FORMAS.map(f => '<option' + (f === (x.forma || '') ? ' selected' : '') + '>' + f + '</option>').join('') + (x.forma && !FORMAS.includes(x.forma) ? '<option selected>' + esc(x.forma) + '</option>' : '') + '</select></td><td class="no-print"><button class="small danger" title="Quitar">✕</button></td>';
+  tr.querySelector('button').onclick = () => tr.remove();
+  $('ctas').tBodies[0].appendChild(tr);
+}
+function filaL2(it) {
+  const prods = productosLocal(S);
+  const tr = document.createElement('tr');
+  tr.innerHTML = '<td><select style="width:100%"><option value="">— producto —</option>' + prods.map(p => '<option value="' + p.art + '"' + (String(it.art || '') === p.art ? ' selected' : '') + '>' + esc(p.den) + '</option>').join('') + '</select></td>' +
+    '<td><input value="' + fmtIn(it.kg) + '" placeholder="kg"></td><td><input value="' + (it.imp != null && it.imp !== '' ? fmtN(it.imp, 0) : '') + '" placeholder="$"></td><td class="no-print"><button class="small danger" title="Quitar">✕</button></td>';
+  tr.querySelector('button').onclick = () => { tr.remove(); recalcular(); };
+  $('l2').tBodies[0].appendChild(tr);
+}
+function numDe(el, nombre) { const n = leerNum(el.value); if (Number.isNaN(n)) throw new Error('Número inválido en ' + nombre); return n; }
+function leerForm() {
+  const c = {};
+  for (const k of CAMPOS) { const n = numDe($(k), etiq(k)); if (n != null) c[k] = k === 'sa' ? n : Math.abs(n); }
+  const det = [];
+  for (const tr of $('det').tBodies[0].rows) { const [t, v] = tr.querySelectorAll('input'); const n = numDe(v, t.value || 'el detalle'); if (t.value.trim() || n != null) det.push({ c: t.value.trim(), imp: n }); }
+  const ctas = [];
+  for (const tr of $('ctas').tBodies[0].rows) { const [t, v] = tr.querySelectorAll('input'); const n = numDe(v, 'cuenta ' + t.value); const fo = tr.querySelector('select').value; if (t.value.trim() || n != null) ctas.push({ cta: t.value.trim(), imp: n, forma: fo }); }
+  const items = [];
+  for (const tr of $('l2').tBodies[0].rows) {
+    const sel = tr.querySelector('select'), [ik, ii] = tr.querySelectorAll('input');
+    if (!sel.value) continue;
+    const kgv = numDe(ik, sel.selectedOptions[0].text), imp = numDe(ii, sel.selectedOptions[0].text);
+    if (kgv == null && imp == null) continue;
+    items.push({ art: sel.value, den: sel.selectedOptions[0].text, kg: kgv, imp });
+  }
+  if (c.dos == null && items.some(i => i.imp != null)) c.dos = items.reduce((s, i) => s + (i.imp || 0), 0);
+  return { c, det, ctas, items };
+}
+function recalcular() {
+  const f = $('f').value; if (!f || !S) return;
+  let form; try { form = leerForm(); } catch (e) { return; }
+  const doc = JSON.parse(JSON.stringify(DOC)); doc.dias = doc.dias || {};
+  const ant = ((doc.dias[f] || {}).caja) || {};
+  const c = Object.assign({}, form.c); if (!hayDet(form.det) && ant.contado != null) c.contado = ant.contado;
+  doc.dias[f] = Object.assign({}, doc.dias[f], { caja: c, det: form.det });
+  const x = cajaCalc(DOCP, doc, f.slice(0, 7))[f];
+  $('sa').placeholder = fmtN(x.sa, 2);
+  $('t1').textContent = fmtN(x.t1, 2); $('t2').textContent = fmtN(x.t2, 2); $('neto').textContent = fmtN(x.neto, 2);
+  $('tdet').textContent = hayDet(form.det) ? fmtN(sumaDet(form.det), 2) : '';
+  $('caja1').textContent = x.contado != null ? fmtN(x.contado, 2) : '';
+  $('dif').textContent = x.contado != null ? fmtN(x.dif, 2) : '';
+  $('dif').style.color = x.contado != null && Math.abs(x.dif) >= 1000 ? 'var(--bad)' : '';
+  const sis = sistemaDia(f), z = leerNum($('zeta').value);
+  $('zeta-h').textContent = sis ? 'sistema: ' + pesos(sis) : '';
+  $('zeta-h').className = 'h' + (z != null && sis && Math.abs(z - sis) > 1 ? ' bad' : '');
+  const l2 = form.items.reduce((s, i) => s + (i.imp || 0), 0);
+  $('dos-h').textContent = leerNum($('dos').value) == null && l2 ? 'suma del detalle: ' + pesos(l2) : '';
+  $('scaja').placeholder = fmtN(x.saldo, 2);
+}
+document.addEventListener('input', e => { if (e.target.tagName === 'INPUT' && e.target.type !== 'date' && e.target.type !== 'file') recalcular(); });
+document.addEventListener('change', e => { if (e.target.tagName === 'SELECT') recalcular(); });
+
+async function guardar() {
+  const f = $('f').value; if (!f) { toast('Elegí el día', true); return; }
+  let form; try { form = leerForm(); } catch (e) { toast(e.message, true); return; }
+  const obs = $('obs').value.trim();
+  $('btn-guardar').disabled = true;
+  try {
+    DOC = await cambiarDoc('local-' + f.slice(0, 7), d => {
+      d.dias = d.dias || {}; const x = d.dias[f] = d.dias[f] || {};
+      const ant = x.caja || {};
+      x.caja = form.c;
+      if (!hayDet(form.det) && ant.contado != null) x.caja.contado = ant.contado;
+      if (!hayDet(form.det) && x.caja.contado == null && ant.dif != null) x.caja.dif = ant.dif;
+      x.det = form.det; x.ctas = form.ctas; x.l2 = form.items; x.obs = obs; x.por = quien(); x.ts = new Date().toISOString();
+    }, 'Planilla de caja ' + ddmm(f) + ': Zeta ' + (pesos(form.c.zeta || 0) || '$ 0') + ', "2" ' + (pesos(form.c.dos || 0) || '$ 0') + (hayDet(form.det) ? ', caja ' + pesos(sumaDet(form.det)) : '') + (obs ? ' · ' + obs.replace(/\s+/g, ' ').slice(0, 120) : ''));
+    toast('Guardado. Ya está en la planilla de Carlos.'); mostrar(DOC.dias[f]);
+  } catch (e) { toast(e.message, true); }
+  $('btn-guardar').disabled = false;
+}
+function ultimos() {
+  const f = $('f').value, cj = cajaCalc(DOCP, DOC, MES);
+  const dias = Object.keys(cj).filter(d => d <= hoyIso()).sort().reverse().slice(0, 10);
+  $('ult').innerHTML = '<table><thead><tr><th>Día</th><th class="num">Zeta</th><th class="num">"2"</th><th class="num">Total "1"−"2"</th><th class="num">Diferencia</th><th>Cargó</th><th>Notas</th></tr></thead><tbody>' +
+    dias.map(d => { const x = cj[d], y = (DOC.dias || {})[d] || {}; return '<tr style="cursor:pointer" onclick="$(\'f\').value=\'' + d + '\';cargarDia();window.scrollTo(0,0)"' + (d === f ? ' class="hoy"' : '') + '><td><b>' + DIAS[diaSem(d)] + ' ' + ddmm(d) + '</b></td><td class="num">' + (x.zeta != null ? pesos(x.zeta) : '<span class="chip sm warn">falta</span>') + '</td><td class="num">' + pesos(nv((y.caja || {}).dos)) + '</td><td class="num">' + (x.cargado ? pesos(x.neto) : '') + '</td><td class="num">' + (x.cargado && x.contado != null ? fmtN(x.dif, 2) : '') + '</td><td class="muted">' + esc(y.por || '') + '</td><td class="muted">' + esc((y.obs || '').slice(0, 60)) + '</td></tr>'; }).join('') + '</tbody></table>';
+}
+/* ---------- Excel con el mismo formato que la planilla de papel ---------- */
+const FILAS_ING = [['sa', 3], ['zeta', 4], ['dos', 5], ['p1', 6], ['p2', 7], ['acta', 8]];
+const FILAS_EGR = [['emp', 11], ['ctad', 12], ['ctad2', 13]];
+function bajarExcel() {
+  if (!window.XLSX) { toast('No se pudo cargar el componente de Excel (falta internet)', true); return; }
+  const f = $('f').value; let form; try { form = leerForm(); } catch (e) { toast(e.message, true); return; }
+  const ws = {};
+  const put = (ref, v) => { if (v === '' || v == null) return; ws[ref] = typeof v === 'number' ? { t: 'n', v, z: '#,##0.00' } : { t: 's', v: String(v) }; };
+  const fx = (ref, f) => { ws[ref] = { t: 'n', f, z: '#,##0.00' }; };
+  put('A1', 'PLANILLA DE CAJA'); put('D1', 'FECHA:'); put('E1', f.split('-').reverse().join('/')); put('G1', 'CUENTAS PAGAS');
+  const val = k => k === 'sa' ? (form.c.sa != null ? form.c.sa : leerNum($('sa').placeholder)) : form.c[k];
+  for (const [k, r] of [...FILAS_ING, ...FILAS_EGR]) { put('A' + r, etiq(k)); put('B' + r, val(k)); }
+  put('A9', 'Total (1)'); fx('B9', 'SUM(B3:B8)');
+  put('A14', 'Total "2"'); fx('B14', 'SUM(B11:B13)');
+  put('A16', 'Total "1"-"2"'); fx('B16', 'B9-B14');
+  put('A17', 'Caja "1"'); fx('B17', 'E17');
+  put('A18', 'Diferencia'); fx('B18', 'B17-B16');
+  put('D2', 'Detalle de la caja');
+  const det = form.det.length ? form.det : CAJA_DET.map(c => ({ c, imp: null }));
+  det.slice(0, 14).forEach((x, i) => { put('D' + (3 + i), x.c); put('E' + (3 + i), x.imp); });
+  put('D17', 'Total'); fx('E17', 'SUM(E3:E16)');
+  put('G2', 'Cta Nº'); put('H2', 'Importe'); put('I2', 'Forma pago');
+  form.ctas.slice(0, 12).forEach((x, i) => { put('G' + (3 + i), x.cta); put('H' + (3 + i), x.imp); put('I' + (3 + i), x.forma); });
+  put('G16', 'Entrega'); put('H16', form.c.ent); put('G17', 'Saldo caja'); put('H17', form.c.scaja);
+  put('A20', 'Notas y comentarios'); put('A21', $('obs').value);
+  put('A27', 'Venta "2" - detalle'); put('A28', 'Producto'); put('B28', 'kg'); put('C28', '$');
+  form.items.slice(0, 20).forEach((x, i) => { put('A' + (29 + i), x.den); put('B' + (29 + i), x.kg); put('C' + (29 + i), x.imp); });
+  ws['!ref'] = 'A1:I48';
+  ws['!cols'] = [{ wch: 16 }, { wch: 15 }, { wch: 12 }, { wch: 18 }, { wch: 15 }, { wch: 3 }, { wch: 12 }, { wch: 14 }, { wch: 12 }];
+  ws['!merges'] = [{ s: { r: 20, c: 0 }, e: { r: 24, c: 8 } }];
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Planilla de caja');
+  XLSX.writeFile(wb, 'Planilla de caja ' + f.split('-').reverse().join('-') + '.xlsx');
+}
+async function subirExcel(file) {
+  if (!file) return;
+  if (!window.XLSX) { toast('No se pudo cargar el componente de Excel (falta internet)', true); return; }
+  try {
+    const wb = XLSX.read(await file.arrayBuffer());
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const cel = ref => { const c = ws[ref]; return c ? c.v : null; };
+    const n = ref => { const v = cel(ref); if (v == null || v === '') return null; const r = typeof v === 'number' ? v : leerNum(v); if (Number.isNaN(r)) throw new Error('Número inválido en la celda ' + ref); return r; };
+    if (String(cel('A1') || '').toUpperCase().indexOf('PLANILLA DE CAJA') < 0) throw new Error('No es la planilla de caja (tiene que ser la que se descarga de acá)');
+    const fe = cel('E1');
+    let iso = '';
+    if (typeof fe === 'number') { const d = XLSX.SSF.parse_date_code(fe); iso = d.y + '-' + pad(d.m) + '-' + pad(d.d); }
+    else if (fe) { const m = String(fe).match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/); if (m) iso = (m[3].length === 2 ? '20' + m[3] : m[3]) + '-' + pad(m[2]) + '-' + pad(m[1]); }
+    if (iso && iso !== $('f').value) { $('f').value = iso; history.replaceState(null, '', '/caja?f=' + iso); await cargarMes(iso.slice(0, 7), true); }
+    const d = { caja: {}, det: [], ctas: [], l2: [], obs: cel('A21') ? String(cel('A21')) : '' };
+    for (const [k, r] of [...FILAS_ING, ...FILAS_EGR]) { const v = n('B' + r); if (v != null) d.caja[k] = v; }
+    for (let r = 3; r <= 16; r++) { const c = cel('D' + r), v = n('E' + r); if (c || v != null) d.det.push({ c: c ? String(c) : '', imp: v }); }
+    for (let r = 3; r <= 14; r++) { const c = cel('G' + r), v = n('H' + r), fo = cel('I' + r); if (c || v != null) d.ctas.push({ cta: c != null ? String(c) : '', imp: v, forma: fo ? String(fo) : '' }); }
+    const e = n('H16'), sc = n('H17'); if (e != null) d.caja.ent = e; if (sc != null) d.caja.scaja = sc;
+    const prods = productosLocal(S);
+    for (let r = 29; r <= 48; r++) {
+      const p = cel('A' + r); if (!p) continue;
+      const pr = prods.find(x => x.den.toLowerCase() === String(p).toLowerCase().trim());
+      d.l2.push({ art: pr ? pr.art : '', den: String(p), kg: n('B' + r), imp: n('C' + r) });
+    }
+    const actual = (DOC.dias || {})[$('f').value] || {};
+    mostrar(Object.assign({}, actual, d, { por: actual.por, ts: actual.ts }));
+    toast('Planilla leída. Revisá y tocá Guardar.');
+  } catch (err) { toast(err.message, true); }
+}
+
+const qf = new URLSearchParams(location.search).get('f');
+$('f').value = /^\d{4}-\d{2}-\d{2}$/.test(qf || '') ? qf : hoyIso();
+C3API.listo.then(() => cargarDia());
+</script>
+</body>
+</html>

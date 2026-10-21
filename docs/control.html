@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ciclo III y Q Express · Qualitá</title>
+<link rel="icon" type="image/png" href="/icon-192.png">
+<meta name="robots" content="noindex">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="/control-estilo.css">
+<link rel="stylesheet" href="/control.css">
+</head>
+<body>
+<header>
+  <div class="brand"><img src="/logo.png" alt="Qualitá"><div><div class="t">Centro de control</div><div class="s">Ciclo III y Qualitá Express</div></div></div>
+  <nav id="nav">
+    <a href="#" data-t="inicio" class="on">Inicio</a>
+    <a href="#" data-t="c3">Ciclo III</a>
+    <a href="#" data-t="insumos">Insumos</a>
+    <a href="#" data-t="merc">Local · Mercadería</a>
+    <a href="#" data-t="ventas">Local · Ventas</a>
+    <a href="#" data-t="caja">Local · Caja</a>
+    <a href="#" data-t="cambios">Cambios</a>
+  </nav>
+  <div class="mes">
+    <button class="small" onclick="moverMes(-1)" title="Mes anterior">◀</button>
+    <input type="month" id="mes" onchange="cambiarMes(this.value)">
+    <button class="small" onclick="moverMes(1)" title="Mes siguiente">▶</button>
+  </div>
+  <div class="stat" id="st"></div>
+  <button class="small" onclick="cargar(true)" title="Vuelve a leer los datos (el sistema se actualiza solo cada 10 minutos)">⟳ Actualizar</button>
+</header>
+
+<main id="main"><div class="cargando"><span class="spin"></span> Conectando…</div></main>
+
+<dialog id="dlg">
+  <div class="dlg-h" id="dlg-h"></div>
+  <div class="dlg-b" id="dlg-b"></div>
+  <div class="dlg-f" id="dlg-f"></div>
+</dialog>
+<div class="toast" id="toast"></div>
+
+<script src="/acceso.js"></script>
+<script src="/control-base.js"></script>
+<script src="/control-comun.js"></script>
+<script src="/control.js"></script>
+</body>
+</html>

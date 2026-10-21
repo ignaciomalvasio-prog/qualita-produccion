@@ -12,6 +12,7 @@ En vivo: https://qualita-produccion.web.app (links para compartir: `/logistica`,
 - `docs/` es todo el sitio (HTML/JS sin frameworks ni build):
   - `app.js` (la app principal, un solo archivo), `index.html` (HTML + todo el CSS), `sw.js` (service worker / caché), `acceso.js` (ingreso con Google o mail).
   - `vendedor.html` / `vendedor.js`: portal de vendedores.
+  - `control.html` / `caja.html` + `control-base.js` (Firebase e ingreso), `control-comun.js`, `control.js`, `control.css`, `control-estilo.css`: Centro de control Ciclo III y Q Express (privado, con ingreso). No usan `app.js` ni `paginas.py`. Colecciones `c3usuarios`, `c3sis`, `c3docs`, `c3cambios`. Modo de prueba: `window.__mock = { user, rol, sis, docs }`. El programa de la notebook que les sube datos está en `C:\InformeQualita\ciclo3` (ver su CLAUDE.md).
   - `logistica.html`, `produccion.html`, `ciclo3.html`: **se generan** desde `index.html` con `python3 tools/paginas.py`. No editarlos a mano.
 - `firestore.rules`: reglas de la base. Colecciones: `faena`, `produccion` (los embutidos van con id `c3-AAAA-MM-DD`), `config` (incluye `log-AAAA-MM-DD`, público) — lectura pública, escritura de editores; `pedidos` y `privado` solo editores; `editores/{mail}` y `vendedores/{mail}` dan permiso; `ventas` = pedidos de vendedores.
 - `.github/workflows/firebase-hosting.yml`: cada push a `main` corre `tools/paginas.py` y publica en Firebase Hosting (tarda ~1–2 min).

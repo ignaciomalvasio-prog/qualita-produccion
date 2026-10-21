@@ -14,6 +14,12 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/vendedores/$(request.auth.token.email));
     }
     function esMia(d) { return d.vendedor == request.auth.token.email; }
+    // Centro de control Ciclo III y Qualitá Express (/control y /caja): cuentas verificadas que figuran en /c3usuarios.
+    function esC3() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && exists(/databases/$(database)/documents/c3usuarios/$(request.auth.token.email));
+    }
     // Lo que puede escribir un vendedor: solo su pedido, pendiente, con estos campos y nada más (sin precios ni camión).
     function ventaValida() {
       let d = request.resource.data;
@@ -42,6 +48,17 @@ service cloud.firestore {
       allow update: if esEditor() || (esVendedor() && esMia(resource.data) && resource.data.estado == 'pendiente' && ventaValida());
       allow delete: if esEditor() || (esVendedor() && esMia(resource.data) && resource.data.estado == 'pendiente');
     }
+    // Centro de control Ciclo III y Q Express: datos de caja y ventas, privados (no se ven sin cuenta).
+    // c3usuarios la manejan los editores desde /control (Cambios › Usuarios); cada uno puede leer el suyo.
+    match /c3usuarios/{email} {
+      allow get: if request.auth != null && (request.auth.token.email == email || esEditor());
+      allow list, write: if esEditor();
+    }
+    // c3sis: lo que sube la notebook de Igna desde el sistema (c3_sync.ps1, con su cuenta de editor).
+    match /c3sis/{doc}     { allow read: if esEditor() || esC3(); allow write: if esEditor(); }
+    // c3docs: lo cargado a mano (caja, venta "2", correcciones, insumos, fórmulas). c3cambios: historial, no se borra.
+    match /c3docs/{doc}    { allow read, write: if esEditor() || esC3(); }
+    match /c3cambios/{doc} { allow read, create: if esEditor() || esC3(); allow update, delete: if false; }
     // La lista de editores solo se cambia desde la consola de Firebase.
     match /editores/{email} {
       allow get: if request.auth != null && request.auth.token.email == email;
