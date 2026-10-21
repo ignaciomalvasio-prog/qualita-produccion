@@ -398,8 +398,9 @@ select.mover{font-weight:600;padding:6px 8px}
 .cam-flete .fl-tit{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .cam-flete .fl-res{flex:1 1 240px;color:var(--muted)} .cam-flete .fl-res strong{color:var(--ink)}
 /* logística: cada camión es un bloque con su franja de color */
-.cam{background:var(--surface);border:2px solid var(--accent);border-radius:8px;overflow:hidden;display:flex;flex-direction:column;min-width:0;break-inside:avoid}
-.cam + .cam{margin-top:6px}
+.cam{background:var(--surface);border:3px solid #1b1b1b;border-radius:8px;overflow:hidden;display:flex;flex-direction:column;min-width:0;break-inside:avoid}
+.cam + .cam{margin-top:14px}
+.cam>.cam-cab{border-bottom:2px solid #1b1b1b}
 .cam>.cam-cab{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;background:var(--accent);color:var(--accent-ink);padding:12px 16px}
 .cam>.cam-cab h2{font-size:26px;text-transform:uppercase;line-height:1.05}
 .cam-num{font:700 12px var(--body);letter-spacing:.08em;text-transform:uppercase;border:1px solid currentColor;border-radius:3px;padding:2px 7px;opacity:.9}
