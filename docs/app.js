@@ -1892,7 +1892,7 @@
     if (sin.length) h += grupo('Sin camión', resumenLog(sin), sin, 'sin-cam', '');
     cams.forEach(function (c) {
       var o = c.orden || [], l = lista.filter(function (p) { return p.camion === c.id; }).sort(function (a, b) { var i = o.indexOf(a.id), j = o.indexOf(b.id); return (i < 0 ? 1e6 : i) - (j < 0 ? 1e6 : j); });
-      h += grupo('<span class="badge cam-ped">' + esc(nomCam(c)) + '</span>' + (c.hora ? ' ' + esc(c.hora) + ' hs' : ''), l.length ? resumenLog(l) : 'vacío: arrastrá clientes acá', l, l.length ? '' : 'vacio', c.id);
+      h += grupo('<span class="badge cam-ped">' + esc(nomCam(c)) + '</span>' + (c.hora ? ' <span class="cam-hora">' + esc(c.hora) + ' hs</span>' : ''), l.length ? resumenLog(l) : 'vacío: arrastrá clientes acá', l, l.length ? '' : 'vacio', c.id);
     });
     return '<p class="small muted arr-tip">Arrastrá cada cliente desde ⠿ para ordenar la bajada de cada camión (el primero baja primero) o para pasarlo a otro camión.</p>' + h;
   }

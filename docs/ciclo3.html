@@ -407,7 +407,8 @@ select.mover{font-weight:600;padding:6px 8px}
 button.cam-num{background:none;color:inherit;cursor:pointer}
 .cam-num.falta{border-style:dashed;opacity:.75}
 .cam-ord{display:inline-flex;gap:4px}
-.cam-hora{font:700 15px var(--body);opacity:.9}
+.cam-hora{display:inline-block;font:800 16px var(--display);color:#000!important;background:#a9d6ee;border:1px solid #6fb4d6;border-radius:5px;padding:2px 9px;letter-spacing:.02em;white-space:nowrap;opacity:1}
+@media print{ .cam-hora{background:none!important;border-color:#000} }
 .pos-sel{min-width:52px;height:30px;padding:0 4px;border-radius:15px;border:2px solid var(--accent);font:700 15px var(--display);color:var(--accent);background:var(--surface);text-align:center}
 .cam-ord{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
 .cam-cab .pos-sel{border-color:currentColor;color:inherit;background:transparent}.cam-cab .pos-sel option{color:#000}
