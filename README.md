@@ -144,3 +144,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Logística: el nombre de cada camión va en un recuadro azul oscuro con letra blanca y más grande, para distinguirlo bien (al imprimir sale normal).
 - Pedidos: el nombre de cada camión (arriba de su grupo) va en el mismo recuadro azul oscuro con letra blanca que en Logística.
 - Fecha del título (Logística, Pedidos, Producción, Rendering, Medias): en recuadro rojo si el día ya pasó, verde si es hoy; los días que vienen, como siempre. Al imprimir sale normal.
+- Pedidos: la hoja de medias en ANIMALES copiada de Excel (cliente + número, en una o varias columnas) se carga sola con el doble de medias (NOVICERD 50 → 100 medias). Sirve con Ctrl+V en la página o en "Pegar texto" + Leer; no usa la IA. Una captura o foto de esa hoja la IA también la pasa ×2.

@@ -1445,6 +1445,7 @@
       + '3. Planillas por sucursal (ej. DINO): arriba a la izquierda figura el cliente y cada COLUMNA es una sucursal (Rod del Busto, Salsipuedes, Alta Gracia, Ruta 20…); cada fila es un corte, con su código, y el número es lo que pide esa sucursal de ese corte, en kilos cuando la planilla lo dice (por ejemplo con la fila "KG X SUCURSAL" o la columna "TOTAL KG"). Devolvé UN PEDIDO POR CADA SUCURSAL que tenga algo pedido, nunca uno solo con todo sumado: cada sucursal sale en un camión distinto. cliente = el nombre del cliente seguido de la sucursal (ej. "DINO ROD DEL BUSTO"). En cada pedido, un corte por cada fila que tenga cantidad en esa columna, con la cantidad de ESA sucursal. Una sucursal con toda la columna vacía o en cero no se carga. La imagen puede traer más de una tabla del mismo cliente: son más sucursales. No tomes como sucursal la columna TOTAL KG ni como corte la fila "KG X SUCURSAL": sirven para controlar; si la suma de una columna no coincide con su "KG X SUCURSAL", avisalo en dudas de ese pedido. El texto de cada corte lleva la cantidad con su unidad, el nombre del corte como figura y el código entre paréntesis (ej. "100KG JAMON 4 MUSC (COD 341)"); la sucursal no se repite en el texto. Los embutidos (chorizo, morcilla, salchicha) van con orden=false.\n'
       + '4. Lista escrita a mano en una hoja suelta: cada renglón es un cliente seguido de una cantidad con "½" (ej.: "Molina 100 ½" = 100 medias reses para MOLINA). Un título subrayado arriba (ej. "San Juan") es la zona o el destino, no un cliente: ponelo en la nota de cada pedido. Los importes con "$" son precios: cargalos en el precio (ver abajo). Una aclaración entre paréntesis como "(grandes)" va en peso. Un número rodeado con un círculo al pie es el total de medias de la hoja: no es un pedido; si la suma de los renglones no coincide con ese total, avisalo en dudas del primer pedido. Marcas como "ok" o rayas no son pedidos.\n'
       + '5. Texto pegado de WhatsApp u otro mensaje: suele empezar con una frase general (ej. "pedido de cerdo para el martes por caja") que da la fecha de entrega y la unidad para todo el mensaje, y sigue con bloques separados por una línea en blanco: la primera línea de cada bloque es el cliente o la sucursal y las siguientes son "cantidad corte". Cada bloque es un pedido. Aplicá la unidad general a cada renglón ("por caja": "2 matambre" = 2 CAJAS). "Pierna" es el rubro JAMON; conservá abreviaturas como "S/C" tal como vienen. Ignorá saludos y texto que no sea pedido. Si al pedirte la lectura te indican que todo el mensaje es de UN solo cliente y que los bloques son sus sucursales, devolvé igual un pedido por cada sucursal, con cliente = ese cliente seguido de la sucursal (ej. "CLIENTE MENENDEZ PIDAL").\n\n'
+      + '6. Hoja de medias en ANIMALES (Excel, celdas pintadas de verde o rojo): solo nombres de clientes con UN número al lado, en una o varias columnas de a pares, sin la palabra "medias", sin "½", sin cortes y sin filas de FAENA, TOTAL ni DESPOSTE. Ese número es de ANIMALES y cada animal son DOS medias: cargá medias = número × 2 (ej. "NOVICERD 50" → medias 100) y anotá en dudas "En la hoja figura N animales: se cargó como 2N medias". Cada par cliente-número es un pedido.\n\n'
       + 'QUÉ CARGAR, POR CADA PEDIDO\n'
       + '- cliente: en mayúsculas. Si coincide con uno de la lista de clientes conocidos, usá exactamente ese nombre.\n'
       + '- entrega: en formato AAAA-MM-DD. Resolvé fechas como "lun 05/10" con el año actual. Si solo dice un día de la semana ("para el martes"), es el próximo día con ese nombre contando desde mañana. Si no figura, dejala vacía.\n'
@@ -1634,10 +1635,36 @@
       refrescar();
     });
   }
+  // Hoja de medias copiada de Excel: celdas "CLIENTE <tab> número" (una o varias columnas de a pares). El número es de ANIMALES:
+  // cada animal son dos medias, así que el pedido se carga con el doble. Si la hoja trae faena, totales u otra cosa, no es esta.
+  function leerAnimales(txt) {
+    var t = String(txt || ''); if (t.indexOf('\t') < 0) return null;
+    var pares = [], ok = true;
+    t.split(/\r?\n/).forEach(function (fila) {
+      var cs = fila.split('\t').map(function (c) { return c.trim(); });
+      for (var i = 0; i < cs.length; i++) {
+        if (!cs[i]) continue;
+        var nom = cs[i], num = cs[i + 1];
+        if (/\d/.test(nom) || !/[A-ZÁÉÍÓÚÑ]/i.test(nom) || !/^\d+$/.test(num || '')) { ok = false; return; }
+        if (/^(TOTAL|DESPOSTE|FAENA|SEMANA|PROPIOS|USUARIOS|MEDIAS|CLIENTES?)\b/i.test(norm(nom))) { ok = false; return; }
+        pares.push({ cliente: nom.toUpperCase().replace(/\s+/g, ' '), animales: +num }); i++;
+      }
+    });
+    return ok && pares.length ? pares : null;
+  }
+  function cargarAnimales(pares, dia) {
+    var ctx = ctxCarga();
+    var j = { pedidos: pares.map(function (x) { return { cliente: x.cliente, entrega: dia || '', medias: x.animales * 2, peso: '', frio: '', cortes: [], nota: '', precioMedias: 0, ivaMedias: '',
+      dudas: ['En la hoja figura ' + animales(x.animales) + ': se cargó como ' + n(x.animales * 2) + ' medias.'] }; }) };
+    S.pegar = false; S.pegarTxt = ''; S.pegarCli = ''; S.pegarDia = '';
+    S.msg.fotos = 'Hoja en animales: ' + pares.length + (pares.length === 1 ? ' cliente pasado' : ' clientes pasados') + ' a medias (×2).';
+    return encolar(ctx, [{ j: j, origen: 'texto', nombre: '' }], []);
+  }
   function leerPegado() {
     var txt = String(S.pegarTxt || '').trim();
     if (!txt) { S.msg.fotos = '!Pegá primero el texto del pedido.'; pintarMsg('fotos'); return; }
     if (S.leyendo) return;
+    var pa = leerAnimales(S.pegarTxt); if (pa) { cargarAnimales(pa, S.pegarDia || ''); return; }
     var ctx = ctxCarga(), cli = String(S.pegarCli || '').toUpperCase().trim(), dia = S.pegarDia || '';
     S.leyendo = true; S.pegar = false; S.msg.fotos = 'Leyendo el texto…'; cargas.activas++; estadoCarga(); render();
     leerTexto(txt, cli).then(function (j) {
@@ -2760,7 +2787,12 @@
       if (im) { e.preventDefault(); leerFaenaFoto(im); }
       return;
     }
-    var inp = $('fotos'); if (!inp || inp.disabled || !e.clipboardData) return;
+    var inp = $('fotos'); if (!inp || !e.clipboardData) return;
+    var txtP = e.clipboardData.getData('text/plain'), pAn = leerAnimales(txtP);
+    if (pAn && e.target && e.target.id === 'pegar-txt') return; // queda en el recuadro; se pasa a medias al tocar Leer
+    if (pAn && !(e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName))) { e.preventDefault(); cargarAnimales(pAn, ''); return; }
+    if (e.target && e.target.id === 'pegar-txt' && txtP) return; // texto en el recuadro: no tomar la imagen que trae Excel
+    if (inp.disabled) return;
     var imgs = Array.prototype.slice.call(e.clipboardData.items || []).filter(function (it) { return it.kind === 'file' && /^image\//.test(it.type); }).map(function (it) { return it.getAsFile(); }).filter(Boolean);
     if (!imgs.length) return;
     e.preventDefault();
