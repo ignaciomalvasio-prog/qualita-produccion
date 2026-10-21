@@ -704,7 +704,7 @@ function produccionDesde(desde) {
   return out;
 }
 /* consumo teórico de cada insumo por día */
-function consumos(desde) {
+function consumos(desde, sinCorrecciones) {
   const prod = produccionDesde(desde), out = {};
   for (const f in prod) for (const p of prod[f]) {
     const r = recetaDe(grupoDe(p.art, p.den)); if (!r) continue;
@@ -714,6 +714,10 @@ function consumos(desde) {
       const q = p.kg * Number(l.cant) / b;
       const x = out[l.ins] = out[l.ins] || {}; x[f] = (x[f] || 0) + q;
     }
+  }
+  if (!sinCorrecciones) for (const [k, a] of Object.entries(INS.usoAj || {})) {
+    const [id, f] = k.split('|'); if (!f || f < desde) continue;
+    (out[id] = out[id] || {})[f] = Number(a.cant) || 0;
   }
   return out;
 }
@@ -890,10 +894,24 @@ function htmlConsumo() {
   const st = stockInsumos();
   const comprasMes = id => comprasDe(id).filter(x => !x.anulada && x.fecha.slice(0, 7) === M);
   const filas = st.filter(x => x.usado || comprasMes(x.id).length || Object.keys(cons[x.id] || {}).some(f => f.slice(0, 7) === M));
-  const dias = diasDelMes(M).filter(f => filas.some(x => (cons[x.id] || {})[f] || comprasMes(x.id).some(c => c.fecha === f)));
-  let h = '<section><h2>Movimiento de insumos del mes</h2><p class="sub">Escribí el <b>saldo inicial</b> de cada insumo (lo que había al empezar el mes). Cada día se descuenta lo usado según la producción y la fórmula. Para cargar una <b>compra</b>, hacé clic en el día de la fila del insumo: queda resaltada en verde en esa misma fila. Las compras cargadas en el sistema aparecen solas.</p>' +
+  const dias = diasDelMes(M).filter(f => totDia('prod', f) > 0 || filas.some(x => (cons[x.id] || {})[f] || comprasMes(x.id).some(c => c.fecha === f)));
+  const gruposMes = GRUPOS.filter(g => totMes('prod', c => grupoDe(c.art, c.den) === g.id) > 0);
+  let h = '<section><h2>Movimiento de insumos del mes</h2><p class="sub">Escribí el <b>saldo inicial</b> de cada insumo (lo que había al empezar el mes). Cada día se descuenta lo usado según la producción y la fórmula. Arriba está la <b>producción de cada día</b>. Haciendo clic en el día de un insumo se carga una <b>compra</b> (queda en verde en esa fila) o se <b>corrige lo usado</b> si no fue lo de la fórmula (queda en naranja). Las compras cargadas en el sistema aparecen solas.</p>' +
     '<div class="tw"><table class="planilla xl mov" data-hoja="Movimiento insumos"><thead><tr><th>Insumo</th><th class="num sep">Saldo inicial</th>' + dias.map(f => '<th class="num">' + diaCorto(f) + '</th>').join('') +
     '<th class="num sep">Compras</th><th class="num">Usado</th><th class="num sep">Saldo final</th></tr></thead><tbody>';
+  // producción del día (de la planilla de Ciclo III): con esto se calcula lo usado
+  gruposMes.forEach((g, i) => {
+    const t = totMes('prod', c => grupoDe(c.art, c.den) === g.id);
+    const rec = recetaDe(g.id);
+    h += '<tr class="prodrow' + (i === 0 ? ' prim' : '') + '"><td>' + (i === 0 ? '<small class="pt">PRODUCCIÓN DEL DÍA (kg)</small>' : '') + '<b>' + g.n + '</b><br><small class="muted">' + (rec ? 'fórmula ' + esc(rec.nombre) : 'sin fórmula: no descuenta') + '</small></td><td class="sep"></td>' +
+      dias.map(f => { const v = totDia('prod', f, c => grupoDe(c.art, c.den) === g.id); return '<td class="num" data-v="' + r2(v) + '">' + (v ? fmtN(v, 0) : '') + '</td>'; }).join('') +
+      '<td class="sep"></td><td class="num" data-v="' + r2(t) + '"><b>' + fmtN(t, 0) + '</b></td><td class="sep"></td></tr>';
+  });
+  if (gruposMes.length > 1) {
+    const T = totMes('prod');
+    h += '<tr class="prodrow tot2"><td><b>Total producido</b></td><td class="sep"></td>' + dias.map(f => { const v = totDia('prod', f); return '<td class="num" data-v="' + r2(v) + '"><b>' + (v ? fmtN(v, 0) : '') + '</b></td>'; }).join('') + '<td class="sep"></td><td class="num" data-v="' + r2(T) + '"><b>' + fmtN(T, 0) + '</b></td><td class="sep"></td></tr>';
+  }
+  h += '<tr class="sepins"><td colspan="' + (dias.length + 5) + '"><small class="pt">INSUMOS</small></td></tr>';
   for (const x of filas) {
     const ini = (INS.conteos || []).filter(c => c.id === x.id && c.fecha === fin0).sort((a, b) => a.ts < b.ts ? -1 : 1).pop();
     const calc = ini ? null : stockAl(x.id, fin0, cons);
@@ -904,8 +922,9 @@ function htmlConsumo() {
     for (const f of dias) {
       const u = (cons[x.id] || {})[f] || 0, cs = cm.filter(c => c.fecha === f), q = cs.reduce((t, c) => t + c.cant, 0);
       tu += u; tc += q;
-      celdasDia += '<td class="num ed' + (q ? ' compra' : '') + '" onclick="compraDia(\'' + esc(x.id) + '\',\'' + f + '\')" data-v="' + r2(q - u) + '" title="' + (q ? 'Compra: ' + cs.map(c => fmtN(c.cant, 2) + (c.sistema ? ' (remito ' + c.nro + ')' : ' (a mano)')).join(', ') + '\n' : '') + 'Usado: ' + fmtN(u, 2) + '\nClic para cargar una compra este día">' +
-        (q ? '<span class="cq">+' + fmtN(q, 2) + '</span>' : '') + (u ? '<span class="cu">' + fmtN(u, 2) + '</span>' : '') + '</td>';
+      const aj = (INS.usoAj || {})[x.id + '|' + f];
+      celdasDia += '<td class="num ed' + (q ? ' compra' : '') + '" onclick="compraDia(\'' + esc(x.id) + '\',\'' + f + '\')" data-v="' + r2(q - u) + '" title="' + (q ? 'Compra: ' + cs.map(c => fmtN(c.cant, 2) + (c.sistema ? ' (remito ' + c.nro + ')' : ' (a mano)')).join(', ') + '\n' : '') + 'Usado: ' + fmtN(u, 2) + (aj ? ' (corregido por ' + (aj.por || '?') + '; fórmula ' + fmtN(aj.formula || 0, 2) + ')' : '') + '\nClic para cargar una compra o corregir lo usado">' +
+        (q ? '<span class="cq">+' + fmtN(q, 2) + '</span>' : '') + (u || aj ? '<span class="cu' + (aj ? ' cuaj' : '') + '">' + fmtN(u, 2) + '</span>' : '') + '</td>';
     }
     const fin = base == null ? null : base + tc - tu;
     const nom = x.carlos ? '<b>' + esc(x.carlos) + '</b> <small class="muted">' + esc(x.unidad) + '</small><br><small class="muted">' + esc(x.nombre) + '</small>' : '<b>' + esc(x.nombre) + '</b> <small class="muted">' + esc(x.unidad) + '</small>';
@@ -934,19 +953,34 @@ async function guardarSaldoInicial(inp) {
 document.addEventListener('change', e => { if (e.target.matches && e.target.matches('input.ini')) guardarSaldoInicial(e.target); });
 function compraDia(id, f) {
   const s = listaInsumos().find(x => x.id === id), cs = comprasDe(id).filter(c => c.fecha === f);
+  const formula = ((consumos(f, true)[id] || {})[f]) || 0;
+  const aj = (INS.usoAj || {})[id + '|' + f];
+  const prodDia = GRUPOS.map(g => [g.n, totDia('prod', f, c => grupoDe(c.art, c.den) === g.id)]).filter(x => x[1] > 0);
   const lista = cs.length ? '<table class="lista-ed" style="margin-bottom:12px"><thead><tr><th>Compras de ese día</th><th class="num">Cantidad</th><th></th></tr></thead><tbody>' +
     cs.map((c, i) => '<tr' + (c.anulada ? ' style="text-decoration:line-through;color:#999"' : '') + '><td>' + (c.sistema ? 'Sistema, remito ' + esc(c.nro) : 'A mano' + (c.nota ? ' · ' + esc(c.nota) : '') + ' · ' + esc(c.por || '')) + '</td><td class="num">' + fmtN(c.cant, 2) + '</td><td>' +
       (c.sistema ? '<button class="small" data-i="' + i + '">' + (c.anulada ? 'Volver a contar' : 'No contar') + '</button>' : '<button class="small danger" data-i="' + i + '">Borrar</button>') + '</td></tr>').join('') + '</tbody></table>' : '';
-  abrirDlg('Compra de ' + esc(s.nombre) + ' · ' + DIAS[diaSem(f)] + ' ' + ddmm(f),
-    lista + '<div class="campos"><label>Cantidad comprada (' + esc(s.unidad) + ')</label><input id="cd-c" class="big-num"><label>Nota</label><input id="cd-n" placeholder="Proveedor, remito…"></div>' +
+  abrirDlg(esc(s.nombre) + ' · ' + DIAS[diaSem(f)] + ' ' + ddmm(f),
+    '<div class="sis">Producción del día: ' + (prodDia.length ? prodDia.map(x => '<b>' + x[0] + '</b> ' + fmtN(x[1], 0) + ' kg').join(' · ') : 'sin producción') + '.<br>Según la fórmula se usaron <b>' + fmtN(formula, 2) + ' ' + esc(s.unidad) + '</b>.</div>' +
+    '<h3 style="font-size:15px;margin:4px 0 8px">Lo usado ese día</h3>' +
+    '<div class="campos"><label>Usado de verdad (' + esc(s.unidad) + ')</label><input id="cd-u" class="big-num" value="' + (aj ? fmtN(aj.cant, 2) : '') + '" placeholder="' + fmtN(formula, 2) + '"><label>Motivo</label><input id="cd-un" value="' + esc(aj ? aj.nota || '' : '') + '" placeholder="Opcional"></div>' +
+    '<p class="nota" style="margin-top:4px">Vacío = lo de la fórmula. Si escribís otro número, ese día descuenta eso.</p>' +
+    '<h3 style="font-size:15px;margin:16px 0 8px">Compras</h3>' + lista +
+    '<div class="campos"><label>Cantidad comprada (' + esc(s.unidad) + ')</label><input id="cd-c" class="big-num"><label>Nota</label><input id="cd-n" placeholder="Proveedor, remito…"></div>' +
     '<p class="nota">Las compras cargadas en el sistema ya aparecen solas: cargá acá solo las que no estén.</p>',
-    [['Cerrar', cerrarDlg], ['Agregar compra', async () => {
-      const c = leerNum($('cd-c').value);
-      if (c == null || Number.isNaN(c)) { toast('Falta la cantidad', true); return; }
+    [['Cerrar', cerrarDlg], ['Guardar', async () => {
+      const u = leerNum($('cd-u').value), c = leerNum($('cd-c').value), un = $('cd-un').value.trim();
+      if (Number.isNaN(u) || Number.isNaN(c)) { toast('Número inválido', true); return; }
+      const cambiaUso = (u == null) !== !aj || (u != null && aj && (Math.abs(aj.cant - u) > 0.0005 || (aj.nota || '') !== un));
+      if (!cambiaUso && c == null) { cerrarDlg(); return; }
+      const desc = [];
+      if (cambiaUso) desc.push('usado ' + (u == null ? 'vuelve a la fórmula (' + fmtN(formula, 2) + ')' : fmtN(formula, 2) + ' → ' + fmtN(u, 2)) + (un ? ' (' + un + ')' : ''));
+      if (c != null) desc.push('compra ' + fmtN(c, 2) + ' ' + s.unidad);
       try {
-        INS = await cambiarDoc('insumos', d => { d.compras = d.compras || []; d.compras.push({ id, fecha: f, cant: c, nota: $('cd-n').value.trim(), por: quien(), ts: new Date().toISOString() }); },
-          'Compra ' + s.nombre + ' ' + ddmm(f) + ': ' + fmtN(c, 2) + ' ' + s.unidad);
-        cerrarDlg(); const y = window.scrollY; await renderInsumos(); window.scrollTo(0, y); toast('Compra agregada');
+        INS = await cambiarDoc('insumos', d => {
+          if (cambiaUso) { d.usoAj = d.usoAj || {}; const k = id + '|' + f; if (u == null) delete d.usoAj[k]; else d.usoAj[k] = { cant: u, formula: r2(formula), nota: un, por: quien(), ts: new Date().toISOString() }; }
+          if (c != null) { d.compras = d.compras || []; d.compras.push({ id, fecha: f, cant: c, nota: $('cd-n').value.trim(), por: quien(), ts: new Date().toISOString() }); }
+        }, s.nombre + ' ' + ddmm(f) + ': ' + desc.join(' · '));
+        cerrarDlg(); const y = window.scrollY; await renderInsumos(); window.scrollTo(0, y); toast('Guardado');
       } catch (e) { toast(e.message, true); }
     }, 'primary']]);
   $('dlg-b').onclick = async e => {
@@ -963,7 +997,7 @@ function compraDia(id, f) {
       cerrarDlg(); await renderInsumos(); compraDia(id, f);
     } catch (err) { toast(err.message, true); }
   };
-  setTimeout(() => $('cd-c') && $('cd-c').focus(), 50);
+  setTimeout(() => $('cd-u') && $('cd-u').focus(), 50);
 }
 
 /* ---------- fórmulas ---------- */

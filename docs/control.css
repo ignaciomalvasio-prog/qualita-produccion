@@ -114,3 +114,11 @@ header{flex-wrap:wrap;row-gap:0}
   .kcard b{font-size:18px}
 }
 #ult{overflow-x:auto}
+/* movimiento de insumos: producción del día arriba y usado corregido */
+.mov tr.prodrow td{background:#f1f6f8}
+.mov tr.prodrow td:first-child{background:#f1f6f8}
+.mov tr.prodrow.prim td{border-top:2px solid #b8d4dd}
+.mov tr.tot2 td{background:#e6eff3;border-bottom:2px solid #b8d4dd}
+.mov tr.sepins td{background:#fff;padding:10px 8px 4px}
+.mov .pt{display:block;font-size:10.5px;letter-spacing:.6px;color:var(--accent);font-weight:700}
+.mov .cu.cuaj{color:#a15c00;font-weight:700;background:#fff1d6;border-radius:4px;padding:0 3px}
