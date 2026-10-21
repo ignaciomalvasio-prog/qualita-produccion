@@ -154,3 +154,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Logística, Imprimir: letra de tamaño normal; solo se achica un poco (como mucho 15%) cuando así se ahorra una hoja. Clientes enteros en la misma hoja.
 - Logística, Imprimir: sale el número de ORDEN de cada camión al lado de su nombre.
 - Inicio: los cuadros de cada sección tienen el título en una franja celeste fuerte con letra blanca y el cuerpo celeste clarito (opción C que eligió Renzo).
+- Cámara (privada): pestaña "Cámara 🔒" y cuadro en Inicio, solo para las cuentas en camaraUsuarios/{mail}. Planilla semanal de faena y desposte (propios, usuario, venta, desposte del día siguiente → remanente, disponible, medias en cámara, lugar libre de 2.250). Se carga pegando la planilla (Google o Excel); todo número se corrige tocándolo; lo que falta sale de Medias y Producción. Requiere publicar la regla nueva de firestore.rules.

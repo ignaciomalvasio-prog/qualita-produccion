@@ -241,6 +241,41 @@ table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
 .t-sig strong{color:var(--ink);font-weight:700}
 .t-ir{margin-top:10px;font-size:13px;font-weight:700;color:var(--accent);opacity:0;transition:opacity .12s}
 .tile:hover .t-ir,.tile:focus-visible .t-ir{opacity:1}
+/* Cámara (privada de Renzo): pestaña y cuadro de Inicio. Detalle en azul y oro. */
+.tab-cam{border:1.5px dashed var(--accent)}
+.tile.t-camara{border:2px solid #17364a}.tile.t-camara .t-cab{background:#17364a}.tile.t-camara.pasa{border-color:#c0392b}.tile.t-camara.pasa .t-cab{background:#a8281c}
+.cam-solo{background:#fff3c4!important;color:#6b5200!important;font-size:10px}
+.cam-med{display:block;height:10px;margin:0 16px;background:#d5e8f0;border-radius:6px;overflow:hidden}.cam-med i{display:block;height:100%;background:#4fa3c5}.cam-med.alto i{background:#e0a020}.cam-med.pasa i{background:#c0392b}
+.cam-pct{display:block;margin:4px 16px 0;font-size:12px;color:#4d6a76}
+.cam-mini{display:grid;grid-template-columns:1fr auto;gap:3px 10px;margin:10px 16px 0;font-size:14px;color:#16323d}.tile .cam-mini b{text-align:right;font:700 15px var(--body);text-transform:none;letter-spacing:0;line-height:1.3}.cam-mini .ok{color:#1f7a3a}.cam-mini .mal{color:#a8281c}
+.cam-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:4px 0 12px;padding-bottom:10px;border-bottom:3px solid #0b3a7a;box-shadow:0 3px 0 #f2c200}
+.cam-escudo{flex:0 0 auto;width:40px;height:40px;border-radius:50%;background:linear-gradient(#0b3a7a 0 38%,#f2c200 38% 62%,#0b3a7a 62%);box-shadow:0 0 0 2px #fff,0 0 0 4px #0b3a7a}
+.cam-sup{margin:0;font:700 12px var(--body);letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}.cam-priv{color:#6b5200;background:#fff3c4;border-radius:4px;padding:1px 6px;text-transform:none;letter-spacing:0}
+.cam-tit{margin:0;font:800 24px var(--display);letter-spacing:.01em;color:#0b3a7a}
+.cam-acc{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.cam-tabla{overflow-x:auto;background:#fff;border:3px solid #1b1b1b;border-radius:8px;-webkit-overflow-scrolling:touch}
+.cam-tabla table{border-collapse:collapse;width:100%;min-width:760px}
+.cam-tabla th,.cam-tabla td{padding:6px 8px;text-align:center;border-bottom:1px solid #c9dbe3;font-size:15px;color:#16323d}
+.cam-tabla thead th{background:#17364a;color:#fff;font:800 14px var(--body);letter-spacing:.03em;white-space:nowrap}.cam-tabla thead th.hoy{background:#1f8a43}
+.cam-tabla tbody th{text-align:left;font:800 13px var(--body);letter-spacing:.03em;white-space:nowrap;position:sticky;left:0;z-index:1;background:inherit}
+.cam-tabla tr.c-verde>*{background:#e4f4d4}.cam-tabla tr.c-naranja>*{background:#ffefc9}.cam-tabla tr.c-celeste>*{background:#e6f0fa}.cam-tabla tr.c-azul>*{background:#d4e6f6}
+.cam-tabla tbody tr:not([class*="c-"])>*{background:#fff}
+.cam-tabla td.hoy{box-shadow:inset 3px 0 0 #1f8a43,inset -3px 0 0 #1f8a43}.cam-tabla td.tot{background:#f1f6f8!important;font-weight:800;white-space:nowrap}.cam-tabla td.tot small{font-weight:400}
+.cam-tabla tr.b td{font-weight:800}
+.cam-v.b{font-weight:800}.cam-v.neg{display:inline-block;background:#f8c9c4;color:#a8281c;border-radius:4px;padding:0 6px}
+.cam-in{width:100%;max-width:92px;border:0;border-bottom:1.5px dashed #2c7a97;border-radius:0;background:transparent;text-align:center;font:600 15px var(--body);color:#16323d;padding:2px 0}
+.cam-in:focus{outline:2px solid #4fa3c5;background:#fff;border-radius:4px}
+.cam-in.auto{color:#4d6a76;font-style:italic;font-weight:400}.cam-in.habitual{color:#8a99a0;font-style:italic;font-weight:400}.cam-in.calc{font-weight:800}
+.cam-tabla tr.b .cam-in{font-weight:800}
+.cam-dsig{display:block;font-size:11px;color:#4d6a76;font-weight:400}
+.cam-ley{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin-top:10px;font-size:12px;color:var(--muted)}
+.cam-ley>span:not(.cam-cap)::before{content:"";display:inline-block;width:22px;height:0;margin-right:5px;vertical-align:3px;border-bottom:1.5px dashed #2c7a97}
+.cam-ley .l-auto::before{border-bottom-color:#8a99a0!important}.cam-ley .l-calc::before{border-bottom:0!important;width:0!important;margin:0!important}
+.cam-cap{margin-left:auto}.cam-cap input{width:70px;text-align:center}
+.cam-nota{margin-top:10px;max-width:640px}
+.cam-pegar textarea{width:100%;font:13px ui-monospace,monospace}.cam-pegar ol{margin:4px 0 8px;padding-left:20px}.cam-prev{margin:8px 0}.cam-prev.neg{color:#a8281c}
+@media (max-width:560px){ .cam-tit{font-size:19px} .cam-acc{margin-left:0} .cam-tabla th,.cam-tabla td{padding:5px 6px;font-size:14px} .cam-cap{margin-left:0} }
+@media print{ .cam-acc,.cam-pegar,.cam-tip,.cam-ley,.cam-nota{display:none!important} .cam-tabla{border-width:1.5px;overflow:visible} .cam-tabla table{min-width:0} .cam-in{display:inline!important;border:0;font-style:normal;color:#000} .cam-top{box-shadow:none} }
 /* Inicio, opción C (elegida por Renzo): franja celeste fuerte con el título en blanco y el cuerpo celeste clarito. */
 .tile{background:#eaf5fb;border-color:#8cc6e0;padding:0;overflow:hidden;color:#16323d}
 .tile>*:not(.t-cab){margin-left:16px;margin-right:16px}
@@ -695,6 +730,7 @@ details[open] > summary{margin-bottom:10px}
       <button class="tab" role="tab" id="tab-medias" data-tab="medias" aria-selected="false">Medias</button>
       <button class="tab" role="tab" id="tab-rendering" data-tab="rendering" aria-selected="false">Rendering</button>
       <button class="tab" role="tab" id="tab-clientes" data-tab="clientes" aria-selected="false" hidden>Clientes</button>
+      <button class="tab tab-cam" role="tab" id="tab-camara" data-tab="camara" aria-selected="false" hidden>Cámara 🔒</button>
     </nav>
   </header>
   <main>
@@ -706,6 +742,7 @@ details[open] > summary{margin-bottom:10px}
     <section class="view" id="view-medias" hidden></section>
     <section class="view" id="view-rendering" hidden></section>
     <section class="view" id="view-clientes" hidden></section>
+    <section class="view" id="view-camara" hidden></section>
   </main>
   <footer class="pie small muted"><span id="stamp"></span><span id="sesion" class="acciones"></span></footer>
 </div>

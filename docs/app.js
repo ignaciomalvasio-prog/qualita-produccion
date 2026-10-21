@@ -27,7 +27,7 @@
 
   var SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
   var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-  var TABS = ['inicio', 'pedidos', 'produccion', 'ciclo3', 'logistica', 'medias', 'rendering', 'clientes'];
+  var TABS = ['inicio', 'pedidos', 'produccion', 'ciclo3', 'logistica', 'medias', 'rendering', 'clientes', 'camara'];
   var CORTES_BASE = ['JAMON', 'PALETA', 'PECHO', 'CARRE', 'SOLOMILLO', 'MATAMBRE', 'BONDIOLA', 'RECORTE', 'GRASA BUENA', 'GRASA MALA', 'CUERO', 'TAPA DE PALETA', 'TAPA DE JAMON', 'TORTUGA', 'GARRON', 'TOCINO', 'CHURRASCO', 'PAPADA', 'OREJAS', 'CABEZA', 'PULMON', 'HIGADO', 'PATAS Y MANOS', 'HUESITOS', 'UNTO', 'MENUDENCIAS', 'EMBUTIDOS', 'CHORIZO', 'MORCILLA', 'SALCHICHA'];
 
   var S = {
@@ -2403,6 +2403,183 @@
     el.innerHTML = h; pintarMsg('log'); pintarMsg('flota');
   }
 
+  /* ---------- cámara (privada) ----------
+     La planilla de faena y desposte de Renzo, con su misma cuenta: por día propios, usuario y venta (animales),
+     el desposte del día siguiente (medias), y de ahí el remanente, lo disponible, las medias en cámara y el lugar libre.
+     Se guarda por semana en /camara/{lunes} (solo lo que se cargó o corrigió); lo que falta sale de Medias y Producción.
+     Remanente(d) = disponible del día hábil anterior − desposte de ese día (o el que se haya escrito a mano). */
+  var CAM_CAMPOS = ['propios', 'usuario', 'venta', 'despSig', 'rem'];
+  function camCap() { var a = (S.cam || {}).ajustes; return a && +a.capacidad > 0 ? +a.capacidad : 2250; }
+  function camSemanas() { return Object.keys(S.cam || {}).filter(function (k) { return /^\d{4}-\d{2}-\d{2}$/.test(k); }).sort(); }
+  function camGuardado(f) { var l = lunesDe(f), d = (S.cam || {})[l], i = Math.round((fecha(f) - fecha(l)) / 864e5); return d && d.dias && d.dias[i] ? d.dias[i] : {}; }
+  function camNum(v) { return v === '' || v == null || isNaN(+v) ? null : +v; }
+  // Lo que sale solo de la app para un día: faena y venta de Medias; desposte de Producción.
+  function camAuto(f) {
+    var sem = semDe(lunesDe(f)), i = Math.round((fecha(f) - fecha(lunesDe(f))) / 864e5), d = sem && sem.dias && sem.dias[i], s = d ? sumas(d) : null;
+    var hay = s && (s.propios || s.usuarios || s.clientes);
+    var o = prodDe('op-' + f) || prodDe(f);
+    return { propios: hay ? s.propios : null, usuario: hay ? (s.usuarios || null) : null, venta: hay ? s.clientes : null, desp: o && o.medias !== '' && o.medias != null ? +o.medias || 0 : null };
+  }
+  function camCalc(hasta) {
+    var sem = camSemanas(), r = {};
+    if (!sem.length) return { dias: r, ultimo: null };
+    var ini = sem[0], fin = hasta > mas(hoy(), 21) ? hasta : mas(hoy(), 21), d = ini, prev = null, ultimo = null, lista = [];
+    while (d <= fin) { if (esHabil(d) || fecha(d).getDay() % 6) lista.push(d); d = mas(d, 1); }
+    lista = lista.filter(function (x) { var g = fecha(x).getDay(); return g > 0 && g < 6; });
+    lista.forEach(function (f) {
+      var g = camGuardado(f), a = camAuto(f), o = { f: f, src: {} };
+      ['propios', 'usuario', 'venta'].forEach(function (k) { var v = camNum(g[k]); if (v != null) { o[k] = v; o.src[k] = 'dato'; } else if (a[k] != null) { o[k] = a[k]; o.src[k] = 'auto'; } else o[k] = null; });
+      // Desposte de ESTE día: el que se anotó el día hábil anterior como "desposte del día siguiente".
+      var gp = prev ? camGuardado(prev.f) : {}, dp = camNum(gp.despSig);
+      o.desp = dp != null ? dp : (a.desp != null ? a.desp : (+S.config.desposteHabitual || 750)); o.srcDesp = dp != null ? 'dato' : (a.desp != null ? 'auto' : 'habitual');
+      var remM = camNum(g.rem);
+      o.rem = remM != null ? remM : (prev ? prev.disp - o.desp : 0); o.src.rem = remM != null ? 'dato' : 'calc';
+      o.faena = (o.propios || 0) + (o.usuario || 0);
+      o.aDesposte = ((o.propios || 0) - (o.venta || 0)) * 2;
+      o.disp = o.aDesposte + o.rem;
+      o.camara = o.faena * 2 + o.rem;
+      o.libre = camCap() - o.camara;
+      if (o.src.propios || o.src.venta || camNum(g.despSig) != null || remM != null) ultimo = f;
+      if (prev) prev.sig = o;
+      r[f] = o; prev = o;
+    });
+    // "Desposte del día siguiente" que se muestra en cada día.
+    Object.keys(r).forEach(function (f) { var o = r[f], g = camGuardado(f), v = camNum(g.despSig); o.despSig = v != null ? v : (o.sig ? o.sig.desp : null); o.src.despSig = v != null ? 'dato' : (o.sig ? o.sig.srcDesp : 'calc'); });
+    return { dias: r, ultimo: ultimo };
+  }
+  function camDiaRef() { var h = hoy(), g = fecha(h).getDay(); return g > 0 && g < 6 ? h : habilSiguiente(h); }
+  function camaraTileHTML() {
+    var c = camCalc(mas(hoy(), 14)), f = camDiaRef(), o = c.dias[f];
+    var cab = '<span class="t-cab"><span class="t-ico">' + icono('camara') + '</span><b>Cámara</b><span class="badge cam-solo">🔒 Solo vos</span></span>';
+    if (!o || !c.ultimo || f > c.ultimo) return '<button class="tile t-camara" data-act="ir" data-tab="camara">' + cab + '<span class="t-dia">' + esc(tituloDe(f)) + '</span><span class="t-vacio">' + (camSemanas().length ? 'Todavía no hay datos de este día.' : 'Cargá tu planilla para empezar.') + '</span><span class="t-ir" aria-hidden="true">Abrir ›</span></button>';
+    var cap = camCap(), pct = Math.max(0, Math.min(100, Math.round(o.camara / cap * 100))), vie = c.dias[mas(lunesDe(f), 4)], sig = o.sig;
+    var nivel = o.libre < 0 ? 'pasa' : pct >= 90 ? 'alto' : '';
+    return '<button class="tile t-camara' + (o.libre < 0 ? ' pasa' : '') + '" data-act="ir" data-tab="camara">' + cab
+      + '<span class="t-dia">' + (f === hoy() ? 'Hoy · ' : '') + esc(tituloDe(f)) + '</span>'
+      + '<span class="t-nums"><strong class="g">' + n(o.camara) + '</strong><span>medias en cámara</span></span>'
+      + '<span class="cam-med ' + nivel + '"><i style="width:' + pct + '%"></i></span><span class="cam-pct">de ' + n(cap) + ' · ' + pct + '% lleno</span>'
+      + '<span class="cam-mini"><span>Lugar libre</span><b class="' + (o.libre < 0 ? 'mal' : 'ok') + '">' + n(o.libre) + '</b><span>Remanente</span><b>' + n(o.rem) + '</b>'
+      + (sig ? '<span>Desposte ' + esc(diaCorto(sig.f).split(' ')[0].toLowerCase()) + '</span><b>' + n(sig.desp) + '</b>' : '')
+      + (vie && vie.f !== f && vie.f <= (c.ultimo || '') ? '<span>Viernes (proyectado)</span><b class="' + (vie.libre < 0 ? 'mal' : 'ok') + '">' + (vie.libre < 0 ? 'se pasa ' + n(-vie.libre) : 'libre ' + n(vie.libre)) + '</b>' : '')
+      + '</span><span class="t-ir" aria-hidden="true">Abrir ›</span></button>';
+  }
+  function camCelda(f, k, v, src, extra) {
+    var t = src === 'auto' ? 'Sale solo de ' + (k === 'despSig' ? 'Producción' : 'Medias') + ' · tocá para cambiarlo' : src === 'habitual' ? 'Desposte habitual · tocá para cambiarlo' : src === 'dato' && k === 'rem' ? 'Remanente escrito a mano · borralo para que se calcule solo' : 'Tocá para cambiarlo';
+    return '<input class="cam-in ' + (src || '') + '" inputmode="numeric" data-cf="' + k + '" data-f="' + f + '" value="' + (v == null ? '' : esc(n(v))) + '" title="' + esc(t) + '" aria-label="' + esc(k + ' ' + diaCorto(f)) + '"' + (extra || '') + '>';
+  }
+  function renderCamara() {
+    var el = $('view-camara');
+    if (!S.camaraOk) { el.innerHTML = '<div class="panel"><p class="state">Esta sección es privada.</p></div>'; return; }
+    if (!S.camLun) S.camLun = lunesDe(camDiaRef());
+    var L = S.camLun, dias = [0, 1, 2, 3, 4].map(function (i) { return mas(L, i); }), c = camCalc(mas(L, 7)), ult = c.ultimo, hy = hoy();
+    var vacio = !camSemanas().length;
+    var h = '<div class="cam-top"><span class="cam-escudo" aria-hidden="true"></span><div><p class="cam-sup">Semana de faena y desposte · <span class="cam-priv">🔒 Privado, solo con tu cuenta</span></p>'
+      + '<h2 class="cam-tit">' + esc(etiquetaSemana(L).toUpperCase()) + '</h2></div>'
+      + '<span class="cam-acc"><button class="btn step" data-act="cam-sem" data-d="-7" aria-label="Semana anterior">‹</button>'
+      + (L !== lunesDe(camDiaRef()) ? '<button class="btn" data-act="cam-hoy">Esta semana</button>' : '')
+      + '<button class="btn step" data-act="cam-sem" data-d="7" aria-label="Semana siguiente">›</button>'
+      + '<button class="btn" data-act="cam-pegar">' + (S.camPegar ? 'Cerrar' : 'Pegar desde la planilla') + '</button><button class="btn" data-act="imprimir">Imprimir</button></span></div>';
+    if (S.camPegar || vacio) h += camPegarHTML(vacio);
+    if (!vacio) {
+      var fila = function (lab, cls, celda, tot) {
+        return '<tr class="' + cls + '"><th scope="row">' + lab + '</th>' + dias.map(function (f) { var o = c.dias[f], ver = o && (!ult || f <= ult || o.src.propios === 'dato'); return '<td class="' + (f === hy ? 'hoy' : '') + '">' + (o ? celda(o, ver) : '') + '</td>'; }).join('') + '<td class="tot">' + (tot || '') + '</td></tr>';
+      };
+      var sum = function (k) { return dias.reduce(function (t, f) { var o = c.dias[f]; return t + (o && o[k] ? o[k] : 0); }, 0); };
+      var nd = dias.filter(function (f) { var o = c.dias[f]; return o && o.faena > 0; }).length || 1;
+      var calc = function (k, bold) { return function (o, ver) { return ver ? '<span class="cam-v' + (bold ? ' b' : '') + '">' + n(o[k]) + '</span>' : ''; }; };
+      var ed = function (k) { return function (o) { return camCelda(o.f, k, o[k], o.src[k]); }; };
+      h += '<div class="cam-tabla"><table><thead><tr><th></th>' + dias.map(function (f) { return '<th class="' + (f === hy ? 'hoy' : '') + '">' + esc(diaDe(f)) + ' ' + fecha(f).getDate() + (f === hy ? ' · HOY' : '') + '</th>'; }).join('') + '<th>Total</th></tr></thead><tbody>'
+        + fila('PROPIOS', 'c-verde', ed('propios'), n(sum('propios')))
+        + fila('USUARIO', 'c-naranja', ed('usuario'), n(sum('usuario')))
+        + fila('FAENA', 'c-celeste b', calc('faena', true), n(sum('faena')) + ' <small>(' + n(Math.round(sum('faena') / nd)) + ' x día)</small>')
+        + fila('VENTA (animales)', 'c-verde', ed('venta'), n(sum('venta')))
+        + fila('MEDIAS A DESPOSTE', '', calc('aDesposte'), n(sum('aDesposte')))
+        + fila('DESPOSTE DÍA SIGUIENTE', 'c-celeste', function (o) { var s2 = o.sig; return camCelda(o.f, 'despSig', o.despSig, o.src.despSig) + '<small class="cam-dsig">' + (s2 ? esc(diaDe(s2.f).toLowerCase()) : '') + '</small>'; }, n(sum('despSig')))
+        + fila('REMANENTE', 'b', function (o, ver) { return ver ? camCelda(o.f, 'rem', o.rem, o.src.rem) + (o.src.rem === 'dato' ? '<small class="cam-dsig">a mano</small>' : '') : ''; }, (function () { var v = c.dias[mas(L, 7)]; return v && (!ult || v.f <= ult) ? '→ ' + n(v.rem) + ' el lunes' : ''; })())
+        + fila('DISPONIBLE', '', calc('disp'), '')
+        + fila('MEDIAS EN CÁMARA', 'c-azul b', calc('camara', true), (function () { var m = dias.map(function (f) { return c.dias[f] && (!ult || f <= ult) ? c.dias[f].camara : -1e9; }); var mx = Math.max.apply(null, m); return mx > -1e9 ? 'máx. ' + n(mx) : ''; })())
+        + fila('LUGAR LIBRE (de ' + n(camCap()) + ')', 'b', function (o, ver) { return ver ? '<span class="cam-v b' + (o.libre < 0 ? ' neg' : '') + '">' + n(o.libre) + '</span>' : ''; }, (function () { var m = dias.filter(function (f) { return c.dias[f] && (!ult || f <= ult); }).map(function (f) { return c.dias[f].libre; }); return m.length ? 'mín. ' + n(Math.min.apply(null, m)) : ''; })())
+        + '</tbody></table></div>';
+      var nota = ((S.cam || {})[L] || {}).nota || '';
+      h += '<label class="campo cam-nota"><span>Nota de la semana</span><input id="cam-nota" value="' + esc(nota) + '" placeholder="Ej.: si carga Recreo faenamos"></label>';
+      h += '<div class="cam-ley"><span class="l-dato">Cargado o corregido</span><span class="l-auto">Sale solo de Medias / Producción</span><span class="l-calc">Calculado</span>'
+        + '<span class="cam-cap">Capacidad de cámara: <input id="cam-cap" inputmode="numeric" value="' + esc(String(camCap())) + '" aria-label="Capacidad de cámara en medias"> medias</span></div>'
+        + '<p class="small muted cam-tip">Tocá cualquier número de propios, usuario, venta, desposte o remanente para cambiarlo; todo lo demás se recalcula solo. Si borrás un remanente escrito a mano, vuelve a calcularse.</p>';
+    }
+    el.innerHTML = h;
+  }
+  function camPegarHTML(vacio) {
+    var prev = S.camPrev;
+    return '<div class="panel cam-pegar">' + (vacio ? '<h3>Cargá tu planilla</h3>' : '<h3>Pegar desde la planilla</h3>')
+      + '<ol class="small"><li>Abrí tu planilla (la de Google "FAENA POR DÍA" o el Excel).</li><li>Seleccioná todo (Ctrl+A) y copiá (Ctrl+C).</li><li>Pegalo acá abajo (Ctrl+V).</li></ol>'
+      + '<textarea id="cam-txt" rows="5" placeholder="Pegá acá las semanas copiadas de tu planilla"></textarea>'
+      + (prev ? (prev.length ? '<p class="cam-prev">Encontré <b>' + prev.length + (prev.length === 1 ? ' semana' : ' semanas') + '</b>: del ' + esc(diaCorto(prev[0].lunes)) + ' al ' + esc(diaCorto(mas(prev[prev.length - 1].lunes, 4))) + '. Las semanas que ya estén cargadas se reemplazan.</p><div class="acciones"><button class="btn pri" data-act="cam-guardar-pegado">Guardar ' + prev.length + (prev.length === 1 ? ' semana' : ' semanas') + '</button><button class="btn" data-act="cam-pegar-borrar">Borrar</button></div>'
+        : '<p class="cam-prev neg">No encontré semanas en lo pegado. Copiá las semanas enteras (desde el nombre del mes y "Lunes").</p>') : '')
+      + '</div>';
+  }
+  // Lee lo copiado de la planilla (Google o Excel): bloques con el mes, "Lunes NN", y las filas PROPIOS, USUARIO, VENTA y REMANENTE.
+  var MES_N = { ENERO: 0, FEBRERO: 1, MARZO: 2, ABRIL: 3, MAYO: 4, JUNIO: 5, JULIO: 6, AGOSTO: 7, SEPTIEMBRE: 8, SETIEMBRE: 8, OCTUBRE: 9, NOVIEMBRE: 10, DICIEMBRE: 11 };
+  function leerCamaraPegada(txt) {
+    var filas = String(txt || '').replace(/\r/g, '').split('\n').map(function (l) { return l.split('\t').map(function (x) { return x.trim(); }); });
+    var num = function (x) { x = String(x == null ? '' : x).replace(/\s/g, ''); if (!/\d/.test(x)) return null; var v = numero(x.replace(/,(\d+)$/, '.$1')); return isNaN(v) ? null : v; };
+    var hoyD = fecha(hoy()), out = [], prevL = null;
+    for (var r = 0; r < filas.length; r++) {
+      var m = norm(filas[r][0] || '').match(/^LUNES\s*(\d{1,2})$/);
+      if (!m) continue;
+      var dia = +m[1], mes = null;
+      for (var k = r - 1; k >= Math.max(0, r - 3); k--) { var t = norm(filas[k][0] || ''); if (MES_N[t] != null) { mes = MES_N[t]; break; } }
+      var lun = null;
+      if (mes != null) {
+        var mejor = null;
+        for (var y = hoyD.getFullYear() - 4; y <= hoyD.getFullYear() + 1; y++) { var dd = new Date(y, mes, dia); if (dd.getDay() === 1 && dd.getMonth() === mes) { var dif = Math.abs(dd - hoyD); if (!mejor || dif < mejor.dif) mejor = { d: dd, dif: dif }; } }
+        if (mejor) lun = mejor.d.getFullYear() + '-' + String(mes + 1).padStart(2, '0') + '-' + String(dia).padStart(2, '0');
+      }
+      if (!lun && prevL) lun = mas(prevL, 7);
+      if (!lun) continue;
+      var busca = function (lab) { for (var j = r + 1; j < Math.min(filas.length, r + 10); j++) { var a = norm(filas[j][0] || ''), b2 = norm(filas[j][3] || ''); if (/^LUNES\s*\d/.test(a)) break; if (a.indexOf(lab) === 0 || b2.indexOf(lab) === 0) return filas[j]; } return null; };
+      var fp = busca('PROPIOS'), fu = busca('USUARIO'), fv = busca('VENTA'), fr = busca('REMANENTE');
+      if (!fp) continue;
+      var semana = { lunes: lun, dias: [] };
+      for (var i = 0; i < 5; i++) {
+        var c0 = i * 3;
+        semana.dias.push({ propios: num(fp[c0 + 1]), usuario: fu ? num(fu[c0 + 1]) : null, venta: fv ? num(fv[c0 + 1]) : null, despSig: fr ? num(fr[c0 + 2]) : null, remPegado: fr ? num(fr[c0 + 1]) : null });
+      }
+      // Nota de la semana: texto suelto a la derecha del bloque.
+      for (var j2 = r; j2 < Math.min(filas.length, r + 10); j2++) { var nt = (filas[j2][15] || '').trim(); if (nt && !/\d/.test(nt.charAt(0)) && !/^(PROPIOS|TOTAL|REMANENTE|USUARIO|FAENA)/i.test(nt)) { semana.nota = nt; break; } }
+      out.push(semana); prevL = lun;
+    }
+    var vistos = {}; out = out.filter(function (w) { if (vistos[w.lunes]) return false; vistos[w.lunes] = 1; return true; }).sort(function (a, b) { return a.lunes < b.lunes ? -1 : 1; });
+    return out;
+  }
+  // Guarda lo pegado: los datos de cada día y el remanente solo donde no coincide con la cuenta (o al empezar).
+  function guardarCamaraPegada(sem) {
+    var prevDisp = null, prevDesp = null, t = [];
+    sem.forEach(function (w, wi) {
+      var doc = { dias: [] };
+      w.dias.forEach(function (d, i) {
+        var desp = prevDesp != null ? prevDesp : null;
+        var calc = prevDisp != null && desp != null ? prevDisp - desp : null;
+        var rem = d.remPegado != null ? d.remPegado : (calc != null ? calc : 0);
+        var x = {};
+        ['propios', 'usuario', 'venta', 'despSig'].forEach(function (k) { if (d[k] != null) x[k] = d[k]; });
+        if (calc == null || Math.abs(calc - rem) > 0.5) x.rem = rem;
+        doc.dias.push(x);
+        prevDisp = ((d.propios || 0) - (d.venta || 0)) * 2 + rem; prevDesp = d.despSig;
+      });
+      if (w.nota) doc.nota = w.nota;
+      t.push(store.set('camara', w.lunes, doc));
+    });
+    return Promise.all(t);
+  }
+  function camGuardarCelda(f, k, txt) {
+    var L = lunesDe(f), i = Math.round((fecha(f) - fecha(L)) / 864e5), doc = clone((S.cam || {})[L] || { dias: [] }); delete doc.id;
+    doc.dias = doc.dias || []; while (doc.dias.length < 5) doc.dias.push({});
+    var v = String(txt || '').trim() === '' ? null : numero(String(txt).replace(/\s/g, '').replace(/,(\d+)$/, '.$1'));
+    if (v == null || isNaN(v)) delete doc.dias[i][k]; else doc.dias[i][k] = v;
+    S.cam = S.cam || {}; var nuevo = clone(doc); nuevo.id = L; S.cam[L] = nuevo;
+    return store.set('camara', L, doc);
+  }
+
   /* ---------- inicio ---------- */
   /* ---------- inicio ----------
      Una tarjeta por pestaña, todas con el mismo orden: el día, los números del día y qué hay para el día siguiente. */
@@ -2419,6 +2596,7 @@
     ciclo3: '<path d="M6 8c0-2 2-3 3.5-1.5S12 9 14 7s4 0 4 2-2 3-3.5 1.5S12 9 10 11s-4 0-4-3z"/><path d="M6 16c0-2 2-3 3.5-1.5S12 17 14 15s4 0 4 2-2 3-3.5 1.5S12 17 10 19s-4 0-4-3z"/>',
     logistica: '<path d="M3 7h11v9H3zM14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/>',
     medias: '<path d="M7 4h10v4l-2 12H9L7 8z"/><path d="M7 8h10"/>',
+    camara: '<path d="M12 3v18M4.5 7.5l15 9M19.5 7.5l-15 9"/><path d="M10 4.5l2 1.5 2-1.5M10 19.5l2-1.5 2 1.5"/>',
     clientes: '<circle cx="9" cy="9" r="3"/><path d="M3 19c0-3 3-5 6-5s6 2 6 5"/><circle cx="17" cy="8" r="2.4"/><path d="M15.5 13.5c2.6-.4 5.5 1.2 5.5 4"/>'
   };
   function icono(k) { return '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">' + (ICONOS[k] || '') + '</svg>'; }
@@ -2477,6 +2655,7 @@
 
     // Una tarjeta por sección.
     html += '<div class="home">';
+    if (S.camaraOk) html += camaraTileHTML();
     if (S.editor) {
       var ps = deDia(sig), mas2 = (S.pedidos || []).filter(function (p) { return p.entrega > sig; }).length;
       var pm = ph.reduce(function (t, p) { return t + (+p.medias || 0); }, 0), pc = kgPedidos(ph);
@@ -2559,12 +2738,13 @@
     if (!store || !store.signIn || S.solo) e.innerHTML = '';
     else if (!S.user) e.innerHTML = '<button class="btn sm lnk" data-act="ingresar">Ingresar para cargar</button>';
     else e.innerHTML = '<span>' + esc(S.user.email) + (S.editor ? '' : ' · sin permiso para cargar') + '</span><button class="btn sm lnk" data-act="salir">Salir</button>';
-    $('tab-pedidos').hidden = !S.editor; $('tab-clientes').hidden = !S.editor;
+    $('tab-pedidos').hidden = !S.editor; $('tab-clientes').hidden = !S.editor; $('tab-camara').hidden = !S.camaraOk || !!S.solo;
+    if (S.tab === 'camara' && (!S.camaraOk || S.solo)) { if (!S.solo) S.volver = 'camara'; S.tab = 'inicio'; }
     $('tabs').classList.toggle('muchas', !!S.editor);
     // Si la página se abrió (o se recargó sola) en Pedidos o Clientes, se vuelve ahí apenas se confirma el permiso.
     if ((S.tab === 'pedidos' || S.tab === 'clientes') && !S.editor) { S.volver = S.tab; S.tab = 'inicio'; }
     TABS.forEach(function (t) { $('view-' + t).hidden = S.tab !== t; if (S.tab !== t) $('view-' + t).innerHTML = ''; var tb = $('tab-' + t); if (tb) tb.setAttribute('aria-selected', String(S.tab === t)); });
-    if (S.tab === 'medias') renderMedias(); else if (S.tab === 'pedidos') renderPedidos(); else if (S.tab === 'produccion' || S.tab === 'ciclo3') renderProduccion(); else if (S.tab === 'logistica') renderLogistica(); else if (S.tab === 'rendering') renderRendering(); else if (S.tab === 'clientes') renderClientes(); else renderInicio();
+    if (S.tab === 'medias') renderMedias(); else if (S.tab === 'pedidos') renderPedidos(); else if (S.tab === 'produccion' || S.tab === 'ciclo3') renderProduccion(); else if (S.tab === 'logistica') renderLogistica(); else if (S.tab === 'rendering') renderRendering(); else if (S.tab === 'clientes') renderClientes(); else if (S.tab === 'camara') renderCamara(); else renderInicio();
   }
   // Cuando llegan datos nuevos no se redibuja la pantalla en la que se está escribiendo.
   function renderDatos() {
@@ -2572,6 +2752,7 @@
     if ((S.tab === 'produccion' || S.tab === 'ciclo3') && S.ep) return;
     if (S.tab === 'pedidos' && (S.prop.length || escribiendo())) return;
     if (S.tab === 'clientes' && escribiendo()) return;
+    if (S.tab === 'camara' && (escribiendo() || S.camPegar)) return;
     if (S.tab === 'logistica' && (S.ec || S.ef || (document.activeElement && document.activeElement.dataset && document.activeElement.dataset.flete))) return;
     render();
   }
@@ -2743,6 +2924,16 @@
       if (lv) { lv.scrollIntoView({ block: D.ped ? 'center' : 'start', behavior: 'smooth' }); lv.classList.add('destello'); setTimeout(function () { lv.classList.remove('destello'); }, 2200); }
     }
     else if (a === 'hora-abrir') { S.horaAbierta = D.id; renderPedidos(); var ha = document.querySelector('input[data-hora-cam="' + D.id + '"]'); if (ha) ha.focus(); }
+    else if (a === 'cam-sem') { S.camLun = mas(S.camLun || lunesDe(camDiaRef()), +D.d); render(); }
+    else if (a === 'cam-hoy') { S.camLun = lunesDe(camDiaRef()); render(); }
+    else if (a === 'cam-pegar') { S.camPegar = !S.camPegar; S.camPrev = null; render(); var ct = $('cam-txt'); if (ct) ct.focus(); }
+    else if (a === 'cam-pegar-borrar') { S.camPrev = null; render(); var ct2 = $('cam-txt'); if (ct2) ct2.focus(); }
+    else if (a === 'cam-guardar-pegado') {
+      var sp = S.camPrev || []; if (!sp.length) return;
+      b.disabled = true; b.textContent = 'Guardando…';
+      guardarCamaraPegada(sp).then(function () { S.camPegar = false; S.camPrev = null; S.camLun = lunesDe(camDiaRef()) <= sp[sp.length - 1].lunes ? lunesDe(camDiaRef()) : sp[sp.length - 1].lunes; avisar('Listo: ' + sp.length + (sp.length === 1 ? ' semana cargada.' : ' semanas cargadas.'), 4000); render(); },
+        function () { b.disabled = false; b.textContent = 'Guardar'; avisar('!No se pudo guardar. ¿Ya está publicada la regla de Cámara en Firebase?', 9000); });
+    }
     else if (a === 'nota-abrir') { S.notaAbierta = D.id; render(); var na = document.querySelector('textarea[data-nota-ped="' + D.id + '"]'); if (na) na.focus(); }
     else if (a === 'lbusq-limpiar') { S.lgBuscar = ''; S.lgCamBuscar = ''; render(); var lq = $('lg-buscar'); if (lq) lq.focus(); }
     else if (a === 'busq-limpiar') { S.camBuscar = ''; S.pdBuscar = ''; renderPedidos(); var bq = $('pd-buscar'); if (bq) bq.focus(); }
@@ -2850,6 +3041,7 @@
     }
   });
 
+  document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target && e.target.classList && e.target.classList.contains('cam-in')) { e.preventDefault(); e.target.blur(); } });
   document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey && e.target && e.target.dataset && e.target.dataset.notaPed) { e.preventDefault(); e.target.blur(); } });
   document.addEventListener('focusout', function (e) {
     var t = e.target; if (!t || !t.dataset || !t.dataset.horaCam) return;
@@ -2865,6 +3057,7 @@
     var t = e.target, D = t.dataset;
     if (t.id === 'cli-buscar') { S.cliBuscar = t.value; filtrarClientes(); return; }
     if (t.id === 'lg-buscar' || t.id === 'lg-cam-buscar') { var sl = t.selectionStart, idl = t.id; if (idl === 'lg-buscar') { S.lgBuscar = t.value; S.lgCamBuscar = ''; } else { S.lgCamBuscar = t.value; S.lgBuscar = ''; } render(); var nl = $(idl); if (nl) { nl.focus(); try { nl.setSelectionRange(sl, sl); } catch (err) {} } return; }
+    if (t.id === 'cam-txt') { S.camPrev = t.value.trim() ? leerCamaraPegada(t.value) : null; var pv2 = document.querySelector('.cam-pegar'); if (pv2) { var tmp = document.createElement('div'); tmp.innerHTML = camPegarHTML(!camSemanas().length); var val = t.value; pv2.replaceWith(tmp.firstChild); var nt2 = $('cam-txt'); if (nt2) { nt2.value = val; } } return; }
     if (t.id === 'pd-cam-buscar') { var sc = t.selectionStart; S.camBuscar = t.value; S.pdBuscar = ''; renderPedidos(); var nc = $('pd-cam-buscar'); if (nc) { nc.focus(); try { nc.setSelectionRange(sc, sc); } catch (err) {} } return; }
     if (t.id === 'pd-buscar') { var ss = t.selectionStart; S.pdBuscar = t.value; S.camBuscar = ''; renderPedidos(); var nb = $('pd-buscar'); if (nb) { nb.focus(); try { nb.setSelectionRange(ss, ss); } catch (err) {} } return; }
     if (D.cli != null) return;
@@ -3004,6 +3197,15 @@
   });
   document.addEventListener('change', function (e) {
     var t = e.target, D = t.dataset;
+    if (D.cf && D.f) {
+      // Se redibuja después de que el foco pasó a la celda siguiente, y se lo devuelve ahí.
+      var redib = function () { var ac = document.activeElement, sel = ac && ac.classList && ac.classList.contains('cam-in') ? '.cam-in[data-cf="' + ac.dataset.cf + '"][data-f="' + ac.dataset.f + '"]' : null; renderCamara(); if (sel) { var x = document.querySelector(sel); if (x) { x.focus(); try { x.select(); } catch (err) {} } } };
+      camGuardarCelda(D.f, D.cf, t.value).then(function () { setTimeout(redib, 0); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); });
+      setTimeout(redib, 0);
+      return;
+    }
+    if (t.id === 'cam-cap') { var cv = +String(t.value).replace(/\D/g, ''); if (cv > 0) store.set('camara', 'ajustes', { capacidad: cv }).then(function () { renderCamara(); }); return; }
+    if (t.id === 'cam-nota') { var Ln = S.camLun, dn = clone((S.cam || {})[Ln] || { dias: [] }); delete dn.id; dn.nota = t.value.trim(); if (!dn.nota) delete dn.nota; store.set('camara', Ln, dn); return; }
     if (D.notaPed) {
       var pn = pedidoDe(D.notaPed), vn = t.value.replace(/\s+/g, ' ').trim(); if (S.notaAbierta === D.notaPed) S.notaAbierta = null;
       if (!pn || vn === String(pn.nota || '').trim()) { if (!vn) render(); return; }
@@ -3322,7 +3524,8 @@
       reenviar: function () { m.mails = (m.mails || 0) + 1; return Promise.resolve(); },
       confirmar: function () { if (!m.verificado) return Promise.resolve(false); m.user.emailVerified = true; authCb(m.user); return Promise.resolve(true); },
       signOut: function () { m.user = null; authCb(null); return Promise.resolve(); },
-      esEditor: function (email) { return Promise.resolve((m.editores || []).indexOf(email) >= 0); }
+      esEditor: function (email) { return Promise.resolve((m.editores || []).indexOf(email) >= 0); },
+      puedeCamara: function (email) { return Promise.resolve((m.camara || []).indexOf(email) >= 0); }
     };
   }
   function firebaseStore() {
@@ -3345,14 +3548,16 @@
         // Después de tocar el link del mail: se relee la cuenta y se pide un permiso nuevo, que ya dice "verificado".
         confirmar: function () { var u = auth.currentUser; if (!u) return Promise.resolve(false); return u.reload().then(function () { return u.getIdToken(true); }).then(function () { if (u.emailVerified && authCb) authCb(auth.currentUser); return u.emailVerified; }); },
         signOut: function () { return au.signOut(auth); },
-        esEditor: function (email) { return fs.getDoc(fs.doc(db, 'editores', email)).then(function (s) { return s.exists(); }, function () { return false; }); }
+        esEditor: function (email) { return fs.getDoc(fs.doc(db, 'editores', email)).then(function (s) { return s.exists(); }, function () { return false; }); },
+        // Cámara (privada): solo las cuentas que figuran en /camaraUsuarios.
+        puedeCamara: function (email) { return fs.getDoc(fs.doc(db, 'camaraUsuarios', email)).then(function (s) { return s.exists(); }, function () { return false; }); }
       };
     });
   }
 
   function conectar(st) {
     store = st;
-    var got = {}, vacia = false, suscripto = false, importando = false;
+    var got = {}, vacia = false, suscripto = false, importando = false, camSub = false;
     function traer() { if (importando) return; importando = true; importar().catch(function () { importando = false; }); }
     function llego(k) {
       got[k] = true;
@@ -3383,7 +3588,13 @@
       if (S.solo) { S.user = null; render(); return; }   // el link para compartir es siempre de solo lectura
       // Quien entró con mail y todavía no lo confirmó no puede leer nada: se le pide que lo confirme.
       if (u && u.emailVerified === false) { S.user = null; render(); if (window.Acceso) window.Acceso.verificar(store, u.email); return; }
-      if (!u) { S.em = null; S.ep = null; S.prop = []; render(); return; }
+      if (!u) { S.em = null; S.ep = null; S.prop = []; S.camaraOk = false; S.cam = {}; render(); return; }
+      if (store.puedeCamara) store.puedeCamara(u.email).then(function (c) {
+        S.camaraOk = !!c;
+        if (c && !camSub) { camSub = true; store.sub('camara', function (l) { var o = {}; l.forEach(function (x) { o[x.id] = x; }); S.cam = o; S.camListo = true; if (S.tab === 'camara' && escribiendo()) return; renderDatos(); }, function () {}); }
+        if (c && S.volver === 'camara') { S.tab = 'camara'; S.volver = null; }
+        render();
+      });
       (store.renovar ? store.renovar() : Promise.resolve()).then(null, function () {}).then(function () { return store.esEditor(u.email); }).then(function (ok) {
         S.editor = ok;
         if (ok && S.volver && S.tab === 'inicio') { S.tab = S.volver; S.volver = null; }

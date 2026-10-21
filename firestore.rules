@@ -61,6 +61,18 @@ service cloud.firestore {
     match /c3cambios/{doc} { allow read, create: if esEditor() || esC3(); allow update, delete: if false; }
     // c3mail: mails pendientes (planilla de caja); los manda la notebook de Igna y los marca como enviados.
     match /c3mail/{doc}    { allow create: if esEditor() || esC3(); allow read, update: if esEditor(); allow delete: if false; }
+    // Cámara (planilla de faena y desposte de Renzo): privada. Solo las cuentas que figuran en /camaraUsuarios;
+    // ni los demás editores la leen. /camaraUsuarios se maneja desde la consola de Firebase.
+    function esCamara() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && exists(/databases/$(database)/documents/camaraUsuarios/$(request.auth.token.email));
+    }
+    match /camaraUsuarios/{email} {
+      allow get: if request.auth != null && request.auth.token.email == email;
+      allow list, write: if false;
+    }
+    match /camara/{doc} { allow read, write: if esCamara(); }
     // La lista de editores solo se cambia desde la consola de Firebase.
     match /editores/{email} {
       allow get: if request.auth != null && request.auth.token.email == email;
