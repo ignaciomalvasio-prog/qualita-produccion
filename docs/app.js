@@ -174,7 +174,7 @@
     if (cargando(el, S.faena)) return;
     if (!S.fm) S.fm = fmInicial();
     var f = S.fm, x = diaFaena(f), cl = x ? conMedias(x.d) : [];
-    var h = '<div class="nav"><button class="btn step" data-act="fm" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + esc(tituloDe(f)) + '</span><button class="btn step" data-act="fm" data-d="1" aria-label="Día siguiente">›</button>'
+    var h = '<div class="nav"><button class="btn step" data-act="fm" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + fechaTit(f) + '</span><button class="btn step" data-act="fm" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="m-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">'
       + (cl.length ? '<button class="btn" data-act="imprimir">Imprimir</button>' : '')
       + (S.editor && !S.solo ? '<button class="btn" data-act="m-semana">Volver a la planilla de la semana</button><button class="btn" data-act="link-medias">Copiar link para compartir</button>' : '') + '</div>';
@@ -563,7 +563,7 @@
     if (!S.fecha || !S.fechaFija) S.fecha = fechaProdInicial();
     var f = S.fecha, o = solo3 ? null : prodDe(f), o3 = prodDe('c3-' + f), op = solo3 ? null : prodDe('op-' + f), edit = !!(S.ep && (S.ep.fecha === f || S.ep.fecha === 'c3-' + f || S.ep.fecha === 'op-' + f));
     var pv = solo3 ? 'frescos' : (S.pv || (op ? 'op' : 'frescos')); if (edit) pv = esOP(S.ep.fecha) ? 'op' : 'frescos';
-    var h = '<div class="nav"><button class="btn step" data-act="fecha" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + esc(tituloDe(f)) + '</span><button class="btn step" data-act="fecha" data-d="1" aria-label="Día siguiente">›</button>'
+    var h = '<div class="nav"><button class="btn step" data-act="fecha" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + fechaTit(f) + '</span><button class="btn step" data-act="fecha" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="p-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">';
     if (pv === 'op' ? op : (o || o3)) h += '<button class="btn" data-act="imprimir">Imprimir</button>';
     if (edit) h += '<button class="btn pri" data-act="p-editar">Listo</button>';
@@ -2002,7 +2002,7 @@
     if (!S.pd) S.pd = habilSiguiente(hy);
     var f = S.pd, lista = (S.pedidos || []).filter(function (p) { return p.entrega === f && pasaFiltro(p.vendedor); }), tild = S.selDia === f ? lista.filter(function (p) { return S.sel[p.id]; }) : [];
     h += '<section class="dia-ped" id="dia-' + f + '"><div class="nav nav-ped"><button class="btn step" data-act="pd" data-d="-1" aria-label="Día anterior">‹</button>'
-      + '<span class="tit">' + esc(tituloDe(f)) + (f === hy ? ' <span class="tag">hoy</span>' : f === mas(hy, 1) ? ' <span class="tag">mañana</span>' : '') + '</span>'
+      + '<span class="tit">' + fechaTit(f) + (f === hy ? ' <span class="tag">hoy</span>' : f === mas(hy, 1) ? ' <span class="tag">mañana</span>' : '') + '</span>'
       + '<button class="btn step" data-act="pd" data-d="1" aria-label="Día siguiente">›</button><input type="date" id="pd-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">'
       + (f !== habilSiguiente(hy) ? '<button class="btn" data-act="pd-ir" data-f="' + habilSiguiente(hy) + '">Volver a mañana</button>' : '')
       + (lista.length ? botonBorrar('ped-borrar-todos', f, 'Eliminar todos los pedidos') : '') + '</div>'
@@ -2143,7 +2143,7 @@
     var f = S.fl, lg = logDe(f), peds = (lg && lg.pedidos) || [], cams = (lg && lg.camiones) || [];
     // Quien mira (sin cuenta, o por el link de Logística) ve solo los pedidos que ya tienen camión.
     if (!S.editor) peds = peds.filter(function (p) { return p.camion; });
-    var h = '<div class="nav"><button class="btn step" data-act="fl" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + esc(tituloDe(f)) + '</span><button class="btn step" data-act="fl" data-d="1" aria-label="Día siguiente">›</button>'
+    var h = '<div class="nav"><button class="btn step" data-act="fl" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + fechaTit(f) + '</span><button class="btn step" data-act="fl" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="l-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">'
       + (peds.length ? '<button class="btn" data-act="resumen" aria-pressed="' + !!S.resumen + '">' + (S.resumen ? 'Ver por camión' : 'Resumen del día') + '</button><button class="btn" data-act="imprimir">' + (S.resumen ? 'Imprimir resumen' : 'Imprimir') + '</button>' : '')
       + (S.editor && cams.filter(function (c) { return c.hora; }).length > 1 ? '<button class="btn" data-act="cam-por-hora">Ordenar por horario</button>' : '')
@@ -2189,6 +2189,8 @@
   /* ---------- inicio ---------- */
   /* ---------- inicio ----------
      Una tarjeta por pestaña, todas con el mismo orden: el día, los números del día y qué hay para el día siguiente. */
+  // La fecha del día en el título: en rojo si ya pasó, en verde si es hoy; los días que vienen, como siempre.
+  function fechaTit(f) { var h = hoy(), c = f < h ? 'pasado' : f === h ? 'hoy' : ''; return c ? '<span class="tit-dia ' + c + '" title="' + (c === 'hoy' ? 'Es hoy' : 'Este día ya pasó') + '">' + esc(tituloDe(f)) + '</span>' : esc(tituloDe(f)); }
   function plural(k, uno, muchos) { return k === 1 ? uno : muchos; }
   /* ---------- inicio ----------
      Arriba, el día con el que se está trabajando y sus números clave; después los avisos de lo que falta
@@ -3007,7 +3009,7 @@
     if (cargando(el, S.faena)) return;
     if (!S.fr) S.fr = rendFechaInicial();
     var f = S.fr, r = rendDia(f), ed = S.editor && !S.solo, kg = function (v) { return v == null ? '—' : n(v) + ' kg'; };
-    var h = '<div class="nav"><button class="btn step" data-act="fr" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + esc(tituloDe(f)) + '</span><button class="btn step" data-act="fr" data-d="1" aria-label="Día siguiente">›</button>'
+    var h = '<div class="nav"><button class="btn step" data-act="fr" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + fechaTit(f) + '</span><button class="btn step" data-act="fr" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="r-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">'
       + (f !== rendFechaInicial() ? '<button class="btn" data-act="fr-hoy">Hoy</button>' : '')
       + '<button class="btn" data-act="imprimir">Imprimir</button>'

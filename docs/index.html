@@ -110,6 +110,9 @@ html,body{overflow-x:clip}
 .nav-acc:empty{display:none}
 @media (max-width:900px){ .nav.armada{grid-template-columns:minmax(0,1fr)} .nav-dia,.nav-acc{justify-self:start;justify-content:flex-start} }
 @media print{ .nav.armada{display:flex} .nav-dia,.nav-acc{display:none} }
+.tit-dia{display:inline-block;padding:4px 12px 3px;border-radius:6px;color:#fff;line-height:1.1}
+.tit-dia.pasado{background:#c0392b;box-shadow:0 2px 0 #8e2a1f}.tit-dia.hoy{background:#1f8a43;box-shadow:0 2px 0 #166532}
+@media print{ .tit-dia{background:none!important;color:#000!important;box-shadow:none!important;padding:0} }
 .nav .tit .tag{font:600 13px var(--body);text-transform:none;color:var(--muted);margin-left:6px}
 .dia-ped>.nav-ped{padding-bottom:10px;border-bottom:2px solid var(--ink);margin-bottom:10px}
 .otros-dias{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 12px}.otros-dias .btn b{color:var(--accent);margin-left:2px}
