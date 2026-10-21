@@ -149,3 +149,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Logística: la franja de cada camión muestra también el total de medias y de cajas que lleva (al lado de los pedidos y los kilos).
 - Pedidos: el horario de cada camión se pone o se cambia ahí mismo, en el título del grupo (o "+ Horario" si no tiene); se guarda con Enter o al salir, y los camiones se reordenan por horario como en Logística.
 - Producción, "Compartir PDF": la letra y los espacios se ajustan solos para que la hoja ocupe casi toda la A4 (letra más grande si hay poco, más chica si hay mucho; si no entra, sigue en otra página).
+- Producción: el botón Imprimir (orden de producción, frescos y embutidos) ahora imprime el mismo PDF que se adapta a la hoja A4, en vez de la pantalla (que salía chica).

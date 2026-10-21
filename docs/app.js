@@ -591,8 +591,8 @@
     });
     return { cab: cab, renglones: rs };
   }
-  function armarPDF(hoja) {
-    var L = window.PDFLib, datos = hojaEnRenglones(hoja);
+  function armarPDF(hojasPDF) {
+    var L = window.PDFLib, lista = [].concat(hojasPDF).filter(Boolean);
     return L.PDFDocument.create().then(function (doc) {
       return Promise.all([doc.embedFont(L.StandardFonts.Helvetica), doc.embedFont(L.StandardFonts.HelveticaBold)]).then(function (fs) {
         var F = fs[0], FB = fs[1], AN = 595.28, AL = 841.89, M = 40, maxX = AN - M, cache = {};
@@ -601,15 +601,17 @@
         var limpio = function (t) { return Array.from(String(t || '')).map(function (ch) { if (cache[ch] != null) return cache[ch]; var v = ch; try { F.encodeText(ch); } catch (e) { v = REEMPLAZO[ch] != null ? REEMPLAZO[ch] : '?'; } cache[ch] = v; return v; }).join(''); };
         // Ancho sin "kerning" (la librería lo descuenta al medir pero no al dibujar, y las palabras quedaban pegadas).
         var anchos = {}, ancho = function (fu, t, tam) { var k = fu === FB ? 'b' : 'r', w = 0; Array.from(t).forEach(function (ch) { var c2 = k + ch; if (anchos[c2] == null) anchos[c2] = fu.widthOfTextAtSize(ch, 1000); w += anchos[c2]; }); return w * tam / 1000; };
-        var pag, y, nPag = 0, pags = [];
+        var pag, y, nPag = 0, pags = [], c = null;
         var nueva = function () { pag = doc.addPage([AN, AL]); pags.push(pag); y = AL - M; nPag++; };
+        lista.forEach(function (hojaX) {
+        var datos = hojaEnRenglones(hojaX);
         nueva();
         // Encabezado: qué hoja es, el día y las medias.
-        var c = datos.cab;
-        pag.drawText(limpio(c.sup.toUpperCase()), { x: M, y: y - 9, size: 9, font: FB, color: gris });
-        if (c.estado) { var ew = ancho(FB, limpio(c.estado.toUpperCase()), 8); pag.drawText(limpio(c.estado.toUpperCase()), { x: maxX - ew, y: y - 9, size: 8, font: FB, color: gris }); }
-        y -= 30; pag.drawText(limpio(c.tit.toUpperCase()), { x: M, y: y, size: 19, font: FB, color: negro });
-        if (c.dato) { var dw = ancho(FB, limpio(c.dato.toUpperCase()), 15); pag.drawText(limpio(c.dato.toUpperCase()), { x: maxX - dw, y: y, size: 15, font: FB, color: negro }); }
+        c = c || datos.cab; var cabH = datos.cab;
+        pag.drawText(limpio(cabH.sup.toUpperCase()), { x: M, y: y - 9, size: 9, font: FB, color: gris });
+        if (cabH.estado) { var ew = ancho(FB, limpio(cabH.estado.toUpperCase()), 8); pag.drawText(limpio(cabH.estado.toUpperCase()), { x: maxX - ew, y: y - 9, size: 8, font: FB, color: gris }); }
+        y -= 30; pag.drawText(limpio(cabH.tit.toUpperCase()), { x: M, y: y, size: 19, font: FB, color: negro });
+        if (cabH.dato) { var dw = ancho(FB, limpio(cabH.dato.toUpperCase()), 15); pag.drawText(limpio(cabH.dato.toUpperCase()), { x: maxX - dw, y: y, size: 15, font: FB, color: negro }); }
         y -= 10; pag.drawLine({ start: { x: M, y: y }, end: { x: maxX, y: y }, thickness: 1.5, color: negro }); y -= 8;
         // El cuerpo se acomoda a la hoja: se busca la letra más grande que entra entera en una A4 (entre 10,5 y 20)
         // y lo que sobra se reparte entre los cortes. Si ni con la letra chica entra, sigue en otra página.
@@ -656,6 +658,7 @@
           if (cuerpo(TAM, extra, false) > disp) extra = 0;
         }
         cuerpo(TAM, extra, true);
+        });
         var ahora = new Date(), pie = 'Frigorífico Qualitá · ' + ahora.toLocaleDateString('es-AR') + ' ' + ahora.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
         pags.forEach(function (p, i) {
           p.drawText(limpio(pie), { x: M, y: 22, size: 8, font: F, color: gris });
@@ -680,6 +683,19 @@
       }
       bajar(blob, nombre); return 'PDF descargado: ' + nombre + '. Adjuntalo en WhatsApp o en el mail.';
     }).then(function (m) { fin(m); }, function () { fin('!No se pudo armar el PDF. Revisá la conexión y probá de nuevo.'); });
+  }
+  // Imprimir las hojas de Producción con el PDF que se adapta a la A4 (la impresión de la pantalla salía chica).
+  function imprimirPDF(hojas, btn) {
+    var txt0 = btn ? btn.textContent : ''; if (btn) { btn.disabled = true; btn.textContent = 'Preparando…'; }
+    var fin = function (m) { if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = txt0; } if (m) avisar(m, 7000); };
+    cargarScript('lib/pdf-lib.min.js').then(function () { return armarPDF(hojas); }).then(function (bytes) {
+      var blob = new Blob([bytes], { type: 'application/pdf' }), u = URL.createObjectURL(blob);
+      if (window.__mock) { window.__mock.ultimoPDF = { nombre: 'imprimir', blob: blob }; fin(); return; }
+      var fr = $('marco-impresion'); if (fr) fr.remove();
+      fr = document.createElement('iframe'); fr.id = 'marco-impresion'; fr.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0';
+      fr.onload = function () { setTimeout(function () { try { fr.contentWindow.focus(); fr.contentWindow.print(); fin(); } catch (e) { window.open(u, '_blank'); fin('Se abrió el PDF: imprimilo desde ahí.'); } }, 700); };
+      fr.src = u; document.body.appendChild(fr);
+    }).then(null, function () { fin('!No se pudo preparar la impresión. Probá de nuevo.'); });
   }
   function bajar(blob, nombre) { var u = URL.createObjectURL(blob), a = document.createElement('a'); a.href = u; a.download = nombre; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(u); }, 4000); }
   function renderProduccion() {
@@ -2577,6 +2593,7 @@
     else if (a === 'cam-subir' || a === 'cam-bajar') { moverEnCamion(S.fl, D.cam, D.id, a === 'cam-subir' ? -1 : 1).then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); }
     else if (a === 'resumen') { S.resumen = !S.resumen; render(); }
     else if (a === 'hoja-pdf') { compartirPDF(b.closest('.hoja'), b); }
+    else if (a === 'imprimir' && S.tab === 'produccion' && !S.ep && document.querySelector('#view-produccion .hoja')) { imprimirPDF(Array.prototype.slice.call(document.querySelectorAll('#view-produccion .hoja')), b); }
     else if (a === 'imprimir') {
       // Se imprime siempre la vista de lectura, no la de edición.
       if (S.em) { guardar('medias', true); S.em = null; }

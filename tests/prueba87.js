@@ -20,5 +20,9 @@ for(const v of ['op','frescos']){
  const [dl]=await Promise.all([p.waitForEvent('download',{timeout:20000}),p.locator('[data-act="hoja-pdf"]').first().click()]);
  const ruta=SP+'/hoja-'+v+w+'.pdf';await dl.saveAs(ruta);await p.waitForTimeout(200);
  console.log(v,'→',dl.suggestedFilename(),fs.statSync(ruta).size,'bytes · aviso:',await p.evaluate(()=>{const a=document.querySelector('.aviso,#aviso,.toast');return a?a.innerText:'';}),'· botón vuelve:',await p.locator('[data-act="hoja-pdf"]').first().innerText());}
+for(const v of ['op','frescos']){await p.click('[data-act="pv"][data-v="'+v+'"]');await p.waitForTimeout(100);await p.evaluate(()=>{delete window.__mock.ultimoPDF;});
+ await p.click('[data-act="imprimir"]');await p.waitForFunction(()=>window.__mock.ultimoPDF,null,{timeout:15000});
+ const b64=await p.evaluate(async()=>{const a=new Uint8Array(await window.__mock.ultimoPDF.blob.arrayBuffer());let s='';a.forEach(x=>s+=String.fromCharCode(x));return btoa(s);});fs.writeFileSync(SP+'/imprimir-'+v+w+'.pdf',Buffer.from(b64,'base64'));
+ console.log('imprimir',v,'→ PDF',fs.statSync(SP+'/imprimir-'+v+w+'.pdf').size,'bytes');}
 console.log('desborde:',await p.evaluate(()=>document.documentElement.scrollWidth-innerWidth),'errores:',errs.join('|')||'ninguno');}
 await b.close();})();
