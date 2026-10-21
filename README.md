@@ -146,3 +146,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Fecha del título (Logística, Pedidos, Producción, Rendering, Medias): en recuadro rojo si el día ya pasó, verde si es hoy; los días que vienen, como siempre. Al imprimir sale normal.
 - Pedidos: la hoja de medias en ANIMALES copiada de Excel (cliente + número, en una o varias columnas) se carga sola con el doble de medias (NOVICERD 50 → 100 medias). Sirve con Ctrl+V en la página o en "Pegar texto" + Leer; no usa la IA. Una captura o foto de esa hoja la IA también la pasa ×2.
 - Producción: botón "Compartir PDF" en la orden de producción, la planilla de frescos y la de embutidos; arma un PDF con solo esa hoja (en el celular abre Compartir para mandarlo por WhatsApp; en la compu se descarga). La librería pdf-lib está en docs/lib y se baja solo al usarlo.
+- Logística: la franja de cada camión muestra también el total de medias y de cajas que lleva (al lado de los pedidos y los kilos).

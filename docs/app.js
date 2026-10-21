@@ -2300,7 +2300,11 @@
         + (cam.nota && !ed ? '<span class="cam-nota">' + esc(cam.nota) + '</span>' : '')
         + (!ed ? '<span class="log-acc"><button class="btn sm" data-act="cam-imprimir" data-id="' + esc(cam.id) + '">Imprimir</button>'
           + (S.editor ? '<button class="btn sm" data-act="cam-editar" data-id="' + esc(cam.id) + '">Editar</button>' + botonBorrar('cam-borrar', cam.id, 'Borrar camión') : '') + '</span>' : '') + '</header>';
+      var tMed = 0, tCaj = 0;
+      suyos.forEach(function (p) { tMed += +p.medias || 0; (p.cortes || []).forEach(function (c) { var mc = String(c.texto || '').match(/^\s*([\d.,½]+)\s*(?:CAJAS?|CJS?)\b/i); if (mc) tCaj += numero(mc[1].replace('½', '.5')); }); });
       h += '<div class="cam-datos"><div class="cam-res"><b>' + suyos.length + '</b><span>' + (suyos.length === 1 ? 'pedido' : 'pedidos') + '</span></div>'
+        + (tMed ? '<div class="cam-res"><b>' + n(tMed) + '</b><span>' + (tMed === 1 ? 'media' : 'medias') + '</span></div>' : '')
+        + (tCaj ? '<div class="cam-res"><b>' + n(tCaj) + '</b><span>' + (tCaj === 1 ? 'caja' : 'cajas') + '</span></div>' : '')
         + (ct ? '<div class="cam-carga"><p class="cam-cap' + (pasa ? ' neg' : '') + '">' + esc(ct) + '</p>' + (+cam.kg > 0 ? '<div class="medidor' + (pasa ? ' pasa' : '') + '" role="img" aria-label="' + esc(ct) + '"><i style="width:' + Math.min(100, Math.round(car / +cam.kg * 100)) + '%"></i></div>' : '') + '</div>' : '') + '</div>';
       // El costo del flete ya no se muestra (lo pidió Renzo para ganar espacio); lo cargado sigue en privado/fletes-*.
       h += '<div class="cam-cuerpo">';
