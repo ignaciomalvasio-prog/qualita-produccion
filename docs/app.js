@@ -1935,6 +1935,27 @@
         + '<button class="btn sm" data-act="busq-ver" data-id="' + esc(p.id) + '">Ver</button></div>';
     }).join('') + '</div>';
   }
+  // Buscador de camiones: los camiones que ya tienen clientes (desde la semana pasada), por nombre o N°.
+  function buscarCamionesHTML(q) {
+    var t = norm(q).trim(), desde = mas(hoy(), -7), l = [];
+    Object.keys(S.log || {}).sort().forEach(function (f) {
+      if (f < desde) return;
+      camionesDe(f).forEach(function (c) {
+        if (norm(nomCam(c)).indexOf(t) < 0 && norm(c.nombre || '').indexOf(t) < 0 && String(c.num || '').indexOf(t) !== 0) return;
+        var o = c.orden || [], ps = (S.pedidos || []).filter(function (p) { return p.entrega === f && p.camion === c.id; })
+          .sort(function (a, b) { var i = o.indexOf(a.id), j = o.indexOf(b.id); return (i < 0 ? 1e6 : i) - (j < 0 ? 1e6 : j); });
+        if (ps.length) l.push({ f: f, c: c, ps: ps });
+      });
+    });
+    if (!l.length) return '<p class="muted sin">No hay camiones con clientes que se llamen "' + esc(q) + '" desde el ' + esc(diaCorto(desde)) + '.</p>';
+    return '<p class="small muted">' + l.length + (l.length === 1 ? ' camión encontrado' : ' camiones encontrados') + ':</p><div class="busq">' + l.map(function (x) {
+      var kg = x.ps.reduce(function (t, p) { return t + kgPedido(p).kg; }, 0);
+      return '<div class="busq-f busq-cam"><span class="busq-dia">' + esc(diaCorto(x.f)) + '</span><span class="badge cam-ped">' + esc(nomCam(x.c)) + '</span>' + (x.c.hora ? '<span class="cam-hora">' + esc(x.c.hora) + ' hs</span>' : '')
+        + '<span class="small muted">' + x.ps.length + (x.ps.length === 1 ? ' cliente' : ' clientes') + (kg ? ' · ≈ ' + n(Math.round(kg)) + ' kg' : '') + '</span>'
+        + '<button class="btn sm" data-act="busq-cam" data-f="' + esc(x.f) + '" data-cam="' + esc(x.c.id) + '">Ver</button>'
+        + '<span class="busq-clis">' + x.ps.map(function (p, i) { return '<span>' + (i + 1) + '. ' + esc(p.cliente) + '</span>'; }).join('') + '</span></div>';
+    }).join('') + '</div>';
+  }
   // Barra para mandar los pedidos tildados a un camión.
   function barraCamionHTML(f, tild) {
     var cams = camionesDe(f), lg = logDe(f), pubs = (lg && lg.pedidos) || [], fl = flota();
@@ -1981,8 +2002,11 @@
       + '<button class="btn step" data-act="pd" data-d="1" aria-label="Día siguiente">›</button><input type="date" id="pd-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">'
       + (f !== habilSiguiente(hy) ? '<button class="btn" data-act="pd-ir" data-f="' + habilSiguiente(hy) + '">Volver a mañana</button>' : '')
       + (lista.length ? botonBorrar('ped-borrar-todos', f, 'Eliminar todos los pedidos') : '') + '</div>'
-      + '<div class="pd-busca"><input type="search" id="pd-buscar" value="' + esc(S.pdBuscar || '') + '" placeholder="Buscar cliente o N° de cuenta (en todos los días)" aria-label="Buscar un cliente en los pedidos" autocomplete="off">' + (S.pdBuscar ? '<button class="btn sm" data-act="busq-limpiar">Borrar búsqueda</button>' : '') + '</div>';
+      + '<div class="pd-busca"><input type="search" id="pd-buscar" value="' + esc(S.pdBuscar || '') + '" placeholder="Buscar cliente o N° de cuenta (en todos los días)" aria-label="Buscar un cliente en los pedidos" autocomplete="off">'
+      + '<input type="search" id="pd-cam-buscar" value="' + esc(S.camBuscar || '') + '" placeholder="Buscar camión (con clientes cargados)" aria-label="Buscar un camión en los pedidos" autocomplete="off">'
+      + (S.pdBuscar || S.camBuscar ? '<button class="btn sm" data-act="busq-limpiar">Borrar búsqueda</button>' : '') + '</div>';
     if (String(S.pdBuscar || '').trim()) { h += buscarPedidosHTML(S.pdBuscar) + '</section>'; }
+    else if (String(S.camBuscar || '').trim()) { h += buscarCamionesHTML(S.camBuscar) + '</section>'; }
     else {
     // Aviso de los otros días que tienen pedidos cargados, para no perderlos de vista.
     var otros = {}; (S.pedidos || []).forEach(function (p) { if (p.entrega && p.entrega !== f && p.entrega >= hy && pasaFiltro(p.vendedor)) otros[p.entrega] = (otros[p.entrega] || 0) + 1; });
@@ -2446,7 +2470,8 @@
       if (pl && !S.prop.some(function (x) { return x.editaId === pl.id; })) S.prop.push({ k: uid(), editaId: pl.id, cliente: pl.cliente || '', entrega: pl.entrega || '', medias: pl.medias || '', peso: pl.peso || '', frio: pl.frio || '', cuenta: pl.cuenta || '', nota: pl.nota || '', kg: pl.kg || '', origen: pl.origen || 'manual', dudas: (pl.dudas || []).slice(), cortes: clone(cortesDe(pl)).map(function (c) { c.texto = sinCliente(c.texto, pl.cliente); return c; }) });
       render(); var kl = -1; S.prop.forEach(function (x, i) { if (x.editaId === D.id) kl = i; }); var fl1 = $('q' + kl + 'c0texto') || $('q' + kl + 'cliente'); if (fl1) fl1.focus();
     }
-    else if (a === 'busq-limpiar') { S.pdBuscar = ''; renderPedidos(); var bq = $('pd-buscar'); if (bq) bq.focus(); }
+    else if (a === 'busq-cam') { S.camBuscar = ''; S.pdBuscar = ''; S.pd = D.f; renderPedidos(); var gc = document.querySelector('#view-pedidos .grupo-cam[data-gcam="' + D.cam + '"]'); if (gc) { gc.scrollIntoView({ block: 'start', behavior: 'smooth' }); gc.classList.add('destello'); setTimeout(function () { gc.classList.remove('destello'); }, 2200); } }
+    else if (a === 'busq-limpiar') { S.camBuscar = ''; S.pdBuscar = ''; renderPedidos(); var bq = $('pd-buscar'); if (bq) bq.focus(); }
     else if (a === 'busq-ver') { var pv = pedidoDe(D.id); if (pv) { S.pdBuscar = ''; S.pd = pv.entrega; S.abierto = {}; S.abierto[pv.id] = true; renderPedidos(); var dv = document.querySelector('[data-act="ped-abrir"][data-id="' + pv.id + '"]'); if (dv) dv.scrollIntoView({ block: 'center' }); } }
     else if (a === 'v-ver') { S.vgrande = S.vgrande || {}; S.vgrande[D.id] = !S.vgrande[D.id]; renderPedidos(); }
     else if (a === 'v-leer') {
@@ -2555,7 +2580,8 @@
   document.addEventListener('input', function (e) {
     var t = e.target, D = t.dataset;
     if (t.id === 'cli-buscar') { S.cliBuscar = t.value; filtrarClientes(); return; }
-    if (t.id === 'pd-buscar') { var ss = t.selectionStart; S.pdBuscar = t.value; renderPedidos(); var nb = $('pd-buscar'); if (nb) { nb.focus(); try { nb.setSelectionRange(ss, ss); } catch (err) {} } return; }
+    if (t.id === 'pd-cam-buscar') { var sc = t.selectionStart; S.camBuscar = t.value; S.pdBuscar = ''; renderPedidos(); var nc = $('pd-cam-buscar'); if (nc) { nc.focus(); try { nc.setSelectionRange(sc, sc); } catch (err) {} } return; }
+    if (t.id === 'pd-buscar') { var ss = t.selectionStart; S.pdBuscar = t.value; S.camBuscar = ''; renderPedidos(); var nb = $('pd-buscar'); if (nb) { nb.focus(); try { nb.setSelectionRange(ss, ss); } catch (err) {} } return; }
     if (D.cli != null) return;
     if (t.id === 'pf-txt' && S.pf) { S.pf.txt = t.value; S.pf.res = null; S.pf.error = ''; var rs = leerFaenaPegada(t.value), pv = $('pf-prev'), bg = $('pf-guardar'); if (pv) pv.innerHTML = faenaPegadaHTML(rs, semanaPegada(rs, S.sem)); if (bg) bg.disabled = !Object.keys(rs).some(function (k) { return rs[k].length; }); return; }
     if (t.id === 'pegar-cli') { S.pegarCli = t.value; return; }
