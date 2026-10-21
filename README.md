@@ -152,3 +152,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Producción: el botón Imprimir (orden de producción, frescos y embutidos) ahora imprime el mismo PDF que se adapta a la hoja A4, en vez de la pantalla (que salía chica).
 - Logística, Imprimir (el día o un camión): sale como se ve, pero se achica solo lo justo para usar la menor cantidad de hojas A4; los camiones pueden seguir en la hoja siguiente pero cada cliente (con sus cortes y nota) nunca se corta. Se arregló la primera hoja vacía y el número de lugar que salía vacío en el círculo.
 - Logística, Imprimir: letra de tamaño normal; solo se achica un poco (como mucho 15%) cuando así se ahorra una hoja. Clientes enteros en la misma hoja.
+- Logística, Imprimir: sale el número de ORDEN de cada camión al lado de su nombre.
