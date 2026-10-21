@@ -611,29 +611,51 @@
         y -= 30; pag.drawText(limpio(c.tit.toUpperCase()), { x: M, y: y, size: 19, font: FB, color: negro });
         if (c.dato) { var dw = ancho(FB, limpio(c.dato.toUpperCase()), 15); pag.drawText(limpio(c.dato.toUpperCase()), { x: maxX - dw, y: y, size: 15, font: FB, color: negro }); }
         y -= 10; pag.drawLine({ start: { x: M, y: y }, end: { x: maxX, y: y }, thickness: 1.5, color: negro }); y -= 8;
-        var TAM = 10.5, ALTO = 14.5;
-        datos.renglones.forEach(function (r, k) {
-          var sangria = r.tipo === 'sig' ? 18 : r.tipo === 'li' ? 14 : 0, tam = r.tipo === 'tit' ? 12 : TAM, alto = r.tipo === 'tit' ? 17 : ALTO;
-          var antes = r.tipo === 'tit' ? 12 : r.tipo === 'op' ? 7 : 2;
-          if (y - antes - alto < M + 20) nueva(); else y -= antes;
-          if (r.tipo === 'op' && k > 0 && y < AL - M - 60) pag.drawLine({ start: { x: M, y: y + 4 }, end: { x: maxX, y: y + 4 }, thickness: 0.5, color: linea, dashArray: [2, 2] });
-          y -= alto - 3;
-          var x0 = M + sangria, x = x0;
-          if (r.tipo === 'li') pag.drawText('•', { x: M + 4, y: y, size: tam, font: F, color: gris });
-          r.trozos.forEach(function (tr) {
-            var fuente = tr.b || r.tipo === 'tit' ? FB : F, color = tr.azul ? azul : tr.gris ? gris : negro;
-            limpio(tr.t).split(/(\s+)/).forEach(function (pal) {
-              if (!pal) return;
-              if (/^\s+$/.test(pal)) { if (x > x0) x += ancho(fuente, ' ', tam) * Math.min(pal.length, 2); return; }
-              var w = ancho(fuente, pal, tam);
-              if (x + w > maxX && x > x0) { y -= alto - 3; if (y < M + 20) { nueva(); y -= alto - 3; } x = x0 + (r.tipo === 'op' ? 10 : 0); }
-              pag.drawText(pal, { x: x, y: y, size: tam, font: fuente, color: color });
-              if (tr.u) pag.drawLine({ start: { x: x, y: y - 2 }, end: { x: x + w, y: y - 2 }, thickness: 0.8, color: color });
-              x += w;
+        // El cuerpo se acomoda a la hoja: se busca la letra más grande que entra entera en una A4 (entre 10,5 y 20)
+        // y lo que sobra se reparte entre los cortes. Si ni con la letra chica entra, sigue en otra página.
+        var y0 = y, piso = M + 20, disp = y0 - piso;
+        var bloques = datos.renglones.filter(function (r) { return r.tipo === 'op' || r.tipo === 'tit' || r.tipo === 'nota'; }).length || 1;
+        var cuerpo = function (TAM, extra, dibujar) {
+          var sc = TAM / 10.5, paso = TAM * 1.12, yy = y0;
+          var salto = function () { yy -= paso; if (dibujar && yy < piso) { nueva(); yy = y - paso; } };
+          datos.renglones.forEach(function (r, k) {
+            var tam = r.tipo === 'tit' ? TAM * 1.14 : TAM, sangria = (r.tipo === 'sig' ? 18 : r.tipo === 'li' ? 14 : 0) * sc;
+            var antes = (r.tipo === 'tit' ? 12 : r.tipo === 'op' || r.tipo === 'nota' ? 7 : 2) * sc + (r.tipo === 'li' || r.tipo === 'sig' ? 0 : k ? extra : 0);
+            if (dibujar && yy - antes - paso * 1.4 < piso) { nueva(); yy = y; } else yy -= antes;
+            if (dibujar && r.tipo === 'op' && k > 0 && yy < AL - M - 60) pag.drawLine({ start: { x: M, y: yy + Math.min(antes, 10 * sc) * 0.55 }, end: { x: maxX, y: yy + Math.min(antes, 10 * sc) * 0.55 }, thickness: 0.5, color: linea, dashArray: [2, 2] });
+            salto(); if (r.tipo === 'tit') yy -= TAM * 0.14;
+            var x0 = M + sangria, x = x0;
+            if (dibujar && r.tipo === 'li') pag.drawText('•', { x: M + 4 * sc, y: yy, size: tam, font: F, color: gris });
+            var subPend = null;
+            r.trozos.forEach(function (tr) {
+              var fuente = tr.b || r.tipo === 'tit' ? FB : F, color = tr.azul ? azul : tr.gris ? gris : negro;
+              limpio(tr.t).split(/(\s+)/).forEach(function (pal) {
+                if (!pal) return;
+                if (/^\s+$/.test(pal)) { if (x > x0) { var ws = ancho(fuente, ' ', tam) * Math.min(pal.length, 2); if (dibujar && tr.u) subPend = { x: x, w: ws }; x += ws; } return; }
+                var w = ancho(fuente, pal, tam);
+                if (x + w > maxX && x > x0) { salto(); x = x0 + (r.tipo === 'op' ? 10 * sc : 0); subPend = null; }
+                if (subPend && tr.u && dibujar) pag.drawLine({ start: { x: subPend.x, y: yy - tam * 0.19 }, end: { x: subPend.x + subPend.w, y: yy - tam * 0.19 }, thickness: 0.6 + tam * 0.02, color: color });
+                subPend = null;
+                if (dibujar) {
+                  pag.drawText(pal, { x: x, y: yy, size: tam, font: fuente, color: color });
+                  if (tr.u) pag.drawLine({ start: { x: x, y: yy - tam * 0.19 }, end: { x: x + w, y: yy - tam * 0.19 }, thickness: 0.6 + tam * 0.02, color: color });
+                }
+                x += w;
+              });
             });
+            if (r.tipo === 'tit') { yy -= TAM * 0.48; if (dibujar) pag.drawLine({ start: { x: M, y: yy }, end: { x: maxX, y: yy }, thickness: 0.8, color: negro }); yy -= TAM * 0.2; }
           });
-          if (r.tipo === 'tit') { y -= 5; pag.drawLine({ start: { x: M, y: y }, end: { x: maxX, y: y }, thickness: 0.8, color: negro }); y -= 2; }
-        });
+          return y0 - yy;
+        };
+        var TAM = 10.5, extra = 0;
+        if (cuerpo(TAM, 0, false) <= disp) {
+          var lo = 10.5, hi = 20;
+          for (var it = 0; it < 14; it++) { var mid = (lo + hi) / 2; if (cuerpo(mid, 0, false) <= disp) lo = mid; else hi = mid; }
+          TAM = Math.floor(lo * 4) / 4;
+          extra = Math.max(0, Math.min((disp - cuerpo(TAM, 0, false)) / bloques, TAM * 1.6));
+          if (cuerpo(TAM, extra, false) > disp) extra = 0;
+        }
+        cuerpo(TAM, extra, true);
         var ahora = new Date(), pie = 'Frigorífico Qualitá · ' + ahora.toLocaleDateString('es-AR') + ' ' + ahora.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
         pags.forEach(function (p, i) {
           p.drawText(limpio(pie), { x: M, y: 22, size: 8, font: F, color: gris });
