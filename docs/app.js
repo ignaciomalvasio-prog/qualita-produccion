@@ -1049,7 +1049,7 @@
   }
   function editarPedido(id, campo) {
     var pe = pedidoDe(id);
-    if (pe && !S.prop.some(function (x) { return x.editaId === pe.id; })) S.prop.push({ k: uid(), editaId: pe.id, cliente: pe.cliente || '', entrega: pe.entrega || '', medias: pe.medias || '', peso: pe.peso || '', frio: pe.frio || '', cuenta: pe.cuenta || '', nota: pe.nota || '', kg: pe.kg || '', origen: pe.origen || 'manual', dudas: (pe.dudas || []).slice(), cortes: clone(cortesDe(pe)).map(function (c) { c.texto = sinCliente(c.texto, pe.cliente); return c; }) });
+    if (pe && !S.prop.some(function (x) { return x.editaId === pe.id; })) S.prop.push({ k: uid(), editaId: pe.id, precioMedias: pe.precioMedias === 0 || pe.precioMedias ? pe.precioMedias : '', ivaMedias: pe.ivaMedias || '', cliente: pe.cliente || '', entrega: pe.entrega || '', medias: pe.medias || '', peso: pe.peso || '', frio: pe.frio || '', cuenta: pe.cuenta || '', nota: pe.nota || '', kg: pe.kg || '', origen: pe.origen || 'manual', dudas: (pe.dudas || []).slice(), cortes: clone(cortesDe(pe)).map(function (c) { c.texto = sinCliente(c.texto, pe.cliente); return c; }) });
     S.msg.fotos = ''; renderPedidos();
     var k = -1; S.prop.forEach(function (x, i) { if (x.editaId === id) k = i; });
     var fe = $('q' + k + (campo || 'cliente')); if (fe) { fe.focus(); if (fe.scrollIntoView) fe.scrollIntoView({ block: 'center' }); }
@@ -1386,14 +1386,15 @@
     var sl = limpiarSemana(sem); S.em = null; S.faena = poner(S.faena, lunes, sl);
     return store.set('faena', lunes, sl).then(function () { tocar(); return { lunes: lunes, dias: nd, clientes: nc }; });
   }
+  function precioNum(v) { if (v === 0) return 0; var t = String(v == null ? '' : v).trim(); if (!t) return ''; var x = numero(t.replace(/[$\s]/g, '')); return x > 0 ? x : ''; }
   function guardarPropuesta(q, auto) {
     var previo = q.editaId ? pedidoDe(q.editaId) : null, entrega = q.entrega || '';
     var p = { cliente: String(q.cliente || '').toUpperCase().trim(), entrega: entrega, medias: +q.medias || 0, peso: q.peso || '', frio: frioDe(q.frio), cuenta: String(q.cuenta || '').trim(), nota: q.nota || '', origen: q.origen || 'manual',
       creado: previo && previo.creado ? previo.creado : ahoraTxt(), kg: +q.kg > 0 ? +q.kg : '',
       camion: previo && previo.entrega === entrega ? (previo.camion || '') : '',
-      cortes: (q.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { k: c.k || uid(), corte: norm(c.corte), texto: sinCliente(String(c.texto).toUpperCase().replace(/\s+/g, ' ').trim(), q.cliente), orden: c.orden !== false, precio: c.precio === 0 ? 0 : c.precio || '', iva: c.iva || '', frio: frioDe(c.frio) }; }).filter(function (c) { return c.texto; }) };
-    if (previo && (previo.precioMedias === 0 || previo.precioMedias)) p.precioMedias = previo.precioMedias;
-    if (previo && previo.ivaMedias) p.ivaMedias = previo.ivaMedias;
+      cortes: (q.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { k: c.k || uid(), corte: norm(c.corte), texto: sinCliente(String(c.texto).toUpperCase().replace(/\s+/g, ' ').trim(), q.cliente), orden: c.orden !== false, precio: precioNum(c.precio), iva: precioNum(c.precio) === '' ? '' : (c.iva || ''), frio: frioDe(c.frio) }; }).filter(function (c) { return c.texto; }) };
+    if ('precioMedias' in q) { p.precioMedias = precioNum(q.precioMedias); p.ivaMedias = p.precioMedias === '' ? '' : (q.ivaMedias || ''); }
+    else { if (previo && (previo.precioMedias === 0 || previo.precioMedias)) p.precioMedias = previo.precioMedias; if (previo && previo.ivaMedias) p.ivaMedias = previo.ivaMedias; }
     var vd = q.vendedor || (previo && previo.vendedor); if (vd) { p.vendedor = vd; p.vendedorNombre = q.vendedorNombre || (previo && previo.vendedorNombre) || ''; }
     if (!p.cliente) return Promise.reject(new Error('Falta el cliente.'));
     if (!p.entrega) return Promise.reject(new Error('Falta la fecha de entrega.'));
@@ -1442,7 +1443,7 @@
       + '1. Formulario manuscrito "ORDEN DE PEDIDO": el cliente está arriba y hay una "Fecha de entrega". En el renglón "18 CAPÓN" la cantidad seguida de "½" es la cantidad de MEDIAS RESES (ej.: "20 ½" = 20 medias). Los demás renglones son cortes. "Todo" al lado de un corte significa que el cliente se lleva todo lo que salga de ese corte. Puede haber renglones agregados a mano al pie, con código, y notas al margen. Una foto puede traer varios formularios: cada uno es un pedido.\n'
       + '2. Planillas de Excel de reparto por zona o por ciudad: cada fila es un cliente; la columna "Medias" es cantidad de medias reses y las demás columnas son cortes; si el encabezado dice la unidad (cajas, kg), es esa. La fecha del encabezado es la fecha de entrega. Si junto al cliente dice un rango de kilos (ej. "46 a 48 kg"), es el peso pedido para las medias.\n'
       + '3. Planillas por sucursal (ej. DINO): arriba a la izquierda figura el cliente y cada COLUMNA es una sucursal (Rod del Busto, Salsipuedes, Alta Gracia, Ruta 20…); cada fila es un corte, con su código, y el número es lo que pide esa sucursal de ese corte, en kilos cuando la planilla lo dice (por ejemplo con la fila "KG X SUCURSAL" o la columna "TOTAL KG"). Devolvé UN PEDIDO POR CADA SUCURSAL que tenga algo pedido, nunca uno solo con todo sumado: cada sucursal sale en un camión distinto. cliente = el nombre del cliente seguido de la sucursal (ej. "DINO ROD DEL BUSTO"). En cada pedido, un corte por cada fila que tenga cantidad en esa columna, con la cantidad de ESA sucursal. Una sucursal con toda la columna vacía o en cero no se carga. La imagen puede traer más de una tabla del mismo cliente: son más sucursales. No tomes como sucursal la columna TOTAL KG ni como corte la fila "KG X SUCURSAL": sirven para controlar; si la suma de una columna no coincide con su "KG X SUCURSAL", avisalo en dudas de ese pedido. El texto de cada corte lleva la cantidad con su unidad, el nombre del corte como figura y el código entre paréntesis (ej. "100KG JAMON 4 MUSC (COD 341)"); la sucursal no se repite en el texto. Los embutidos (chorizo, morcilla, salchicha) van con orden=false.\n'
-      + '4. Lista escrita a mano en una hoja suelta: cada renglón es un cliente seguido de una cantidad con "½" (ej.: "Molina 100 ½" = 100 medias reses para MOLINA). Un título subrayado arriba (ej. "San Juan") es la zona o el destino, no un cliente: ponelo en la nota de cada pedido. Los importes con "$" son precios: no los copies. Una aclaración entre paréntesis como "(grandes)" va en peso. Un número rodeado con un círculo al pie es el total de medias de la hoja: no es un pedido; si la suma de los renglones no coincide con ese total, avisalo en dudas del primer pedido. Marcas como "ok" o rayas no son pedidos.\n'
+      + '4. Lista escrita a mano en una hoja suelta: cada renglón es un cliente seguido de una cantidad con "½" (ej.: "Molina 100 ½" = 100 medias reses para MOLINA). Un título subrayado arriba (ej. "San Juan") es la zona o el destino, no un cliente: ponelo en la nota de cada pedido. Los importes con "$" son precios: cargalos en el precio (ver abajo). Una aclaración entre paréntesis como "(grandes)" va en peso. Un número rodeado con un círculo al pie es el total de medias de la hoja: no es un pedido; si la suma de los renglones no coincide con ese total, avisalo en dudas del primer pedido. Marcas como "ok" o rayas no son pedidos.\n'
       + '5. Texto pegado de WhatsApp u otro mensaje: suele empezar con una frase general (ej. "pedido de cerdo para el martes por caja") que da la fecha de entrega y la unidad para todo el mensaje, y sigue con bloques separados por una línea en blanco: la primera línea de cada bloque es el cliente o la sucursal y las siguientes son "cantidad corte". Cada bloque es un pedido. Aplicá la unidad general a cada renglón ("por caja": "2 matambre" = 2 CAJAS). "Pierna" es el rubro JAMON; conservá abreviaturas como "S/C" tal como vienen. Ignorá saludos y texto que no sea pedido. Si al pedirte la lectura te indican que todo el mensaje es de UN solo cliente y que los bloques son sus sucursales, devolvé igual un pedido por cada sucursal, con cliente = ese cliente seguido de la sucursal (ej. "CLIENTE MENENDEZ PIDAL").\n\n'
       + 'QUÉ CARGAR, POR CADA PEDIDO\n'
       + '- cliente: en mayúsculas. Si coincide con uno de la lista de clientes conocidos, usá exactamente ese nombre.\n'
@@ -1452,7 +1453,9 @@
       + '- frio: "FRESCO" o "CONGELADO" cuando en cualquier parte de la imagen o del mensaje dice que la mercadería es fresca o congelada: en el título, el encabezado, el nombre de la planilla o de la hoja, una columna, una nota al margen, al lado del cliente o en la frase inicial de un mensaje. También valen las abreviaturas ("CONG.", "CGDO", "FCO", "FRESC."). Si lo dice una sola vez en general, vale para TODOS los pedidos de esa imagen o mensaje: ponelo en cada uno. Si no lo dice en ningún lado, "" (no lo supongas). Si en un mismo pedido hay cortes frescos y cortes congelados, dejá frio en "" y escribí FRESCO o CONGELADO dentro del texto de cada corte.\n'
       + '- cortes: un elemento por cada corte pedido. "corte" es el rubro de la orden de producción, uno de: ' + CORTES_BASE.join(', ') + '. "texto" es lo que pide de ese corte, en mayúsculas: primero la cantidad, tal cual figura en el pedido, con su unidad si el pedido la dice (ej. "600KG", "10 CAJAS", "50 UND"), después la presentación o variante si se aclara (ej. "15 CAJAS PIERNA S/C", "107 CAJAS DE 20KG CARRE CON HUESO") y el código si figura (ej. "(ART 276)"). Cargá el pedido como aparece: la unidad (CAJAS, KG, UND, BINES) se escribe solo cuando el pedido la aclara, sea en el renglón, en el encabezado de la columna, en la fila de totales o en la frase general ("por caja", "en kilos", "cj", "x kg"); en ese caso escribila en cada corte al que le corresponde. Si el pedido no aclara si es caja o kg, NO pongas ninguna unidad: dejá la cantidad sola (ej. "2 MATAMBRE"). Nunca la supongas ni la deduzcas por costumbre. NO pongas el nombre del cliente ni de la sucursal en el texto, ni entre comillas ni suelto: ya va en "cliente". Si el cliente pide TODO el corte, la línea va sin cantidad (ej. "TODO FRESCO EN BINES").\n'
       + '- orden: true si es un corte fresco que hay que producir ese día; false si es mercadería congelada que sale de stock, o productos que no salen del desposte (chorizo, morcilla, salchicha).\n'
-      + '- nota: aclaraciones del pedido que no entran en otro campo. No copies precios.\n'
+      + '- precio (en cada corte) y precioMedias (de las medias): el precio por kilo en pesos, solo el número ("$4.200/kg" o "4200 + IVA" → 4200; "$ 2.850,50" → 2850.5). 0 si no figura. Si el precio es por caja, por unidad o por bulto (no por kilo), dejá 0 y anotalo en la nota.\n'
+      + '- iva (en cada corte) e ivaMedias: "iva" si el precio es sin IVA (dice + IVA, más IVA, sin IVA, s/IVA, neto); "final" si es con IVA (dice final, con IVA, IVA incluido, c/IVA); "" si no lo aclara o no hay precio. Si una aclaración vale para todo el pedido ("todos los precios + IVA"), ponela en todos.\n'
+      + '- nota: aclaraciones del pedido que no entran en otro campo.\n'
       + '- dudas: todo lo que no se lea bien o sea ambiguo, en una frase corta cada una. Si un número no se lee con seguridad, poné tu mejor lectura y avisá acá. No inventes datos.\n\n'
       + 'CLIENTES CONOCIDOS\n' + Object.keys(clientes).sort().join(', ') + '\n\n'
       + 'EJEMPLOS DE ÓRDENES DE PRODUCCIÓN RECIENTES (solo para el vocabulario de cortes y presentaciones; en los pedidos el texto NO lleva el cliente entre comillas)\n' + ejemplos.join('\n\n');
@@ -1498,12 +1501,13 @@
     type: 'object', additionalProperties: false, required: ['pedidos', 'planilla'],
     properties: {
       pedidos: { type: 'array', items: {
-        type: 'object', additionalProperties: false, required: ['cliente', 'entrega', 'medias', 'peso', 'frio', 'cortes', 'nota', 'dudas'],
+        type: 'object', additionalProperties: false, required: ['cliente', 'entrega', 'medias', 'peso', 'frio', 'cortes', 'nota', 'dudas', 'precioMedias', 'ivaMedias'],
         properties: {
           cliente: { type: 'string' }, entrega: { type: 'string', description: 'AAAA-MM-DD, o vacío si no figura' },
           medias: { type: 'number', description: 'Cantidad de medias reses; 0 si no pide' }, peso: { type: 'string' }, frio: { type: 'string', enum: ['', 'FRESCO', 'CONGELADO'], description: 'Si el pedido aclara fresco o congelado; vacío si no lo dice' },
-          cortes: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['corte', 'texto', 'orden'], properties: { corte: { type: 'string' }, texto: { type: 'string' }, orden: { type: 'boolean' } } } },
-          nota: { type: 'string' }, dudas: { type: 'array', items: { type: 'string' } }
+          cortes: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['corte', 'texto', 'orden', 'precio', 'iva'], properties: { corte: { type: 'string' }, texto: { type: 'string' }, orden: { type: 'boolean' }, precio: { type: 'number', description: 'Precio por kilo en pesos; 0 si no figura' }, iva: { type: 'string', enum: ['', 'iva', 'final'] } } } },
+          nota: { type: 'string' }, dudas: { type: 'array', items: { type: 'string' } },
+          precioMedias: { type: 'number', description: 'Precio por kilo de las medias en pesos; 0 si no figura' }, ivaMedias: { type: 'string', enum: ['', 'iva', 'final'] }
         } } },
       planilla: { type: 'array', description: 'Solo para la planilla semanal de faena y medias: un elemento por día. En cualquier otro caso, lista vacía.', items: {
         type: 'object', additionalProperties: false, required: ['dia', 'fecha', 'faena', 'clientes'],
@@ -1574,7 +1578,8 @@
     leidos.forEach(function (x) {
       (x.j.pedidos || []).forEach(function (p) {
         nuevos.push({ k: uid(), cliente: p.cliente || '', entrega: /^\d{4}-\d{2}-\d{2}$/.test(p.entrega || '') ? p.entrega : ctx.porDefecto, medias: +p.medias || '', peso: p.peso || '', frio: frioDe(p.frio), nota: p.nota || '', origen: x.origen, foto: x.nombre,
-          dudas: (p.dudas || []).filter(Boolean), cortes: (p.cortes || []).map(function (c) { return { corte: norm(c.corte), texto: c.texto || '', orden: c.orden !== false }; }) });
+          dudas: (p.dudas || []).filter(Boolean), precioMedias: +p.precioMedias > 0 ? +p.precioMedias : '', ivaMedias: +p.precioMedias > 0 && /^(iva|final)$/.test(p.ivaMedias || '') ? p.ivaMedias : '',
+          cortes: (p.cortes || []).map(function (c) { var pr = +c.precio > 0 ? +c.precio : ''; return { corte: norm(c.corte), texto: c.texto || '', orden: c.orden !== false, precio: pr, iva: pr && /^(iva|final)$/.test(c.iva || '') ? c.iva : '' }; }) });
       });
       if (x.j.planilla && x.j.planilla.length) planillas.push(x.j.planilla);
     });
@@ -1659,6 +1664,7 @@
     })();
   }
 
+  var ivaQ = function (pre, val, lab) { return '<select id="' + pre + '" ' + lab + '><option value=""' + (val ? '' : ' selected') + '>¿IVA?</option><option value="iva"' + (val === 'iva' ? ' selected' : '') + '>+ IVA</option><option value="final"' + (val === 'final' ? ' selected' : '') + '>Final</option></select>'; };
   function propHTML(q, i) {
     var listaCortes = CORTES_BASE.slice(); (q.cortes || []).forEach(function (c) { if (c.corte && listaCortes.indexOf(c.corte) < 0) listaCortes.push(c.corte); });
     var h = '<div class="card">';
@@ -1668,10 +1674,12 @@
       + '<label class="campo"><span>Medias</span><input type="number" inputmode="numeric" id="q' + i + 'medias" data-q="' + i + '" data-k="medias" value="' + esc(q.medias) + '"></label>'
       + '<label class="campo"><span>Peso o aclaración</span><input type="text" id="q' + i + 'peso" data-q="' + i + '" data-k="peso" value="' + esc(q.peso || '') + '"></label>'
       + '<label class="campo"><span>Fresco o congelado</span><select id="q' + i + 'frio" data-q="' + i + '" data-k="frio">' + ['', 'FRESCO', 'CONGELADO'].map(function (x) { return '<option value="' + x + '"' + ((q.frio || '') === x ? ' selected' : '') + '>' + (x ? x.charAt(0) + x.slice(1).toLowerCase() : 'Sin aclarar') + '</option>'; }).join('') + '</select></label>'
+      + '<label class="campo"><span>Precio medias $/kg</span><span class="pre-q"><input type="number" inputmode="decimal" step="any" min="0" id="q' + i + 'precioMedias" data-q="' + i + '" data-k="precioMedias" value="' + esc(q.precioMedias === 0 ? 0 : q.precioMedias || '') + '">' + ivaQ('q' + i + 'ivaMedias', q.ivaMedias, 'data-q="' + i + '" data-k="ivaMedias" aria-label="IVA de las medias"') + '</span></label>'
       + '<label class="campo"><span>Kilos (opcional)</span><input type="number" inputmode="numeric" id="q' + i + 'kg" data-q="' + i + '" data-k="kg" value="' + esc(q.kg || '') + '"></label></div>';
     (q.cortes || []).forEach(function (c, j) {
       h += '<div class="cl"><select id="q' + i + 'c' + j + 'corte" data-q="' + i + '" data-j="' + j + '" data-k="corte" aria-label="Corte">' + listaCortes.map(function (x) { return '<option' + (x === c.corte ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select>'
         + '<textarea rows="2" id="q' + i + 'c' + j + 'texto" data-q="' + i + '" data-j="' + j + '" data-k="texto" aria-label="Qué pide de este corte" style="text-transform:uppercase">' + esc(c.texto) + '</textarea>'
+        + '<span class="pre-q"><input type="number" inputmode="decimal" step="any" min="0" id="q' + i + 'c' + j + 'precio" data-q="' + i + '" data-j="' + j + '" data-k="precio" value="' + esc(c.precio === 0 ? 0 : c.precio || '') + '" placeholder="$/kg" aria-label="Precio por kilo">' + ivaQ('q' + i + 'c' + j + 'iva', c.iva, 'data-q="' + i + '" data-j="' + j + '" data-k="iva" aria-label="IVA"') + '</span>'
         + '<button class="btn x" data-act="q-quitar-corte" data-q="' + i + '" data-j="' + j + '" aria-label="Quitar corte">×</button></div>';
     });
     h += '<div class="acciones"><button class="btn sm" data-act="q-corte" data-q="' + i + '">+ Corte</button></div>'
