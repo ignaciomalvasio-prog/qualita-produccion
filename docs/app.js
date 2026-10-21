@@ -591,8 +591,9 @@
     });
     return { cab: cab, renglones: rs };
   }
-  function armarPDF(hojasPDF) {
-    var L = window.PDFLib, lista = [].concat(hojasPDF).filter(Boolean);
+  function armarPDF(hojasPDF, opc) {
+    var L = window.PDFLib, lista = [].concat(hojasPDF).filter(Boolean); opc = opc || {};
+    var tMin = opc.min || 10.5, tMax = opc.max || 20;
     return L.PDFDocument.create().then(function (doc) {
       return Promise.all([doc.embedFont(L.StandardFonts.Helvetica), doc.embedFont(L.StandardFonts.HelveticaBold)]).then(function (fs) {
         var F = fs[0], FB = fs[1], AN = 595.28, AL = 841.89, M = 40, maxX = AN - M, cache = {};
@@ -604,7 +605,7 @@
         var pag, y, nPag = 0, pags = [], c = null;
         var nueva = function () { pag = doc.addPage([AN, AL]); pags.push(pag); y = AL - M; nPag++; };
         lista.forEach(function (hojaX) {
-        var datos = hojaEnRenglones(hojaX);
+        var datos = hojaX.nodeType ? hojaEnRenglones(hojaX) : hojaX;
         nueva();
         // Encabezado: qué hoja es, el día y las medias.
         c = c || datos.cab; var cabH = datos.cab;
@@ -615,27 +616,31 @@
         y -= 10; pag.drawLine({ start: { x: M, y: y }, end: { x: maxX, y: y }, thickness: 1.5, color: negro }); y -= 8;
         // El cuerpo se acomoda a la hoja: se busca la letra más grande que entra entera en una A4 (entre 10,5 y 20)
         // y lo que sobra se reparte entre los cortes. Si ni con la letra chica entra, sigue en otra página.
-        var y0 = y, piso = M + 20, disp = y0 - piso;
-        var bloques = datos.renglones.filter(function (r) { return r.tipo === 'op' || r.tipo === 'tit' || r.tipo === 'nota'; }).length || 1;
-        var cuerpo = function (TAM, extra, dibujar) {
-          var sc = TAM / 10.5, paso = TAM * 1.12, yy = y0;
-          var salto = function () { yy -= paso; if (dibujar && yy < piso) { nueva(); yy = y - paso; } };
+        var y0 = y, piso = M + 4, disp = y0 - piso;
+        var bloques = datos.renglones.filter(function (r) { return r.tipo === 'op' || r.tipo === 'tit' || r.tipo === 'nota' || r.tipo === 'cam'; }).length || 1;
+        var cuerpo = function (TAM, extra, dibujar, simular) {
+          var sc = TAM / 10.5, paso = TAM * 1.12, yy = y0, hojas = 1, pagina = dibujar || simular;
+          var corte = function () { if (dibujar) { nueva(); return y; } hojas++; return AL - M; };
+          var salto = function () { yy -= paso; if (pagina && yy < piso) { yy = corte() - paso; } };
           datos.renglones.forEach(function (r, k) {
-            var tam = r.tipo === 'tit' ? TAM * 1.14 : TAM, sangria = (r.tipo === 'sig' ? 18 : r.tipo === 'li' ? 14 : 0) * sc;
-            var antes = (r.tipo === 'tit' ? 12 : r.tipo === 'op' || r.tipo === 'nota' ? 7 : 2) * sc + (r.tipo === 'li' || r.tipo === 'sig' ? 0 : k ? extra : 0);
-            if (dibujar && yy - antes - paso * 1.4 < piso) { nueva(); yy = y; } else yy -= antes;
-            if (dibujar && r.tipo === 'op' && k > 0 && yy < AL - M - 60) pag.drawLine({ start: { x: M, y: yy + Math.min(antes, 10 * sc) * 0.55 }, end: { x: maxX, y: yy + Math.min(antes, 10 * sc) * 0.55 }, thickness: 0.5, color: linea, dashArray: [2, 2] });
-            salto(); if (r.tipo === 'tit') yy -= TAM * 0.14;
+            var esCab = r.tipo === 'tit' || r.tipo === 'cam', prev = k ? datos.renglones[k - 1].tipo : '';
+            var tam = r.tipo === 'cam' ? TAM * 1.32 : r.tipo === 'tit' ? TAM * 1.14 : TAM, sangria = (r.tipo === 'sig' ? 18 : r.tipo === 'li' ? 14 : 0) * sc;
+            var antes = (r.tipo === 'cam' ? 13 : r.tipo === 'tit' ? 12 : r.tipo === 'op' || r.tipo === 'nota' ? 7 : 2) * sc + (r.tipo === 'li' || r.tipo === 'sig' ? 0 : k ? extra : 0);
+            if (pagina && yy - antes - paso < piso) { yy = corte(); } else yy -= antes;
+            if (dibujar && r.tipo === 'op' && k > 0 && prev !== 'cam' && prev !== 'tit' && yy < AL - M - 60) { var yl = yy + (antes - 0.62 * TAM) / 2; pag.drawLine({ start: { x: M, y: yl }, end: { x: maxX, y: yl }, thickness: 0.5, color: linea, dashArray: [2, 2] }); }
+            salto(); if (esCab) yy -= TAM * (r.tipo === 'cam' ? 0.3 : 0.14);
+            if (dibujar && r.der) { var tdr = limpio(r.der), wdr = ancho(FB, tdr, TAM * 0.92); pag.drawText(tdr, { x: maxX - wdr, y: yy, size: TAM * 0.92, font: FB, color: gris }); }
+            var tope = r.der ? maxX - ancho(FB, limpio(r.der), TAM * 0.92) - 12 : maxX;
             var x0 = M + sangria, x = x0;
             if (dibujar && r.tipo === 'li') pag.drawText('•', { x: M + 4 * sc, y: yy, size: tam, font: F, color: gris });
             var subPend = null;
             r.trozos.forEach(function (tr) {
-              var fuente = tr.b || r.tipo === 'tit' ? FB : F, color = tr.azul ? azul : tr.gris ? gris : negro;
+              var fuente = tr.b || esCab ? FB : F, color = tr.azul ? azul : tr.gris ? gris : negro;
               limpio(tr.t).split(/(\s+)/).forEach(function (pal) {
                 if (!pal) return;
                 if (/^\s+$/.test(pal)) { if (x > x0) { var ws = ancho(fuente, ' ', tam) * Math.min(pal.length, 2); if (dibujar && tr.u) subPend = { x: x, w: ws }; x += ws; } return; }
                 var w = ancho(fuente, pal, tam);
-                if (x + w > maxX && x > x0) { salto(); x = x0 + (r.tipo === 'op' ? 10 * sc : 0); subPend = null; }
+                if (x + w > tope && x > x0) { salto(); tope = maxX; x = x0 + (r.tipo === 'op' ? 10 * sc : 0); subPend = null; }
                 if (subPend && tr.u && dibujar) pag.drawLine({ start: { x: subPend.x, y: yy - tam * 0.19 }, end: { x: subPend.x + subPend.w, y: yy - tam * 0.19 }, thickness: 0.6 + tam * 0.02, color: color });
                 subPend = null;
                 if (dibujar) {
@@ -645,17 +650,20 @@
                 x += w;
               });
             });
-            if (r.tipo === 'tit') { yy -= TAM * 0.48; if (dibujar) pag.drawLine({ start: { x: M, y: yy }, end: { x: maxX, y: yy }, thickness: 0.8, color: negro }); yy -= TAM * 0.2; }
+            if (esCab) { yy -= TAM * 0.48; if (dibujar) pag.drawLine({ start: { x: M, y: yy }, end: { x: maxX, y: yy }, thickness: r.tipo === 'cam' ? 1.6 : 0.8, color: negro }); yy -= TAM * 0.2; }
           });
-          return y0 - yy;
+          return simular ? hojas : y0 - yy;
         };
-        var TAM = 10.5, extra = 0;
+        var TAM = tMin, extra = 0, buscar = function (a, b, lim) { for (var it = 0; it < 14; it++) { var mid = (a + b) / 2; if (cuerpo(mid, 0, false) <= lim) a = mid; else b = mid; } return Math.floor(a * 4) / 4; };
         if (cuerpo(TAM, 0, false) <= disp) {
-          var lo = 10.5, hi = 20;
-          for (var it = 0; it < 14; it++) { var mid = (lo + hi) / 2; if (cuerpo(mid, 0, false) <= disp) lo = mid; else hi = mid; }
-          TAM = Math.floor(lo * 4) / 4;
+          TAM = buscar(tMin, tMax, disp);
           extra = Math.max(0, Math.min((disp - cuerpo(TAM, 0, false)) / bloques, TAM * 1.6));
           if (cuerpo(TAM, extra, false) > disp) extra = 0;
+        } else if (opc.dos) {
+          // Dos hojas: la segunda no repite el encabezado; se deja un margen por lo que se pierde al pasar de hoja.
+          var lo2 = opc.dos, hi2 = tMin;
+          if (cuerpo(lo2, 0, false, true) <= 2) { for (var i2 = 0; i2 < 12; i2++) { var m2 = (lo2 + hi2) / 2; if (cuerpo(m2, 0, false, true) <= 2) lo2 = m2; else hi2 = m2; } }
+          TAM = Math.floor(lo2 * 4) / 4;
         }
         cuerpo(TAM, extra, true);
         });
@@ -684,11 +692,46 @@
       bajar(blob, nombre); return 'PDF descargado: ' + nombre + '. Adjuntalo en WhatsApp o en el mail.';
     }).then(function (m) { fin(m); }, function () { fin('!No se pudo armar el PDF. Revisá la conexión y probá de nuevo.'); });
   }
+  // Logística se imprime como se ve, pero achicada lo justo para usar la menor cantidad de hojas A4:
+  // se arma una copia invisible con el estilo de impresión al ancho de la hoja, se mide y se elige el tamaño.
+  var A4_ANCHO = 718, A4_ALTO = 1040, ZOOM_MIN = 0.5;
+  function medirImpresion() {
+    return new Promise(function (ok) {
+      var css = Array.prototype.map.call(document.querySelectorAll('style'), function (x) { return x.id === 'hoja-impresion' ? '' : x.textContent; }).join('\n').replace(/@media\s+print/g, '@media all');
+      var links = Array.prototype.map.call(document.querySelectorAll('link[rel="stylesheet"]'), function (x) { return x.outerHTML; }).join('');
+      var attrs = Array.prototype.map.call(document.documentElement.attributes, function (a) { return a.name + '="' + String(a.value).replace(/"/g, '&quot;') + '"'; }).join(' ');
+      var cuerpo = document.body.cloneNode(true); Array.prototype.forEach.call(cuerpo.querySelectorAll('script,iframe'), function (x) { x.remove(); });
+      var fr = document.createElement('iframe'); fr.setAttribute('aria-hidden', 'true'); fr.style.cssText = 'position:fixed;left:-20000px;top:0;width:' + A4_ANCHO + 'px;height:' + A4_ALTO + 'px;border:0;visibility:hidden';
+      document.body.appendChild(fr);
+      var d = fr.contentDocument, listo = false;
+      d.open(); d.write('<!doctype html><html ' + attrs + '><head><meta charset="utf-8">' + links + '<style>' + css + '</style></head><body class="' + document.body.className + '">' + cuerpo.innerHTML + '</body></html>'); d.close();
+      var medir = function () { if (listo) return; listo = true; var h = 0; try { h = d.documentElement.scrollHeight; } catch (e) {} fr.remove(); ok(h); };
+      try { (d.fonts && d.fonts.ready ? d.fonts.ready : Promise.resolve()).then(function () { setTimeout(medir, 60); }); } catch (e) { setTimeout(medir, 300); }
+      setTimeout(medir, 1500);
+    });
+  }
+  function zoomPara(h) {
+    if (!h) return 1;
+    if (h <= A4_ALTO) return 1;
+    var hojas = Math.max(1, Math.ceil(h * ZOOM_MIN / A4_ALTO));
+    // Con más de una hoja se deja margen por las tarjetas que no se cortan y pasan enteras a la hoja siguiente.
+    return Math.max(ZOOM_MIN, Math.min(1, (hojas * A4_ALTO * (hojas > 1 ? 0.93 : 0.99)) / h));
+  }
+  function imprimirAjustado(despues) {
+    var hj = $('hoja-impresion');
+    if (!hj) { hj = document.createElement('style'); hj.id = 'hoja-impresion'; document.head.appendChild(hj); }
+    hj.textContent = '@page{size:A4 portrait;margin:10mm}';
+    medirImpresion().then(function (h) {
+      var z = zoomPara(h); if (window.__mock) window.__mock.zoomImpresion = { alto: h, zoom: z };
+      hj.textContent = '@page{size:A4 portrait;margin:10mm}' + (z < 1 ? '@media print{body{zoom:' + z.toFixed(3) + '}}' : '');
+      setTimeout(function () { window.print(); if (despues) despues(); }, 60);
+    });
+  }
   // Imprimir las hojas de Producción con el PDF que se adapta a la A4 (la impresión de la pantalla salía chica).
-  function imprimirPDF(hojas, btn) {
+  function imprimirPDF(hojas, btn, opc) {
     var txt0 = btn ? btn.textContent : ''; if (btn) { btn.disabled = true; btn.textContent = 'Preparando…'; }
     var fin = function (m) { if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = txt0; } if (m) avisar(m, 7000); };
-    cargarScript('lib/pdf-lib.min.js').then(function () { return armarPDF(hojas); }).then(function (bytes) {
+    cargarScript('lib/pdf-lib.min.js').then(function () { return armarPDF(hojas, opc); }).then(function (bytes) {
       var blob = new Blob([bytes], { type: 'application/pdf' }), u = URL.createObjectURL(blob);
       if (window.__mock) { window.__mock.ultimoPDF = { nombre: 'imprimir', blob: blob }; fin(); return; }
       var fr = $('marco-impresion'); if (fr) fr.remove();
@@ -2250,7 +2293,7 @@
     if (+p.medias) filas.unshift({ corte: 'MEDIAS', texto: textoMedias(p), precio: precioTxt(p.precioMedias, p.ivaMedias), k: 'm', v: p.precioMedias, iv: p.ivaMedias });
     var edPre = S.editor && !S.solo && pedidoDe(p.id);
     var num = cam && pos != null;
-    var h = '<div class="log-ped' + (num ? '' : ' sin-num') + '" data-lp="' + id + '">' + (num ? (S.editor && !S.solo && total > 1 ? '<span class="log-num log-num-sel"><select data-pos-ped="' + id + '" data-cam="' + esc(cam.id) + '" aria-label="Lugar de ' + esc(p.cliente) + ' en el camión (elegí el número)">' + (function () { var o = ''; for (var i = 0; i < total; i++) o += '<option value="' + i + '"' + (i === pos ? ' selected' : '') + '>' + (i + 1) + '</option>'; return o; })() + '</select></span>' : '<span class="log-num" aria-label="Lugar ' + (pos + 1) + '">' + (pos + 1) + '</span>') : '') + '<div class="log-body"><div class="log-cab">'
+    var h = '<div class="log-ped' + (num ? '' : ' sin-num') + '" data-lp="' + id + '">' + (num ? (S.editor && !S.solo && total > 1 ? '<span class="log-num log-num-sel"><select data-pos-ped="' + id + '" data-cam="' + esc(cam.id) + '" aria-label="Lugar de ' + esc(p.cliente) + ' en el camión (elegí el número)">' + (function () { var o = ''; for (var i = 0; i < total; i++) o += '<option value="' + i + '"' + (i === pos ? ' selected' : '') + '>' + (i + 1) + '</option>'; return o; })() + '</select><span class="solo-print">' + (pos + 1) + '</span></span>' : '<span class="log-num" aria-label="Lugar ' + (pos + 1) + '">' + (pos + 1) + '</span>') : '') + '<div class="log-body"><div class="log-cab">'
       + (S.editor && !S.solo && pedidoDe(p.id) ? '<label class="chk log-chk"><input type="checkbox" data-sel="' + id + '"' + (S.sel[p.id] && S.selDia === S.fl ? ' checked' : '') + ' aria-label="Tildar a ' + esc(p.cliente) + ' para un camión"></label>' : '')
       + '<strong>' + esc(p.cliente || 'Sin cliente') + '</strong>' + ctaHTML(p.cuenta) + frioBadge(p.frio)
       + '<span class="small muted">' + esc(kgTxt({ kg: +p.kg || 0, falta: p.kgFalta, manual: p.kgManual })) + '</span>';
@@ -2577,6 +2620,7 @@
     }
     if (a === 'ir') { irA(D.tab); if (D.ancla) { var an = $(D.ancla); if (an) an.scrollIntoView(); } }
     else if (a === 'ini-dia') { S.pd = D.f; S.abierto = {}; irA('pedidos'); }
+    else if (a === 'imprimir' && S.tab === 'logistica' && !S.resumen) { imprimirAjustado(); }
     else if (a === 'cam-imprimir') {
       // Solo ese camión: los demás se ocultan mientras dura la impresión.
       var vl = $('view-logistica'), sec = null;
@@ -2588,7 +2632,7 @@
       hj.textContent = '@page{size:A4 portrait;margin:10mm}';
       var limpiar = function () { vl.classList.remove('un-camion'); sec.classList.remove('sale'); window.removeEventListener('afterprint', limpiar); };
       window.addEventListener('afterprint', limpiar);
-      setTimeout(function () { window.print(); setTimeout(limpiar, 60000); }, 80);
+      imprimirAjustado(function () { setTimeout(limpiar, 60000); });
     }
     else if (a === 'cam-subir' || a === 'cam-bajar') { moverEnCamion(S.fl, D.cam, D.id, a === 'cam-subir' ? -1 : 1).then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); }
     else if (a === 'resumen') { S.resumen = !S.resumen; render(); }
