@@ -177,7 +177,7 @@
     var h = '<div class="nav"><button class="btn step" data-act="fm" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + esc(tituloDe(f)) + '</span><button class="btn step" data-act="fm" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="m-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">'
       + (cl.length ? '<button class="btn" data-act="imprimir">Imprimir</button>' : '')
-      + (S.editor ? '<button class="btn" data-act="m-semana">Volver a la planilla de la semana</button>' : '') + '</div>';
+      + (S.editor && !S.solo ? '<button class="btn" data-act="m-semana">Volver a la planilla de la semana</button><button class="btn" data-act="link-medias">Copiar link para compartir</button>' : '') + '</div>';
     var lu = lunesDe(f);
     h += '<div class="semtabs" role="group" aria-label="Días de la semana">' + [0, 1, 2, 3, 4].map(function (k) {
       var fk = mas(lu, k), xk = diaFaena(fk), tk = xk ? conMedias(xk.d).reduce(function (t, r) { return t + (+r.cant || 0); }, 0) : 0;
@@ -340,7 +340,7 @@
     if (S.dia == null) { var g = fecha(hoy()).getDay(); S.dia = lunesDe(hoy()) === lunes && g >= 1 && g <= 5 ? g - 1 : 0; }
     var h = '<div class="nav"><button class="btn step" data-act="sem" data-d="-7" aria-label="Semana anterior">‹</button><span class="tit">Semana del ' + esc(etiquetaSemana(lunes)) + '</span><button class="btn step" data-act="sem" data-d="7" aria-label="Semana siguiente">›</button>';
     if (sem) h += '<button class="btn" data-act="imprimir">Imprimir</button>';
-    h += '<button class="btn" data-act="m-dia">Ver como la ven los demás</button>';
+    h += '<button class="btn" data-act="m-dia">Ver como la ven los demás</button>' + (S.editor ? '<button class="btn" data-act="link-medias">Copiar link para compartir</button>' : '');
     if (S.editor && sem) h += '<button class="btn' + (edit ? ' pri' : '') + '" data-act="m-editar">' + (edit ? 'Listo' : 'Editar') + '</button><span class="guardado" id="g-medias"></span>';
     if (S.editor && !edit && !S.pf) h += '<button class="btn" data-act="pf-abrir">Cargar faena (Excel o captura)</button>';
     h += '</div>';
@@ -2284,8 +2284,8 @@
     if (S._c2 && S._c2 !== a + (D.i == null ? '' : D.i)) S._c2 = null;
 
     if (a === 'actualizar') { recargar(); return; }
-    if (a === 'link-log' || a === 'link-prod' || a === 'link-c3' || a === 'link-rend') {
-      var pag = a === 'link-rend' ? 'rendering' : a === 'link-c3' ? 'ciclo3' : a === 'link-prod' ? 'produccion' : 'logistica', km = a === 'link-log' ? 'log' : a === 'link-rend' ? 'rend' : 'prod', nom = a === 'link-rend' ? 'Rendering' : a === 'link-c3' ? 'Ciclo III' : a === 'link-prod' ? 'Producción' : 'Logística';
+    if (a === 'link-log' || a === 'link-prod' || a === 'link-c3' || a === 'link-rend' || a === 'link-medias') {
+      var pag = a === 'link-medias' ? 'medias' : a === 'link-rend' ? 'rendering' : a === 'link-c3' ? 'ciclo3' : a === 'link-prod' ? 'produccion' : 'logistica', km = a === 'link-log' ? 'log' : a === 'link-rend' ? 'rend' : a === 'link-medias' ? 'medias' : 'prod', nom = a === 'link-medias' ? 'Medias' : a === 'link-rend' ? 'Rendering' : a === 'link-c3' ? 'Ciclo III' : a === 'link-prod' ? 'Producción' : 'Logística';
       var url = location.origin + location.pathname.replace(/[^\/]*$/, '') + pag, listo = function () { S.msg[km] = 'Link copiado: ' + url; pintarMsg(km); avisar('Link de ' + nom + ' copiado. Pegalo donde quieras compartirlo.', 6000); };
       var aMano = function () { S.msg[km] = 'Link para compartir: ' + url; pintarMsg(km); avisar('Link para compartir: ' + url, 15000); };
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(listo, aMano); else aMano();
@@ -2757,9 +2757,9 @@
   var h0 = (location.hash || '').slice(1); if (TABS.indexOf(h0) >= 0) S.tab = h0 === 'ciclo3' ? 'produccion' : h0;
   // Link para compartir con una sola pestaña: se ve esa sola, sin las demás y sin ingresar.
   // Es la página logistica.html (se arma con tools/paginas.py); el link viejo con ?solo=logistica sigue andando.
-  try { var qs = document.documentElement.getAttribute('data-solo') || new URLSearchParams(location.search).get('solo'); if (qs === 'logistica' || qs === 'produccion' || qs === 'ciclo3' || qs === 'rendering') { S.solo = qs; S.tab = qs; } } catch (err) {}
+  try { var qs = document.documentElement.getAttribute('data-solo') || new URLSearchParams(location.search).get('solo'); if (qs === 'logistica' || qs === 'produccion' || qs === 'ciclo3' || qs === 'rendering' || qs === 'medias') { S.solo = qs; S.tab = qs; } } catch (err) {}
   if (S.solo) {
-    var tsolo = S.solo === 'produccion' ? 'Producción' : S.solo === 'ciclo3' ? 'Ciclo III' : S.solo === 'rendering' ? 'Rendering' : 'Logística';
+    var tsolo = S.solo === 'produccion' ? 'Producción' : S.solo === 'ciclo3' ? 'Ciclo III' : S.solo === 'rendering' ? 'Rendering' : S.solo === 'medias' ? 'Medias' : 'Logística';
     document.title = tsolo + ' Qualitá';
     var mf = document.querySelector('link[rel="manifest"]'); if (mf) mf.setAttribute('href', S.solo + '.webmanifest');
     var mn = document.querySelector('.marca-nom'); if (mn) mn.textContent = tsolo;

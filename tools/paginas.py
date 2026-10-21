@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Arma las páginas para compartir a partir de docs/index.html: docs/logistica.html, docs/produccion.html, docs/ciclo3.html y docs/rendering.html.
+"""Arma las páginas para compartir a partir de docs/index.html: docs/logistica.html, docs/produccion.html, docs/ciclo3.html, docs/rendering.html y docs/medias.html.
 
 Son la misma app, pero abren solo en esa pestaña (de solo lectura) y tienen su propio título, para que
 al compartir el link diga "Logística Qualitá" o "Producción Qualitá". Hay que correrlo cada vez que
@@ -17,6 +17,7 @@ PAGINAS = {
     "produccion": ("Producción", "Orden de producción del día del Frigorífico Qualitá."),
     "ciclo3": ("Ciclo III", "Embutidos del día (chorizo, morcilla, salchicha) del Frigorífico Qualitá."),
     "rendering": ("Rendering", "Kilos de insumos y producidos de rendering, por día, del Frigorífico Qualitá."),
+    "medias": ("Medias", "Animales vendidos a clientes por día de faena del Frigorífico Qualitá."),
 }
 
 mal = []

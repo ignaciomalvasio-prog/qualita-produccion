@@ -1,7 +1,7 @@
 # Producción Qualitá — guía para trabajar en el código
 
 Web app del Frigorífico Qualitá: pedidos → producción, logística, medias, clientes y portal de vendedores.
-En vivo: https://qualita-produccion.web.app (links para compartir: `/logistica`, `/produccion`, `/ciclo3`, `/rendering`; vendedores: `/vendedor`).
+En vivo: https://qualita-produccion.web.app (links para compartir: `/logistica`, `/produccion`, `/ciclo3`, `/rendering`, `/medias`; vendedores: `/vendedor`).
 `README.md` describe con detalle qué hace cada pantalla; cada cambio nuevo suma un renglón al final.
 
 ## Quién pide y cómo responder
