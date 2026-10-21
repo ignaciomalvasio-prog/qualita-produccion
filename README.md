@@ -141,3 +141,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Logística: buscadores de cliente (o N° de cuenta) y de camión, igual que en Pedidos; "Ver" lleva al día y marca el cliente o el camión. También en el link para compartir (solo lo que tiene camión).
 - Logística: la nota del cliente se escribe ahí mismo (tocar el recuadro amarillo, o "+ Nota" si no tiene); se guarda sola con Enter o al salir. Sin apretar Editar.
 - Pedidos: se sacó el "sum / no" al lado de los cortes (volvió como antes).
+- Logística: el nombre de cada camión va en un recuadro azul oscuro con letra blanca y más grande, para distinguirlo bien (al imprimir sale normal).
