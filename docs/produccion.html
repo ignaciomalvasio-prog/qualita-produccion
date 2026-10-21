@@ -442,6 +442,10 @@ button.cam-num{background:none;color:inherit;cursor:pointer}
 .busq-f .nom{font-weight:700}.busq-dia{font:700 13px var(--body);color:var(--accent);min-width:78px}.busq-f .btn{margin-left:auto}
 .grupo-cam{margin-top:12px}.grupo-tit{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:16px;margin:0 0 6px}
 .grupo-cam.sin-cam .grupo-tit{color:var(--warn)}
+.grupo-kg{text-transform:none;margin-left:auto;font:800 18px var(--display);color:#000;background:#a9d6ee;border:1px solid #6fb4d6;border-radius:5px;padding:3px 12px;white-space:nowrap}
+.grupo-kg small{font:600 13px var(--body);color:#1d3b48}
+.grupo-kg.pasa{background:var(--crit-soft);border-color:var(--crit);color:var(--crit)}
+@media print{ .grupo-kg{background:none!important;border-color:#000} }
 .grupo-cam:not([data-gcam=""]){border:3px solid #1b1b1b;border-radius:8px;background:var(--surface);margin-top:16px;overflow:hidden}
 .grupo-cam:not([data-gcam=""])>.grupo-tit{margin:0;padding:8px 12px;background:var(--suave,var(--accent-soft));border-bottom:2px solid #1b1b1b}
 .grupo-cam:not([data-gcam=""]) .peds{border-top:0;padding:0 8px 4px}

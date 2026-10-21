@@ -1895,12 +1895,15 @@
   function pedidosAgrupadosHTML(f, lista, m) {
     var cams = camionesDe(f), hay = {}; cams.forEach(function (c) { hay[c.id] = c; });
     if (!cams.length) return '<div class="peds">' + lista.map(function (p) { return pedidoHTML(p, m); }).join('') + '</div>';
-    var grupo = function (tit, extra, l, cls, camId) { return '<div class="grupo-cam' + (cls ? ' ' + cls : '') + '" data-gcam="' + esc(camId || '') + '"><h3 class="grupo-tit">' + tit + ' <span class="small muted">' + esc(extra) + '</span></h3><div class="peds">' + l.map(function (p) { return pedidoHTML(p, m, true); }).join('') + '</div></div>'; };
+    var grupo = function (tit, extra, l, cls, camId, tot) { return '<div class="grupo-cam' + (cls ? ' ' + cls : '') + '" data-gcam="' + esc(camId || '') + '"><h3 class="grupo-tit">' + tit + ' <span class="small muted">' + esc(extra) + '</span>' + (tot || '') + '</h3><div class="peds">' + l.map(function (p) { return pedidoHTML(p, m, true); }).join('') + '</div></div>'; };
     var h = '', sin = lista.filter(function (p) { return !(p.camion && hay[p.camion]); });
     if (sin.length) h += grupo('Sin camión', resumenLog(sin), sin, 'sin-cam', '');
     cams.forEach(function (c) {
       var o = c.orden || [], l = lista.filter(function (p) { return p.camion === c.id; }).sort(function (a, b) { var i = o.indexOf(a.id), j = o.indexOf(b.id); return (i < 0 ? 1e6 : i) - (j < 0 ? 1e6 : j); });
-      h += grupo('<span class="badge cam-ped">' + esc(nomCam(c)) + '</span>' + (c.hora ? ' <span class="cam-hora">' + esc(c.hora) + ' hs</span>' : ''), l.length ? resumenLog(l) : 'vacío: arrastrá clientes acá', l, l.length ? '' : 'vacio', c.id);
+      var kgT = 0, faltaT = false; l.forEach(function (p) { var k = kgPedido(p); kgT += k.kg; if (k.falta) faltaT = true; });
+      var pasa = +c.kg > 0 && kgT > +c.kg;
+      var tot = l.length ? '<span class="grupo-kg' + (pasa ? ' pasa' : '') + '" title="Kilos que lleva el camión' + (faltaT ? ' (hay renglones sin peso)' : '') + '">≈ ' + n(Math.round(kgT)) + ' kg' + (+c.kg > 0 ? ' <small>de ' + n(+c.kg) + '</small>' : '') + (faltaT ? ' <small>+ sin peso</small>' : '') + '</span>' : '';
+      h += grupo('<span class="badge cam-ped">' + esc(nomCam(c)) + '</span>' + (c.hora ? ' <span class="cam-hora">' + esc(c.hora) + ' hs</span>' : ''), l.length ? resumenLog(l) : 'vacío: arrastrá clientes acá', l, l.length ? '' : 'vacio', c.id, tot);
     });
     return '<p class="small muted arr-tip">Arrastrá cada cliente desde ⠿ para ordenar la bajada de cada camión (el primero baja primero) o para pasarlo a otro camión.</p>' + h;
   }
