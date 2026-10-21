@@ -440,6 +440,11 @@ button.cam-num{background:none;color:inherit;cursor:pointer}
 .busq-f .nom{font-weight:700}.busq-dia{font:700 13px var(--body);color:var(--accent);min-width:78px}.busq-f .btn{margin-left:auto}
 .grupo-cam{margin-top:12px}.grupo-tit{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:16px;margin:0 0 6px}
 .grupo-cam.sin-cam .grupo-tit{color:var(--warn)}
+.grupo-cam:not([data-gcam=""]){border:3px solid #1b1b1b;border-radius:8px;background:var(--surface);margin-top:16px;overflow:hidden}
+.grupo-cam:not([data-gcam=""])>.grupo-tit{margin:0;padding:8px 12px;background:var(--suave,var(--accent-soft));border-bottom:2px solid #1b1b1b}
+.grupo-cam:not([data-gcam=""]) .peds{border-top:0;padding:0 8px 4px}
+.grupo-cam.vacio:not([data-gcam=""]) .peds{border:0;min-height:44px}
+@media print{ .grupo-cam:not([data-gcam=""]){border-width:1.5px} }
 /* Resumen del día: como la hoja a mano, con resaltador. */
 .resumen-dia{background:#fff;color:#111;border:1px solid var(--line);border-radius:6px;padding:16px;display:flex;flex-direction:column;gap:12px}
 .resumen-dia mark{background:#f2ff5c;color:#111;padding:0 4px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
