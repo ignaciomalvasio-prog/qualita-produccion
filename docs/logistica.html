@@ -105,6 +105,9 @@ html,body{overflow-x:clip}
 .otros-dias{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 12px}.otros-dias .btn b{color:var(--accent);margin-left:2px}
 .btn{font:600 15px var(--body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:8px 14px;cursor:pointer;min-height:40px}
 .btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.carga .btn.pri{min-width:170px;justify-content:center;text-align:center}
+.btn.pri:disabled{opacity:.5}
+.btn.pri.activo{box-shadow:inset 0 0 0 2px var(--accent-ink),0 0 0 2px var(--accent)}
 .btn.sm{padding:4px 10px;min-height:32px;font-size:14px}
 .btn.x{padding:0;width:32px;min-height:32px;color:var(--muted)}
 .btn.lnk{border-color:transparent;background:transparent;color:var(--accent);padding-inline:4px}
