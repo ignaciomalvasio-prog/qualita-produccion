@@ -59,6 +59,8 @@ service cloud.firestore {
     // c3docs: lo cargado a mano (caja, venta "2", correcciones, insumos, fórmulas). c3cambios: historial, no se borra.
     match /c3docs/{doc}    { allow read, write: if esEditor() || esC3(); }
     match /c3cambios/{doc} { allow read, create: if esEditor() || esC3(); allow update, delete: if false; }
+    // c3mail: mails pendientes (planilla de caja); los manda la notebook de Igna y los marca como enviados.
+    match /c3mail/{doc}    { allow create: if esEditor() || esC3(); allow read, update: if esEditor(); allow delete: if false; }
     // La lista de editores solo se cambia desde la consola de Firebase.
     match /editores/{email} {
       allow get: if request.auth != null && request.auth.token.email == email;

@@ -20,7 +20,8 @@ console.log(w,'desborde',await p.evaluate(()=>document.documentElement.scrollWid
 const c=await b.newPage({viewport:{width:400,height:900}});const ec=[];c.on('pageerror',e=>ec.push(e.message));
 await c.addInitScript(m=>{window.__mock=m},mock('caja','gaston@x.com'));
 await c.goto('http://127.0.0.1:8765/caja.html?f=2026-10-16');await c.waitForTimeout(1500);
-await c.fill('#zeta','290000');await c.fill('#emp','1000');await c.click('#btn-guardar');await c.waitForTimeout(500);
+await c.fill('#zeta','290000');await c.fill('#emp','1000');await c.click('#btn-guardar');await c.waitForTimeout(1500);
+console.log('mail en cola:',await c.evaluate(()=>(window.__mock.mails||[]).map(m=>m.asunto+' · adjunto '+(m.adjunto?m.adjunto.length:0)+' · html '+m.html.length).join(' | ')));
 console.log('caja guardada:',await c.evaluate(()=>JSON.stringify(window.__mock.docs['local-2026-10'].dias['2026-10-16'].caja)),'· por',await c.evaluate(()=>window.__mock.docs['local-2026-10'].dias['2026-10-16'].por));
 await c.screenshot({path:SP+'/caja400.png',fullPage:true});console.log('caja desborde',await c.evaluate(()=>document.documentElement.scrollWidth-innerWidth),'· errores',ec.join('|')||'ninguno');
 // sin permiso

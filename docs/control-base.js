@@ -1,7 +1,7 @@
 /* Centro de control Ciclo III y Qualitá Express · conexión con Firebase (link /control y /caja)
    - Ingreso con Google o mail (acceso.js). Entran los editores de la app y las cuentas que figuran en /c3usuarios
      (rol "todo" = Carlos y quien controla; rol "caja" = el encargado del local, solo la planilla de caja).
-   - Los datos del sistema de gestión los sube la notebook de Igna cada 10 minutos (C:\InformeQualita\ciclo3\c3_sync.ps1)
+   - Los datos del sistema de gestión los sube la notebook de Igna todos los días a las 18 h y los lunes a las 8 h (C:\InformeQualita\ciclo3\c3_sync.ps1)
      a /c3sis: "mes-AAAA-MM" (remitos, producción, ventas, stock) e "ins" (insumos, compras y producción).
    - Lo que se carga a mano va en /c3docs/{nombre} = { json, ver, por, ts } y cada cambio deja un renglón en /c3cambios.
    - Modo de prueba: si existe window.__mock = { user, rol, sis: {id: txt}, docs: {nombre: objeto} } no usa Firebase. */
@@ -66,6 +66,7 @@ window.C3API = (function () {
         cambios: function () {
           return fs.getDocs(fs.query(fs.collection(db, 'c3cambios'), fs.orderBy('ts', 'desc'), fs.limit(400))).then(function (s) { return s.docs.map(function (x) { return x.data(); }); });
         },
+        encolarMail: function (d) { return fs.addDoc(fs.collection(db, 'c3mail'), d); },
         usuarios: function () { return fs.getDocs(fs.collection(db, 'c3usuarios')).then(function (s) { return s.docs.map(function (x) { var o = x.data() || {}; o.email = x.id; return o; }); }); },
         ponerUsuario: function (email, datos) { return fs.setDoc(fs.doc(db, 'c3usuarios', email), datos); },
         sacarUsuario: function (email) { return fs.deleteDoc(fs.doc(db, 'c3usuarios', email)); }
@@ -89,6 +90,7 @@ window.C3API = (function () {
       leer: function (n) { return Promise.resolve(m.docs[n] ? { json: JSON.stringify(m.docs[n]), ver: 1 } : null); },
       cambiar: function (n, fn, quien, desc) { var d = clone(m.docs[n] || {}); fn(d); m.docs[n] = clone(d); m.cambios.unshift({ ts: new Date().toISOString(), quien: quien, doc: n, cambio: desc }); return Promise.resolve(d); },
       cambios: function () { return Promise.resolve(clone(m.cambios)); },
+      encolarMail: function (d) { m.mails = m.mails || []; m.mails.push(clone(d)); return Promise.resolve(); },
       usuarios: function () { return Promise.resolve(Object.keys(m.usuarios).map(function (e) { var o = clone(m.usuarios[e]); o.email = e; return o; })); },
       ponerUsuario: function (e, d) { m.usuarios[e] = clone(d); return Promise.resolve(); },
       sacarUsuario: function (e) { delete m.usuarios[e]; return Promise.resolve(); }
@@ -136,6 +138,7 @@ window.C3API = (function () {
   api.cambiarDoc = function (n, fn, desc) { return api.listo.then(function () { return store.cambiar(n, fn, api.usuario ? api.usuario.nombre : 'sin nombre', desc); }); };
   api.cambios = function () { return api.listo.then(function () { return store.cambios(); }); };
   api.usuarios = function () { return store.usuarios(); };
+  api.encolarMail = function (d) { return api.listo.then(function () { return store.encolarMail(d); }); };
   api.ponerUsuario = function (e, d) { return store.ponerUsuario(e, d); };
   api.sacarUsuario = function (e) { return store.sacarUsuario(e); };
   api.salir = function () { return store.signOut().then(function () { location.reload(); }); };
