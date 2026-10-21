@@ -1878,39 +1878,16 @@
     return h + '</div></div>';
   }
   // Pedidos del día agrupados: primero los que no tienen camión, después cada camión en su orden.
-  /* Lo que le falta a un pedido. Lo usan los filtros rápidos de Pedidos y la lista "Lo que falta" de Inicio. */
-  var FILTROS = [['sincam', 'Sin camión'], ['sinprod', 'Sin producción'], ['sinuni', 'Sin unidad'], ['sinprecio', 'Sin precio'], ['sincta', 'Sin N° de cuenta'], ['cong', 'Congelados']];
-  function tienePrecio(v) { return v === 0 || (v !== '' && v != null); }
-  function faltaDe(p, m) {
-    var cs = cortesDe(p).filter(function (c) { return c.texto; }), hay = {}; camionesDe(p.entrega).forEach(function (c) { hay[c.id] = 1; });
-    return {
-      sincam: !(p.camion && hay[p.camion]),
-      sinprod: cs.some(function (c) { return !fechaProdDe(m, p, c); }),
-      sinuni: cs.some(function (c) { return unidadDe(c.texto) === ''; }),
-      sinprecio: (+p.medias > 0 && !tienePrecio(p.precioMedias)) || cs.some(function (c) { return !tienePrecio(c.precio); }),
-      sincta: !cuentaPedido(p),
-      cong: p.frio === 'CONGELADO' || cs.some(function (c) { return c.frio === 'CONGELADO'; })
-    };
-  }
-  function filtrosHTML(lista, m, vis) {
-    var cuenta = {}; FILTROS.forEach(function (x) { cuenta[x[0]] = 0; });
-    lista.forEach(function (p) { var fa = faltaDe(p, m); FILTROS.forEach(function (x) { if (fa[x[0]]) cuenta[x[0]]++; }); });
-    var b = function (v, txt, k) { var on = (S.pfil || '') === v; return '<button class="btn sm chip fil' + (v && v !== 'cong' && k ? ' alerta' : '') + '" data-act="pfil" data-v="' + v + '" aria-pressed="' + on + '"' + (v && !k ? ' disabled' : '') + '>' + esc(txt) + (v ? ' <b>' + k + '</b>' : '') + '</button>'; };
-    var h = '<div class="filtros" role="group" aria-label="Ver solo"><span class="small muted">Ver:</span>' + b('', 'Todos', lista.length) + FILTROS.map(function (x) { return b(x[0], x[1], cuenta[x[0]]); }).join('');
-    if (S.pfil && vis.length) { var sinT = vis.filter(function (p) { return !S.sel[p.id]; }).length; if (sinT) h += '<button class="btn sm pri" data-act="pfil-tildar">Tildar los ' + vis.length + '</button>'; }
-    return h + '</div>';
-  }
-  function pedidosAgrupadosHTML(f, lista, m, sinMover) {
+  function pedidosAgrupadosHTML(f, lista, m) {
     var cams = camionesDe(f), hay = {}; cams.forEach(function (c) { hay[c.id] = c; });
-    if (!cams.length || (sinMover && !lista.some(function (p) { return p.camion && hay[p.camion]; }))) return '<div class="peds">' + lista.map(function (p) { return pedidoHTML(p, m); }).join('') + '</div>';
-    var grupo = function (tit, extra, l, cls, camId) { return '<div class="grupo-cam' + (cls ? ' ' + cls : '') + '" data-gcam="' + esc(camId || '') + '"><h3 class="grupo-tit">' + tit + ' <span class="small muted">' + esc(extra) + '</span></h3><div class="peds">' + l.map(function (p) { return pedidoHTML(p, m, !sinMover); }).join('') + '</div></div>'; };
+    if (!cams.length) return '<div class="peds">' + lista.map(function (p) { return pedidoHTML(p, m); }).join('') + '</div>';
+    var grupo = function (tit, extra, l, cls, camId) { return '<div class="grupo-cam' + (cls ? ' ' + cls : '') + '" data-gcam="' + esc(camId || '') + '"><h3 class="grupo-tit">' + tit + ' <span class="small muted">' + esc(extra) + '</span></h3><div class="peds">' + l.map(function (p) { return pedidoHTML(p, m, true); }).join('') + '</div></div>'; };
     var h = '', sin = lista.filter(function (p) { return !(p.camion && hay[p.camion]); });
     if (sin.length) h += grupo('Sin camión', resumenLog(sin), sin, 'sin-cam', '');
     cams.forEach(function (c) {
       var o = c.orden || [], l = lista.filter(function (p) { return p.camion === c.id; }).sort(function (a, b) { var i = o.indexOf(a.id), j = o.indexOf(b.id); return (i < 0 ? 1e6 : i) - (j < 0 ? 1e6 : j); });
-      if (l.length || !sinMover) h += grupo('<span class="badge cam-ped">' + esc(nomCam(c)) + '</span>' + (c.hora ? ' ' + esc(c.hora) + ' hs' : ''), l.length ? resumenLog(l) : 'vacío: arrastrá clientes acá', l, l.length ? '' : 'vacio', c.id);
+      h += grupo('<span class="badge cam-ped">' + esc(nomCam(c)) + '</span>' + (c.hora ? ' ' + esc(c.hora) + ' hs' : ''), l.length ? resumenLog(l) : 'vacío: arrastrá clientes acá', l, l.length ? '' : 'vacio', c.id);
     });
-    if (sinMover) return h;
     return '<p class="small muted arr-tip">Arrastrá cada cliente desde ⠿ para ordenar la bajada de cada camión (el primero baja primero) o para pasarlo a otro camión.</p>' + h;
   }
   // Buscador: en todos los pedidos (desde la semana pasada), por cliente o N° de cuenta.
@@ -1982,11 +1959,7 @@
     if (ko.length) h += '<p class="otros-dias"><span class="small muted">Otros días con pedidos:</span>' + ko.map(function (d) { return '<button class="btn sm" data-act="pd-ir" data-f="' + d + '">' + esc(diaCorto(d)) + ' <b>' + otros[d] + '</b></button>'; }).join('') + '</p>';
     h += deshacerHTML();
     if (tild.length) h += barraCamionHTML(f, tild);
-    var fil = S.pfil && FILTROS.some(function (x) { return x[0] === S.pfil; }) ? S.pfil : '', vis = fil ? lista.filter(function (p) { return faltaDe(p, m)[fil]; }) : lista;
-    if (lista.length) h += filtrosHTML(lista, m, vis);
-    if (!lista.length) h += '<p class="muted sin">Sin pedidos para este día.</p>';
-    else if (!vis.length) h += '<p class="todo-ok">✓ Ningún pedido ' + esc((FILTROS.filter(function (x) { return x[0] === fil; })[0] || ['', ''])[1].toLowerCase()) + ' este día.</p>';
-    else h += (fil ? '<p class="small muted">Se ven ' + vis.length + ' de ' + lista.length + ' pedidos. Para ordenar la bajada arrastrando, volvé a "Todos".</p>' : '') + pedidosAgrupadosHTML(f, vis, m, !!fil);
+    h += lista.length ? pedidosAgrupadosHTML(f, lista, m) : '<p class="muted sin">Sin pedidos para este día.</p>';
     h += '</section>';
     }
 
@@ -2177,18 +2150,11 @@
     if (S.editor) {
       var av = [], aviso = function (num, txt, act, extra) { av.push('<button class="aviso" data-act="' + act + '"' + (extra || '') + '><strong>' + n(num) + '</strong> ' + esc(txt) + ' <span aria-hidden="true">›</span></button>'); };
       var nv = ventasPendientes(true).length; if (nv) aviso(nv, plural(nv, 'pedido de vendedor para revisar', 'pedidos de vendedores para revisar'), 'ir-ventas');
-      var m = enProduccion(), cu = {}; FILTROS.forEach(function (x) { cu[x[0]] = 0; });
-      ph.forEach(function (p) { var fa = faltaDe(p, m); FILTROS.forEach(function (x) { if (fa[x[0]]) cu[x[0]]++; }); });
-      var fil = function (k, uno, muchos) { if (cu[k]) aviso(cu[k], plural(cu[k], uno, muchos), 'ini-fil', ' data-f="' + f + '" data-v="' + k + '"'); };
-      fil('sincam', 'pedido sin camión', 'pedidos sin camión');
-      fil('sinprod', 'pedido con cortes sin pasar a producción', 'pedidos con cortes sin pasar a producción');
-      fil('sinuni', 'pedido con renglones sin unidad (kg / caja / und)', 'pedidos con renglones sin unidad (kg / caja / und)');
-      fil('sinprecio', 'pedido sin precio', 'pedidos sin precio');
-      fil('sincta', 'cliente sin N° de cuenta', 'clientes sin N° de cuenta');
-      var lgf = logDe(f), pubs = (lgf && lgf.pedidos) || [];
-      ((lgf && lgf.camiones) || []).forEach(function (c) { var car = cargaDe(pubs, c.id); if (+c.kg > 0 && car > +c.kg) av.push('<button class="aviso" data-act="ini-log" data-f="' + f + '"><strong>' + esc(nomCam(c)) + '</strong> pasado de peso por ' + n(car - +c.kg) + ' kg <span aria-hidden="true">›</span></button>'); });
-      if (ph.length && !prodDe('op-' + f)) av.push('<button class="aviso" data-act="ini-op" data-f="' + f + '">Falta armar la <strong>orden de producción</strong> <span aria-hidden="true">›</span></button>');
-      html += '<section class="falta"><h3>Lo que falta para el ' + esc(tituloDe(f).toLowerCase()) + '</h3>' + (av.length ? '<div class="avisos">' + av.join('') + '</div>' : (ph.length ? '<p class="todo-ok">✓ Todo al día.</p>' : '<p class="small muted">Todavía no hay pedidos para ese día.</p>')) + '</section>';
+      var m = enProduccion(), sinSumar = 0; ph.forEach(function (p) { cortesDe(p).forEach(function (c) { if (c.texto && !fechaProdDe(m, p, c)) sinSumar++; }); });
+      if (sinSumar) aviso(sinSumar, plural(sinSumar, 'corte sin sumar a producción', 'cortes sin sumar a producción') + ' (' + diaCorto(f) + ')', 'ini-dia', ' data-f="' + f + '"');
+      if (la.s) aviso(la.s, plural(la.s, 'pedido sin camión', 'pedidos sin camión') + ' (' + diaCorto(f) + ')', 'ir', ' data-tab="logistica"');
+      var sinCta = ph.filter(function (p) { return !cuentaPedido(p); }).length; if (sinCta) aviso(sinCta, plural(sinCta, 'cliente sin N° de cuenta', 'clientes sin N° de cuenta') + ' (' + diaCorto(f) + ')', 'ini-dia', ' data-f="' + f + '"');
+      html += av.length ? '<div class="avisos">' + av.join('') + '</div>' : (ph.length ? '<p class="todo-ok">✓ Todo al día para el ' + esc(tituloDe(f).toLowerCase()) + '.</p>' : '');
     }
 
     // Una tarjeta por sección.
@@ -2335,14 +2301,6 @@
       return;
     }
     if (a === 'ir') { irA(D.tab); if (D.ancla) { var an = $(D.ancla); if (an) an.scrollIntoView(); } }
-    else if (a === 'pfil') { S.pfil = D.v || ''; renderPedidos(); }
-    else if (a === 'pfil-tildar') {
-      var mf = enProduccion(), vf = (S.pedidos || []).filter(function (p) { return p.entrega === S.pd && pasaFiltro(p.vendedor) && faltaDe(p, mf)[S.pfil]; });
-      if (S.selDia !== S.pd) { S.sel = {}; S.selDia = S.pd; S.camOtro = false; } vf.forEach(function (p) { S.sel[p.id] = true; }); renderPedidos();
-    }
-    else if (a === 'ini-fil') { S.pd = D.f; S.pfil = D.v || ''; S.abierto = {}; irA('pedidos'); }
-    else if (a === 'ini-op') { S.fecha = D.f; S.fechaFija = true; S.pv = 'op'; irA('produccion'); }
-    else if (a === 'ini-log') { S.fl = D.f; S.ec = null; irA('logistica'); }
     else if (a === 'ini-dia') { S.pd = D.f; S.abierto = {}; irA('pedidos'); }
     else if (a === 'cam-imprimir') {
       // Solo ese camión: los demás se ocultan mientras dura la impresión.
