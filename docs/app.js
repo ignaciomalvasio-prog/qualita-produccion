@@ -694,7 +694,7 @@
   }
   // Logística se imprime como se ve, pero achicada lo justo para usar la menor cantidad de hojas A4:
   // se arma una copia invisible con el estilo de impresión al ancho de la hoja, se mide y se elige el tamaño.
-  var A4_ANCHO = 718, A4_ALTO = 1040, ZOOM_MIN = 0.5;
+  var A4_ANCHO = 718, A4_ALTO = 1040, ZOOM_MIN = 0.85;
   function medirImpresion() {
     return new Promise(function (ok) {
       var css = Array.prototype.map.call(document.querySelectorAll('style'), function (x) { return x.id === 'hoja-impresion' ? '' : x.textContent; }).join('\n').replace(/@media\s+print/g, '@media all');
