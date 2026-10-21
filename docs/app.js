@@ -2051,7 +2051,9 @@
       var kgT = 0, faltaT = false; l.forEach(function (p) { var k = kgPedido(p); kgT += k.kg; if (k.falta) faltaT = true; });
       var pasa = +c.kg > 0 && kgT > +c.kg;
       var tot = l.length ? '<span class="grupo-kg' + (pasa ? ' pasa' : '') + '" title="Kilos que lleva el camión' + (faltaT ? ' (hay renglones sin peso)' : '') + '">≈ ' + n(Math.round(kgT)) + ' kg' + (+c.kg > 0 ? ' <small>de ' + n(+c.kg) + '</small>' : '') + (faltaT ? ' <small>+ sin peso</small>' : '') + '</span>' : '';
-      h += grupo('<span class="badge cam-ped">' + esc(nomCam(c)) + '</span>' + (c.hora ? ' <span class="cam-hora">' + esc(c.hora) + ' hs</span>' : ''), l.length ? resumenLog(l) : 'vacío: arrastrá clientes acá', l, l.length ? '' : 'vacio', c.id, tot);
+      // El horario se pone o se cambia ahí mismo (se guarda al salir del recuadro o con Enter).
+      var horaH = S.editor && !S.solo ? (c.hora || S.horaAbierta === c.id ? ' <input type="time" class="cam-hora cam-hora-in" data-hora-cam="' + esc(c.id) + '" value="' + esc(c.hora || '') + '" aria-label="Horario de salida de ' + esc(nomCam(c)) + '" title="Tocá para cambiar el horario">' : ' <button class="btn sm cam-hora-mas" data-act="hora-abrir" data-id="' + esc(c.id) + '">+ Horario</button>') : (c.hora ? ' <span class="cam-hora">' + esc(c.hora) + ' hs</span>' : '');
+      h += grupo('<span class="badge cam-ped">' + esc(nomCam(c)) + '</span>' + horaH, l.length ? resumenLog(l) : 'vacío: arrastrá clientes acá', l, l.length ? '' : 'vacio', c.id, tot);
     });
     return '<p class="small muted arr-tip">Arrastrá cada cliente desde ⠿ para ordenar la bajada de cada camión (el primero baja primero) o para pasarlo a otro camión.</p>' + h;
   }
@@ -2657,6 +2659,7 @@
       var lv = D.ped ? document.querySelector('#view-logistica .log-ped[data-lp="' + D.ped + '"]') : document.querySelector('#view-logistica section.cam[data-cam="' + D.cam + '"]');
       if (lv) { lv.scrollIntoView({ block: D.ped ? 'center' : 'start', behavior: 'smooth' }); lv.classList.add('destello'); setTimeout(function () { lv.classList.remove('destello'); }, 2200); }
     }
+    else if (a === 'hora-abrir') { S.horaAbierta = D.id; renderPedidos(); var ha = document.querySelector('input[data-hora-cam="' + D.id + '"]'); if (ha) ha.focus(); }
     else if (a === 'nota-abrir') { S.notaAbierta = D.id; render(); var na = document.querySelector('textarea[data-nota-ped="' + D.id + '"]'); if (na) na.focus(); }
     else if (a === 'lbusq-limpiar') { S.lgBuscar = ''; S.lgCamBuscar = ''; render(); var lq = $('lg-buscar'); if (lq) lq.focus(); }
     else if (a === 'busq-limpiar') { S.camBuscar = ''; S.pdBuscar = ''; renderPedidos(); var bq = $('pd-buscar'); if (bq) bq.focus(); }
@@ -2765,6 +2768,14 @@
   });
 
   document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey && e.target && e.target.dataset && e.target.dataset.notaPed) { e.preventDefault(); e.target.blur(); } });
+  document.addEventListener('focusout', function (e) {
+    var t = e.target; if (!t || !t.dataset || !t.dataset.horaCam) return;
+    var idh = t.dataset.horaCam, f = S.pd, c = camionesDe(f).filter(function (x) { return x.id === idh; })[0], v = t.value || '';
+    if (S.horaAbierta === idh) S.horaAbierta = null;
+    if (!c || v === (c.hora || '')) { if (!v) setTimeout(renderPedidos, 0); return; }
+    cambiarCamion(f, idh, c.nombre, c.nota, c.kg, null, v).then(function () { avisar(v ? nomCam(c) + ': sale a las ' + v + ' hs.' : nomCam(c) + ': sin horario.', 2500); renderPedidos(); }, function () { avisar('!No se pudo guardar el horario. Revisá la conexión.', 6000); renderPedidos(); });
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target && e.target.dataset && e.target.dataset.horaCam) { e.preventDefault(); e.target.blur(); } });
   document.addEventListener('focusout', function (e) { var t = e.target; if (t && t.dataset && t.dataset.notaPed && !t.value.trim() && S.notaAbierta === t.dataset.notaPed) { S.notaAbierta = null; setTimeout(render, 0); } });
   document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target && e.target.dataset && e.target.dataset.ctaIn) { e.preventDefault(); var bg = document.querySelector('[data-act="cta-guardar"][data-id="' + e.target.dataset.ctaIn + '"]'); if (bg) bg.click(); } });
   document.addEventListener('input', function (e) {
