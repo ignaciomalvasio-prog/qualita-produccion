@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<meta name="theme-color" content="#005e78">
+<meta name="theme-color" content="#4fa3c5">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Producción">
 <meta property="og:title" content="Producción y Logística Qualitá">
@@ -17,10 +17,10 @@
 <title>Producción y Logística Qualitá</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap">
 <style>
-/* Colores de la marca, tomados del logo: petróleo #005e78, celeste #7ac3f0 y rojo #a5251c. El rojo queda reservado para avisos. */
+/* Colores suaves (opción "celeste claro", elegida por Renzo el 20/10): celeste #4fa3c5 y fondos celestes claros; el petróleo del logo #005e78 queda solo en el logo. El rojo queda reservado para avisos. */
 :root{
-  --bg:#f0f3f5; --surface:#ffffff; --sunken:#e4e9ed; --ink:#12222b; --muted:#52646f; --line:#ccd6dc;
-  --accent:#005e78; --accent-ink:#ffffff; --accent-soft:#e1f1fb; --celeste:#7ac3f0;
+  --bg:#f7fafb; --surface:#ffffff; --sunken:#f0f5f7; --ink:#33444d; --muted:#74858e; --line:#e1e8ec;
+  --accent:#4fa3c5; --accent-ink:#ffffff; --accent-soft:#eef7fb; --celeste:#7ac3f0; --fuerte:#2c7a97; --suave:#e3f2f9;
   --ok:#1c7446; --ok-soft:#dff1e6; --warn:#8a5600; --warn-soft:#fbeed0; --crit:#a5251c; --crit-soft:#f9e1de;
   --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif; --body:"Barlow","Segoe UI",system-ui,sans-serif;
 }
@@ -35,6 +35,16 @@
   --ok:#62cc96; --ok-soft:#143021; --warn:#e8b65c; --warn-soft:#3a2c10; --crit:#f4918a; --crit-soft:#401b19;
   color-scheme:dark }
 
+/* Bloques grandes en celeste claro con letra azul, en vez de bloque oscuro (solo en modo claro). */
+@media not all and (prefers-color-scheme: dark){
+  .cam>.cam-cab,.dash-hero{background:var(--suave)!important;color:var(--fuerte)!important}
+  .cam>.cam-cab .btn{background:#fff}
+  .dash-hero .kpi{background:#fff;border-color:var(--line)} .dash-hero::after{display:none}
+  .kg-ped,.badge.cam-ped,.h-cli:not(.vacio),.badge.cong{background:var(--suave)!important;color:var(--fuerte)!important}
+  .kg-ped small{color:var(--fuerte)!important}
+  .btn[aria-pressed="true"]{background:var(--fuerte)!important;border-color:var(--fuerte)!important;color:#fff!important}
+}
+@media print{ .cam>.cam-cab,.dash-hero{background:none!important;color:#000!important} .kg-ped,.badge.cam-ped,.h-cli,.badge.cong{background:none!important;color:#000!important} }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.4}
