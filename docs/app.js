@@ -493,7 +493,7 @@
   /* Peso de una unidad de cada producto (lo pasó Renzo). Un renglón en unidades ("4 UNIDADES BONDIOLA") se pasa a kilos con esto.
      Se puede cambiar en Logística → Stock de camiones → Editar. El producto se busca en el texto y, si no está, en el corte. */
   // Pesos agregados después: se suman aunque ya haya una lista guardada (si el producto no está en ella).
-  var KG_UNIDAD_NUEVOS = [['PECHO MANTA DOBLE CON CUERO', 7.5], ['PECHO MANTA DOBLE', 6.5], ['PANCETA CON CUERO', 7], ['CINTA DE LOMO', 3.5]];
+  var KG_UNIDAD_NUEVOS = [['PECHO MANTA DOBLE CON CUERO', 7.5], ['PECHO MANTA DOBLE', 6.5], ['PANCETA CON CUERO', 6], ['PANCETA SIN CUERO', 5], ['CINTA DE LOMO', 3.5]];
   var KG_UNIDAD_BASE = [['PECHO', 5], ['CARRE', 5], ['BONDIOLA', 2.5], ['MATAMBRE', 1.5], ['JAMON', 12], ['PALETA', 7.5], ['MEDIA', 50]].concat(KG_UNIDAD_NUEVOS);
   function kgUnidades() {
     return kgUnidadesLista().filter(function (x) { return x[0] && x[1] > 0; }).sort(function (a, b) { return b[0].length - a[0].length; });
@@ -1988,6 +1988,23 @@
     var f = p.frio || '', cls = f === 'CONGELADO' ? 'cong' : f === 'FRESCO' ? 'fresco' : 'nada';
     return '<span class="frio-chip ' + cls + '" data-act="frio-menu" data-id="' + esc(p.id) + '" role="button" tabindex="0" title="Tocá para elegir fresco o congelado">' + (f || '¿Fresco o congelado?') + ' ▾</span>';
   }
+  // Camión, elegible desde el renglón del pedido (al lado de fresco/congelado): se toca y aparecen los camiones del día.
+  function camChipHTML(p) {
+    if (!S.editor || S.solo) return '';
+    var cam = nombreCamion(p.entrega, p.camion);
+    return '<span class="frio-chip cam-chip' + (cam ? ' con' : ' nada') + '" data-act="camp-menu" data-id="' + esc(p.id) + '" role="button" tabindex="0" title="Tocá para ' + (cam ? 'cambiar de camión' : 'sumarlo a un camión') + '">' + (cam ? '🚚 ' + esc(cam) : '+ Sumar a camión') + ' ▾</span>';
+  }
+  function camMenuHTML(p) {
+    var f = p.entrega, cams = camionesDe(f), lg = logDe(f), pubs = (lg && lg.pedidos) || [], fl = flota();
+    var libres = fl.filter(function (c) { return !cams.some(function (d) { return d.id === 'f' + c.id; }); });
+    var b = function (v, t, pri) { return '<button class="btn sm' + (pri ? ' pri' : '') + '" data-act="camp-set" data-id="' + esc(p.id) + '" data-v="' + esc(v) + '">' + t + '</button>'; };
+    return '<div class="frio-menu cam-menu"><span class="small muted">Sumar a:</span>'
+      + cams.map(function (c) { var t = capTxt(c, cargaDe(pubs, c.id)); return b('d:' + c.id, esc(nomCam(c)) + (t ? ' <small>' + esc(t) + '</small>' : ''), p.camion === c.id); }).join('')
+      + libres.map(function (c) { return b('f:' + c.id, esc(nomLimpio(c.nombre)) + (+c.kg ? ' <small>' + n(+c.kg) + ' kg</small>' : '')); }).join('')
+      + '<button class="btn sm" data-act="camp-otro" data-id="' + esc(p.id) + '">Otro camión…</button>'
+      + (p.camion ? b('', 'Sacar del camión') : '')
+      + '<button class="btn sm lnk" data-act="camp-menu" data-id="' + esc(p.id) + '">Cerrar</button></div>';
+  }
   function frioMenuHTML(p) {
     var b = function (v, t) { return '<button class="btn sm' + ((p.frio || '') === v ? ' pri' : '') + '" data-act="frio-set" data-id="' + esc(p.id) + '" data-v="' + v + '">' + t + '</button>'; };
     return '<div class="frio-menu"><span class="small muted">Este pedido es:</span>' + b('FRESCO', 'Fresco') + b('CONGELADO', 'Congelado') + b('', 'Sin aclarar') + '<button class="btn sm lnk" data-act="frio-menu" data-id="' + esc(p.id) + '">Cerrar</button></div>';
@@ -2008,9 +2025,10 @@
     var h = '<div class="ped' + (ab ? ' abierto' : '') + (sel ? ' sel' : '') + '" data-ped="' + id + '"><div class="ped-cab">'
       + (mov ? '<button class="ped-mover" data-parr="' + id + '" aria-label="Arrastrar a ' + esc(p.cliente) + ' para cambiar el orden de bajada (o usar las flechas del teclado)" title="Arrastrar para ordenar">⠿</button>' : '')
       + '<label class="chk"><input type="checkbox" data-sel="' + id + '"' + (sel ? ' checked' : '') + ' aria-label="Tildar el pedido de ' + esc(p.cliente) + ' para un camión"></label>'
-      + '<button class="ped-tit" data-act="ped-abrir" data-id="' + id + '" aria-expanded="' + ab + '"><span class="nom">' + esc(p.cliente || 'Sin cliente') + '</span>' + ctaHTML(cuentaPedido(p), true) + '<span class="res">' + res.join(' · ') + ' ' + frioChipHTML(p) + '</span>'
-      + (cam || (VENDEDORES && p.vendedor) ? '<span class="marcas">' + (VENDEDORES && p.vendedor ? '<span class="badge vend" title="' + esc(p.vendedor) + '">Vendedor: ' + esc(p.vendedorNombre || p.vendedor.split('@')[0]) + '</span>' : '') + (cam ? '<span class="badge cam-ped">' + esc(cam) + '</span>' : '') + '</span>' : '') + '<span class="col-kg">' + kgPedHTML(p) + '</span><span class="col-prod">' + prodBadgeHTML(enP, cs.length) + '</span><span class="chev" aria-hidden="true">' + (ab ? '▴' : '▾') + '</span></button></div>';
+      + '<button class="ped-tit" data-act="ped-abrir" data-id="' + id + '" aria-expanded="' + ab + '"><span class="nom">' + esc(p.cliente || 'Sin cliente') + '</span>' + ctaHTML(cuentaPedido(p), true) + '<span class="res">' + res.join(' · ') + ' ' + frioChipHTML(p) + ' ' + camChipHTML(p) + '</span>'
+      + (cam || (VENDEDORES && p.vendedor) ? '<span class="marcas">' + (VENDEDORES && p.vendedor ? '<span class="badge vend" title="' + esc(p.vendedor) + '">Vendedor: ' + esc(p.vendedorNombre || p.vendedor.split('@')[0]) + '</span>' : '') + (cam && !(S.editor && !S.solo) ? '<span class="badge cam-ped">' + esc(cam) + '</span>' : '') + '</span>' : '') + '<span class="col-kg">' + kgPedHTML(p) + '</span><span class="col-prod">' + prodBadgeHTML(enP, cs.length) + '</span><span class="chev" aria-hidden="true">' + (ab ? '▴' : '▾') + '</span></button></div>';
     if (S.frioMenu === p.id) h += frioMenuHTML(p);
+    if (S.camMenu === p.id) h += camMenuHTML(p);
     if (!ab) return h + '</div>';
     h += '<div class="ped-det">' + elegirCuentaHTML(p) + '<div class="op-ped">';
     if (+p.medias) h += '<p class="lp"><span class="lp-izq"><span class="lc-corte">Medias</span><span class="lc-txt">' + cantHTML(textoMedias(p)) + '</span></span><span class="lp-der">' + precioHTML(p.id, 'm', p.precioMedias, 'las medias', p.ivaMedias) + '</span></p>';
@@ -3132,7 +3150,15 @@
       renderPedidos();
     }
     else if (a === 'e-dia') { var ye = S.entrega; do { ye = mas(ye, +D.d); } while (!esHabil(ye)); S.entrega = ye; S.sel = {}; renderPedidos(); }
-    else if (a === 'frio-menu') { e.preventDefault(); e.stopPropagation(); S.frioMenu = S.frioMenu === D.id ? null : D.id; renderPedidos(); }
+    else if (a === 'camp-menu') { e.preventDefault(); e.stopPropagation(); S.camMenu = S.camMenu === D.id ? null : D.id; S.frioMenu = null; renderPedidos(); }
+    else if (a === 'camp-otro') { e.preventDefault(); e.stopPropagation(); var po = pedidoDe(D.id); S.camMenu = null; if (po) { S.sel = {}; S.sel[po.id] = true; S.selDia = po.entrega; S.camOtro = true; } renderPedidos(); var fco = $('cam-num'); if (fco) fco.focus(); }
+    else if (a === 'camp-set') {
+      e.preventDefault(); e.stopPropagation(); var pc = pedidoDe(D.id); S.camMenu = null; if (!pc) { renderPedidos(); return; }
+      var vc = D.v || '', fc = pc.entrega;
+      (vc.charAt(0) === 'f' ? usarDeFlota(fc, vc.slice(2), [pc.id]) : asignarCamion(fc, [pc.id], vc.slice(2)).then(function () { return { id: vc.slice(2) }; }))
+        .then(function (cam) { avisar(vc ? pc.cliente + ' ' + avisoCamion(fc, cam.id, 1).replace(/^1 pedido en /, 'va en ') : pc.cliente + ' quedó sin camión.', 5000); renderPedidos(); }, function (er) { avisar('!' + ((er && er.message) || 'No se pudo guardar. Revisá la conexión.'), 6000); renderPedidos(); });
+    }
+    else if (a === 'frio-menu') { S.camMenu = null; e.preventDefault(); e.stopPropagation(); S.frioMenu = S.frioMenu === D.id ? null : D.id; renderPedidos(); }
     else if (a === 'frio-set') {
       var pf = pedidoDe(D.id); S.frioMenu = null; if (!pf) { renderPedidos(); return; }
       cambiarFrio(pf, D.v).then(function () { avisar(D.v ? 'Pedido de ' + pf.cliente + ': ' + D.v.toLowerCase() + '.' : 'Pedido de ' + pf.cliente + ': sin aclarar.', 3000); renderPedidos(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); renderPedidos(); });

@@ -10,6 +10,7 @@ const data={faena:{},config:{general:{kgUnidad:[{p:'JAMON',kg:12}]}},privado:{cl
   {corte:'PECHO MANTA DOBLE',lineas:[{t:'2 UND "A"'}]},
   {corte:'PECHO MANTA DOBLE CON CUERO',lineas:[{t:'1 UND "B"'}]},
   {corte:'PANCETA CON CUERO',lineas:[{t:'3 UND "C"'}]},
+  {corte:'PANCETA SIN CUERO',lineas:[{t:'2 UND "E"'}]},
   {corte:'CINTA DE LOMO',lineas:[{t:'4 UND "D"'}]},
   {corte:'CUERO',lineas:[{t:'3 UND CUERO "Y"'},{t:'2 BINES CUERO "Z"'}]}]}}};
 (async()=>{const b=await chromium.launch();

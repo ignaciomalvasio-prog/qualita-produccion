@@ -168,3 +168,5 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Centro de control: la notebook trabaja solo a las 8 y a las 20 h (sube los datos del sistema y manda los mails pendientes de caja e insumos); sin ventana negra.
 - Producción: cada renglón de la planilla se ve como se pidió (unidades, cajas, canastos o kg) y el total del corte es un solo número en kg, con el detalle de lo pedido abajo (ej. "350 kg · 130 kg · 5 cajas · 10 und"). Lo que no tiene peso conocido (bines, unidades sin peso) va aparte.
 - Cortes nuevos: CINTA DE LOMO, PECHO MANTA DOBLE, PECHO MANTA DOBLE CON CUERO, PANCETA CON CUERO y PANCETA SIN CUERO. Peso por unidad: cinta de lomo 3,5 kg, pecho manta doble 6,5, pecho manta doble con cuero 7,5, panceta con cuero 7 (se suman aunque ya haya una lista guardada).
+- Peso por unidad corregido: panceta con cuero 6 kg y panceta sin cuero 5 kg (estimados).
+- Pedidos: al lado de fresco/congelado, un cartelito "+ Sumar a camión" (o el nombre del camión) para sumar el pedido a un camión, cambiarlo, sacarlo o armar uno nuevo, sin tildar.
