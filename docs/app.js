@@ -28,7 +28,7 @@
   var SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
   var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
   var TABS = ['inicio', 'pedidos', 'produccion', 'ciclo3', 'logistica', 'medias', 'rendering', 'clientes', 'camara'];
-  var CORTES_BASE = ['JAMON', 'PALETA', 'PECHO', 'CARRE', 'SOLOMILLO', 'MATAMBRE', 'BONDIOLA', 'RECORTE', 'GRASA BUENA', 'GRASA MALA', 'CUERO', 'TAPA DE PALETA', 'TAPA DE JAMON', 'TORTUGA', 'GARRON', 'TOCINO', 'CHURRASCO', 'PAPADA', 'OREJAS', 'CABEZA', 'PULMON', 'HIGADO', 'PATAS Y MANOS', 'HUESITOS', 'UNTO', 'MENUDENCIAS', 'EMBUTIDOS', 'CHORIZO', 'MORCILLA', 'SALCHICHA'];
+  var CORTES_BASE = ['JAMON', 'PALETA', 'PECHO', 'PECHO MANTA DOBLE', 'PECHO MANTA DOBLE CON CUERO', 'PANCETA CON CUERO', 'PANCETA SIN CUERO', 'CARRE', 'SOLOMILLO', 'CINTA DE LOMO', 'MATAMBRE', 'BONDIOLA', 'RECORTE', 'GRASA BUENA', 'GRASA MALA', 'CUERO', 'TAPA DE PALETA', 'TAPA DE JAMON', 'TORTUGA', 'GARRON', 'TOCINO', 'CHURRASCO', 'PAPADA', 'OREJAS', 'CABEZA', 'PULMON', 'HIGADO', 'PATAS Y MANOS', 'HUESITOS', 'UNTO', 'MENUDENCIAS', 'EMBUTIDOS', 'CHORIZO', 'MORCILLA', 'SALCHICHA'];
 
   var S = {
     faena: null, prod: null, pedidos: null, config: {}, ia: {}, status: 'loading', fuente: '',
@@ -492,11 +492,17 @@
   function kgCanasto() { return +S.config.kgCanasto || 20; }
   /* Peso de una unidad de cada producto (lo pasó Renzo). Un renglón en unidades ("4 UNIDADES BONDIOLA") se pasa a kilos con esto.
      Se puede cambiar en Logística → Stock de camiones → Editar. El producto se busca en el texto y, si no está, en el corte. */
-  var KG_UNIDAD_BASE = [['PECHO', 5], ['CARRE', 5], ['BONDIOLA', 2.5], ['MATAMBRE', 1.5], ['JAMON', 12], ['PALETA', 7.5], ['MEDIA', 50], ['CINTA DE LOMO', 3.5]];
+  // Pesos agregados después: se suman aunque ya haya una lista guardada (si el producto no está en ella).
+  var KG_UNIDAD_NUEVOS = [['PECHO MANTA DOBLE CON CUERO', 7.5], ['PECHO MANTA DOBLE', 6.5], ['PANCETA CON CUERO', 7], ['CINTA DE LOMO', 3.5]];
+  var KG_UNIDAD_BASE = [['PECHO', 5], ['CARRE', 5], ['BONDIOLA', 2.5], ['MATAMBRE', 1.5], ['JAMON', 12], ['PALETA', 7.5], ['MEDIA', 50]].concat(KG_UNIDAD_NUEVOS);
   function kgUnidades() {
     return kgUnidadesLista().filter(function (x) { return x[0] && x[1] > 0; }).sort(function (a, b) { return b[0].length - a[0].length; });
   }
-  function kgUnidadesLista() { return Array.isArray(S.config && S.config.kgUnidad) ? S.config.kgUnidad.map(function (x) { return [norm(x.p), +x.kg || 0]; }) : KG_UNIDAD_BASE; }
+  function kgUnidadesLista() {
+    if (!Array.isArray(S.config && S.config.kgUnidad)) return KG_UNIDAD_BASE;
+    var l = S.config.kgUnidad.map(function (x) { return [norm(x.p), +x.kg || 0]; }), hay = {}; l.forEach(function (x) { hay[x[0]] = 1; });
+    return l.concat(KG_UNIDAD_NUEVOS.filter(function (x) { return !hay[x[0]]; }));
+  }
   function kgUnidadDe(texto, corte) {
     var l = kgUnidades(), busca = function (t) { t = ' ' + norm(t) + ' '; for (var i = 0; i < l.length; i++) { if (new RegExp('[^A-Z]' + l[i][0].replace(/ /g, '\\s+') + '(S|ES)?[^A-Z]').test(t)) return l[i][1]; } return 0; };
     return busca(texto) || (corte ? busca(corte) : 0);

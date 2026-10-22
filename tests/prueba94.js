@@ -2,11 +2,15 @@
 // y el total del corte es un solo número en kilos, con el detalle de lo pedido abajo.
 const {chromium}=require('playwright');const SP=process.argv[2];
 const F='2026-10-22';
-const data={faena:{},config:{general:{}},privado:{clientes:{lista:[]}},pedidos:{},
+const data={faena:{},config:{general:{kgUnidad:[{p:'JAMON',kg:12}]}},privado:{clientes:{lista:[]}},pedidos:{},
  produccion:{[F]:{medias:120,mercado:'',estado:'borrador',cortes:[
   {corte:'JAMON',lineas:[{t:'5 CAJAS NALGA "GRION"'},{t:'10 UND JAMON 5M "ROVER"'},{t:'130KG JAMON CON HUESO "DINO"'}]},
   {corte:'PECHO',lineas:[{t:'100KG COSTILLA "GRION"'},{t:'4 CANASTOS PECHITO CON MANTA "ROVER"'}]},
   {corte:'PALETA',lineas:[{t:'50KG PALETA "X"'}]},
+  {corte:'PECHO MANTA DOBLE',lineas:[{t:'2 UND "A"'}]},
+  {corte:'PECHO MANTA DOBLE CON CUERO',lineas:[{t:'1 UND "B"'}]},
+  {corte:'PANCETA CON CUERO',lineas:[{t:'3 UND "C"'}]},
+  {corte:'CINTA DE LOMO',lineas:[{t:'4 UND "D"'}]},
   {corte:'CUERO',lineas:[{t:'3 UND CUERO "Y"'},{t:'2 BINES CUERO "Z"'}]}]}}};
 (async()=>{const b=await chromium.launch();
 for(const w of [1100,400]){const p=await b.newPage({viewport:{width:w,height:900}});const errs=[];p.on('pageerror',e=>errs.push(e.message));
