@@ -1,0 +1,117 @@
+/**
+ * Puente entre la pestaña Cámara de la app Qualitá y la Google Sheet "FAENA POR DÍA" (hoja "Faena-Desposte").
+ * Se instala DENTRO de la planilla: Extensiones → Apps Script → pegar este código → Implementar como aplicación web
+ * (ejecutar como: yo; acceso: cualquier persona). La primera vez que la app se conecta recibe una clave propia;
+ * desde ahí solo acepta pedidos con esa clave. Para desvincular: Configuración del proyecto → Propiedades → borrar TOKEN.
+ *
+ * Cada semana es un bloque de 12 filas (como la planilla original):
+ *   fila m: mes · m+1: "Lunes DD" ... · m+2: PROPIOS · m+3: USUARIO · m+5: VENTA · m+7: REMANENTE (con el
+ *   desposte del día siguiente al lado) · m+9: medias en cámara (y la nota en la columna P).
+ * Día i (0 = lunes): valor en la columna 3i+2 y, en la fila del remanente, el desposte del día siguiente en 3i+3.
+ */
+var HOJA = 'Faena-Desposte', ALTO = 12;
+var MESES = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
+var DIAS = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes'];
+
+function doGet(e) { return salida_(manejar_((e && e.parameter) || {}, null)); }
+function doPost(e) {
+  var b = {};
+  try { b = JSON.parse((e && e.postData && e.postData.contents) || '{}'); } catch (x) { return salida_({ ok: false, error: 'pedido ilegible' }); }
+  return salida_(manejar_(b, b));
+}
+function salida_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
+
+function manejar_(p, cuerpo) {
+  var pr = PropertiesService.getScriptProperties(), tk = pr.getProperty('TOKEN');
+  if (!tk) {
+    if (p.accion !== 'vincular') return { ok: false, error: 'sin vincular' };
+    tk = Utilities.getUuid(); pr.setProperty('TOKEN', tk);
+    return { ok: true, token: tk, semanas: leer_(hoja_()) };
+  }
+  if (p.k !== tk) return { ok: false, error: 'clave incorrecta' };
+  var lock = LockService.getScriptLock(); lock.waitLock(25000);
+  try {
+    var sh = hoja_();
+    if (cuerpo && cuerpo.semanas && cuerpo.semanas.length) escribir_(sh, cuerpo.semanas);
+    return { ok: true, semanas: leer_(sh) };
+  } finally { lock.releaseLock(); }
+}
+function hoja_() { var ss = SpreadsheetApp.getActive(); return ss.getSheetByName(HOJA) || ss.getSheets()[0]; }
+
+function norm_(s) { return String(s == null ? '' : s).toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim(); }
+function iso_(d) { return Utilities.formatDate(d, 'GMT', 'yyyy-MM-dd'); }
+function num_(v) { if (v === '' || v == null) return null; var n = Number(v); return isNaN(n) ? null : n; }
+
+// Bloques de la hoja: fila del mes (1-based) y el lunes (AAAA-MM-DD). El año es el más cercano a hoy en que esa fecha cae lunes.
+function bloques_(vals) {
+  var hoy = new Date(), out = [], prev = null;
+  for (var r = 0; r < vals.length; r++) {
+    var m = norm_(vals[r][0]).match(/^LUNES\s*(\d{1,2})$/); if (!m) continue;
+    var dia = +m[1], mes = r > 0 ? MESES.indexOf(norm_(vals[r - 1][0])) : -1, lun = null;
+    if (mes >= 0) {
+      var mejor = null;
+      for (var y = hoy.getFullYear() - 4; y <= hoy.getFullYear() + 1; y++) {
+        var d = new Date(Date.UTC(y, mes, dia));
+        if (d.getUTCDay() === 1 && d.getUTCMonth() === mes) { var dif = Math.abs(d - hoy); if (!mejor || dif < mejor.dif) mejor = { d: d, dif: dif }; }
+      }
+      if (mejor) lun = iso_(mejor.d);
+    }
+    if (!lun && prev) { var pd = new Date(prev + 'T00:00:00Z'); pd.setUTCDate(pd.getUTCDate() + 7); lun = iso_(pd); }
+    if (!lun) continue;
+    out.push({ m: r - 1, lunes: lun }); prev = lun;   // m: índice 0-based de la fila del mes (la de arriba de "Lunes")
+  }
+  return out;
+}
+
+function leer_(sh) {
+  var rg = sh.getDataRange(), vals = rg.getValues(), fs = rg.getFormulas(), out = [];
+  var v = function (r, c) { return r < vals.length && c < vals[r].length ? vals[r][c] : ''; };
+  var f = function (r, c) { return r < fs.length && c < fs[r].length ? fs[r][c] : ''; };
+  bloques_(vals).forEach(function (b) {
+    var m = b.m, dias = [];
+    for (var i = 0; i < 5; i++) {
+      var c = 3 * i + 1;   // 0-based: columna del valor del día
+      var remF = f(m + 7, c), x = { propios: num_(v(m + 2, c)), usuario: num_(v(m + 3, c)), venta: num_(v(m + 5, c)), despSig: num_(v(m + 7, c + 1)) };
+      if (!remF) x.rem = num_(v(m + 7, c));   // remanente escrito a mano (sin fórmula)
+      dias.push(x);
+    }
+    var nota = String(v(m + 9, 15) || '').trim();
+    out.push({ lunes: b.lunes, dias: dias, nota: nota });
+  });
+  return out;
+}
+
+// Escribe semanas completas. Si una semana no existe, se agregan bloques al final copiando el último (con su formato y fórmulas).
+function escribir_(sh, semanas) {
+  semanas = semanas.slice().sort(function (a, b) { return a.lunes < b.lunes ? -1 : 1; });
+  semanas.forEach(function (w) {
+    var bl = bloques_(sh.getDataRange().getValues()), b = bl.filter(function (x) { return x.lunes === w.lunes; })[0];
+    while (!b && bl.length && bl[bl.length - 1].lunes < w.lunes) { b = agregar_(sh, bl[bl.length - 1]); bl.push(b); if (b.lunes !== w.lunes) b = null; }
+    if (!b) return;   // semanas anteriores a la primera de la hoja no se agregan
+    var m = b.m + 1;  // 1-based
+    (w.dias || []).slice(0, 5).forEach(function (d, i) {
+      var c = 3 * i + 2;
+      if ('propios' in d) sh.getRange(m + 2, c).setValue(d.propios == null ? '' : d.propios);
+      if ('usuario' in d) sh.getRange(m + 3, c).setValue(d.usuario ? d.usuario : '');
+      if ('venta' in d) sh.getRange(m + 5, c).setValue(d.venta == null ? '' : d.venta);
+      if ('despSig' in d) sh.getRange(m + 7, c + 1).setValue(d.despSig == null ? '' : d.despSig);
+      if ('rem' in d) {
+        var cel = sh.getRange(m + 7, c);
+        if (d.rem != null) cel.setValue(d.rem);
+        else if (i > 0) cel.setFormulaR1C1('=R[1]C[-3]-R[0]C[-2]');          // disponible del día anterior − desposte
+        else if (m > ALTO) cel.setFormulaR1C1('=R[-' + ALTO + ']C[14]');       // lunes: remanente final de la semana anterior (columna P)
+      }
+    });
+    if ('nota' in w) sh.getRange(m + 9, 16).setValue(w.nota || '');
+  });
+}
+function agregar_(sh, ult) {
+  var origen = ult.m + 1, destino = origen + ALTO, falta = destino + ALTO - 1 - sh.getMaxRows();
+  if (falta > 0) sh.insertRowsAfter(sh.getMaxRows(), falta);
+  sh.getRange(origen, 1, ALTO, 18).copyTo(sh.getRange(destino, 1, ALTO, 18));
+  var lun = new Date(ult.lunes + 'T00:00:00Z'); lun.setUTCDate(lun.getUTCDate() + 7);
+  sh.getRange(destino, 1).setValue(MESES[lun.getUTCMonth()]);
+  for (var i = 0; i < 5; i++) { var d = new Date(lun); d.setUTCDate(lun.getUTCDate() + i); sh.getRange(destino + 1, 3 * i + 1).setValue(DIAS[i] + ' ' + ('0' + d.getUTCDate()).slice(-2)); }
+  sh.getRange(destino + 9, 16).setValue('');
+  return { m: destino - 1, lunes: iso_(lun) };
+}

@@ -2493,8 +2493,9 @@
       + '<span class="cam-acc"><button class="btn step" data-act="cam-sem" data-d="-7" aria-label="Semana anterior">‹</button>'
       + (L !== lunesDe(camDiaRef()) ? '<button class="btn" data-act="cam-hoy">Esta semana</button>' : '')
       + '<button class="btn step" data-act="cam-sem" data-d="7" aria-label="Semana siguiente">›</button>'
-      + '<button class="btn" data-act="cam-pegar">' + (S.camPegar ? 'Cerrar' : 'Pegar desde la planilla') + '</button><button class="btn" data-act="imprimir">Imprimir</button></span></div>';
+      + (camSheet() ? '' : '<button class="btn" data-act="cam-sheet">Conectar Google Sheet</button>') + '<button class="btn" data-act="cam-pegar">' + (S.camPegar ? 'Cerrar' : 'Pegar desde la planilla') + '</button><button class="btn" data-act="imprimir">Imprimir</button></span></div>';
     if (S.camLink) { var dl = camDesdeLink(S.camLink); S.camLink = null; if (dl && dl.length) { S.camPrev = dl; S.camPegar = true; S.camDeLink = true; } }
+    h += camSheetHTML();
     if (S.camPegar || vacio) h += camPegarHTML(vacio);
     if (!vacio) {
       var fila = function (lab, cls, celda, tot) {
@@ -2523,6 +2524,7 @@
         + '<p class="small muted cam-tip">Hasta fin de año ya viene cargado de base: faena 680 por día (viernes 520 + 160 de usuario), la venta y el desposte habituales, y los feriados en rojo sin faena ni desposte. Tocá cualquier número de propios, usuario, venta, desposte o remanente para cambiarlo; todo lo demás se recalcula solo.</p>';
     }
     el.innerHTML = h;
+    camTraer();
   }
   function camPegarHTML(vacio) {
     var prev = S.camPrev;
@@ -2598,7 +2600,7 @@
       if (w.nota) doc.nota = w.nota;
       t.push(store.set('privado', 'camara-' + w.lunes, doc));
     });
-    return Promise.all(t);
+    return Promise.all(t).then(function (r) { camMandar(camSheet() ? sem.map(function (w) { return w.lunes; }) : []); return r; });
   }
   function camGuardarCelda(f, k, txt) {
     var L = lunesDe(f), i = Math.round((fecha(f) - fecha(L)) / 864e5), doc = clone((S.cam || {})[L] || { dias: [] }); delete doc.id;
@@ -2606,7 +2608,102 @@
     var v = String(txt || '').trim() === '' ? null : numero(String(txt).replace(/\s/g, '').replace(/,(\d+)$/, '.$1'));
     if (v == null || isNaN(v)) delete doc.dias[i][k]; else doc.dias[i][k] = v;
     S.cam = S.cam || {}; var nuevo = clone(doc); nuevo.id = L; S.cam[L] = nuevo;
-    return store.set('privado', 'camara-' + L, doc);
+    return store.set('privado', 'camara-' + L, doc).then(function (r) { camMandar(camSheet() ? [L] : []); return r; });
+  }
+
+  /* ---------- Cámara ↔ Google Sheet ----------
+     Un programita instalado dentro de la planilla "FAENA POR DÍA" (Apps Script, ver camara-sheet.txt) hace de puente.
+     Lo que se cambia acá se escribe en la planilla y, cada tanto (y al abrir la pestaña), se trae lo de la planilla. */
+  function camSheet() { var a = (S.cam || {}).ajustes; return a && a.sheet && a.sheet.url && a.sheet.k ? a.sheet : null; }
+  function camAjustes(cambios) { var a = clone((S.cam || {}).ajustes || {}); delete a.id; Object.keys(cambios).forEach(function (k) { if (cambios[k] == null) delete a[k]; else a[k] = cambios[k]; }); S.cam = S.cam || {}; var n2 = clone(a); n2.id = 'ajustes'; S.cam.ajustes = n2; return store.set('privado', 'camara-ajustes', a); }
+  function camPedir(url, cuerpo) {
+    if (window.__mock && window.__mock.hoja) return Promise.resolve().then(function () { return JSON.parse(JSON.stringify(window.__mock.hoja(url, cuerpo ? JSON.parse(JSON.stringify(cuerpo)) : null))); });
+    var op = cuerpo ? { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(cuerpo), redirect: 'follow' } : { redirect: 'follow' };
+    return fetch(url, op).then(function (r) { if (!r.ok) throw new Error('http ' + r.status); return r.json(); });
+  }
+  function camDocDeHoja(w) {
+    var doc = { dias: (w.dias || []).slice(0, 5).map(function (d) { var x = {}; ['propios', 'usuario', 'venta', 'despSig', 'rem'].forEach(function (k) { var v = camNum(d[k]); if (v != null && !(k === 'usuario' && v === 0)) x[k] = v; }); return x; }) };
+    if (w.nota) doc.nota = String(w.nota); return doc;
+  }
+  function camSinId(d) { var x = clone(d || {}); delete x.id; (x.dias || []).forEach(function (y) { if (y && y.usuario === 0) delete y.usuario; }); return JSON.stringify(x); }
+  // Guarda en la app lo que vino de la planilla (solo las semanas que cambiaron).
+  function camAplicarHoja(semanas) {
+    var t = []; S.cam = S.cam || {};
+    (semanas || []).forEach(function (w) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(w.lunes || '')) return;
+      var doc = camDocDeHoja(w); if (!doc.dias.some(function (d) { return Object.keys(d).length; })) return;
+      if (camSinId(doc) === camSinId(S.cam[w.lunes])) return;
+      var n2 = clone(doc); n2.id = w.lunes; S.cam[w.lunes] = n2; t.push(store.set('privado', 'camara-' + w.lunes, doc));
+    });
+    return Promise.all(t).then(function () { return t.length; });
+  }
+  // Lo que se manda a la planilla de una semana: los números que se ven en pantalla y el remanente solo si está escrito a mano.
+  function camSemanaParaHoja(L, c) {
+    c = c || camCalc(mas(L, 7)); var doc = (S.cam || {})[L] || {};
+    var w = { lunes: L, dias: [0, 1, 2, 3, 4].map(function (i) { var f = mas(L, i), o = c.dias[f] || {}, g = (doc.dias || [])[i] || {}; return { propios: o.propios == null ? null : o.propios, usuario: o.usuario || null, venta: o.venta == null ? null : o.venta, despSig: o.despSig == null ? null : o.despSig, rem: camNum(g.rem) }; }) };
+    w.nota = doc.nota || ''; return w;
+  }
+  function camHora() { var d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+  function camEstado(txt, mal) { S.camSyncMsg = { t: txt, mal: !!mal }; var e = document.querySelector('.cam-sync-est'); if (e) { e.textContent = txt; e.classList.toggle('neg', !!mal); } }
+  function camTraer(forzar) {
+    var sh = camSheet(); if (!sh || S.camEnv || (!forzar && S.camTraido && Date.now() - S.camTraido < 45000)) return Promise.resolve();
+    S.camTraido = Date.now(); var gen = S.camGen || 0;
+    return camPedir(sh.url + (sh.url.indexOf('?') < 0 ? '?' : '&') + 'k=' + encodeURIComponent(sh.k)).then(function (r) {
+      if (!r || !r.ok) { camEstado('No pude leer tu Google Sheet' + (r && r.error ? ' (' + r.error + ')' : '') + '.', true); return; }
+      if ((S.camGen || 0) !== gen || S.camEnv) return;   // mientras tanto se cambió algo acá: vale lo de acá
+      return camAplicarHoja(r.semanas).then(function (k) { camEstado('Sincronizado con tu Google Sheet · ' + camHora()); if (k && S.tab === 'camara' && !escribiendo() && !S.camPegar) renderCamara(); });
+    }, function () { camEstado('No pude conectarme con tu Google Sheet. Revisá internet.', true); });
+  }
+  // Manda semanas a la planilla (una tanda por vez) y guarda lo que la planilla devuelve.
+  function camMandar(lunes) {
+    var sh = camSheet(); if (!sh || !lunes || !lunes.length) return Promise.resolve();
+    S.camGen = (S.camGen || 0) + 1; S.camCola = (S.camCola || []).concat(lunes);
+    if (S.camEnv) return S.camEnv;
+    var paso = function () {
+      var l = (S.camCola || []).filter(function (x, i, a) { return a.indexOf(x) === i; }).sort(); S.camCola = [];
+      if (!l.length) { S.camEnv = null; return Promise.resolve(); }
+      var c = camCalc(mas(l[l.length - 1], 7)), gen = S.camGen;
+      camEstado('Guardando en tu Google Sheet…');
+      return camPedir(sh.url, { k: sh.k, semanas: l.map(function (L) { return camSemanaParaHoja(L, c); }) }).then(function (r) {
+        if (!r || !r.ok) { camEstado('No se pudo escribir en tu Google Sheet' + (r && r.error ? ' (' + r.error + ')' : '') + '.', true); return; }
+        S.camTraido = Date.now();
+        if (S.camGen === gen && !(S.camCola || []).length) return camAplicarHoja(r.semanas).then(function () { camEstado('Sincronizado con tu Google Sheet · ' + camHora()); });
+        camEstado('Sincronizado con tu Google Sheet · ' + camHora());
+      }, function () { camEstado('No pude conectarme con tu Google Sheet. El cambio quedó guardado acá.', true); }).then(paso);
+    };
+    S.camEnv = paso(); return S.camEnv;
+  }
+  // Conectar: se vincula (la planilla da una clave), se trae la planilla y se completan en ella las semanas que faltan hasta fin de año.
+  function camConectar(url) {
+    url = String(url || '').trim();
+    if (!/^https:\/\/script\.google(usercontent)?\.com\/.+/.test(url)) { S.camSheetErr = 'Ese link no parece el de la aplicación web. Tiene que empezar con https://script.google.com/'; renderCamara(); return Promise.resolve(); }
+    S.camSheetErr = ''; S.camConectando = true; renderCamara();
+    return camPedir(url + (url.indexOf('?') < 0 ? '?' : '&') + 'accion=vincular').then(function (r) {
+      if (!r || !r.ok || !r.token) { S.camConectando = false; S.camSheetErr = r && r.error === 'clave incorrecta' ? 'Esa planilla ya estaba conectada. En Apps Script → Configuración del proyecto → Propiedades del script, borrá TOKEN y probá de nuevo.' : 'La planilla no respondió bien. Revisá que hayas pegado el código completo.'; renderCamara(); return; }
+      return camAjustes({ sheet: { url: url, k: r.token, desde: hoy() } }).then(function () { return camAplicarHoja(r.semanas); }).then(function () {
+        var ult = (r.semanas || []).map(function (w) { return w.lunes; }).sort().pop(), faltan = [];
+        if (ult) for (var L = mas(ult, 7); L <= lunesDe(CAM_FIJO.hasta); L = mas(L, 7)) faltan.push(L);
+        S.camConectando = false; S.camSheetAbierto = false; S.camTraido = Date.now();
+        camEstado('Conectado: ' + (r.semanas || []).length + ' semanas traídas de tu Google Sheet' + (faltan.length ? '; completando ' + faltan.length + ' semanas hasta fin de año…' : '.'));
+        renderCamara(); return camMandar(faltan).then(function () { if (S.tab === 'camara' && !escribiendo()) renderCamara(); });
+      });
+    }, function () { S.camConectando = false; S.camSheetErr = 'No pude conectarme. Revisá que en "Quién tiene acceso" hayas elegido "Cualquier persona".'; renderCamara(); });
+  }
+  function camSheetHTML() {
+    var sh = camSheet(), m = S.camSyncMsg;
+    if (!S.camSheetAbierto) return sh ? '<p class="cam-sync"><span class="cam-sync-ico" aria-hidden="true">⇄</span> <span class="cam-sync-est' + (m && m.mal ? ' neg' : '') + '">' + esc(m ? m.t : 'Conectado con tu Google Sheet') + '</span> <button class="btn sm" data-act="cam-sync-ya">Traer ahora</button> <button class="btn sm" data-act="cam-sheet">Opciones</button></p>' : '';
+    if (sh) return '<div class="panel cam-pegar cam-sheet"><h3>Google Sheet conectada</h3><p class="small">Lo que cambies acá se escribe en tu planilla "FAENA POR DÍA", y lo que cambies en la planilla aparece acá (al abrir esta pestaña y cada minuto).</p><div class="acciones"><button class="btn" data-act="cam-sync-ya">Traer ahora</button><button class="btn" data-act="cam-sheet-subir">Mandar esta semana a la planilla</button><button class="btn" data-act="cam-sheet-quitar">' + (S._c2 === 'cam-sheet-quitar' ? '¿Seguro? Tocá de nuevo' : 'Desconectar') + '</button><button class="btn" data-act="cam-sheet">Cerrar</button></div></div>';
+    return '<div class="panel cam-pegar cam-sheet"><h3>Conectar con tu Google Sheet</h3>'
+      + '<p class="small">Se hace una sola vez, desde la compu (unos 5 minutos). Después se sincroniza solo, en los dos sentidos.</p>'
+      + '<ol class="small"><li>Tocá <button class="btn sm" data-act="cam-sheet-copiar">Copiar el código</button>' + (S.camCopiado ? ' <b>✓ Copiado</b>' : '') + '</li>'
+      + '<li>Abrí tu planilla "FAENA POR DÍA" → menú <b>Extensiones → Apps Script</b>.</li>'
+      + '<li>Borrá lo que aparece escrito, pegá el código (Ctrl+V) y tocá el disquete 💾 para guardar.</li>'
+      + '<li>Arriba a la derecha: <b>Implementar → Nueva implementación</b>. En el engranaje elegí <b>Aplicación web</b>. "Ejecutar como": <b>Yo</b>. "Quién tiene acceso": <b>Cualquier persona</b>. Tocá <b>Implementar</b>.</li>'
+      + '<li>Google te pide permiso: <b>Autorizar acceso</b> → tu cuenta → si dice "Google no verificó esta app", tocá <b>Configuración avanzada → Ir a … (no seguro)</b> → <b>Permitir</b>. Es tu propio programa y solo toca esta planilla.</li>'
+      + '<li>Copiá la <b>URL de la aplicación web</b> y pegala acá:</li></ol>'
+      + '<input id="cam-sheet-url" placeholder="https://script.google.com/macros/s/…/exec" value="' + esc(S.camSheetUrl || '') + '">'
+      + (S.camSheetErr ? '<p class="cam-prev neg">' + esc(S.camSheetErr) + '</p>' : '')
+      + '<div class="acciones"><button class="btn pri" data-act="cam-sheet-conectar"' + (S.camConectando ? ' disabled' : '') + '>' + (S.camConectando ? 'Conectando…' : 'Conectar') + '</button><button class="btn" data-act="cam-sheet">Cancelar</button></div></div>';
   }
 
   /* ---------- inicio ---------- */
@@ -2953,6 +3050,12 @@
       if (lv) { lv.scrollIntoView({ block: D.ped ? 'center' : 'start', behavior: 'smooth' }); lv.classList.add('destello'); setTimeout(function () { lv.classList.remove('destello'); }, 2200); }
     }
     else if (a === 'hora-abrir') { S.horaAbierta = D.id; renderPedidos(); var ha = document.querySelector('input[data-hora-cam="' + D.id + '"]'); if (ha) ha.focus(); }
+    else if (a === 'cam-sheet') { S.camSheetAbierto = !S.camSheetAbierto; S.camSheetErr = ''; renderCamara(); var cu = $('cam-sheet-url'); if (cu) cu.focus(); }
+    else if (a === 'cam-sheet-copiar') { fetch('camara-sheet.txt', { cache: 'no-store' }).then(function (r) { return r.text(); }).then(function (t) { return navigator.clipboard.writeText(t); }).then(function () { S.camCopiado = true; renderCamara(); }, function () { window.open('camara-sheet.txt', '_blank'); }); }
+    else if (a === 'cam-sheet-conectar') { var cu2 = $('cam-sheet-url'); S.camSheetUrl = cu2 ? cu2.value : ''; camConectar(S.camSheetUrl); }
+    else if (a === 'cam-sync-ya') { camEstado('Trayendo tu Google Sheet…'); camTraer(true); }
+    else if (a === 'cam-sheet-subir') { camMandar([S.camLun || lunesDe(camDiaRef())]); S.camSheetAbierto = false; renderCamara(); }
+    else if (a === 'cam-sheet-quitar') { if (!confirma('cam-sheet-quitar')) { renderCamara(); return; } camAjustes({ sheet: null }).then(function () { S.camSheetAbierto = false; S.camSyncMsg = null; renderCamara(); }); }
     else if (a === 'cam-sem') { S.camLun = mas(S.camLun || lunesDe(camDiaRef()), +D.d); render(); }
     else if (a === 'cam-hoy') { S.camLun = lunesDe(camDiaRef()); render(); }
     else if (a === 'cam-pegar') { S.camPegar = !S.camPegar; S.camPrev = null; S.camDeLink = false; render(); var ct = $('cam-txt'); if (ct) ct.focus(); }
@@ -3233,8 +3336,8 @@
       setTimeout(redib, 0);
       return;
     }
-    if (t.id === 'cam-cap') { var cv = +String(t.value).replace(/\D/g, ''); if (cv > 0) store.set('privado', 'camara-ajustes', { capacidad: cv }).then(function () { renderCamara(); }); return; }
-    if (t.id === 'cam-nota') { var Ln = S.camLun, dn = clone((S.cam || {})[Ln] || { dias: [] }); delete dn.id; dn.nota = t.value.trim(); if (!dn.nota) delete dn.nota; store.set('privado', 'camara-' + Ln, dn); return; }
+    if (t.id === 'cam-cap') { var cv = +String(t.value).replace(/\D/g, ''); if (cv > 0) camAjustes({ capacidad: cv }).then(function () { renderCamara(); }); return; }
+    if (t.id === 'cam-nota') { var Ln = S.camLun, dn = clone((S.cam || {})[Ln] || { dias: [] }); delete dn.id; dn.nota = t.value.trim(); if (!dn.nota) delete dn.nota; S.cam = S.cam || {}; var dn2 = clone(dn); dn2.id = Ln; S.cam[Ln] = dn2; store.set('privado', 'camara-' + Ln, dn).then(function () { camMandar(camSheet() ? [Ln] : []); }); return; }
     if (D.notaPed) {
       var pn = pedidoDe(D.notaPed), vn = t.value.replace(/\s+/g, ' ').trim(); if (S.notaAbierta === D.notaPed) S.notaAbierta = null;
       if (!pn || vn === String(pn.nota || '').trim()) { if (!vn) render(); return; }
@@ -3685,6 +3788,8 @@
     setInterval(revisarVersion, 5 * 60 * 1000);
     setInterval(aplicarVersion, 20 * 1000);
     document.addEventListener('visibilitychange', function () { if (!document.hidden) revisarVersion(); });
+    setInterval(function () { if (S.tab === 'camara' && S.camaraOk && !document.hidden && !escribiendo()) camTraer(); }, 60000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden && S.tab === 'camara' && S.camaraOk) camTraer(); });
   }
 
   function boot() {
