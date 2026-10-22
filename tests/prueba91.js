@@ -43,7 +43,7 @@ for(const w of [1100,400]){const p=await b.newPage({viewport:{width:w,height:900
  const esp=T.esp.filter(x=>x.f>='2026-10-19'&&x.f<='2026-10-23');console.log('   esperado remanente:',esp.map(x=>x.rem).join(' | '),'· cámara:',esp.map(x=>x.cam).join(' | '));
  // Corregir la venta del miércoles y ver que el jueves se recalcula.
  const inp=p.locator('.cam-in[data-cf="venta"][data-f="2026-10-21"]');await inp.fill('200');await inp.press('Enter');await p.clock.runFor(500);await p.waitForTimeout(200);
- console.log('venta mié 200 → remanente:',await fila('REMANENTE'),'· guardado:',await p.evaluate(()=>JSON.stringify(window.__mock.data.camara['2026-10-19'].dias[2])));
+ console.log('venta mié 200 → remanente:',await fila('REMANENTE'),'· guardado:',await p.evaluate(()=>JSON.stringify(window.__mock.data.privado['camara-2026-10-19'].dias[2])));
  // Remanente a mano y volver al calculado.
  const rm=p.locator('.cam-in[data-cf="rem"][data-f="2026-10-22"]');await rm.fill('1000');await rm.press('Enter');await p.waitForTimeout(200);console.log('rem jue a mano 1000 →',await fila('REMANENTE'));
  await p.locator('.cam-in[data-cf="rem"][data-f="2026-10-22"]').fill('');await p.locator('.cam-in[data-cf="rem"][data-f="2026-10-22"]').press('Enter');await p.waitForTimeout(200);console.log('borrado → vuelve:',await fila('REMANENTE'));

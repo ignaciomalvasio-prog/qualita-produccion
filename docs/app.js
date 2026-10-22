@@ -2409,6 +2409,10 @@
      Se guarda por semana en /camara/{lunes} (solo lo que se cargó o corrigió); lo que falta sale de Medias y Producción.
      Remanente(d) = disponible del día hábil anterior − desposte de ese día (o el que se haya escrito a mano). */
   var CAM_CAMPOS = ['propios', 'usuario', 'venta', 'despSig', 'rem'];
+  // Por decisión de Renzo, los datos van en privado/camara-* (los editores pueden leer esa sección; la app no los muestra).
+  // La pestaña la ve solo la cuenta cuya huella SHA-256 del mail figura acá (así el mail no queda escrito en el código público).
+  var CAM_CUENTAS = ['e1417b75ad72765061993805221de0f56d6d0bbac14792ef4defa3bb1b628355'];
+  function huella(t) { return crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(t || '').trim().toLowerCase())).then(function (b) { return Array.prototype.map.call(new Uint8Array(b), function (x) { return ('0' + x.toString(16)).slice(-2); }).join(''); }); }
   function camCap() { var a = (S.cam || {}).ajustes; return a && +a.capacidad > 0 ? +a.capacidad : 2250; }
   function camSemanas() { return Object.keys(S.cam || {}).filter(function (k) { return /^\d{4}-\d{2}-\d{2}$/.test(k); }).sort(); }
   function camGuardado(f) { var l = lunesDe(f), d = (S.cam || {})[l], i = Math.round((fecha(f) - fecha(l)) / 864e5); return d && d.dias && d.dias[i] ? d.dias[i] : {}; }
@@ -2567,7 +2571,7 @@
         prevDisp = ((d.propios || 0) - (d.venta || 0)) * 2 + rem; prevDesp = d.despSig;
       });
       if (w.nota) doc.nota = w.nota;
-      t.push(store.set('camara', w.lunes, doc));
+      t.push(store.set('privado', 'camara-' + w.lunes, doc));
     });
     return Promise.all(t);
   }
@@ -2577,7 +2581,7 @@
     var v = String(txt || '').trim() === '' ? null : numero(String(txt).replace(/\s/g, '').replace(/,(\d+)$/, '.$1'));
     if (v == null || isNaN(v)) delete doc.dias[i][k]; else doc.dias[i][k] = v;
     S.cam = S.cam || {}; var nuevo = clone(doc); nuevo.id = L; S.cam[L] = nuevo;
-    return store.set('camara', L, doc);
+    return store.set('privado', 'camara-' + L, doc);
   }
 
   /* ---------- inicio ---------- */
@@ -3204,8 +3208,8 @@
       setTimeout(redib, 0);
       return;
     }
-    if (t.id === 'cam-cap') { var cv = +String(t.value).replace(/\D/g, ''); if (cv > 0) store.set('camara', 'ajustes', { capacidad: cv }).then(function () { renderCamara(); }); return; }
-    if (t.id === 'cam-nota') { var Ln = S.camLun, dn = clone((S.cam || {})[Ln] || { dias: [] }); delete dn.id; dn.nota = t.value.trim(); if (!dn.nota) delete dn.nota; store.set('camara', Ln, dn); return; }
+    if (t.id === 'cam-cap') { var cv = +String(t.value).replace(/\D/g, ''); if (cv > 0) store.set('privado', 'camara-ajustes', { capacidad: cv }).then(function () { renderCamara(); }); return; }
+    if (t.id === 'cam-nota') { var Ln = S.camLun, dn = clone((S.cam || {})[Ln] || { dias: [] }); delete dn.id; dn.nota = t.value.trim(); if (!dn.nota) delete dn.nota; store.set('privado', 'camara-' + Ln, dn); return; }
     if (D.notaPed) {
       var pn = pedidoDe(D.notaPed), vn = t.value.replace(/\s+/g, ' ').trim(); if (S.notaAbierta === D.notaPed) S.notaAbierta = null;
       if (!pn || vn === String(pn.nota || '').trim()) { if (!vn) render(); return; }
@@ -3550,14 +3554,14 @@
         signOut: function () { return au.signOut(auth); },
         esEditor: function (email) { return fs.getDoc(fs.doc(db, 'editores', email)).then(function (s) { return s.exists(); }, function () { return false; }); },
         // Cámara (privada): solo las cuentas que figuran en /camaraUsuarios.
-        puedeCamara: function (email) { return fs.getDoc(fs.doc(db, 'camaraUsuarios', email)).then(function (s) { return s.exists(); }, function () { return false; }); }
+        puedeCamara: function (email) { return huella(email).then(function (h) { return CAM_CUENTAS.indexOf(h) >= 0; }, function () { return false; }); }
       };
     });
   }
 
   function conectar(st) {
     store = st;
-    var got = {}, vacia = false, suscripto = false, importando = false, camSub = false;
+    var got = {}, vacia = false, suscripto = false, importando = false;
     function traer() { if (importando) return; importando = true; importar().catch(function () { importando = false; }); }
     function llego(k) {
       got[k] = true;
@@ -3591,7 +3595,6 @@
       if (!u) { S.em = null; S.ep = null; S.prop = []; S.camaraOk = false; S.cam = {}; render(); return; }
       if (store.puedeCamara) store.puedeCamara(u.email).then(function (c) {
         S.camaraOk = !!c;
-        if (c && !camSub) { camSub = true; store.sub('camara', function (l) { var o = {}; l.forEach(function (x) { o[x.id] = x; }); S.cam = o; S.camListo = true; if (S.tab === 'camara' && escribiendo()) return; renderDatos(); }, function () {}); }
         if (c && S.volver === 'camara') { S.tab = 'camara'; S.volver = null; }
         render();
       });
@@ -3608,6 +3611,9 @@
               var fl = {}, antesF = JSON.stringify(S.fletes || {});
               l.forEach(function (x) { if (String(x.id).indexOf('fletes-') === 0) fl[x.id.slice(7)] = x; });
               S.fletes = fl; if (JSON.stringify(fl) !== antesF && S.tab === 'logistica') renderDatos();
+              var cm = {}, antesCm = JSON.stringify(S.cam || {});
+              l.forEach(function (x) { var k = String(x.id); if (k.indexOf('camara-') === 0) { var o = clone(x); o.id = k.slice(7); cm[o.id] = o; } });
+              S.cam = cm; S.camListo = true; if (JSON.stringify(cm) !== antesCm && S.camaraOk && (S.tab === 'camara' || S.tab === 'inicio') && !escribiendo() && !S.camPegar) render();
               var cl = l.filter(function (x) { return x.id === 'clientes'; })[0], antesC = JSON.stringify(clientes());
               S.clientes = (cl && cl.lista) || [];
               if (JSON.stringify(S.clientes) !== antesC) { conciliarLog(); renderDatos(); }
