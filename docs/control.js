@@ -798,7 +798,7 @@ function htmlStock() {
     const nom = s.carlos && s.carlos.toLowerCase() !== s.nombre.toLowerCase() ? '<b>' + esc(s.carlos) + '</b><br><small class="muted">' + esc(s.nombre) + ' · ' + esc(s.id) + '</small>' : '<b>' + esc(s.nombre) + '</b> <small class="muted">' + esc(s.id) + '</small>';
     const valor = s.stock != null && s.precio ? s.stock * s.precio : null;
     return '<tr><td>' + nom + '</td><td style="font-size:12.5px">' + (s.usos.length ? esc(s.usos.join(', ')) : '<span class="muted">—</span>') + (s.usado && !s.descuenta ? '<br><span class="chip sm mut">no descuenta (fórmula sin producción asignada)</span>' : '') + '</td><td>' + esc(s.unidad) + '</td>' +
-      '<td class="num" data-v="' + (s.conteo ? r2(s.conteo.cant) : '') + '">' + (s.conteo ? fmtN(s.conteo.cant, 2) + '<br><small class="muted">' + ddmm(s.conteo.fecha) + '</small>' : '') + '</td>' +
+      '<td class="num ed" onclick="verConteo(\'' + esc(s.id) + '\')" title="Clic para cambiar o borrar el último conteo" data-v="' + (s.conteo ? r2(s.conteo.cant) : '') + '">' + (s.conteo ? fmtN(s.conteo.cant, 2) + '<br><small class="muted">' + ddmm(s.conteo.fecha) + '</small>' : '') + '</td>' +
       '<td class="num" data-v="' + r2(s.compras) + '">' + (s.compras ? fmtN(s.compras, 2) : '') + '</td><td class="num" data-v="' + r2(s.consumo) + '">' + (s.consumo ? fmtN(s.consumo, 2) : '') + '</td>' +
       '<td class="num sep" data-v="' + (s.stock == null ? '' : r2(s.stock)) + '"><b style="font-size:16px">' + (s.stock == null ? '' : fmtN(s.stock, 2)) + '</b></td><td class="num ed" onclick="editarLimite(\'' + esc(s.id) + '\')" data-v="' + r2(s.min) + '" title="Clic para cambiar el límite">' + (s.min ? fmtN(s.min, 2) : '<span class="muted">poner</span>') + '</td><td>' + est + '</td>' +
       '<td class="num ed' + (s.precioAMano ? ' aj' : '') + '" onclick="editarPrecio(\'' + esc(s.id) + '\')" data-v="' + r2(s.precio) + '" title="' + (s.precioAMano ? 'Precio escrito a mano · sistema: ' + pesos(s.precioSis || 0) : 'Precio del sistema · clic para cambiarlo') + '">' + (s.precio ? pesos(s.precio) : '') + '</td><td class="num" data-v="' + (valor == null ? '' : r2(valor)) + '">' + (valor == null ? '' : pesos(valor)) + '</td>' +
@@ -862,6 +862,21 @@ function compraInsumo(id) {
       } catch (e) { toast(e.message, true); }
     }, 'primary']]);
 }
+/* Último conteo de un insumo: clic en la casilla para borrarlo o cargar otro */
+function verConteo(id) {
+  const s = stockInsumos().find(x => x.id === id);
+  if (!s.conteo) { contarInsumo(id); return; }
+  const c = s.conteo;
+  abrirDlg('Último conteo · ' + esc(s.carlos || s.nombre),
+    '<div class="sis">Conteo del <b>' + ddmm(c.fecha) + '</b>: <b>' + fmtN(c.cant) + ' ' + esc(s.unidad) + '</b>' + (c.por ? ' · cargó ' + esc(c.por) : '') + (c.nota ? '<br>' + esc(c.nota) : '') + '</div>' +
+    '<p>Si lo borrás, el stock se vuelve a calcular desde el conteo anterior (si hay).</p>',
+    [['Cancelar', cerrarDlg], ['Cargar otro conteo', () => { cerrarDlg(); contarInsumo(id); }], ['Borrar este conteo', async () => {
+      try {
+        INS = await cambiarDoc('insumos', d => { d.conteos = (d.conteos || []).filter(x => !(x.id === id && x.fecha === c.fecha && x.ts === c.ts)); }, 'Borrado conteo ' + (s.carlos || s.nombre) + ' ' + ddmm(c.fecha) + ' (' + fmtN(c.cant) + ' ' + s.unidad + ')');
+        cerrarDlg(); const y = window.scrollY; await renderInsumos(); window.scrollTo(0, y); toast('Conteo borrado');
+      } catch (e) { toast(e.message, true); }
+    }, 'danger']]);
+}
 function detalleInsumo(id) {
   const s = stockInsumos().find(x => x.id === id);
   const mov = [];
@@ -889,7 +904,7 @@ function detalleInsumo(id) {
       } else if (b.dataset.acc === 'borrar') {
         INS = await cambiarDoc('insumos', d => { d.compras = (d.compras || []).filter(c => !(c.id === id && c.ts === m.compra.ts)); }, 'Borrada compra a mano ' + s.nombre + ' ' + ddmm(m.f) + ' ' + fmtN(m.q, 2));
       } else if (b.dataset.acc === 'borrarc') {
-        if (!confirm('¿Borrar el conteo del ' + ddmm(m.f) + '?')) return;
+        if (!b.dataset.seguro) { b.dataset.seguro = '1'; b.textContent = '¿Seguro? Borrar'; return; }
         INS = await cambiarDoc('insumos', d => { d.conteos = (d.conteos || []).filter(c => !(c.id === id && c.ts === m.conteo.ts)); }, 'Borrado conteo ' + s.nombre + ' ' + ddmm(m.f));
         SINS = null; await asegurarInsumos();
       }
