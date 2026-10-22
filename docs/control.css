@@ -164,3 +164,12 @@ tr.hijo td:first-child{padding-left:30px}
 /* debajo de lo escrito a mano: el último dato del sistema */
 .sisn{display:block;font-size:10.5px;font-weight:400;color:#8a6d1f;line-height:1.2;white-space:nowrap}
 .sisn.cambio{color:#a8302a;font-weight:700}
+/* pestañas de arriba: una línea entre cada una y la elegida con fondo */
+header nav{gap:0}
+header nav a{position:relative;padding:0 16px}
+@media (max-width:1400px){header nav a{padding:0 12px}}
+@media (max-width:900px){header nav a{padding:10px 12px}}
+header nav a+a::before{content:'';position:absolute;left:0;top:28%;bottom:28%;border-left:1px solid #c9d2d8}
+header nav a.on{background:var(--accent-soft);border-bottom-width:3px}
+header nav a:hover{background:#f1f5f7}
+@media (max-width:900px){header nav a+a::before{top:22%;bottom:22%}}
