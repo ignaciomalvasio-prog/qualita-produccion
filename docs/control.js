@@ -97,6 +97,15 @@ document.getElementById('nav').addEventListener('click', e => {
   document.querySelectorAll('#nav a').forEach(x => x.classList.toggle('on', x === a));
   render(); window.scrollTo(0, 0);
 });
+/* En las planillas con dos renglones de títulos, el segundo queda fijo justo debajo del primero */
+function fijarCabeceras() {
+  document.querySelectorAll('#main table.planilla thead').forEach(th => {
+    const r = th.rows; if (r.length < 2) return;
+    const h = r[0].getBoundingClientRect().height;
+    for (const c of r[1].cells) c.style.top = h + 'px';
+  });
+}
+new MutationObserver(() => { clearTimeout(window._fc); window._fc = setTimeout(fijarCabeceras, 30); }).observe(document.getElementById('main'), { childList: true, subtree: false });
 function render() {
   if (!S) return;
   const f = { inicio: renderInicio, c3: renderC3, insumos: renderInsumos, merc: renderMerc, ventas: renderVentas, caja: renderCaja, cambios: renderCambios }[TAB];
@@ -177,7 +186,7 @@ function alertas(vd, cj) {
   const out = [], hoy = hoyIso();
   const lista = fs => fs.map(ddmm).join(', ');
   const sinParte = fechasCon('prod').filter(f => !S.mp.some(m => m.f === f));
-  if (sinParte.length) out.push('<div class="alerta warn">⚠ <div>Hay producción cargada pero <b>sin la carne en el parte de producción del sistema</b>: ' + lista(sinParte) + '. Los kilos de carne del Centro salen de los remitos 1→3, pero el parte del sistema queda incompleto.</div></div>');
+  if (sinParte.length) out.push('<div class="alerta warn">⚠ <div>Hay producción cargada pero <b>sin la carne ingresada por sistema en CIII</b>: ' + lista(sinParte) + '. La carne recibida sale de los remitos 1→3, pero en el sistema falta cargar la carne usada.</div></div>');
   const sinCaja = diasDelMes(M).filter(f => f < hoy && vd[f] && vd[f].total > 0 && !(cj[f] && cj[f].cargado));
   if (sinCaja.length) out.push('<div class="alerta warn">⚠ <div><b>Caja del local sin cargar</b>: ' + lista(sinCaja) + '. <a href="#" onclick="irA(\'caja\');return false">Ir a la caja</a></div></div>');
   const zeta = diasDelMes(M).filter(f => cj[f] && cj[f].zeta != null && vd[f] && Math.abs(cj[f].zeta - vd[f].total) > 1);
@@ -193,9 +202,10 @@ async function alertasInsumos() {
   await asegurarInsumos();
   const st = stockInsumos(), out = [];
   const bajos = st.filter(s => s.stock != null && s.min > 0 && s.stock < s.min);
+  setTimeout(revisarLimites, 0);
   const neg = st.filter(s => s.stock != null && s.stock < 0);
   const sinContar = st.filter(s => s.usado && !s.conteo);
-  if (bajos.length) out.push('<div class="alerta bad">✖ <div><b>Insumos por debajo del mínimo</b>: ' + bajos.map(s => esc(s.nombre) + ' (' + fmtN(s.stock, 1) + ' ' + s.unidad + ')').join(', ') + '. <a href="#" onclick="irA(\'insumos\');return false">Ver insumos</a></div></div>');
+  if (bajos.length) out.push('<div class="alerta bad">✖ <div><b>Insumos por debajo del límite (hay que pedir)</b>: ' + bajos.map(s => esc(s.nombre) + ' (' + fmtN(s.stock, 1) + ' ' + s.unidad + ')').join(', ') + '. <a href="#" onclick="irA(\'insumos\');return false">Ver insumos</a></div></div>');
   if (neg.length) out.push('<div class="alerta warn">⚠ <div><b>Insumos con stock negativo</b> (falta cargar una compra o contar de nuevo): ' + neg.map(s => esc(s.nombre)).join(', ') + '</div></div>');
   if (sinContar.length) out.push('<div class="alerta warn">⚠ <div><b>Falta contar el stock inicial</b> de ' + sinContar.length + ' insumos que se usan en las fórmulas. <a href="#" onclick="irA(\'insumos\');return false">Contar ahora</a></div></div>');
   return out;
@@ -368,6 +378,13 @@ $('dlg').addEventListener('keydown', e => {
 });
 
 /* ================= Ciclo III ================= */
+/* Grupos grandes para los resúmenes del mes (el bombón va con su producto) */
+const G3 = [['chorizo', 'Chorizo', ['chorizo', 'chbombon']], ['morcilla', 'Morcilla', ['morcilla', 'mbombon']], ['salchicha', 'Salchicha', ['salchicha']], ['otros', 'Otros', ['otros']]];
+const g3De = (art, den) => { const g = grupoDe(art, den); return (G3.find(x => x[2].includes(g)) || G3[3])[0]; };
+function toggleGrp(tr) {
+  const abierto = tr.classList.toggle('abierto');
+  document.querySelectorAll('tr[data-p="' + tr.dataset.g + '"]').forEach(x => x.hidden = !abierto);
+}
 function renderC3() {
   const dias = diasPlanilla();
   const grupos = GRUPOS.filter(g => g.id !== 'otros' || totMes('prod', c => grupoDe(c.art, c.den) === 'otros') > 0);
@@ -379,7 +396,7 @@ function renderC3() {
   grupos.forEach((g, i) => th += '<th class="num' + (i ? '' : ' sep') + '">' + g.n + '</th>');
   th += '<th class="num">Total día</th><th class="num">Promedio</th><th class="num">Días</th>';
   carnes.forEach((c, i) => th += '<th class="num' + (i ? '' : ' sep') + '">' + esc(lindo(c.den)) + '<br><small class="muted">' + esc(c.art) + '</small></th>');
-  th += '<th class="num' + (carnes.length ? '' : ' sep') + '">Total carne</th><th class="sep">Carne en el parte del sistema</th><th>Remitos</th></tr>';
+  th += '<th class="num' + (carnes.length ? '' : ' sep') + '">Total carne</th><th class="sep">Carne ingresada por sistema en CIII</th><th>Remitos</th></tr>';
   let tb = '', acum = 0, nd = 0;
   for (const f of dias) {
     const tp = totDia('prod', f), tc = totDia('mp', f);
@@ -391,7 +408,7 @@ function renderC3() {
     tb += '<td class="num" data-v="' + r2(tp) + '"><b>' + kg(tp) + '</b></td><td class="num muted" data-v="' + (nd ? r2(acum / nd) : '') + '">' + (tp > 0 ? kg(acum / nd) : '') + '</td><td class="num muted" data-v="' + (tp > 0 ? nd : '') + '">' + (tp > 0 ? nd : '') + '</td>';
     carnes.forEach((c, i) => tb += td('mp', f, c.art, c.den, i ? '' : 'sep'));
     tb += '<td class="num' + (carnes.length ? '' : ' sep') + '" data-v="' + r2(tc) + '"><b>' + kg(tc) + '</b></td>';
-    tb += tp > 0 && !enParte && !AJ['parte|' + f] ? '<td class="sep ed" data-ov="parte|' + f + '" data-sis="0" data-tit="Carne en el parte del sistema ' + ddmm(f) + '"><span class="chip sm warn">falta cargar</span></td>' : tdv('parte|' + f, enParte, kg, 'Carne en el parte del sistema ' + ddmm(f), 'sep muted');
+    tb += tp > 0 && !enParte && !AJ['parte|' + f] ? '<td class="sep ed" data-ov="parte|' + f + '" data-sis="0" data-tit="Carne ingresada por sistema en CIII ' + ddmm(f) + '"><span class="chip sm warn">falta cargar</span></td>' : tdv('parte|' + f, enParte, kg, 'Carne ingresada por sistema en CIII ' + ddmm(f), 'sep muted');
     tb += '<td class="muted" style="font-size:12.5px">' + esc(nros.join(' / ')) + '</td></tr>';
   }
   const tp = totMes('prod'), tc = totMes('mp');
@@ -403,25 +420,31 @@ function renderC3() {
   h += '<section><div class="tw"><table class="planilla xl" data-hoja="Produccion-Carne"><thead>' + th + '</thead><tbody>' + tb + tt + '</tbody></table></div>' +
     '<p class="nota">Amarillo = corregido a mano (el punto naranja). Verde = cargado a mano, no está en el sistema. Pasá el mouse para ver el dato original y quién lo cambió.</p></section>';
 
-  // Detalle de producción por artículo
-  const arts = artsDe('prod').sort((a, b) => GRUPOS.findIndex(g => g.id === grupoDe(a.art, a.den)) - GRUPOS.findIndex(g => g.id === grupoDe(b.art, b.den)) || Number(a.art) - Number(b.art));
-  h += '<div class="grid2c"><section><h2>Producción del mes por producto</h2><p class="sub">Como está cargado en el sistema (con las correcciones)</p><table class="xl" data-hoja="Produccion-producto"><thead><tr><th>Producto</th><th>Grupo</th><th class="num">kg</th></tr></thead><tbody>' +
-    arts.map(a => '<tr><td>' + esc(lindo(a.den)) + ' <small class="muted">' + esc(a.art) + '</small></td><td>' + nombreGrupo(grupoDe(a.art, a.den)) + '</td><td class="num" data-v="' + r2(a.kg) + '">' + kg1(a.kg) + '</td></tr>').join('') +
-    '<tr class="tot"><td>Total</td><td></td><td class="num" data-v="' + r2(tp) + '">' + kg1(tp) + '</td></tr></tbody></table></section>';
-
-  // Ventas de Ciclo III
+  // Producción y venta del mes: Chorizo / Morcilla / Salchicha, con el detalle desplegable
+  const arts = artsDe('prod');
+  let hp = '';
+  for (const [gid, gn] of G3) {
+    const it = arts.filter(a => g3De(a.art, a.den) === gid).sort((a, b) => b.kg - a.kg); if (!it.length) continue;
+    const t = it.reduce((x, a) => x + a.kg, 0);
+    hp += '<tr class="grp" onclick="toggleGrp(this)" data-g="p-' + gid + '"><td><span class="flecha">▸</span> <b>' + gn + '</b> <small class="muted">' + it.length + (it.length > 1 ? ' productos' : ' producto') + '</small></td><td class="num" data-v="' + r2(t) + '"><b>' + kg1(t) + '</b></td><td class="num muted">' + (tp ? pct(t / tp) : '') + '</td></tr>' +
+      it.map(a => '<tr class="hijo" data-p="p-' + gid + '" hidden><td>' + esc(lindo(a.den)) + ' <small class="muted">' + esc(a.art) + '</small></td><td class="num" data-v="' + r2(a.kg) + '">' + kg1(a.kg) + '</td><td class="num muted">' + (tp ? pct(a.kg / tp) : '') + '</td></tr>').join('');
+  }
+  h += '<div class="grid2c"><section><h2>Producción del mes</h2><p class="sub">Clic en Chorizo, Morcilla o Salchicha para ver cada producto.</p><table class="xl lista" data-hoja="Produccion-producto"><thead><tr><th>Producto</th><th class="num">kg</th><th class="num">%</th></tr></thead><tbody>' + hp +
+    '<tr class="tot"><td>Total</td><td class="num" data-v="' + r2(tp) + '">' + kg1(tp) + '</td><td></td></tr></tbody></table></section>';
   const vca = ventasC3();
   const vct = vca.reduce((a, v) => (a.kg += v.kg, a.neto += v.neto, a), { kg: 0, neto: 0 });
-  h += '<section><h2>Facturado por Ciclo III</h2><p class="sub">Ventas del depósito Ciclo III en el sistema (neto sin IVA). No incluye lo que va al local.</p><table class="xl" data-hoja="Ventas C3"><thead><tr><th>Producto</th><th class="num">kg</th><th class="num">$ neto</th><th class="num">$/kg</th></tr></thead><tbody>' +
-    vca.map(v => '<tr><td>' + esc(lindo(v.den)) + '</td>' + tdv('vck|' + M + '|' + v.art, v.kgSis, kg1, 'Facturado Ciclo III ' + lindo(v.den) + ' (kg)') + tdv('vcp|' + M + '|' + v.art, v.netoSis, pesos, 'Facturado Ciclo III ' + lindo(v.den) + ' ($ neto)') + '<td class="num">' + (v.kg ? pesos(v.neto / v.kg) : '') + '</td></tr>').join('') +
+  let hv = '';
+  for (const [gid, gn] of G3) {
+    const it = vca.filter(v => g3De(v.art, v.den) === gid); if (!it.length) continue;
+    const t = it.reduce((x, v) => (x.kg += v.kg, x.neto += v.neto, x), { kg: 0, neto: 0 });
+    hv += '<tr class="grp" onclick="toggleGrp(this)" data-g="v-' + gid + '"><td><span class="flecha">▸</span> <b>' + gn + '</b> <small class="muted">' + it.length + (it.length > 1 ? ' productos' : ' producto') + '</small></td><td class="num" data-v="' + r2(t.kg) + '"><b>' + kg1(t.kg) + '</b></td><td class="num" data-v="' + r2(t.neto) + '"><b>' + pesos(t.neto) + '</b></td><td class="num">' + (t.kg ? pesos(t.neto / t.kg) : '') + '</td></tr>' +
+      it.map(v => '<tr class="hijo" data-p="v-' + gid + '" hidden><td>' + esc(lindo(v.den)) + '</td>' + tdv('vck|' + M + '|' + v.art, v.kgSis, kg1, 'Facturado Ciclo III ' + lindo(v.den) + ' (kg)') + tdv('vcp|' + M + '|' + v.art, v.netoSis, pesos, 'Facturado Ciclo III ' + lindo(v.den) + ' ($ neto)') + '<td class="num">' + (v.kg ? pesos(v.neto / v.kg) : '') + '</td></tr>').join('');
+  }
+  h += '<section><h2>Venta del mes (facturado por Ciclo III)</h2><p class="sub">Neto sin IVA, sin lo que va al local. Clic en cada grupo para ver el detalle (y corregir).</p><table class="xl lista" data-hoja="Ventas C3"><thead><tr><th>Producto</th><th class="num">kg</th><th class="num">$ neto</th><th class="num">$/kg</th></tr></thead><tbody>' + hv +
     '<tr class="tot"><td>Total</td><td class="num" data-v="' + r2(vct.kg) + '">' + kg1(vct.kg) + '</td><td class="num" data-v="' + r2(vct.neto) + '">' + pesos(vct.neto) + '</td><td class="num">' + (vct.kg ? pesos(vct.neto / vct.kg) : '') + '</td></tr></tbody></table></section></div>';
 
   // Embutidos enviados al local
   h += '<section><h2>Embutidos enviados al local (remitos 3→5)</h2><p class="sub">Clic en un número para corregir.</p>' + tablaGrupos('emb') + '</section>';
-  // Stock según sistema
-  const st = S.st.filter(s => s.fri === 3).sort((a, b) => b.kg - a.kg);
-  h += '<section><h2>Stock en Ciclo III según el sistema</h2><p class="sub">Lo que el sistema tiene hoy en el depósito Ciclo III (carne sin usar y embutidos). Si no coincide con lo que hay, falta cargar algún movimiento en el sistema.</p>' +
-    (st.length ? '<table class="xl" data-hoja="Stock C3" style="max-width:640px"><thead><tr><th>Artículo</th><th class="num">kg</th></tr></thead><tbody>' + st.map(s => '<tr><td>' + esc(lindo(s.den)) + ' <small class="muted">' + esc(s.art) + '</small></td>' + tdv('st3|' + s.art, s.kg, kg1, 'Stock Ciclo III ' + lindo(s.den)) + '</tr>').join('') + '</tbody></table>' : '<div class="empty">Sin stock</div>') + '</section>';
   $('main').innerHTML = h;
 }
 function tablaGrupos(t) {
@@ -444,9 +467,6 @@ function renderMerc() {
   h += '<section><h2>Ingreso de cortes (remitos 1→5)</h2>' + matriz('ing', 'Ingreso de cortes') + '</section>';
   h += '<section><h2>Devolución al frigorífico (remitos 5→1)</h2>' + matriz('dev', 'Devolucion') + '</section>';
   h += '<section><h2>Embutidos · ingreso desde Ciclo III (remitos 3→5)</h2>' + matriz('emb', 'Embutidos') + '</section>';
-  const st = S.st.filter(s => s.fri === 5).sort((a, b) => Number(a.art) - Number(b.art));
-  h += '<section><h2>Stock del local según el sistema</h2><p class="sub">Lo que el sistema tiene hoy en el depósito Local Comercial. Sirve para comparar con lo que hay en la cámara.</p>' +
-    (st.length ? '<div class="tw" style="max-width:700px"><table class="planilla xl" data-hoja="Stock local"><thead><tr><th>Artículo</th><th class="num">kg</th></tr></thead><tbody>' + st.map(s => '<tr><td>' + esc(lindo(s.den)) + ' <small class="muted">' + esc(s.art) + '</small></td>' + tdv('st5|' + s.art, s.kg, kg1, 'Stock local ' + lindo(s.den)) + '</tr>').join('') + '</tbody></table></div>' : '<div class="empty">Sin stock</div>') + '</section>';
   $('main').innerHTML = h;
 }
 function matriz(t, hoja) {
@@ -481,15 +501,15 @@ function renderVentas() {
   const vd = ventasDia(), cj = datosCaja();
   let h = cabecera('Local · Ventas', 'Ventas "1" del sistema y "2" cargadas a mano, comparadas con lo que entró al local.', '<button class="primary" onclick="editarL2(hoyIso())">＋ Cargar venta "2"</button>');
   const T = rows.reduce((a, r) => { for (const k of ['ing', 'dev', 'v1', 'v2', 'imp1', 'imp2']) a[k] += r[k]; return a; }, { ing: 0, dev: 0, v1: 0, v2: 0, imp1: 0, imp2: 0 });
-  h += '<section><h2>Control del mes por producto (kg)</h2><p class="sub">Entró (cortes + embutidos) − devuelto = lo que quedó para vender. Vendido "1" + "2" = lo que salió. La diferencia es stock que quedó, merma o algo sin cargar.</p><div class="tw"><table class="planilla xl" data-hoja="Control por producto"><thead><tr><th>Producto</th><th class="num">Entró</th><th class="num">Devuelto</th><th class="num">Para vender</th><th class="num sep">Vendido "1"</th><th class="num">Vendido "2"</th><th class="num">Total vendido</th><th class="num sep">Diferencia</th><th class="num sep">$ "1"</th><th class="num">$ "2"</th><th class="num sep">Stock sistema</th></tr></thead><tbody>';
+  h += '<section><h2>Control del mes por producto (kg)</h2><p class="sub">Entró (cortes + embutidos) − devuelto = lo que quedó para vender. Vendido "1" + "2" = lo que salió. La diferencia es lo que quedó en la cámara, merma o algo sin cargar.</p><div class="tw"><table class="planilla xl" data-hoja="Control por producto"><thead><tr><th>Producto</th><th class="num">Entró</th><th class="num">Devuelto</th><th class="num">Para vender</th><th class="num sep">Vendido "1"</th><th class="num">Vendido "2"</th><th class="num">Total vendido</th><th class="num sep">Diferencia</th><th class="num sep">$ "1"</th><th class="num">$ "2"</th></tr></thead><tbody>';
   for (const r of rows) {
     const neto = r.ing - r.dev, tv = r.v1 + r.v2, dif = neto - tv;
     h += '<tr><td><small class="muted">' + esc(r.art) + '</small> ' + esc(lindo(r.den)) + '</td><td class="num" data-v="' + r2(r.ing) + '">' + kg1(r.ing) + '</td><td class="num" data-v="' + r2(r.dev) + '">' + kg1(r.dev) + '</td><td class="num" data-v="' + r2(neto) + '">' + kg1(neto) + '</td>' +
       tdv('v1|' + M + '|' + r.art, r.v1sis, kg1, 'Vendido "1" en el mes · ' + lindo(r.den) + ' (kg)', 'sep') +
       '<td class="num" data-v="' + r2(r.v2) + '">' + kg1(r.v2) + '</td><td class="num" data-v="' + r2(tv) + '"><b>' + kg1(tv) + '</b></td>' +
-      '<td class="num sep' + (dif < -0.5 ? ' neg' : '') + '" data-v="' + r2(dif) + '">' + kg1(dif) + '</td>' + tdv('imp1|' + M + '|' + r.art, r.imp1sis, pesos, 'Vendido "1" en el mes · ' + lindo(r.den) + ' ($)', 'sep') + '<td class="num" data-v="' + r2(r.imp2) + '">' + pesos(r.imp2) + '</td>' + tdv('stc|' + r.art, r.stSis, kg1, 'Stock del local · ' + lindo(r.den), 'sep muted') + '</tr>';
+      '<td class="num sep' + (dif < -0.5 ? ' neg' : '') + '" data-v="' + r2(dif) + '">' + kg1(dif) + '</td>' + tdv('imp1|' + M + '|' + r.art, r.imp1sis, pesos, 'Vendido "1" en el mes · ' + lindo(r.den) + ' ($)', 'sep') + '<td class="num" data-v="' + r2(r.imp2) + '">' + pesos(r.imp2) + '</td></tr>';
   }
-  h += '<tr class="tot"><td>Total</td><td class="num">' + kg1(T.ing) + '</td><td class="num">' + kg1(T.dev) + '</td><td class="num">' + kg1(T.ing - T.dev) + '</td><td class="num sep">' + kg1(T.v1) + '</td><td class="num">' + kg1(T.v2) + '</td><td class="num">' + kg1(T.v1 + T.v2) + '</td><td class="num sep">' + kg1(T.ing - T.dev - T.v1 - T.v2) + '</td><td class="num sep">' + pesos(T.imp1) + '</td><td class="num">' + pesos(T.imp2) + '</td><td></td></tr></tbody></table></div></section>';
+  h += '<tr class="tot"><td>Total</td><td class="num">' + kg1(T.ing) + '</td><td class="num">' + kg1(T.dev) + '</td><td class="num">' + kg1(T.ing - T.dev) + '</td><td class="num sep">' + kg1(T.v1) + '</td><td class="num">' + kg1(T.v2) + '</td><td class="num">' + kg1(T.v1 + T.v2) + '</td><td class="num sep">' + kg1(T.ing - T.dev - T.v1 - T.v2) + '</td><td class="num sep">' + pesos(T.imp1) + '</td><td class="num">' + pesos(T.imp2) + '</td></tr></tbody></table></div></section>';
 
   // Ventas por día
   const mes = LOC.mes || {};
@@ -575,7 +595,7 @@ function renderCaja() {
   const cj = datosCaja(), vd = ventasDia(), dias = diasDelMes(M), hoy = hoyIso();
   let h = cabecera('Local · Caja diaria', 'Las mismas casillas que la planilla de caja del local. Se escribe directo y se guarda solo. Los egresos van en positivo. "Planilla" abre la hoja completa del día (detalle de la caja, cuentas pagas y notas del encargado).',
     '<button onclick="completarZetas()">Completar Zetas vacías con el sistema</button>');
-  h += '<section style="padding:10px 12px"><div class="tw" style="max-height:none"><table class="planilla caja"><thead>' +
+  h += '<section style="padding:10px 12px"><div class="tw caja-tw"><table class="planilla caja"><thead>' +
     '<tr><th rowspan="2">Día</th><th class="gh sep" colspan="7">Ingresos</th><th class="gh sep" colspan="4">Egresos</th><th class="gh sep" colspan="5">Caja</th><th rowspan="2" class="sep">Planilla</th></tr><tr>' +
     '<th class="num sep">Saldo ant.</th><th class="num">Zeta</th><th class="num">"2"</th><th class="num">Cta Cte "1"</th><th class="num">Cta Cte "2"</th><th class="num">A cta</th><th class="num">Total (1)</th>' +
     '<th class="num sep">Empleados</th><th class="num">Cta Cte "1"</th><th class="num">Cta Cte "2"</th><th class="num">Total (2)</th>' +
@@ -756,6 +776,7 @@ async function renderInsumos() {
   if (TAB !== 'insumos') return;
   let h = cabecera('Insumos de Ciclo III', 'Stock estimado = último conteo + compras − lo que se usó según la producción y las fórmulas.', '');
   h += '<div class="tabs2">' + [['consumo', 'Movimiento del mes'], ['stock', 'Stock'], ['formulas', 'Fórmulas']].map(([k, n]) => '<button class="' + (SUBINS === k ? 'on' : '') + '" onclick="SUBINS=\'' + k + '\';renderInsumos()">' + n + '</button>').join('') + '</div>';
+  setTimeout(revisarLimites, 0);
   if (SUBINS === 'stock') h += htmlStock();
   else if (SUBINS === 'formulas') h += htmlFormulas();
   else h += htmlConsumo();
@@ -764,17 +785,17 @@ async function renderInsumos() {
 function htmlStock() {
   const st = stockInsumos();
   const fila = s => {
-    const est = s.stock == null ? '<span class="est-sin">' + (s.usado ? 'falta contar' : '—') + '</span>' : (s.min > 0 && s.stock < s.min ? '<span class="est-bajo">Bajo mínimo</span>' : (s.stock < 0 ? '<span class="est-bajo">Negativo</span>' : '<span class="est-ok">OK</span>'));
+    const est = s.stock == null ? '<span class="est-sin">' + (s.usado ? 'falta contar' : '—') + '</span>' : (s.min > 0 && s.stock < s.min ? '<span class="est-bajo">Bajo el límite</span>' : (s.stock < 0 ? '<span class="est-bajo">Negativo</span>' : '<span class="est-ok">OK</span>'));
     const nom = s.carlos && s.carlos.toLowerCase() !== s.nombre.toLowerCase() ? '<b>' + esc(s.carlos) + '</b><br><small class="muted">' + esc(s.nombre) + ' · ' + esc(s.id) + '</small>' : '<b>' + esc(s.nombre) + '</b> <small class="muted">' + esc(s.id) + '</small>';
     const valor = s.stock != null && s.precio ? s.stock * s.precio : null;
     return '<tr><td>' + nom + '</td><td style="font-size:12.5px">' + (s.usos.length ? esc(s.usos.join(', ')) : '<span class="muted">—</span>') + (s.usado && !s.descuenta ? '<br><span class="chip sm mut">no descuenta (fórmula sin producción asignada)</span>' : '') + '</td><td>' + esc(s.unidad) + '</td>' +
       '<td class="num" data-v="' + (s.conteo ? r2(s.conteo.cant) : '') + '">' + (s.conteo ? fmtN(s.conteo.cant, 2) + '<br><small class="muted">' + ddmm(s.conteo.fecha) + '</small>' : '') + '</td>' +
       '<td class="num" data-v="' + r2(s.compras) + '">' + (s.compras ? fmtN(s.compras, 2) : '') + '</td><td class="num" data-v="' + r2(s.consumo) + '">' + (s.consumo ? fmtN(s.consumo, 2) : '') + '</td>' +
-      '<td class="num sep" data-v="' + (s.stock == null ? '' : r2(s.stock)) + '"><b style="font-size:16px">' + (s.stock == null ? '' : fmtN(s.stock, 2)) + '</b></td><td class="num" data-v="' + r2(s.min) + '">' + (s.min ? fmtN(s.min, 2) : '') + '</td><td>' + est + '</td>' +
+      '<td class="num sep" data-v="' + (s.stock == null ? '' : r2(s.stock)) + '"><b style="font-size:16px">' + (s.stock == null ? '' : fmtN(s.stock, 2)) + '</b></td><td class="num ed" onclick="editarLimite(\'' + esc(s.id) + '\')" data-v="' + r2(s.min) + '" title="Clic para cambiar el límite">' + (s.min ? fmtN(s.min, 2) : '<span class="muted">poner</span>') + '</td><td>' + est + '</td>' +
       '<td class="num ed' + (s.precioAMano ? ' aj' : '') + '" onclick="editarPrecio(\'' + esc(s.id) + '\')" data-v="' + r2(s.precio) + '" title="' + (s.precioAMano ? 'Precio escrito a mano · sistema: ' + pesos(s.precioSis || 0) : 'Precio del sistema · clic para cambiarlo') + '">' + (s.precio ? pesos(s.precio) : '') + '</td><td class="num" data-v="' + (valor == null ? '' : r2(valor)) + '">' + (valor == null ? '' : pesos(valor)) + '</td>' +
       '<td style="white-space:nowrap"><button class="small" onclick="contarInsumo(\'' + esc(s.id) + '\')">Contar</button> <button class="small" onclick="compraInsumo(\'' + esc(s.id) + '\')">+ Compra</button> <button class="small" onclick="detalleInsumo(\'' + esc(s.id) + '\')">Detalle</button></td></tr>';
   };
-  const cab = '<thead><tr><th>Insumo</th><th>Se usa en</th><th>Unidad</th><th class="num">Último conteo</th><th class="num">+ Compras</th><th class="num">− Usado (fórmula)</th><th class="num sep">Stock estimado</th><th class="num">Mínimo</th><th>Estado</th><th class="num">Precio</th><th class="num">Valor stock</th><th></th></tr></thead>';
+  const cab = '<thead><tr><th>Insumo</th><th>Se usa en</th><th>Unidad</th><th class="num">Último conteo</th><th class="num">+ Compras</th><th class="num">− Usado (fórmula)</th><th class="num sep">Stock estimado</th><th class="num">Límite</th><th>Estado</th><th class="num">Precio</th><th class="num">Valor stock</th><th></th></tr></thead>';
   const usados = st.filter(s => s.usado), otros = st.filter(s => !s.usado);
   const valorTot = usados.reduce((t, s) => t + (s.stock != null && s.precio ? s.stock * s.precio : 0), 0);
   let h = '<section><h2>Stock de insumos de las fórmulas</h2><p class="sub">Los mismos ingredientes y en el mismo orden que la planilla de fórmulas de Carlos (chorizo, salchicha, morcilla y los especiales). Las compras salen solas de los remitos de compra del sistema y también se pueden cargar a mano. Para arrancar, contá lo que hay y cargalo con "Contar": desde ese día el stock baja solo con la producción.</p>' +
@@ -804,7 +825,7 @@ function contarInsumo(id) {
   const s = stockInsumos().find(x => x.id === id);
   abrirDlg('Contar stock · ' + esc(s.nombre),
     '<div class="sis">' + (s.stock != null ? 'Según el cálculo debería haber <b>' + fmtN(s.stock, 2) + ' ' + esc(s.unidad) + '</b>.' : 'Todavía no se contó este insumo.') + ' Escribí lo que hay realmente.</div>' +
-    '<div class="campos"><label>Fecha del conteo</label><input type="date" id="ci-f" value="' + hoyIso() + '" style="max-width:180px"><label>Cantidad (' + esc(s.unidad) + ')</label><input id="ci-c" class="big-num"><label>Unidad</label><select id="ci-u" style="max-width:160px">' + ['kg', 'litro', 'unid.', 'madeja', 'metro'].map(u => '<option' + (u === s.unidad ? ' selected' : '') + '>' + u + '</option>').join('') + '</select><label>Mínimo para avisar</label><input id="ci-m" value="' + (s.min ? fmtN(s.min, 2) : '') + '" style="max-width:160px"><label>Nota</label><input id="ci-n"></div>' +
+    '<div class="campos"><label>Fecha del conteo</label><input type="date" id="ci-f" value="' + hoyIso() + '" style="max-width:180px"><label>Cantidad (' + esc(s.unidad) + ')</label><input id="ci-c" class="big-num"><label>Unidad</label><select id="ci-u" style="max-width:160px">' + ['kg', 'litro', 'unid.', 'madeja', 'metro'].map(u => '<option' + (u === s.unidad ? ' selected' : '') + '>' + u + '</option>').join('') + '</select><label>Límite (avisa cuando queda menos)</label><input id="ci-m" value="' + (s.min ? fmtN(s.min, 2) : '') + '" style="max-width:160px"><label>Nota</label><input id="ci-n"></div>' +
     '<p class="nota">El conteo cuenta al final del día: lo producido ese mismo día ya está descontado.</p>',
     [['Cancelar', cerrarDlg], ['Guardar', async () => {
       const c = leerNum($('ci-c').value), mi = leerNum($('ci-m').value), f = $('ci-f').value;
@@ -928,12 +949,58 @@ function htmlConsumo() {
     }
     const fin = base == null ? null : base + tc - tu;
     const nom = x.carlos ? '<b>' + esc(x.carlos) + '</b> <small class="muted">' + esc(x.unidad) + '</small><br><small class="muted">' + esc(x.nombre) + '</small>' : '<b>' + esc(x.nombre) + '</b> <small class="muted">' + esc(x.unidad) + '</small>';
-    h += '<tr><td>' + nom + '</td><td class="sep"><input class="ini" data-id="' + esc(x.id) + '" value="' + (ini ? fmtN(ini.cant, 2) : '') + '" placeholder="' + (calc != null ? fmtN(calc, 2) : 'escribir') + '" title="' + (calc != null ? 'Calculado desde el último conteo. Escribilo para fijarlo.' : 'Lo que había al empezar el mes') + '"></td>' + celdasDia +
+    const bajo = x.min > 0 && x.stock != null && x.stock < x.min;
+    h += '<tr class="ins' + (bajo ? ' bajo' : '') + '"><td class="ed nom" onclick="editarLimite(\'' + esc(x.id) + '\')" title="Clic para poner el límite (avisa cuando queda poco)">' + nom +
+      (x.min > 0 ? '<br><span class="lim">' + (bajo ? '⚠ ' : '') + 'Límite ' + fmtN(x.min, 2) + (bajo ? ' · stock ' + fmtN(x.stock, 2) : '') + '</span>' : '<br><span class="lim muted">poner límite</span>') + '</td><td class="sep"><input class="ini" data-id="' + esc(x.id) + '" value="' + (ini ? fmtN(ini.cant, 2) : '') + '" placeholder="' + (calc != null ? fmtN(calc, 2) : 'escribir') + '" title="' + (calc != null ? 'Calculado desde el último conteo. Escribilo para fijarlo.' : 'Lo que había al empezar el mes') + '"></td>' + celdasDia +
       '<td class="num sep" data-v="' + r2(tc) + '">' + (tc ? '<b style="color:var(--ok)">+' + fmtN(tc, 2) + '</b>' : '') + '</td><td class="num" data-v="' + r2(tu) + '">' + (tu ? fmtN(tu, 2) : '') + '</td>' +
-      '<td class="num sep" data-v="' + (fin == null ? '' : r2(fin)) + '"><b style="font-size:16px' + (fin != null && (fin < 0 || (x.min && fin < x.min)) ? ';color:var(--bad)' : '') + '">' + (fin == null ? '' : fmtN(fin, 2)) + '</b></td></tr>';
+      '<td class="num sep" data-v="' + (fin == null ? '' : r2(fin)) + '"><b style="font-size:16px' + (fin != null && (fin < 0 || (x.min && fin < x.min) || bajo) ? ';color:var(--bad)' : '') + '">' + (fin == null ? '' : fmtN(fin, 2)) + '</b></td></tr>';
   }
   h += '</tbody></table></div><p class="nota">En cada día: <span style="color:var(--ok);font-weight:600">+ verde</span> = compra · número gris = usado según la fórmula. Saldo final = saldo inicial + compras − usado. Si el saldo inicial aparece en gris es calculado desde un conteo anterior; escribilo para fijarlo.</p></section>';
   return h;
+}
+/* Límite de cada insumo: cuando el stock estimado baja de ahí se pone en rojo y sale un mail a Carlos para pedir más */
+function editarLimite(id) {
+  const s = stockInsumos().find(x => x.id === id) || listaInsumos().find(x => x.id === id);
+  abrirDlg('Límite · ' + esc(s.carlos || s.nombre),
+    '<div class="sis">Stock estimado hoy: <b>' + (s.stock != null ? fmtN(s.stock, 2) + ' ' + esc(s.unidad) : 'falta el saldo inicial o un conteo') + '</b>.<br>Cuando quede menos que el límite, el insumo se pone en <b style="color:var(--bad)">rojo</b> y se manda un mail a Carlos para pedir más.</div>' +
+    '<div class="campos"><label>Límite (' + esc(s.unidad) + ')</label><input id="li-v" class="big-num" value="' + (s.min ? fmtN(s.min, 2) : '') + '" placeholder="ej: 10"></div><p class="nota">Vacío o 0 = sin aviso.</p>',
+    [['Cancelar', cerrarDlg], ['Guardar', async () => {
+      const n = leerNum($('li-v').value); if (Number.isNaN(n)) { toast('Número inválido', true); return; }
+      try {
+        INS = await cambiarDoc('insumos', d => { d.lista = d.lista || {}; d.lista[id] = Object.assign(d.lista[id] || {}, { min: n || 0 }); }, 'Límite ' + (s.carlos || s.nombre) + ': ' + (n ? fmtN(n, 2) + ' ' + s.unidad : 'sin aviso'));
+        if (FOR && FOR.inicial) { const f = JSON.parse(JSON.stringify(FOR)); delete f.inicial; FOR = await cambiarDoc('formulas', d => { Object.assign(d, f); }, 'Fórmulas guardadas (las de la planilla de Carlos)'); }
+        cerrarDlg(); const y = window.scrollY; await renderInsumos(); window.scrollTo(0, y); toast('Límite guardado');
+        revisarLimites();
+      } catch (e) { toast(e.message, true); }
+    }, 'primary']]);
+  setTimeout(() => $('li-v') && $('li-v').focus(), 50);
+}
+/* Revisa los límites: si un insumo bajó del límite y todavía no se avisó, deja el mail listo (lo manda la notebook) */
+let _revisando = false;
+async function revisarLimites() {
+  if (_revisando || !SINS || !(window.C3API && C3API.encolarMail)) return;
+  _revisando = true;
+  try {
+    const st = stockInsumos().filter(s => s.min > 0 && s.stock != null);
+    const { d: av } = await leerDoc('alertas-insumos');
+    const nuevos = st.filter(s => s.stock < s.min && !av[s.id]), volvio = st.filter(s => s.stock >= s.min && av[s.id]);
+    if (!nuevos.length && !volvio.length) return;
+    for (const s of nuevos) {
+      const nom = s.carlos || s.nombre;
+      await C3API.encolarMail({
+        tipo: 'insumo-bajo', estado: 'pendiente', ts: new Date().toISOString(), por: quien(),
+        asunto: 'Ciclo III: queda poco de ' + nom + ' (' + fmtN(s.stock, 2) + ' ' + s.unidad + ')',
+        html: '<div style="font:15px Segoe UI,Arial,sans-serif;color:#1d262c"><h2 style="margin:0 0 8px">Ciclo III · hay que pedir ' + esc(nom) + '</h2>' +
+          '<p>Según la producción y las fórmulas quedan <b style="color:#a8302a">' + fmtN(s.stock, 2) + ' ' + esc(s.unidad) + '</b> de <b>' + esc(s.nombre) + '</b>, por debajo del límite de ' + fmtN(s.min, 2) + ' ' + esc(s.unidad) + '.</p>' +
+          '<p style="color:#76838c">Último conteo: ' + (s.conteo ? ddmm(s.conteo.fecha) + ' (' + fmtN(s.conteo.cant, 2) + ')' : '—') + ' · compras desde entonces ' + fmtN(s.compras, 2) + ' · usado ' + fmtN(s.consumo, 2) + '</p>' +
+          '<p><a href="https://qualita-produccion.web.app/control">Abrir el Centro de control</a></p></div>'
+      });
+    }
+    await cambiarDoc('alertas-insumos', d => {
+      for (const s of nuevos) d[s.id] = { fecha: hoyIso(), stock: r2(s.stock), limite: s.min };
+      for (const s of volvio) delete d[s.id];
+    }, (nuevos.length ? 'Aviso por mail de insumos bajos: ' + nuevos.map(s => s.carlos || s.nombre).join(', ') : '') + (volvio.length ? (nuevos.length ? ' · ' : '') + 'Volvieron a tener stock: ' + volvio.map(s => s.carlos || s.nombre).join(', ') : ''));
+  } catch (e) { /* si falla se vuelve a intentar la próxima vez */ } finally { _revisando = false; }
 }
 async function guardarSaldoInicial(inp) {
   const id = inp.dataset.id, fin0 = finMesAnterior();
