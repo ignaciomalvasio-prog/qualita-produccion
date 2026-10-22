@@ -28,7 +28,7 @@
   var SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
   var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
   var TABS = ['inicio', 'pedidos', 'produccion', 'ciclo3', 'logistica', 'medias', 'rendering', 'clientes', 'camara'];
-  var CORTES_BASE = ['JAMON', 'PALETA', 'PECHO', 'PECHO MANTA DOBLE', 'PECHO MANTA DOBLE CON CUERO', 'PANCETA CON CUERO', 'PANCETA SIN CUERO', 'CARRE', 'SOLOMILLO', 'CINTA DE LOMO', 'MATAMBRE', 'BONDIOLA', 'RECORTE', 'GRASA BUENA', 'GRASA MALA', 'CUERO', 'TAPA DE PALETA', 'TAPA DE JAMON', 'TORTUGA', 'GARRON', 'TOCINO', 'CHURRASCO', 'PAPADA', 'OREJAS', 'CABEZA', 'PULMON', 'HIGADO', 'PATAS Y MANOS', 'HUESITOS', 'UNTO', 'MENUDENCIAS', 'EMBUTIDOS', 'CHORIZO', 'MORCILLA', 'SALCHICHA'];
+  var CORTES_BASE = ['JAMON', 'PALETA', 'PECHO', 'PECHO MANTA DOBLE', 'PECHO MANTA DOBLE CON CUERO', 'PANCETA CON CUERO', 'PANCETA SIN CUERO', 'CARRE SIN SOLOMILLO', 'CARRE CON SOLOMILLO', 'SOLOMILLO', 'CINTA DE LOMO', 'MATAMBRE', 'BONDIOLA', 'RECORTE', 'GRASA BUENA', 'GRASA MALA', 'CUERO', 'TAPA DE PALETA', 'TAPA DE JAMON', 'TORTUGA', 'GARRON', 'TOCINO', 'CHURRASCO', 'PAPADA', 'OREJAS', 'CABEZA', 'PULMON', 'HIGADO', 'PATAS Y MANOS', 'HUESITOS', 'UNTO', 'MENUDENCIAS', 'EMBUTIDOS', 'CHORIZO', 'MORCILLA', 'SALCHICHA'];
 
   var S = {
     faena: null, prod: null, pedidos: null, config: {}, ia: {}, status: 'loading', fuente: '',
@@ -369,7 +369,7 @@
   function esPedido(t) { return /^\s*\d/.test(t || ''); }
   function sinResto(t) { return String(t || '').replace(/^\s*RESTO\s*:?\s*/i, ''); }
   function corteDe(o, nombre) { var k = norm(nombre); return (o.cortes || []).filter(function (c) { return norm(c.corte) === k; })[0] || null; }
-  function ordenCorte(nombre) { var i = CORTES_BASE.indexOf(norm(nombre)); return i < 0 ? 999 : i; }
+  function ordenCorte(nombre) { var x = norm(nombre), i = CORTES_BASE.indexOf(x === 'CARRE' ? 'CARRE SIN SOLOMILLO' : x); return i < 0 ? 999 : i; }   // "CARRE" solo quedó en pedidos viejos
   /* Los embutidos (chorizo, morcilla, salchicha) se muestran en Producción, aparte, como "Embutidos". Se guardan
      en la misma colección "produccion" con el id "c3-AAAA-MM-DD"; la de desposte sigue con el id "AAAA-MM-DD".
      El link del Ciclo III (/ciclo3) muestra solo los embutidos. */

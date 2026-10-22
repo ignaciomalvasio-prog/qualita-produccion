@@ -170,3 +170,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Cortes nuevos: CINTA DE LOMO, PECHO MANTA DOBLE, PECHO MANTA DOBLE CON CUERO, PANCETA CON CUERO y PANCETA SIN CUERO. Peso por unidad: cinta de lomo 3,5 kg, pecho manta doble 6,5, pecho manta doble con cuero 7,5, panceta con cuero 7 (se suman aunque ya haya una lista guardada).
 - Peso por unidad corregido: panceta con cuero 6 kg y panceta sin cuero 5 kg (estimados).
 - Pedidos: al lado de fresco/congelado, un cartelito "+ Sumar a camión" (o el nombre del camión) para sumar el pedido a un camión, cambiarlo, sacarlo o armar uno nuevo, sin tildar.
+- Cortes: CARRE se reemplaza por CARRE SIN SOLOMILLO y CARRE CON SOLOMILLO (los pedidos viejos con CARRE siguen como estaban). Peso por unidad: 5 kg.
