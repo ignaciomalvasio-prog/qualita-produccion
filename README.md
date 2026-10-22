@@ -174,3 +174,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Ingreso: si al abrir la app (sobre todo en el celu) falla la consulta de permiso de editor, se reintenta sola; en Cámara, si igual no se pudo, avisa y ofrece "Volver a cargar" en vez de mostrar los números de base.
 - Pedidos: si hay pedidos tildados, el camión que se elige en el cartelito de uno de ellos va para todos los tildados.
 - Pedidos en el celular: renglón más compacto (arriba nombre, kilos, estado y flecha; abajo N° de cuenta, cortes y cartelitos más chicos: "¿Fresco/cong.?" y "+ Camión"). En la compu no cambia.
+- Producción, imprimir y PDF: letra más chica (como mucho 13, antes llegaba a 20) y menos espacio entre cortes; el detalle del total va entre paréntesis (ej. "120 kg (6 cajas)").

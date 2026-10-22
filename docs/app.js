@@ -575,7 +575,7 @@
     else h += '<div class="hoja-cortes">' + (o.cortes || []).map(function (c) {
       var td = totalCorteDet(c), tot = td.kg != null ? n(td.kg) + ' kg' : '';
       var det = [td.det, td.sin ? (tot ? '+ ' : '') + td.sin : ''].filter(Boolean).join(' ');
-      return '<div class="hoja-corte"><div class="hoja-nom"><h3>' + esc(c.corte || 'Sin corte') + '</h3>' + (tot || det ? '<p class="hoja-tot"><span>Total</span> ' + esc(tot) + (det ? '<small class="hoja-det"> ' + esc(det) + '</small>' : '') + '</p>' : '') + '</div><ul>' + c.lineas.map(function (l) { return '<li>' + lineaHojaHTML(l.t) + (l.f ? ' ' + frioBadge(l.f) : '') + '</li>'; }).join('') + '</ul></div>';
+      return '<div class="hoja-corte"><div class="hoja-nom"><h3>' + esc(c.corte || 'Sin corte') + '</h3>' + (tot || det ? '<p class="hoja-tot"><span>Total</span> ' + esc(tot) + (det ? '<small class="hoja-det"> (' + esc(det) + ')</small>' : '') + '</p>' : '') + '</div><ul>' + c.lineas.map(function (l) { return '<li>' + lineaHojaHTML(l.t) + (l.f ? ' ' + frioBadge(l.f) : '') + '</li>'; }).join('') + '</ul></div>';
     }).join('') + '</div>';
     h += '<textarea id="txt-' + k + '" class="txt" readonly hidden aria-label="Planilla en texto">' + esc(textoOrden(o)) + '</textarea></div>';
     return h;
@@ -616,7 +616,7 @@
   }
   function armarPDF(hojasPDF, opc) {
     var L = window.PDFLib, lista = [].concat(hojasPDF).filter(Boolean); opc = opc || {};
-    var tMin = opc.min || 10.5, tMax = opc.max || 20;
+    var tMin = opc.min || 10.5, tMax = opc.max || 13;   // tope 13: más grande quedaba exagerado (pedido de Renzo)
     return L.PDFDocument.create().then(function (doc) {
       return Promise.all([doc.embedFont(L.StandardFonts.Helvetica), doc.embedFont(L.StandardFonts.HelveticaBold)]).then(function (fs) {
         var F = fs[0], FB = fs[1], AN = 595.28, AL = 841.89, M = 40, maxX = AN - M, cache = {};
@@ -680,7 +680,7 @@
         var TAM = tMin, extra = 0, buscar = function (a, b, lim) { for (var it = 0; it < 14; it++) { var mid = (a + b) / 2; if (cuerpo(mid, 0, false) <= lim) a = mid; else b = mid; } return Math.floor(a * 4) / 4; };
         if (cuerpo(TAM, 0, false) <= disp) {
           TAM = buscar(tMin, tMax, disp);
-          extra = Math.max(0, Math.min((disp - cuerpo(TAM, 0, false)) / bloques, TAM * 1.6));
+          extra = Math.max(0, Math.min((disp - cuerpo(TAM, 0, false)) / bloques, TAM * 0.6));
           if (cuerpo(TAM, extra, false) > disp) extra = 0;
         } else if (opc.dos) {
           // Dos hojas: la segunda no repite el encabezado; se deja un margen por lo que se pierde al pasar de hoja.
