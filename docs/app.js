@@ -1986,13 +1986,13 @@
   // Fresco o congelado, elegible desde el renglón del pedido: se toca el cartelito y aparecen las opciones.
   function frioChipHTML(p) {
     var f = p.frio || '', cls = f === 'CONGELADO' ? 'cong' : f === 'FRESCO' ? 'fresco' : 'nada';
-    return '<span class="frio-chip ' + cls + '" data-act="frio-menu" data-id="' + esc(p.id) + '" role="button" tabindex="0" title="Tocá para elegir fresco o congelado">' + (f || '¿Fresco o congelado?') + ' ▾</span>';
+    return '<span class="frio-chip ' + cls + '" data-act="frio-menu" data-id="' + esc(p.id) + '" role="button" tabindex="0" title="Tocá para elegir fresco o congelado">' + (f || '<span class="chip-lg">¿Fresco o congelado?</span><span class="chip-co">¿Fresco/cong.?</span>') + ' ▾</span>';
   }
   // Camión, elegible desde el renglón del pedido (al lado de fresco/congelado): se toca y aparecen los camiones del día.
   function camChipHTML(p) {
     if (!S.editor || S.solo) return '';
     var cam = nombreCamion(p.entrega, p.camion);
-    return '<span class="frio-chip cam-chip' + (cam ? ' con' : ' nada') + '" data-act="camp-menu" data-id="' + esc(p.id) + '" role="button" tabindex="0" title="Tocá para ' + (cam ? 'cambiar de camión' : 'sumarlo a un camión') + '">' + (cam ? '🚚 ' + esc(cam) : '+ Sumar a camión') + ' ▾</span>';
+    return '<span class="frio-chip cam-chip' + (cam ? ' con' : ' nada') + '" data-act="camp-menu" data-id="' + esc(p.id) + '" role="button" tabindex="0" title="Tocá para ' + (cam ? 'cambiar de camión' : 'sumarlo a un camión') + '">' + (cam ? '🚚 ' + esc(cam) : '<span class="chip-lg">+ Sumar a camión</span><span class="chip-co">+ Camión</span>') + ' ▾</span>';
   }
   // Si el pedido está tildado, el camión que se elige va para todos los tildados de ese día.
   function camGrupo(p) {

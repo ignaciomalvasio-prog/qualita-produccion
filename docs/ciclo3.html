@@ -719,6 +719,28 @@ details[open] > summary{margin-bottom:10px}
   .badge{border:1px solid #000;padding:0 4px}
   .badge.cong{background:none!important;color:#000!important}
 }
+/* Celular: renglón de pedido compacto. Arriba nombre, kilos, estado y flecha; abajo N° de cuenta, cortes y los cartelitos. */
+@media (max-width:560px){
+  .ped-mover{width:20px;font-size:16px}
+  .ped .chk{padding:0 6px 0 2px;padding-top:10px}
+  .ped-tit{gap:3px 6px;padding:8px 2px}
+  .ped-tit .nom{order:1;flex:1 1 0;min-width:0;font-size:16px;line-height:1.15;align-self:center}
+  .ped-tit .col-kg{order:2;flex:0 0 auto;margin-left:0;text-align:right}
+  .ped-tit .col-prod{order:3;flex:0 0 auto}
+  .ped-tit .chev{order:4;margin-left:0;align-self:center;padding-top:0}
+  .ped-tit::after{order:5}
+  .ped-tit .cta{order:6;font-size:12px}
+  .ped-tit .res{order:7;flex:1 1 0;min-width:0;font-size:13px;display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px}
+  .ped-tit .cta{align-self:center}
+  .ped-tit .chip-lg{display:none}.ped-tit .chip-co{display:inline}
+  .ped-tit .marcas{order:8}
+  .ped-tit .frio-chip{font-size:11px;padding:1px 6px}
+  .ped-tit .kg-ped{font-size:14px;padding:3px 7px}
+  .ped-tit .pr-ic{width:24px;height:24px;font-size:14px}
+  .ped.abierto .ped-tit .nom{font-size:18px}
+  .ped.abierto .ped-tit{padding-top:10px;padding-bottom:10px}
+}
+.chip-co{display:none}
 </style>
 </head>
 <body>

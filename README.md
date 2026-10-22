@@ -173,3 +173,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Cortes: CARRE se reemplaza por CARRE SIN SOLOMILLO y CARRE CON SOLOMILLO (los pedidos viejos con CARRE siguen como estaban). Peso por unidad: 5 kg.
 - Ingreso: si al abrir la app (sobre todo en el celu) falla la consulta de permiso de editor, se reintenta sola; en Cámara, si igual no se pudo, avisa y ofrece "Volver a cargar" en vez de mostrar los números de base.
 - Pedidos: si hay pedidos tildados, el camión que se elige en el cartelito de uno de ellos va para todos los tildados.
+- Pedidos en el celular: renglón más compacto (arriba nombre, kilos, estado y flecha; abajo N° de cuenta, cortes y cartelitos más chicos: "¿Fresco/cong.?" y "+ Camión"). En la compu no cambia.
