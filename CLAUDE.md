@@ -41,6 +41,6 @@ En vivo: https://qualita-produccion.web.app (links para compartir: `/logistica`,
 ## Detalles útiles del código
 - Estado global `S`; `render()` dibuja la pestaña actual; acciones por `data-act` en un solo listener de clicks; `store` abstrae Firebase / mock.
 - `ocupado()` frena el redibujo mientras alguien edita (para no pisar lo que escribe).
-- Producción muestra todo en kg (caja y canasto = 20 kg; lo de canastos termina con "— EN CANASTOS"); lo guardado no cambia.
+- Producción (planilla de frescos) muestra cada renglón en la unidad en que se pidió (kg, cajas, canastos, unidades); el total de cada corte es un solo número en kg (caja y canasto = 20 kg, unidades según el peso por unidad) con el detalle de lo pedido abajo. Lo guardado no cambia.
 - Logística se publica en `config/log-{fecha}` con `publicarLog(f)`: cualquier cambio de pedidos, camiones o precios tiene que volver a publicarlo.
 - Después de las 15 h la app arranca en el próximo día hábil (`fechaProdInicial`).

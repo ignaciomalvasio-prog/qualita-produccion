@@ -514,22 +514,38 @@
     var kg = Math.round(numero(m[1]) * por * 100) / 100, resto = s.slice(m[0].length).trim();
     return String(kg).replace('.', ',') + 'KG' + (resto ? ' ' + resto : '') + (canasto ? ' — EN CANASTOS' : '');
   }
-  // Total de un corte, sumando la cantidad con la que empieza cada renglón, por unidad.
-  function totalCorte(c) {
-    var t = {}, orden = ['kg', 'cajas', 'und', 'bines'];
+  // Cantidad de un renglón con su unidad, tal como se pidió, y cuántos kilos son (null si no se sabe el peso).
+  function cantRenglon(t, corte) {
+    var su = String(t || '').replace(/\s*[“"][^”"]*[”"]\s*/g, ' ').trim();
+    var m = su.match(/^([\d.,]+)\s*(KGS?|KILOS?|K|CAJAS?|CJS?|CANASTOS?|CANASTAS?|UND|UNIDAD(?:ES)?|UNID|U|BINES?)\.?(?:\s+(?:DE|X)\s*([\d.,]+)\s*(?:KGS?|KILOS?)\.?)?(?=\s|$)/i);
+    if (!m) return null;
+    var q = numero(m[1]), w = norm(m[2]), u = /^K/.test(w) ? 'kg' : /^CANAST/.test(w) ? 'canastos' : /^C/.test(w) ? 'cajas' : /^B/.test(w) ? 'bines' : 'und';
+    var kg = u === 'kg' ? q : u === 'cajas' ? q * (m[3] ? numero(m[3]) : kgCaja()) : u === 'canastos' ? q * (m[3] ? numero(m[3]) : kgCanasto()) : u === 'und' ? (kgUnidadDe(su.slice(m[0].length), corte) * q || null) : null;
+    return { n: q, u: u, kg: kg == null ? null : Math.round(kg * 100) / 100 };
+  }
+  /* Total de un corte: un solo total en kilos (cajas, canastos y unidades pasados a kilos) y, si se pidió en otras unidades,
+     el detalle de lo pedido (ej. "230 kg" · "100 kg · 5 cajas · 2 und"). Lo que no tiene peso conocido va aparte. */
+  function totalCorteDet(c) {
+    var kg = 0, hayKg = false, d = {}, sin = {}, orden = ['kg', 'cajas', 'canastos', 'und', 'bines'];
     (c.lineas || []).forEach(function (l) {
-      var m = norm(enKg(l.t, c.corte)).match(/^([\d.,]+)\s*(KGS?|KILOS?|K|CAJAS?|CJS?|UND|UNIDAD(?:ES)?|UNID|U|BINES?)\b/);
-      if (!m) return;
-      var u = /^K/.test(m[2]) ? 'kg' : /^C/.test(m[2]) ? 'cajas' : /^B/.test(m[2]) ? 'bines' : 'und';
-      t[u] = (t[u] || 0) + numero(m[1]);
+      var r = cantRenglon(l.t, l.c || c.corte); if (!r) return;
+      if (r.kg != null) { kg += r.kg; hayKg = true; d[r.u] = (d[r.u] || 0) + r.n; } else sin[r.u] = (sin[r.u] || 0) + r.n;
     });
-    return orden.filter(function (u) { return t[u]; }).map(function (u) { return n(t[u]) + ' ' + (u === 'cajas' && t[u] === 1 ? 'caja' : u === 'bines' && t[u] === 1 ? 'bin' : u); }).join(' · ');
+    var nom = function (u, v) { return n(v) + ' ' + (v === 1 ? { cajas: 'caja', canastos: 'canasto', bines: 'bin' }[u] || u : u); };
+    var tipos = orden.filter(function (u) { return d[u]; });
+    return { kg: hayKg ? Math.round(kg * 100) / 100 : null, det: tipos.length > 1 || (tipos.length === 1 && tipos[0] !== 'kg') ? tipos.map(function (u) { return nom(u, d[u]); }).join(' · ') : '', sin: orden.filter(function (u) { return sin[u]; }).map(function (u) { return nom(u, sin[u]) + (u === 'und' ? ' sin peso' : ''); }).join(' · ') };
+  }
+  function totalCorte(c) {
+    var t = totalCorteDet(c), s = t.kg != null ? n(t.kg) + ' kg' : '';
+    if (t.det) s += ' (' + t.det + ')';
+    if (t.sin) s += (s ? ' + ' : '') + t.sin;
+    return s;
   }
   function textoOrden(o, sinFrio) {
     var out = [diaDe(o.fecha).toUpperCase() + ' ' + fechaCorta(o.fecha)].concat(o.linea === 'ciclo3' ? ['EMBUTIDOS · CICLO III'] : [(o.medias || '') + '½ ' + String(o.mercado || '').toUpperCase()]);
     (o.cortes || []).forEach(function (c) {
-      (c.lineas.length ? c.lineas : [{ t: '' }]).forEach(function (l, i) { out.push(((i === 0 ? c.corte + ': ' : '') + enKg(l.t, c.corte) + (l.f && !sinFrio ? ' (' + l.f + ')' : '')).toUpperCase()); });
-      var tot = totalCorte(c); if (tot && c.lineas.length > 1) out.push('TOTAL ' + c.corte + ': ' + tot.toUpperCase());
+      (c.lineas.length ? c.lineas : [{ t: '' }]).forEach(function (l, i) { out.push(((i === 0 ? c.corte + ': ' : '') + l.t + (l.f && !sinFrio ? ' (' + l.f + ')' : '')).toUpperCase()); });
+      var tot = totalCorte(c), td = totalCorteDet(c); if (tot && (c.lineas.length > 1 || td.det || td.sin)) out.push('TOTAL ' + c.corte + ': ' + tot.toUpperCase());
     });
     return out.join('\n');
   }
@@ -551,8 +567,9 @@
     h += acc;
     if (!nl) h += '<p class="muted">Todavía no se sumó ningún ' + (c3 ? 'embutido' : 'corte') + '.</p>';
     else h += '<div class="hoja-cortes">' + (o.cortes || []).map(function (c) {
-      var tot = totalCorte(c);
-      return '<div class="hoja-corte"><div class="hoja-nom"><h3>' + esc(c.corte || 'Sin corte') + '</h3>' + (tot ? '<p class="hoja-tot"><span>Total</span> ' + esc(tot) + '</p>' : '') + '</div><ul>' + c.lineas.map(function (l) { return '<li>' + lineaHojaHTML(enKg(l.t, c.corte)) + (l.f ? ' ' + frioBadge(l.f) : '') + '</li>'; }).join('') + '</ul></div>';
+      var td = totalCorteDet(c), tot = td.kg != null ? n(td.kg) + ' kg' : '';
+      var det = [td.det, td.sin ? (tot ? '+ ' : '') + td.sin : ''].filter(Boolean).join(' ');
+      return '<div class="hoja-corte"><div class="hoja-nom"><h3>' + esc(c.corte || 'Sin corte') + '</h3>' + (tot || det ? '<p class="hoja-tot"><span>Total</span> ' + esc(tot) + (det ? '<small class="hoja-det"> ' + esc(det) + '</small>' : '') + '</p>' : '') + '</div><ul>' + c.lineas.map(function (l) { return '<li>' + lineaHojaHTML(l.t) + (l.f ? ' ' + frioBadge(l.f) : '') + '</li>'; }).join('') + '</ul></div>';
     }).join('') + '</div>';
     h += '<textarea id="txt-' + k + '" class="txt" readonly hidden aria-label="Planilla en texto">' + esc(textoOrden(o)) + '</textarea></div>';
     return h;
