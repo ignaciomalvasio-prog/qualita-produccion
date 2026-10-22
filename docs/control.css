@@ -161,3 +161,6 @@ tr.hijo td:first-child{padding-left:30px}
 /* caja: la tabla tiene su propio scroll y los títulos quedan fijos arriba */
 .tw.caja-tw{max-height:calc(100vh - 150px)}
 .planilla thead tr+tr th{top:30px}
+/* debajo de lo escrito a mano: el último dato del sistema */
+.sisn{display:block;font-size:10.5px;font-weight:400;color:#8a6d1f;line-height:1.2;white-space:nowrap}
+.sisn.cambio{color:#a8302a;font-weight:700}

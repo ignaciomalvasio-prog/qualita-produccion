@@ -145,7 +145,7 @@ async function cargarMes(m, forzar) {
   $('st').innerHTML = (S.hora ? '<span class="dot"></span>Sistema al ' + esc(ddmm(S.hora.slice(0, 10)) + ' ' + S.hora.slice(11)) : '<span class="dot off"></span>Sin datos del sistema') + '<br>' + esc(quien()) + ' · <a href="#" onclick="C3API.salir();return false">Salir</a>' + (C3API.rol !== 'caja' ? ' · <a href="/control">Tablero</a>' : '');
 }
 const sistemaDia = f => S.vl.filter(v => v.f === f).reduce((s, v) => s + v.total, 0);
-const fmtIn = v => v == null || v === '' ? '' : fmtN(v, 2);
+const fmtIn = v => v == null || v === '' ? '' : fmtE(v, 2);
 
 async function cargarDia() {
   const f = $('f').value; if (!f) return;
@@ -155,7 +155,7 @@ async function cargarDia() {
 }
 function mostrar(d) {
   const c = d.caja || {};
-  for (const k of CAMPOS) $(k).value = nv(c[k]) != null ? fmtN(k === 'sa' ? nv(c[k]) : Math.abs(nv(c[k])), 2) : '';
+  for (const k of CAMPOS) $(k).value = nv(c[k]) != null ? fmtE(k === 'sa' ? nv(c[k]) : Math.abs(nv(c[k])), 2) : '';
   $('obs').value = d.obs || '';
   $('cargo').textContent = d.por ? 'Cargó: ' + d.por + (d.ts ? ' · ' + new Date(d.ts).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' }) : '') : '';
   $('det').tBodies[0].innerHTML = '';
@@ -163,7 +163,7 @@ function mostrar(d) {
   det.forEach(x => filaDet(x.c, x.imp));
   for (let i = det.length; i < CAJA_DET.length + 3; i++) filaDet('', '');
   // sin detalle pero con "lo que hay" cargado por Carlos: se muestra en la primera línea
-  if (!hayDet(d.det) && nv(c.contado) != null) $('det').tBodies[0].rows[0].querySelectorAll('input')[1].value = fmtN(c.contado, 2);
+  if (!hayDet(d.det) && nv(c.contado) != null) $('det').tBodies[0].rows[0].querySelectorAll('input')[1].value = fmtE(c.contado, 2);
   $('ctas').tBodies[0].innerHTML = '';
   const ctas = d.ctas || [];
   ctas.forEach(filaCta);
@@ -187,7 +187,7 @@ function filaL2(it) {
   const prods = productosLocal(S);
   const tr = document.createElement('tr');
   tr.innerHTML = '<td><select style="width:100%"><option value="">— producto —</option>' + prods.map(p => '<option value="' + p.art + '"' + (String(it.art || '') === p.art ? ' selected' : '') + '>' + esc(p.den) + '</option>').join('') + '</select></td>' +
-    '<td><input value="' + fmtIn(it.kg) + '" placeholder="kg"></td><td><input value="' + (it.imp != null && it.imp !== '' ? fmtN(it.imp, 0) : '') + '" placeholder="$"></td><td class="no-print"><button class="small danger" title="Quitar">✕</button></td>';
+    '<td><input value="' + fmtIn(it.kg) + '" placeholder="kg"></td><td><input value="' + (it.imp != null && it.imp !== '' ? fmtE(it.imp, 2) : '') + '" placeholder="$"></td><td class="no-print"><button class="small danger" title="Quitar">✕</button></td>';
   tr.querySelector('button').onclick = () => { tr.remove(); recalcular(); };
   $('l2').tBodies[0].appendChild(tr);
 }

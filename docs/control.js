@@ -245,16 +245,22 @@ function graficoVentas(vd) {
 /* ================= celdas editables ================= */
 /* Un número del sistema corregido a mano: AJ[clave] = { v, nota, sis, por, ts } */
 const ov = (k, sis) => { const a = AJ[k]; return a ? (a.v != null ? a.v : a.kg) : sis; };
+/* Debajo de un dato escrito a mano: lo que dice el sistema en la última lectura (en rojo si cambió desde que se corrigió) */
+function notaSis(a, ahora, fmt) {
+  const antes = a && a.sis != null ? a.sis : null, cambio = antes != null && Math.abs((ahora || 0) - antes) >= 0.5;
+  return '<span class="sisn' + (cambio ? ' cambio' : '') + '">' + (cambio ? '⟳ sistema ahora ' : 'sistema ') + (fmt(ahora) || '0') + '</span>';
+}
+const tipSis = (a, ahora, fmt) => 'Escrito a mano por ' + (a.por || '?') + ' · sistema hoy: ' + (fmt(ahora) || '0') + (a.sis != null && Math.abs((ahora || 0) - a.sis) >= 0.5 ? ' (cuando se corrigió decía ' + (fmt(a.sis) || '0') + ')' : '') + (a.nota ? ' · ' + a.nota : '');
 function tdv(k, sis, fmt, titulo, extra) {
   const a = AJ[k], v = ov(k, sis);
-  const tip = a ? 'Corregido por ' + (a.por || '?') + ' · sistema: ' + fmtN(sis, 2) + (a.nota ? ' · ' + a.nota : '') : 'Clic para corregir';
-  return '<td class="num ed' + (a ? ' aj' : '') + (extra ? ' ' + extra : '') + '" data-ov="' + esc(k) + '" data-sis="' + sis + '" data-tit="' + esc(titulo) + '" data-v="' + r2(v) + '" title="' + esc(tip) + '">' + fmt(v) + '</td>';
+  const tip = a ? tipSis(a, sis, fmt) : 'Clic para corregir';
+  return '<td class="num ed' + (a ? ' aj' : '') + (extra ? ' ' + extra : '') + '" data-ov="' + esc(k) + '" data-sis="' + sis + '" data-tit="' + esc(titulo) + '" data-v="' + r2(v) + '" title="' + esc(tip) + '">' + fmt(v) + (a ? notaSis(a, sis, fmt) : '') + '</td>';
 }
 function editarValor(k, sis, titulo) {
   const a = AJ[k];
   abrirDlg('Corregir · ' + esc(titulo),
     '<div class="sis">Según el sistema: <b>' + fmtN(sis, 2) + '</b>. Si el número correcto es otro, escribilo acá; el del sistema queda guardado al lado. Vacío = vuelve al del sistema.</div>' +
-    '<div class="campos"><label>Valor correcto</label><input id="ov-v" class="big-num" value="' + (a ? fmtN(ov(k, sis), 2) : '') + '" placeholder="' + fmtN(sis, 2) + '"><label>Nota</label><input id="ov-n" value="' + esc(a ? a.nota || '' : '') + '" placeholder="Motivo (opcional)"></div>',
+    '<div class="campos"><label>Valor correcto</label><input id="ov-v" class="big-num" value="' + (a ? fmtE(ov(k, sis), 2) : '') + '" placeholder="' + fmtN(sis, 2) + '"><label>Nota</label><input id="ov-n" value="' + esc(a ? a.nota || '' : '') + '" placeholder="Motivo (opcional)"></div>',
     [['Cancelar', cerrarDlg], ['Guardar', async () => {
       const n = leerNum($('ov-v').value), nota = $('ov-n').value.trim();
       if (Number.isNaN(n)) { toast('Número inválido', true); return; }
@@ -270,14 +276,17 @@ function td(t, f, art, den, extra) {
   const c = ((V[t] || {})[f] || {})[art];
   const v = c ? c.val : 0;
   const cls = 'num ed' + (c && c.aj ? (c.man ? ' man' : ' aj') : '');
-  const tip = c && c.aj ? 'Corregido por ' + (c.aj.por || '?') + ' · sistema: ' + kg1(c.sis) + (c.aj.nota ? ' · ' + c.aj.nota : '') : (c && c.nros.length ? 'Remito ' + c.nros.join(', ') : 'Clic para corregir');
-  return '<td class="' + cls + (extra ? ' ' + extra : '') + '" data-k="' + esc(t + '|' + f + '|' + art) + '" data-den="' + esc(den || (c && c.den) || art) + '" data-v="' + r2(v) + '" title="' + esc(tip) + '">' + kg(v) + '</td>';
+  const tip = c && c.aj ? tipSis(c.aj, c.sis, kg1) : (c && c.nros.length ? 'Remito ' + c.nros.join(', ') : 'Clic para corregir');
+  const nota = c && c.aj && !(c.man && !c.sis) ? notaSis(c.aj, c.sis, kg1) : '';
+  return '<td class="' + cls + (extra ? ' ' + extra : '') + '" data-k="' + esc(t + '|' + f + '|' + art) + '" data-den="' + esc(den || (c && c.den) || art) + '" data-v="' + r2(v) + '" title="' + esc(tip) + '">' + kg(v) + nota + '</td>';
 }
 function tdGrupo(t, f, g, extra) {
   const cs = celdas(t, f).filter(c => grupoDe(c.art, c.den) === g);
   const v = cs.reduce((s, c) => s + c.val, 0);
   const aj = cs.some(c => c.aj);
-  return '<td class="num ed' + (aj ? ' aj' : '') + (extra ? ' ' + extra : '') + '" data-g="' + esc(t + '|' + f + '|' + g) + '" data-v="' + r2(v) + '" title="' + esc(cs.map(c => lindo(c.den) + ': ' + kg1(c.val)).join('\n') || 'Clic para cargar') + '">' + kg(v) + '</td>';
+  const ss = cs.reduce((s, c) => s + c.sis, 0), cambio = cs.some(c => c.aj && c.aj.sis != null && Math.abs(c.sis - c.aj.sis) >= 0.5);
+  const nota = aj && (ss || cambio) ? '<span class="sisn' + (cambio ? ' cambio' : '') + '">' + (cambio ? '⟳ sistema ahora ' : 'sistema ') + (kg1(ss) || '0') + '</span>' : '';
+  return '<td class="num ed' + (aj ? ' aj' : '') + (extra ? ' ' + extra : '') + '" data-g="' + esc(t + '|' + f + '|' + g) + '" data-v="' + r2(v) + '" title="' + esc(cs.map(c => lindo(c.den) + ': ' + kg1(c.val) + (c.aj ? ' (a mano; sistema ' + (kg1(c.sis) || '0') + ')' : '')).join('\n') || 'Clic para cargar') + '">' + kg(v) + nota + '</td>';
 }
 document.addEventListener('click', e => {
   const c = e.target.closest('td.ed'); if (!c) return;
@@ -312,7 +321,7 @@ function editarLista(titulo, t, f, cels, agregar, grupo) {
   const filas = cels.map((c, i) =>
     '<tr><td>' + esc(lindo(c.den)) + ' <small class="muted">' + esc(c.art) + '</small>' + (c.nros && c.nros.length ? '<br><small class="muted">Remito ' + esc(c.nros.join(', ')) + '</small>' : '') + '</td>' +
     '<td class="num">' + (c.man && !c.sis ? '<span class="chip sm info">a mano</span>' : kg1(c.sis)) + '</td>' +
-    '<td><input id="ev' + i + '" value="' + (c.aj ? fmtN(c.aj.kg, 2) : '') + '" placeholder="' + fmtN(c.sis, 2) + '"></td>' +
+    '<td><input id="ev' + i + '" value="' + (c.aj ? fmtE(c.aj.kg, 2) : '') + '" placeholder="' + fmtN(c.sis, 2) + '"></td>' +
     '<td><input class="txt" id="en' + i + '" value="' + esc(c.aj ? c.aj.nota || '' : '') + '" placeholder="Motivo (opcional)"></td></tr>').join('');
   let add = '';
   if (agregar || !cels.length) {
@@ -418,7 +427,7 @@ function renderC3() {
   carnes.forEach((c, i) => tt += '<td class="num' + (i ? '' : ' sep') + '" data-v="' + r2(c.kg) + '">' + kg(c.kg) + '</td>');
   tt += '<td class="num' + (carnes.length ? '' : ' sep') + '" data-v="' + r2(tc) + '">' + kg(tc) + '</td><td class="sep">' + (tc ? 'Rendimiento del mes: ' + pct(tp / tc) : '') + '</td><td></td></tr>';
   h += '<section><div class="tw"><table class="planilla xl" data-hoja="Produccion-Carne"><thead>' + th + '</thead><tbody>' + tb + tt + '</tbody></table></div>' +
-    '<p class="nota">Amarillo = corregido a mano (el punto naranja). Verde = cargado a mano, no está en el sistema. Pasá el mouse para ver el dato original y quién lo cambió.</p></section>';
+    '<p class="nota">Amarillo = escrito a mano (el punto naranja); debajo dice lo que marca el sistema en la última lectura, en rojo si el sistema cambió después. Verde = cargado a mano, no está en el sistema.</p></section>';
 
   // Producción y venta del mes: Chorizo / Morcilla / Salchicha, con el detalle desplegable
   const arts = artsDe('prod');
@@ -444,7 +453,7 @@ function renderC3() {
     '<tr class="tot"><td>Total</td><td class="num" data-v="' + r2(vct.kg) + '">' + kg1(vct.kg) + '</td><td class="num" data-v="' + r2(vct.neto) + '">' + pesos(vct.neto) + '</td><td class="num">' + (vct.kg ? pesos(vct.neto / vct.kg) : '') + '</td></tr></tbody></table></section></div>';
 
   // Embutidos enviados al local
-  h += '<section><h2>Embutidos enviados al local (remitos 3→5)</h2><p class="sub">Clic en un número para corregir.</p>' + tablaGrupos('emb') + '</section>';
+  h += '<section><h2>Enviado del Ciclo III al local comercial (remitos 3→5)</h2><p class="sub">Clic en un número para corregir.</p>' + tablaGrupos('emb') + '</section>';
   $('main').innerHTML = h;
 }
 function tablaGrupos(t) {
@@ -525,7 +534,7 @@ function renderVentas() {
       tdv('vdk|' + f, v.kgSis || 0, kg1, 'Venta "1" del ' + ddmm(f) + ' (kg)', 'sep') + '<td class="num ed" onclick="editarL2(\'' + f + '\')" data-v="' + r2(l.kg) + '">' + kg1(l.kg) + '</td><td class="muted" style="font-size:12.5px">' + esc(d.por || '') + '</td></tr>';
   }
   h += '<tr class="tot"><td>Total</td><td class="num">' + pesos(t1) + '</td><td></td><td class="num sep">' + pesos(t2) + '</td><td class="num">' + pesos(t1 + t2) + '</td><td class="num sep">' + kg1(k1) + '</td><td class="num">' + kg1(k2) + '</td><td></td></tr></tbody></table></div>' +
-    '<div class="row" style="margin-top:14px"><b>Donación del mes:</b> <input id="don-kg" style="width:110px" value="' + (mes.donKg != null ? fmtN(mes.donKg, 2) : '') + '" placeholder="kg"> kg <input id="don-imp" style="width:140px" value="' + (mes.donImp != null ? fmtN(mes.donImp, 0) : '') + '" placeholder="$"> $ <button class="small" onclick="guardarDonacion()">Guardar</button></div></section>';
+    '<div class="row" style="margin-top:14px"><b>Donación del mes:</b> <input id="don-kg" style="width:110px" value="' + (mes.donKg != null ? fmtE(mes.donKg, 2) : '') + '" placeholder="kg"> kg <input id="don-imp" style="width:140px" value="' + (mes.donImp != null ? fmtE(mes.donImp, 0) : '') + '" placeholder="$"> $ <button class="small" onclick="guardarDonacion()">Guardar</button></div></section>';
 
   // Otros productos
   const ot = {};
@@ -550,9 +559,9 @@ function editarL2(f) {
   if (!items.length) items.push({ art: '', kg: '', imp: '' });
   const prods = productosLocal(S);
   const fila = (i, it) => '<tr><td><select id="l2a' + i + '"><option value="">— producto —</option>' + prods.map(p => '<option value="' + p.art + '"' + (String(it.art) === p.art ? ' selected' : '') + '>' + esc(p.den) + '</option>').join('') + '</select></td>' +
-    '<td><input id="l2k' + i + '" value="' + (it.kg !== '' && it.kg != null ? fmtN(it.kg, 2) : '') + '" placeholder="kg"></td><td><input id="l2i' + i + '" value="' + (it.imp !== '' && it.imp != null ? fmtN(it.imp, 0) : '') + '" placeholder="$"></td></tr>';
+    '<td><input id="l2k' + i + '" value="' + (it.kg !== '' && it.kg != null ? fmtE(it.kg, 2) : '') + '" placeholder="kg"></td><td><input id="l2i' + i + '" value="' + (it.imp !== '' && it.imp != null ? fmtE(it.imp, 2) : '') + '" placeholder="$"></td></tr>';
   let n = items.length;
-  const body = () => '<div class="campos" style="margin-bottom:12px"><label>Día</label><input type="date" id="l2f" value="' + f + '" style="max-width:180px"><label>Total venta "2" del día ($)</label><input id="l2dos" class="big-num" value="' + (dia.caja && dia.caja.dos != null ? fmtN(dia.caja.dos, 0) : '') + '" placeholder="si se deja vacío, es la suma de abajo"></div>' +
+  const body = () => '<div class="campos" style="margin-bottom:12px"><label>Día</label><input type="date" id="l2f" value="' + f + '" style="max-width:180px"><label>Total venta "2" del día ($)</label><input id="l2dos" class="big-num" value="' + (dia.caja && dia.caja.dos != null ? fmtE(dia.caja.dos, 0) : '') + '" placeholder="si se deja vacío, es la suma de abajo"></div>' +
     '<p class="sub" style="margin:0 0 6px">Detalle por producto (kg y, si se sabe, el $):</p><table class="lista-ed"><thead><tr><th>Producto</th><th>kg</th><th>$</th></tr></thead><tbody id="l2b">' + items.map((it, i) => fila(i, it)).join('') + '</tbody></table>' +
     '<button class="small" id="l2mas" style="margin-top:8px">＋ Otro producto</button>';
   abrirDlg('Venta "2" del local', body(), [['Cancelar', cerrarDlg], ['Guardar', () => guardarL2(f, n), 'primary']]);
@@ -605,7 +614,7 @@ function renderCaja() {
     const sem = lunesDe(f);
     if (sem !== semana) { if (semana) h += filaTotSemana(semana, cj); semana = sem; h += '<tr class="semana"><td colspan="18">Semana del ' + ddmm(sem) + '</td></tr>'; }
     const d = ((LOC.dias || {})[f] || {}), c = d.caja || {}, x = cj[f];
-    const inp = (k, ph) => '<input class="chico" data-f="' + f + '" data-c="' + k + '" value="' + (nv(c[k]) != null ? fmtN(['sa', 'dif'].includes(k) ? nv(c[k]) : Math.abs(nv(c[k])), 2) : '') + '"' + (ph ? ' placeholder="' + ph + '"' : '') + '>';
+    const inp = (k, ph) => '<input class="chico" data-f="' + f + '" data-c="' + k + '" value="' + (nv(c[k]) != null ? fmtE(['sa', 'dif'].includes(k) ? nv(c[k]) : Math.abs(nv(c[k])), 2) : '') + '"' + (ph ? ' placeholder="' + ph + '"' : '') + '>';
     const sis = vd[f] ? vd[f].total : null;
     const zetaHint = sis != null ? (x.zeta == null ? '<span class="hint">sistema ' + pesos(sis) + '</span>' : (Math.abs(x.zeta - sis) > 1 ? '<span class="hint dif">sistema ' + pesos(sis) + '</span>' : '')) : '';
     const calc = (v, id) => '<td class="calc"' + (id ? ' id="' + id + '"' : '') + '>' + (x.cargado ? fmtN(v, 2) : '') + '</td>';
@@ -811,7 +820,7 @@ function editarPrecio(id) {
   const s = listaInsumos().find(x => x.id === id);
   abrirDlg('Precio · ' + esc(s.nombre),
     '<div class="sis">Precio en el sistema: <b>' + (s.precioSis ? pesos(s.precioSis) : 'sin precio') + '</b> por ' + esc(s.unidad) + '. Se usa para el costo de las fórmulas y el valor del stock. Vacío = el del sistema.</div>' +
-    '<div class="campos"><label>Precio por ' + esc(s.unidad) + '</label><input id="pr-v" class="big-num" value="' + (s.precioAMano ? fmtN(s.precio, 2) : '') + '" placeholder="' + fmtN(s.precioSis || 0, 2) + '"></div>',
+    '<div class="campos"><label>Precio por ' + esc(s.unidad) + '</label><input id="pr-v" class="big-num" value="' + (s.precioAMano ? fmtE(s.precio, 2) : '') + '" placeholder="' + fmtN(s.precioSis || 0, 2) + '"></div>',
     [['Cancelar', cerrarDlg], ['Guardar', async () => {
       const n = leerNum($('pr-v').value); if (Number.isNaN(n)) { toast('Número inválido', true); return; }
       try {
@@ -825,7 +834,7 @@ function contarInsumo(id) {
   const s = stockInsumos().find(x => x.id === id);
   abrirDlg('Contar stock · ' + esc(s.nombre),
     '<div class="sis">' + (s.stock != null ? 'Según el cálculo debería haber <b>' + fmtN(s.stock, 2) + ' ' + esc(s.unidad) + '</b>.' : 'Todavía no se contó este insumo.') + ' Escribí lo que hay realmente.</div>' +
-    '<div class="campos"><label>Fecha del conteo</label><input type="date" id="ci-f" value="' + hoyIso() + '" style="max-width:180px"><label>Cantidad (' + esc(s.unidad) + ')</label><input id="ci-c" class="big-num"><label>Unidad</label><select id="ci-u" style="max-width:160px">' + ['kg', 'litro', 'unid.', 'madeja', 'metro'].map(u => '<option' + (u === s.unidad ? ' selected' : '') + '>' + u + '</option>').join('') + '</select><label>Límite (avisa cuando queda menos)</label><input id="ci-m" value="' + (s.min ? fmtN(s.min, 2) : '') + '" style="max-width:160px"><label>Nota</label><input id="ci-n"></div>' +
+    '<div class="campos"><label>Fecha del conteo</label><input type="date" id="ci-f" value="' + hoyIso() + '" style="max-width:180px"><label>Cantidad (' + esc(s.unidad) + ')</label><input id="ci-c" class="big-num"><label>Unidad</label><select id="ci-u" style="max-width:160px">' + ['kg', 'litro', 'unid.', 'madeja', 'metro'].map(u => '<option' + (u === s.unidad ? ' selected' : '') + '>' + u + '</option>').join('') + '</select><label>Límite (avisa cuando queda menos)</label><input id="ci-m" value="' + (s.min ? fmtE(s.min, 2) : '') + '" style="max-width:160px"><label>Nota</label><input id="ci-n"></div>' +
     '<p class="nota">El conteo cuenta al final del día: lo producido ese mismo día ya está descontado.</p>',
     [['Cancelar', cerrarDlg], ['Guardar', async () => {
       const c = leerNum($('ci-c').value), mi = leerNum($('ci-m').value), f = $('ci-f').value;
@@ -951,7 +960,7 @@ function htmlConsumo() {
     const nom = x.carlos ? '<b>' + esc(x.carlos) + '</b> <small class="muted">' + esc(x.unidad) + '</small><br><small class="muted">' + esc(x.nombre) + '</small>' : '<b>' + esc(x.nombre) + '</b> <small class="muted">' + esc(x.unidad) + '</small>';
     const bajo = x.min > 0 && x.stock != null && x.stock < x.min;
     h += '<tr class="ins' + (bajo ? ' bajo' : '') + '"><td class="ed nom" onclick="editarLimite(\'' + esc(x.id) + '\')" title="Clic para poner el límite (avisa cuando queda poco)">' + nom +
-      (x.min > 0 ? '<br><span class="lim">' + (bajo ? '⚠ ' : '') + 'Límite ' + fmtN(x.min, 2) + (bajo ? ' · stock ' + fmtN(x.stock, 2) : '') + '</span>' : '<br><span class="lim muted">poner límite</span>') + '</td><td class="sep"><input class="ini" data-id="' + esc(x.id) + '" value="' + (ini ? fmtN(ini.cant, 2) : '') + '" placeholder="' + (calc != null ? fmtN(calc, 2) : 'escribir') + '" title="' + (calc != null ? 'Calculado desde el último conteo. Escribilo para fijarlo.' : 'Lo que había al empezar el mes') + '"></td>' + celdasDia +
+      (x.min > 0 ? '<br><span class="lim">' + (bajo ? '⚠ ' : '') + 'Límite ' + fmtN(x.min, 2) + (bajo ? ' · stock ' + fmtN(x.stock, 2) : '') + '</span>' : '<br><span class="lim muted">poner límite</span>') + '</td><td class="sep"><input class="ini" data-id="' + esc(x.id) + '" value="' + (ini ? fmtE(ini.cant, 2) : '') + '" placeholder="' + (calc != null ? fmtN(calc, 2) : 'escribir') + '" title="' + (calc != null ? 'Calculado desde el último conteo. Escribilo para fijarlo.' : 'Lo que había al empezar el mes') + '"></td>' + celdasDia +
       '<td class="num sep" data-v="' + r2(tc) + '">' + (tc ? '<b style="color:var(--ok)">+' + fmtN(tc, 2) + '</b>' : '') + '</td><td class="num" data-v="' + r2(tu) + '">' + (tu ? fmtN(tu, 2) : '') + '</td>' +
       '<td class="num sep" data-v="' + (fin == null ? '' : r2(fin)) + '"><b style="font-size:16px' + (fin != null && (fin < 0 || (x.min && fin < x.min) || bajo) ? ';color:var(--bad)' : '') + '">' + (fin == null ? '' : fmtN(fin, 2)) + '</b></td></tr>';
   }
@@ -963,7 +972,7 @@ function editarLimite(id) {
   const s = stockInsumos().find(x => x.id === id) || listaInsumos().find(x => x.id === id);
   abrirDlg('Límite · ' + esc(s.carlos || s.nombre),
     '<div class="sis">Stock estimado hoy: <b>' + (s.stock != null ? fmtN(s.stock, 2) + ' ' + esc(s.unidad) : 'falta el saldo inicial o un conteo') + '</b>.<br>Cuando quede menos que el límite, el insumo se pone en <b style="color:var(--bad)">rojo</b> y se manda un mail a Carlos para pedir más.</div>' +
-    '<div class="campos"><label>Límite (' + esc(s.unidad) + ')</label><input id="li-v" class="big-num" value="' + (s.min ? fmtN(s.min, 2) : '') + '" placeholder="ej: 10"></div><p class="nota">Vacío o 0 = sin aviso.</p>',
+    '<div class="campos"><label>Límite (' + esc(s.unidad) + ')</label><input id="li-v" class="big-num" value="' + (s.min ? fmtE(s.min, 2) : '') + '" placeholder="ej: 10"></div><p class="nota">Vacío o 0 = sin aviso.</p>',
     [['Cancelar', cerrarDlg], ['Guardar', async () => {
       const n = leerNum($('li-v').value); if (Number.isNaN(n)) { toast('Número inválido', true); return; }
       try {
@@ -1029,7 +1038,7 @@ function compraDia(id, f) {
   abrirDlg(esc(s.nombre) + ' · ' + DIAS[diaSem(f)] + ' ' + ddmm(f),
     '<div class="sis">Producción del día: ' + (prodDia.length ? prodDia.map(x => '<b>' + x[0] + '</b> ' + fmtN(x[1], 0) + ' kg').join(' · ') : 'sin producción') + '.<br>Según la fórmula se usaron <b>' + fmtN(formula, 2) + ' ' + esc(s.unidad) + '</b>.</div>' +
     '<h3 style="font-size:15px;margin:4px 0 8px">Lo usado ese día</h3>' +
-    '<div class="campos"><label>Usado de verdad (' + esc(s.unidad) + ')</label><input id="cd-u" class="big-num" value="' + (aj ? fmtN(aj.cant, 2) : '') + '" placeholder="' + fmtN(formula, 2) + '"><label>Motivo</label><input id="cd-un" value="' + esc(aj ? aj.nota || '' : '') + '" placeholder="Opcional"></div>' +
+    '<div class="campos"><label>Usado de verdad (' + esc(s.unidad) + ')</label><input id="cd-u" class="big-num" value="' + (aj ? fmtE(aj.cant, 2) : '') + '" placeholder="' + fmtN(formula, 2) + '"><label>Motivo</label><input id="cd-un" value="' + esc(aj ? aj.nota || '' : '') + '" placeholder="Opcional"></div>' +
     '<p class="nota" style="margin-top:4px">Vacío = lo de la fórmula. Si escribís otro número, ese día descuenta eso.</p>' +
     '<h3 style="font-size:15px;margin:16px 0 8px">Compras</h3>' + lista +
     '<div class="campos"><label>Cantidad comprada (' + esc(s.unidad) + ')</label><input id="cd-c" class="big-num"><label>Nota</label><input id="cd-n" placeholder="Proveedor, remito…"></div>' +
@@ -1083,7 +1092,7 @@ function htmlFormulas() {
       '<table><thead><tr><th>Ingrediente</th><th class="num">Cantidad</th><th>Tipo</th><th>Insumo que descuenta</th><th class="num">por kg producido</th><th class="num">Precio</th><th class="num">Costo</th><th></th></tr></thead><tbody>';
     r.lineas.forEach((l, li) => {
       h += '<tr><td><input value="' + esc(l.nombre) + '" onchange="FORED.recetas[' + ri + '].lineas[' + li + '].nombre=this.value"></td>' +
-        '<td><input class="n" value="' + fmtN(l.cant, 3) + '" onchange="setCant(' + ri + ',' + li + ',this)"></td>' +
+        '<td><input class="n" value="' + fmtE(l.cant, 3) + '" onchange="setCant(' + ri + ',' + li + ',this)"></td>' +
         '<td><select onchange="FORED.recetas[' + ri + '].lineas[' + li + '].tipo=this.value;renderInsumos()">' + [['carne', 'Carne'], ['insumo', 'Insumo'], ['envase', 'Envase']].map(([k, n]) => '<option value="' + k + '"' + (l.tipo === k ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></td>' +
         '<td>' + (l.tipo === 'carne' ? '<span class="muted">—</span>' : '<select onchange="FORED.recetas[' + ri + '].lineas[' + li + '].ins=this.value">' + opIns(l.ins) + '</select>') + '</td>' +
         '<td class="num muted">' + (b && l.tipo !== 'carne' && Number(l.cant) ? fmtN(Number(l.cant) / b, 4) : '') + '</td>' +

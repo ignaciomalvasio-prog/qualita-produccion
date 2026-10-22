@@ -2,11 +2,14 @@
 'use strict';
 
 /* ---------- formato ---------- */
-const fmtN = (v, d = 0) => (v == null || isNaN(v)) ? '' : Number(v).toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d });
-const kg = v => (!v || Math.abs(v) < 0.005) ? '' : fmtN(v, Math.abs(v) >= 100 ? 0 : 1);
-const kg1 = v => (v == null || isNaN(v)) ? '' : fmtN(v, 1);
+/* Se muestra todo en números redondos (sin decimales). Solo lo menor a 1 lleva un decimal, para que no parezca 0. */
+const fmtN = (v, d = 0) => { if (v == null || isNaN(v)) return ''; v = Number(v); const n = Math.abs(v) < 0.95 && Math.abs(v) >= 0.05 ? 1 : 0; return v.toLocaleString('es-AR', { minimumFractionDigits: n, maximumFractionDigits: n }); };
+/* Valor exacto (hasta d decimales) para las casillas que se escriben, así al guardar no se redondea nada */
+const fmtE = (v, d = 2) => (v == null || isNaN(v)) ? '' : Number(v).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: Math.max(d, 2) });
+const kg = v => (!v || Math.abs(v) < 0.05) ? '' : fmtN(v);
+const kg1 = v => (v == null || isNaN(v)) ? '' : fmtN(v);
 const pesos = v => (v == null || isNaN(v) || Math.abs(v) < 0.5) ? '' : '$ ' + fmtN(v, 0);
-const pct = v => (v == null || !isFinite(v)) ? '' : fmtN(v * 100, 1) + ' %';
+const pct = v => (v == null || !isFinite(v)) ? '' : fmtN(v * 100) + ' %';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const $ = id => document.getElementById(id);
 const r2 = v => Math.round((v || 0) * 100) / 100;

@@ -1,7 +1,7 @@
 /* Centro de control Ciclo III y Qualitá Express · conexión con Firebase (link /control y /caja)
    - Ingreso con Google o mail (acceso.js). Entran los editores de la app y las cuentas que figuran en /c3usuarios
      (rol "todo" = Carlos y quien controla; rol "caja" = el encargado del local, solo la planilla de caja).
-   - Los datos del sistema de gestión los sube la notebook de Igna todos los días a las 18 h y los lunes a las 8 h (C:\InformeQualita\ciclo3\c3_sync.ps1)
+   - Los datos del sistema de gestión los sube la notebook de Igna todos los días a las 8 h y a las 20 h (C:\InformeQualita\ciclo3\c3_sync.ps1)
      a /c3sis: "mes-AAAA-MM" (remitos, producción, ventas, stock) e "ins" (insumos, compras y producción).
    - Lo que se carga a mano va en /c3docs/{nombre} = { json, ver, por, ts } y cada cambio deja un renglón en /c3cambios.
    - Modo de prueba: si existe window.__mock = { user, rol, sis: {id: txt}, docs: {nombre: objeto} } no usa Firebase. */
