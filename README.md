@@ -175,3 +175,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Pedidos: si hay pedidos tildados, el camión que se elige en el cartelito de uno de ellos va para todos los tildados.
 - Pedidos en el celular: renglón más compacto (arriba nombre, kilos, estado y flecha; abajo N° de cuenta, cortes y cartelitos más chicos: "¿Fresco/cong.?" y "+ Camión"). En la compu no cambia.
 - Producción, imprimir y PDF: letra más chica (como mucho 13, antes llegaba a 20) y menos espacio entre cortes; el detalle del total va entre paréntesis (ej. "120 kg (6 cajas)").
+- Logística en pantalla más compacta: encabezado del camión, franja de totales, tarjetas de clientes, números de orden y renglones más chicos y con menos espacio. La impresión no cambia.
