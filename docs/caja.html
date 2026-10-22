@@ -59,7 +59,7 @@ textarea.notas{min-height:150px;font-size:15px;border:1.5px solid #1d262c;border
       <div class="fecha">FECHA: <input type="date" id="f" onchange="cargarDia()"></div>
       <span class="muted" id="cargo"></span>
       <span style="flex:1"></span>
-      <span class="no-print muted" style="font-size:13px">Al tocar <b>Guardar y enviar</b> pasa al Centro de control y se manda por mail a Dadi y a Carlos.</span>
+      <span class="no-print muted" style="font-size:13px">Al tocar <b>Guardar y enviar</b> pasa al Centro de control y se manda por mail a Dadi y a Carlos (a las 8 o a las 20 h).</span>
     </div>
     <div class="cols">
       <!-- columna 1: ingresos y egresos -->
@@ -250,7 +250,7 @@ async function guardar() {
     }, 'Planilla de caja ' + ddmm(f) + ': Zeta ' + (pesos(form.c.zeta || 0) || '$ 0') + ', "2" ' + (pesos(form.c.dos || 0) || '$ 0') + (hayDet(form.det) ? ', caja ' + pesos(sumaDet(form.det)) : '') + (obs ? ' · ' + obs.replace(/\s+/g, ' ').slice(0, 120) : ''));
     toast('Guardado. Ya está en el Centro de control.'); mostrar(DOC.dias[f]);
   } catch (e) { toast(e.message, true); $('btn-guardar').disabled = false; return; }
-  // se deja el mail listo; la notebook lo manda (en unos minutos) con la planilla en Excel adjunta
+  // se deja el mail listo; la notebook lo manda a las 8 y a las 20 h con la planilla en Excel adjunta
   try {
     const x = cajaCalc(DOCP, DOC, f.slice(0, 7))[f];
     const corregida = !!((DOC.dias[f] || {}).mailEnviado);
@@ -262,7 +262,7 @@ async function guardar() {
       html: htmlMail(f, form, x, obs, corregida), adjunto: xlsx, adjuntoNombre: nombreExcel(f)
     });
     await cambiarDoc('local-' + f.slice(0, 7), d => { if (d.dias && d.dias[f]) d.dias[f].mailEnviado = new Date().toISOString(); }, 'Planilla de caja ' + ddmm(f) + ': mail para Dadi y Carlos');
-    toast('Guardado en el Centro de control. El mail a Dadi y Carlos sale en unos minutos.');
+    toast('Guardado en el Centro de control. El mail a Dadi y Carlos sale a las 8 o a las 20 h.');
   } catch (e) { toast('Se guardó, pero no se pudo preparar el mail: ' + (e.message || e), true); }
   $('btn-guardar').disabled = false;
 }

@@ -165,3 +165,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Centro de control: todo en números redondos (lo que se escribe se guarda exacto). Lo escrito a mano queda y debajo muestra lo que dice el sistema en la última lectura (en rojo si cambió después). "Enviado del Ciclo III al local comercial". El sistema se lee a las 8 y a las 20 h, releyendo el mes actual y el anterior.
 - Insumos › Stock: clic en el "Último conteo" para borrarlo o cargar otro (y en Detalle el borrar pide confirmación en el mismo botón).
 - Centro de control: línea divisoria entre las pestañas de arriba y la elegida con fondo.
+- Centro de control: la notebook trabaja solo a las 8 y a las 20 h (sube los datos del sistema y manda los mails pendientes de caja e insumos); sin ventana negra.
