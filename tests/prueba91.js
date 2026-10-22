@@ -32,8 +32,8 @@ for(const w of [1100,400]){const p=await b.newPage({viewport:{width:w,height:900
  await p.clock.install({time:new Date('2026-10-21T10:00:00-03:00')});
  await p.addInitScript(d=>{window.print=()=>{};window.__mock={data:JSON.parse(JSON.stringify(d)),user:{email:'yo@x.com'},editores:['yo@x.com'],camara:['yo@x.com']}},base);
  await p.goto('http://127.0.0.1:8765/index.html');await p.clock.runFor(1500);await p.waitForTimeout(200);
- console.log('=== ',w,'pestaña visible:',await p.locator('#tab-camara').isVisible(),'· cuadro Inicio (vacío):',(await p.locator('.t-camara').innerText()).replace(/\s+/g,' '));
- await p.click('#tab-camara');await p.waitForSelector('#cam-txt');
+ console.log('=== ',w,'pestaña visible:',await p.locator('#tab-camara').isVisible(),'· cuadro Inicio (con lo fijo):',(await p.locator('.t-camara').innerText()).replace(/\s+/g,' '));
+ await p.click('#tab-camara');await p.waitForSelector('.cam-tabla');await p.click('[data-act="cam-pegar"]');await p.waitForSelector('#cam-txt');
  await p.fill('#cam-txt',T.txt);await p.locator('#cam-txt').dispatchEvent('input');await p.waitForTimeout(100);
  console.log('vista previa:',(await p.locator('.cam-prev').innerText()).replace(/\s+/g,' '));
  await p.click('[data-act="cam-guardar-pegado"]');await p.clock.runFor(800);await p.waitForTimeout(300);

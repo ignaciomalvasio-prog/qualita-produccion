@@ -158,3 +158,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Publicación: si la herramienta de Firebase falla (permiso de Google Cloud), el workflow publica directo con la API de Hosting (tools/deploy_hosting.mjs).
 - Cámara: ahora funciona sin tocar Firebase (por decisión de Renzo): los datos van en privado/camara-* y la pestaña se muestra solo con su cuenta.
 - Cámara: link personal (#camara?d=...) que trae las semanas armadas y las carga con un toque (los datos van solo en el link, no en el código).
+- Cámara: hasta fin de año viene cargado de base (faena 680/día, viernes 520 + 160 usuario; venta y desposte habituales). Feriados (12/10, 23/11, 8/12, 25/12, 1/1) en rojo, sin faena ni desposte; 7/12 marcado como no laborable.

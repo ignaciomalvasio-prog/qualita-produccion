@@ -2413,6 +2413,18 @@
   // La pestaña la ve solo la cuenta cuya huella SHA-256 del mail figura acá (así el mail no queda escrito en el código público).
   var CAM_CUENTAS = ['e1417b75ad72765061993805221de0f56d6d0bbac14792ef4defa3bb1b628355'];
   function huella(t) { return crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(t || '').trim().toLowerCase())).then(function (b) { return Array.prototype.map.call(new Uint8Array(b), function (x) { return ('0' + x.toString(16)).slice(-2); }).join(''); }); }
+  // Lo que ya viene cargado de base (pedido de Renzo): faena fija 680 por día y el viernes 520 + 160 de usuario;
+  // venta y desposte con los valores que él usa para proyectar. Lo cargado a mano o lo que haya en Medias/Producción manda.
+  var CAM_FIJO = { desde: '2026-09-28', hasta: '2026-12-31', propios: [680, 680, 680, 680, 520], usuario: [0, 0, 0, 0, 160], venta: [317, 329, 154, 272, 306], desp: [750, 750, 750, 750, 720] };
+  // Feriados nacionales 2026 (oct–dic) y días no laborables: el día del feriado no hay faena, venta ni desposte.
+  var CAM_FERIADOS = { '2026-10-12': 'Diversidad Cultural', '2026-11-23': 'Soberanía Nacional', '2026-12-08': 'Inmaculada Concepción', '2026-12-25': 'Navidad', '2027-01-01': 'Año Nuevo' };
+  var CAM_NOLAB = { '2026-12-07': 'Día no laborable' };
+  function camFijo(f) {
+    if (f < CAM_FIJO.desde || f > CAM_FIJO.hasta) return null;
+    var i = fecha(f).getDay() - 1; if (i < 0 || i > 4) return null;
+    if (CAM_FERIADOS[f]) return { propios: 0, usuario: 0, venta: 0, desp: 0 };
+    return { propios: CAM_FIJO.propios[i], usuario: CAM_FIJO.usuario[i] || null, venta: CAM_FIJO.venta[i], desp: CAM_FIJO.desp[i] };
+  }
   function camCap() { var a = (S.cam || {}).ajustes; return a && +a.capacidad > 0 ? +a.capacidad : 2250; }
   function camSemanas() { return Object.keys(S.cam || {}).filter(function (k) { return /^\d{4}-\d{2}-\d{2}$/.test(k); }).sort(); }
   function camGuardado(f) { var l = lunesDe(f), d = (S.cam || {})[l], i = Math.round((fecha(f) - fecha(l)) / 864e5); return d && d.dias && d.dias[i] ? d.dias[i] : {}; }
@@ -2426,16 +2438,15 @@
   }
   function camCalc(hasta) {
     var sem = camSemanas(), r = {};
-    if (!sem.length) return { dias: r, ultimo: null };
-    var ini = sem[0], fin = hasta > mas(hoy(), 21) ? hasta : mas(hoy(), 21), d = ini, prev = null, ultimo = null, lista = [];
+    var ini = sem.length && sem[0] < CAM_FIJO.desde ? sem[0] : CAM_FIJO.desde, fin = hasta > mas(hoy(), 21) ? hasta : mas(hoy(), 21), d = ini, prev = null, ultimo = null, lista = [];
     while (d <= fin) { if (esHabil(d) || fecha(d).getDay() % 6) lista.push(d); d = mas(d, 1); }
     lista = lista.filter(function (x) { var g = fecha(x).getDay(); return g > 0 && g < 6; });
     lista.forEach(function (f) {
-      var g = camGuardado(f), a = camAuto(f), o = { f: f, src: {} };
-      ['propios', 'usuario', 'venta'].forEach(function (k) { var v = camNum(g[k]); if (v != null) { o[k] = v; o.src[k] = 'dato'; } else if (a[k] != null) { o[k] = a[k]; o.src[k] = 'auto'; } else o[k] = null; });
+      var g = camGuardado(f), a = camAuto(f), fj = camFijo(f), o = { f: f, src: {}, feriado: CAM_FERIADOS[f] || '', nolab: CAM_NOLAB[f] || '' };
+      ['propios', 'usuario', 'venta'].forEach(function (k) { var v = camNum(g[k]); if (v != null) { o[k] = v; o.src[k] = 'dato'; } else if (a[k] != null && !o.feriado) { o[k] = a[k]; o.src[k] = 'auto'; } else if (fj && (fj[k] != null || o.feriado)) { o[k] = fj[k]; o.src[k] = 'fijo'; } else o[k] = null; });
       // Desposte de ESTE día: el que se anotó el día hábil anterior como "desposte del día siguiente".
       var gp = prev ? camGuardado(prev.f) : {}, dp = camNum(gp.despSig);
-      o.desp = dp != null ? dp : (a.desp != null ? a.desp : (+S.config.desposteHabitual || 750)); o.srcDesp = dp != null ? 'dato' : (a.desp != null ? 'auto' : 'habitual');
+      o.desp = dp != null ? dp : (o.feriado ? 0 : a.desp != null ? a.desp : fj ? fj.desp : (+S.config.desposteHabitual || 750)); o.srcDesp = dp != null ? 'dato' : (o.feriado ? 'fijo' : a.desp != null ? 'auto' : fj ? 'fijo' : 'habitual');
       var remM = camNum(g.rem);
       o.rem = remM != null ? remM : (prev ? prev.disp - o.desp : 0); o.src.rem = remM != null ? 'dato' : 'calc';
       o.faena = (o.propios || 0) + (o.usuario || 0);
@@ -2443,7 +2454,7 @@
       o.disp = o.aDesposte + o.rem;
       o.camara = o.faena * 2 + o.rem;
       o.libre = camCap() - o.camara;
-      if (o.src.propios || o.src.venta || camNum(g.despSig) != null || remM != null) ultimo = f;
+      if (o.src.propios || o.src.venta || camNum(g.despSig) != null || remM != null || fj) ultimo = f;
       if (prev) prev.sig = o;
       r[f] = o; prev = o;
     });
@@ -2476,7 +2487,7 @@
     if (!S.camaraOk) { el.innerHTML = '<div class="panel"><p class="state">Esta sección es privada.</p></div>'; return; }
     if (!S.camLun) S.camLun = lunesDe(camDiaRef());
     var L = S.camLun, dias = [0, 1, 2, 3, 4].map(function (i) { return mas(L, i); }), c = camCalc(mas(L, 7)), ult = c.ultimo, hy = hoy();
-    var vacio = !camSemanas().length;
+    var vacio = false;
     var h = '<div class="cam-top"><span class="cam-escudo" aria-hidden="true"></span><div><p class="cam-sup">Semana de faena y desposte · <span class="cam-priv">🔒 Privado, solo con tu cuenta</span></p>'
       + '<h2 class="cam-tit">' + esc(etiquetaSemana(L).toUpperCase()) + '</h2></div>'
       + '<span class="cam-acc"><button class="btn step" data-act="cam-sem" data-d="-7" aria-label="Semana anterior">‹</button>'
@@ -2487,13 +2498,13 @@
     if (S.camPegar || vacio) h += camPegarHTML(vacio);
     if (!vacio) {
       var fila = function (lab, cls, celda, tot) {
-        return '<tr class="' + cls + '"><th scope="row">' + lab + '</th>' + dias.map(function (f) { var o = c.dias[f], ver = o && (!ult || f <= ult || o.src.propios === 'dato'); return '<td class="' + (f === hy ? 'hoy' : '') + '">' + (o ? celda(o, ver) : '') + '</td>'; }).join('') + '<td class="tot">' + (tot || '') + '</td></tr>';
+        return '<tr class="' + cls + '"><th scope="row">' + lab + '</th>' + dias.map(function (f) { var o = c.dias[f], ver = o && (!ult || f <= ult || o.src.propios === 'dato'); return '<td class="' + (f === hy ? 'hoy' : '') + (CAM_FERIADOS[f] ? ' fer' : '') + '">' + (o ? celda(o, ver) : '') + '</td>'; }).join('') + '<td class="tot">' + (tot || '') + '</td></tr>';
       };
       var sum = function (k) { return dias.reduce(function (t, f) { var o = c.dias[f]; return t + (o && o[k] ? o[k] : 0); }, 0); };
       var nd = dias.filter(function (f) { var o = c.dias[f]; return o && o.faena > 0; }).length || 1;
       var calc = function (k, bold) { return function (o, ver) { return ver ? '<span class="cam-v' + (bold ? ' b' : '') + '">' + n(o[k]) + '</span>' : ''; }; };
       var ed = function (k) { return function (o) { return camCelda(o.f, k, o[k], o.src[k]); }; };
-      h += '<div class="cam-tabla"><table><thead><tr><th></th>' + dias.map(function (f) { return '<th class="' + (f === hy ? 'hoy' : '') + '">' + esc(diaDe(f)) + ' ' + fecha(f).getDate() + (f === hy ? ' · HOY' : '') + '</th>'; }).join('') + '<th>Total</th></tr></thead><tbody>'
+      h += '<div class="cam-tabla"><table><thead><tr><th></th>' + dias.map(function (f) { return '<th class="' + (f === hy ? 'hoy' : '') + (CAM_FERIADOS[f] ? ' feriado' : CAM_NOLAB[f] ? ' nolab' : '') + '">' + esc(diaDe(f)) + ' ' + fecha(f).getDate() + (f === hy ? ' · HOY' : '') + (CAM_FERIADOS[f] ? '<small>FERIADO · ' + esc(CAM_FERIADOS[f]) + '</small>' : CAM_NOLAB[f] ? '<small>' + esc(CAM_NOLAB[f].toUpperCase()) + '</small>' : '') + '</th>'; }).join('') + '<th>Total</th></tr></thead><tbody>'
         + fila('PROPIOS', 'c-verde', ed('propios'), n(sum('propios')))
         + fila('USUARIO', 'c-naranja', ed('usuario'), n(sum('usuario')))
         + fila('FAENA', 'c-celeste b', calc('faena', true), n(sum('faena')) + ' <small>(' + n(Math.round(sum('faena') / nd)) + ' x día)</small>')
@@ -2509,7 +2520,7 @@
       h += '<label class="campo cam-nota"><span>Nota de la semana</span><input id="cam-nota" value="' + esc(nota) + '" placeholder="Ej.: si carga Recreo faenamos"></label>';
       h += '<div class="cam-ley"><span class="l-dato">Cargado o corregido</span><span class="l-auto">Sale solo de Medias / Producción</span><span class="l-calc">Calculado</span>'
         + '<span class="cam-cap">Capacidad de cámara: <input id="cam-cap" inputmode="numeric" value="' + esc(String(camCap())) + '" aria-label="Capacidad de cámara en medias"> medias</span></div>'
-        + '<p class="small muted cam-tip">Tocá cualquier número de propios, usuario, venta, desposte o remanente para cambiarlo; todo lo demás se recalcula solo. Si borrás un remanente escrito a mano, vuelve a calcularse.</p>';
+        + '<p class="small muted cam-tip">Hasta fin de año ya viene cargado de base: faena 680 por día (viernes 520 + 160 de usuario), la venta y el desposte habituales, y los feriados en rojo sin faena ni desposte. Tocá cualquier número de propios, usuario, venta, desposte o remanente para cambiarlo; todo lo demás se recalcula solo.</p>';
     }
     el.innerHTML = h;
   }
