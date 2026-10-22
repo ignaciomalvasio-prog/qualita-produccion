@@ -2483,6 +2483,7 @@
       + (L !== lunesDe(camDiaRef()) ? '<button class="btn" data-act="cam-hoy">Esta semana</button>' : '')
       + '<button class="btn step" data-act="cam-sem" data-d="7" aria-label="Semana siguiente">›</button>'
       + '<button class="btn" data-act="cam-pegar">' + (S.camPegar ? 'Cerrar' : 'Pegar desde la planilla') + '</button><button class="btn" data-act="imprimir">Imprimir</button></span></div>';
+    if (S.camLink) { var dl = camDesdeLink(S.camLink); S.camLink = null; if (dl && dl.length) { S.camPrev = dl; S.camPegar = true; S.camDeLink = true; } }
     if (S.camPegar || vacio) h += camPegarHTML(vacio);
     if (!vacio) {
       var fila = function (lab, cls, celda, tot) {
@@ -2514,12 +2515,25 @@
   }
   function camPegarHTML(vacio) {
     var prev = S.camPrev;
+    if (S.camDeLink && prev && prev.length) return '<div class="panel cam-pegar"><h3>Tu planilla, lista para cargar</h3><p class="cam-prev">Encontré <b>' + prev.length + (prev.length === 1 ? ' semana' : ' semanas') + '</b> en tu link: del ' + esc(diaCorto(prev[0].lunes)) + ' al ' + esc(diaCorto(mas(prev[prev.length - 1].lunes, 4))) + '.</p><div class="acciones"><button class="btn pri" data-act="cam-guardar-pegado">Cargar ' + prev.length + (prev.length === 1 ? ' semana' : ' semanas') + '</button><button class="btn" data-act="cam-pegar">Cancelar</button></div></div>';
     return '<div class="panel cam-pegar">' + (vacio ? '<h3>Cargá tu planilla</h3>' : '<h3>Pegar desde la planilla</h3>')
       + '<ol class="small"><li>Abrí tu planilla (la de Google "FAENA POR DÍA" o el Excel).</li><li>Seleccioná todo (Ctrl+A) y copiá (Ctrl+C).</li><li>Pegalo acá abajo (Ctrl+V).</li></ol>'
       + '<textarea id="cam-txt" rows="5" placeholder="Pegá acá las semanas copiadas de tu planilla"></textarea>'
       + (prev ? (prev.length ? '<p class="cam-prev">Encontré <b>' + prev.length + (prev.length === 1 ? ' semana' : ' semanas') + '</b>: del ' + esc(diaCorto(prev[0].lunes)) + ' al ' + esc(diaCorto(mas(prev[prev.length - 1].lunes, 4))) + '. Las semanas que ya estén cargadas se reemplazan.</p><div class="acciones"><button class="btn pri" data-act="cam-guardar-pegado">Guardar ' + prev.length + (prev.length === 1 ? ' semana' : ' semanas') + '</button><button class="btn" data-act="cam-pegar-borrar">Borrar</button></div>'
         : '<p class="cam-prev neg">No encontré semanas en lo pegado. Copiá las semanas enteras (desde el nombre del mes y "Lunes").</p>') : '')
       + '</div>';
+  }
+  // Datos del link personal: base64url de [[lunes, [[propios, usuario, venta, despSig, remanente] x5], nota], ...].
+  function camDesdeLink(b) {
+    try {
+      var bin = atob(String(b).replace(/-/g, '+').replace(/_/g, '/')), u8 = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      var a = JSON.parse(new TextDecoder().decode(u8)), nn = function (x) { return x == null || x === '' ? null : +x; };
+      return a.filter(function (w) { return /^\d{4}-\d{2}-\d{2}$/.test(w[0]) && Array.isArray(w[1]); }).map(function (w) {
+        var o = { lunes: w[0], dias: w[1].slice(0, 5).map(function (d) { return { propios: nn(d[0]), usuario: nn(d[1]), venta: nn(d[2]), despSig: nn(d[3]), remPegado: nn(d[4]) }; }) };
+        if (w[2]) o.nota = String(w[2]); return o;
+      }).sort(function (x, y) { return x.lunes < y.lunes ? -1 : 1; });
+    } catch (e) { return null; }
   }
   // Lee lo copiado de la planilla (Google o Excel): bloques con el mes, "Lunes NN", y las filas PROPIOS, USUARIO, VENTA y REMANENTE.
   var MES_N = { ENERO: 0, FEBRERO: 1, MARZO: 2, ABRIL: 3, MAYO: 4, JUNIO: 5, JULIO: 6, AGOSTO: 7, SEPTIEMBRE: 8, SETIEMBRE: 8, OCTUBRE: 9, NOVIEMBRE: 10, DICIEMBRE: 11 };
@@ -2930,12 +2944,12 @@
     else if (a === 'hora-abrir') { S.horaAbierta = D.id; renderPedidos(); var ha = document.querySelector('input[data-hora-cam="' + D.id + '"]'); if (ha) ha.focus(); }
     else if (a === 'cam-sem') { S.camLun = mas(S.camLun || lunesDe(camDiaRef()), +D.d); render(); }
     else if (a === 'cam-hoy') { S.camLun = lunesDe(camDiaRef()); render(); }
-    else if (a === 'cam-pegar') { S.camPegar = !S.camPegar; S.camPrev = null; render(); var ct = $('cam-txt'); if (ct) ct.focus(); }
+    else if (a === 'cam-pegar') { S.camPegar = !S.camPegar; S.camPrev = null; S.camDeLink = false; render(); var ct = $('cam-txt'); if (ct) ct.focus(); }
     else if (a === 'cam-pegar-borrar') { S.camPrev = null; render(); var ct2 = $('cam-txt'); if (ct2) ct2.focus(); }
     else if (a === 'cam-guardar-pegado') {
       var sp = S.camPrev || []; if (!sp.length) return;
       b.disabled = true; b.textContent = 'Guardando…';
-      guardarCamaraPegada(sp).then(function () { S.camPegar = false; S.camPrev = null; S.camLun = lunesDe(camDiaRef()) <= sp[sp.length - 1].lunes ? lunesDe(camDiaRef()) : sp[sp.length - 1].lunes; avisar('Listo: ' + sp.length + (sp.length === 1 ? ' semana cargada.' : ' semanas cargadas.'), 4000); render(); },
+      guardarCamaraPegada(sp).then(function () { S.camPegar = false; S.camPrev = null; S.camDeLink = false; S.camLun = lunesDe(camDiaRef()) <= sp[sp.length - 1].lunes ? lunesDe(camDiaRef()) : sp[sp.length - 1].lunes; avisar('Listo: ' + sp.length + (sp.length === 1 ? ' semana cargada.' : ' semanas cargadas.'), 4000); render(); },
         function () { b.disabled = false; b.textContent = 'Guardar'; avisar('!No se pudo guardar. ¿Ya está publicada la regla de Cámara en Firebase?', 9000); });
     }
     else if (a === 'nota-abrir') { S.notaAbierta = D.id; render(); var na = document.querySelector('textarea[data-nota-ped="' + D.id + '"]'); if (na) na.focus(); }
@@ -3302,7 +3316,10 @@
     else if (D.pasar && t.value) { (t.value.charAt(0) === 'f' ? usarDeFlota(S.fl, t.value.slice(2), [D.pasar]) : asignarCamion(S.fl, [D.pasar], t.value.slice(2))).then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); }
   });
 
-  var h0 = (location.hash || '').slice(1); if (TABS.indexOf(h0) >= 0) S.tab = h0 === 'ciclo3' ? 'produccion' : h0;
+  var h0 = (location.hash || '').slice(1);
+  // Link personal para cargar la planilla de Cámara de una vez (#camara?d=...): los datos viajan solo en el link.
+  var mcam = h0.match(/^camara\?d=([A-Za-z0-9_-]+)$/); if (mcam) { S.camLink = mcam[1]; h0 = 'camara'; try { history.replaceState(null, '', '#camara'); } catch (err) {} }
+  if (TABS.indexOf(h0) >= 0) S.tab = h0 === 'ciclo3' ? 'produccion' : h0;
   // Link para compartir con una sola pestaña: se ve esa sola, sin las demás y sin ingresar.
   // Es la página logistica.html (se arma con tools/paginas.py); el link viejo con ?solo=logistica sigue andando.
   try { var qs = document.documentElement.getAttribute('data-solo') || new URLSearchParams(location.search).get('solo'); if (qs === 'logistica' || qs === 'produccion' || qs === 'ciclo3' || qs === 'rendering' || qs === 'medias') { S.solo = qs; S.tab = qs; } } catch (err) {}

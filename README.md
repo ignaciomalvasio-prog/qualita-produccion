@@ -157,3 +157,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Cámara (privada): pestaña "Cámara 🔒" y cuadro en Inicio, solo para las cuentas en camaraUsuarios/{mail}. Planilla semanal de faena y desposte (propios, usuario, venta, desposte del día siguiente → remanente, disponible, medias en cámara, lugar libre de 2.250). Se carga pegando la planilla (Google o Excel); todo número se corrige tocándolo; lo que falta sale de Medias y Producción. Requiere publicar la regla nueva de firestore.rules.
 - Publicación: si la herramienta de Firebase falla (permiso de Google Cloud), el workflow publica directo con la API de Hosting (tools/deploy_hosting.mjs).
 - Cámara: ahora funciona sin tocar Firebase (por decisión de Renzo): los datos van en privado/camara-* y la pestaña se muestra solo con su cuenta.
+- Cámara: link personal (#camara?d=...) que trae las semanas armadas y las carga con un toque (los datos van solo en el link, no en el código).
