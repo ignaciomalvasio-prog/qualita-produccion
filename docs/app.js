@@ -2526,6 +2526,7 @@
   function renderCamara() {
     var el = $('view-camara');
     if (!S.camaraOk) { el.innerHTML = '<div class="panel"><p class="state">Esta sección es privada.</p></div>'; return; }
+    if (!S.editor) { el.innerHTML = !S.editorVisto ? '<div class="panel"><p class="state">Cargando tus datos…</p></div>' : '<div class="panel"><p class="state">Todavía no se cargaron tus datos de Cámara (no se pudo confirmar tu permiso, puede ser la señal).</p><div class="acciones"><button class="btn pri" data-act="recargar">Volver a cargar</button></div></div>'; return; }
     if (!S.camLun) S.camLun = lunesDe(camDiaRef());
     var L = S.camLun, dias = [0, 1, 2, 3, 4].map(function (i) { return mas(L, i); }), c = camCalc(mas(L, 7)), ult = c.ultimo, hy = hoy();
     var vacio = false;
@@ -3150,6 +3151,7 @@
       renderPedidos();
     }
     else if (a === 'e-dia') { var ye = S.entrega; do { ye = mas(ye, +D.d); } while (!esHabil(ye)); S.entrega = ye; S.sel = {}; renderPedidos(); }
+    else if (a === 'recargar') { location.reload(); }
     else if (a === 'camp-menu') { e.preventDefault(); e.stopPropagation(); S.camMenu = S.camMenu === D.id ? null : D.id; S.frioMenu = null; renderPedidos(); }
     else if (a === 'camp-otro') { e.preventDefault(); e.stopPropagation(); var po = pedidoDe(D.id); S.camMenu = null; if (po) { S.sel = {}; S.sel[po.id] = true; S.selDia = po.entrega; S.camOtro = true; } renderPedidos(); var fco = $('cam-num'); if (fco) fco.focus(); }
     else if (a === 'camp-set') {
@@ -3732,7 +3734,15 @@
         // Después de tocar el link del mail: se relee la cuenta y se pide un permiso nuevo, que ya dice "verificado".
         confirmar: function () { var u = auth.currentUser; if (!u) return Promise.resolve(false); return u.reload().then(function () { return u.getIdToken(true); }).then(function () { if (u.emailVerified && authCb) authCb(auth.currentUser); return u.emailVerified; }); },
         signOut: function () { return au.signOut(auth); },
-        esEditor: function (email) { return fs.getDoc(fs.doc(db, 'editores', email)).then(function (s) { return s.exists(); }, function () { return false; }); },
+        // Si la consulta falla (señal floja en el celu, sesión recién abierta) se reintenta; también se prueba el mail en minúsculas.
+        esEditor: function (email) {
+          var ids = [email]; if (String(email).toLowerCase() !== email) ids.push(String(email).toLowerCase());
+          var prueba = function (vez) {
+            return Promise.all(ids.map(function (x) { return fs.getDoc(fs.doc(db, 'editores', x)).then(function (s) { return s.exists(); }); })).then(function (r) { return r.some(Boolean); },
+              function (er) { if (vez >= 3) return false; return new Promise(function (ok) { setTimeout(ok, 1500 * (vez + 1)); }).then(function () { return (store.renovar ? store.renovar() : Promise.resolve()).then(null, function () {}); }).then(function () { return prueba(vez + 1); }); });
+          };
+          return prueba(0);
+        },
         // Cámara (privada): solo las cuentas que figuran en /camaraUsuarios.
         puedeCamara: function (email) { return huella(email).then(function (h) { return CAM_CUENTAS.indexOf(h) >= 0; }, function () { return false; }); }
       };
@@ -3768,7 +3778,7 @@
       conciliarLog(); renderDatos();
     });
     store.onAuth(function (u) {
-      S.user = u ? { email: u.email } : null; S.editor = false;
+      S.user = u ? { email: u.email } : null; S.editor = false; S.editorVisto = false;
       if (S.solo) { S.user = null; render(); return; }   // el link para compartir es siempre de solo lectura
       // Quien entró con mail y todavía no lo confirmó no puede leer nada: se le pide que lo confirme.
       if (u && u.emailVerified === false) { S.user = null; render(); if (window.Acceso) window.Acceso.verificar(store, u.email); return; }
@@ -3779,7 +3789,7 @@
         render();
       });
       (store.renovar ? store.renovar() : Promise.resolve()).then(null, function () {}).then(function () { return store.esEditor(u.email); }).then(function (ok) {
-        S.editor = ok;
+        S.editor = ok; S.editorVisto = true;
         if (ok && S.volver && S.tab === 'inicio') { S.tab = S.volver; S.volver = null; }
         if (ok) {
           if (S.fuente === 'respaldo' || vacia) traer();
