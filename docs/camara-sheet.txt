@@ -56,6 +56,7 @@ function bloques_(vals) {
       }
       if (mejor) lun = iso_(mejor.d);
     }
+    if (lun && prev && lun <= prev) lun = null;   // bloque repetido (copiado sin cambiar la fecha): va como la semana siguiente
     if (!lun && prev) { var pd = new Date(prev + 'T00:00:00Z'); pd.setUTCDate(pd.getUTCDate() + 7); lun = iso_(pd); }
     if (!lun) continue;
     out.push({ m: r - 1, lunes: lun }); prev = lun;   // m: índice 0-based de la fila del mes (la de arriba de "Lunes")
