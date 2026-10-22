@@ -13,18 +13,18 @@ jobs:
       - name: Armar la página de Logística
         run: python3 tools/paginas.py
       - uses: FirebaseExtended/action-hosting-deploy@v0
+        id: fb
+        continue-on-error: true
         with:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           channelId: live
           projectId: qualita-produccion
-      # Si la publicación falla, se repite con la herramienta de Firebase y las últimas líneas quedan como avisos legibles.
-      - name: Diagnóstico si falló
-        if: failure()
+      # Respaldo: si la herramienta de Firebase falla (p. ej. sin permiso para revisar APIs habilitadas),
+      # se publica directo con la API de Hosting, que solo necesita permisos de Hosting.
+      - name: Publicar directo (respaldo)
+        if: steps.fb.outcome == 'failure'
         env:
-          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
-          printf '%s' "$SA" > "$RUNNER_TEMP/sa.json"
-          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
-          npx -y firebase-tools@latest deploy --only hosting --project qualita-produccion --non-interactive > "$RUNNER_TEMP/out.txt" 2>&1 || true
-          tail -n 25 "$RUNNER_TEMP/out.txt" | sed 's/[%]/%25/g' | while IFS= read -r l; do [ -n "$l" ] && echo "::warning::$l"; done
-          rm -f "$RUNNER_TEMP/sa.json"
+          node tools/deploy_hosting.mjs 2>&1 | tee "$RUNNER_TEMP/dep.txt" || { tail -n 5 "$RUNNER_TEMP/dep.txt" | while IFS= read -r l; do echo "::error::$l"; done; exit 1; }
+          tail -n 1 "$RUNNER_TEMP/dep.txt" | while IFS= read -r l; do echo "::notice::$l"; done
