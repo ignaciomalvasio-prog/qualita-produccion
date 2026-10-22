@@ -1994,15 +1994,21 @@
     var cam = nombreCamion(p.entrega, p.camion);
     return '<span class="frio-chip cam-chip' + (cam ? ' con' : ' nada') + '" data-act="camp-menu" data-id="' + esc(p.id) + '" role="button" tabindex="0" title="Tocá para ' + (cam ? 'cambiar de camión' : 'sumarlo a un camión') + '">' + (cam ? '🚚 ' + esc(cam) : '+ Sumar a camión') + ' ▾</span>';
   }
+  // Si el pedido está tildado, el camión que se elige va para todos los tildados de ese día.
+  function camGrupo(p) {
+    if (!S.sel || !S.sel[p.id] || S.selDia !== p.entrega) return [p];
+    return (S.pedidos || []).filter(function (x) { return x.entrega === p.entrega && S.sel[x.id]; });
+  }
   function camMenuHTML(p) {
     var f = p.entrega, cams = camionesDe(f), lg = logDe(f), pubs = (lg && lg.pedidos) || [], fl = flota();
     var libres = fl.filter(function (c) { return !cams.some(function (d) { return d.id === 'f' + c.id; }); });
     var b = function (v, t, pri) { return '<button class="btn sm' + (pri ? ' pri' : '') + '" data-act="camp-set" data-id="' + esc(p.id) + '" data-v="' + esc(v) + '">' + t + '</button>'; };
-    return '<div class="frio-menu cam-menu"><span class="small muted">Sumar a:</span>'
+    var gr = camGrupo(p);
+    return '<div class="frio-menu cam-menu"><span class="small muted">' + (gr.length > 1 ? 'Sumar los <b>' + gr.length + ' tildados</b> a:' : 'Sumar a:') + '</span>'
       + cams.map(function (c) { var t = capTxt(c, cargaDe(pubs, c.id)); return b('d:' + c.id, esc(nomCam(c)) + (t ? ' <small>' + esc(t) + '</small>' : ''), p.camion === c.id); }).join('')
       + libres.map(function (c) { return b('f:' + c.id, esc(nomLimpio(c.nombre)) + (+c.kg ? ' <small>' + n(+c.kg) + ' kg</small>' : '')); }).join('')
       + '<button class="btn sm" data-act="camp-otro" data-id="' + esc(p.id) + '">Otro camión…</button>'
-      + (p.camion ? b('', 'Sacar del camión') : '')
+      + (gr.some(function (x) { return x.camion; }) ? b('', gr.length > 1 ? 'Sacarlos del camión' : 'Sacar del camión') : '')
       + '<button class="btn sm lnk" data-act="camp-menu" data-id="' + esc(p.id) + '">Cerrar</button></div>';
   }
   function frioMenuHTML(p) {
@@ -3153,12 +3159,12 @@
     else if (a === 'e-dia') { var ye = S.entrega; do { ye = mas(ye, +D.d); } while (!esHabil(ye)); S.entrega = ye; S.sel = {}; renderPedidos(); }
     else if (a === 'recargar') { location.reload(); }
     else if (a === 'camp-menu') { e.preventDefault(); e.stopPropagation(); S.camMenu = S.camMenu === D.id ? null : D.id; S.frioMenu = null; renderPedidos(); }
-    else if (a === 'camp-otro') { e.preventDefault(); e.stopPropagation(); var po = pedidoDe(D.id); S.camMenu = null; if (po) { S.sel = {}; S.sel[po.id] = true; S.selDia = po.entrega; S.camOtro = true; } renderPedidos(); var fco = $('cam-num'); if (fco) fco.focus(); }
+    else if (a === 'camp-otro') { e.preventDefault(); e.stopPropagation(); var po = pedidoDe(D.id); S.camMenu = null; if (po) { if (!(S.sel[po.id] && S.selDia === po.entrega)) S.sel = {}; S.sel[po.id] = true; S.selDia = po.entrega; S.camOtro = true; } renderPedidos(); var fco = $('cam-num'); if (fco) fco.focus(); }
     else if (a === 'camp-set') {
       e.preventDefault(); e.stopPropagation(); var pc = pedidoDe(D.id); S.camMenu = null; if (!pc) { renderPedidos(); return; }
-      var vc = D.v || '', fc = pc.entrega;
-      (vc.charAt(0) === 'f' ? usarDeFlota(fc, vc.slice(2), [pc.id]) : asignarCamion(fc, [pc.id], vc.slice(2)).then(function () { return { id: vc.slice(2) }; }))
-        .then(function (cam) { avisar(vc ? pc.cliente + ' ' + avisoCamion(fc, cam.id, 1).replace(/^1 pedido en /, 'va en ') : pc.cliente + ' quedó sin camión.', 5000); renderPedidos(); }, function (er) { avisar('!' + ((er && er.message) || 'No se pudo guardar. Revisá la conexión.'), 6000); renderPedidos(); });
+      var vc = D.v || '', fc = pc.entrega, gr = camGrupo(pc), idsC = gr.map(function (x) { return x.id; });
+      (vc.charAt(0) === 'f' ? usarDeFlota(fc, vc.slice(2), idsC) : asignarCamion(fc, idsC, vc.slice(2)).then(function () { return { id: vc.slice(2) }; }))
+        .then(function (cam) { if (gr.length > 1) S.sel = {}; avisar(gr.length > 1 ? (vc ? avisoCamion(fc, cam.id, gr.length) : gr.length + ' pedidos quedaron sin camión.') : vc ? pc.cliente + ' ' + avisoCamion(fc, cam.id, 1).replace(/^1 pedido en /, 'va en ') : pc.cliente + ' quedó sin camión.', 5000); renderPedidos(); }, function (er) { avisar('!' + ((er && er.message) || 'No se pudo guardar. Revisá la conexión.'), 6000); renderPedidos(); });
     }
     else if (a === 'frio-menu') { S.camMenu = null; e.preventDefault(); e.stopPropagation(); S.frioMenu = S.frioMenu === D.id ? null : D.id; renderPedidos(); }
     else if (a === 'frio-set') {

@@ -22,6 +22,12 @@ for(const w of [1100,400]){const p=await b.newPage({viewport:{width:w,height:900
  await p.click('.cam-chip[data-id="c"]');await p.click('.cam-menu [data-act="camp-otro"]');await p.waitForTimeout(200);
  console.log('otro camión → tildados:',await p.evaluate(()=>[...document.querySelectorAll('input[data-sel]:checked')].map(x=>x.dataset.sel).join(',')),'· campo N° con foco:',await p.evaluate(()=>document.activeElement.id));
  console.log('después:',await chips());
+ // Con varios tildados, el camión elegido en uno va para todos los tildados.
+ await p.click('[data-act="sel-nada"]').catch(()=>{});await p.waitForTimeout(100);
+ await p.check('input[data-sel="b"]');await p.check('input[data-sel="c"]');await p.waitForTimeout(100);
+ await p.click('.cam-chip[data-id="c"]');console.log('menú tildados:',(await p.locator('.cam-menu .small').innerText()));
+ await p.click('.cam-menu [data-act="camp-set"][data-v="d:c1"]');await p.clock.runFor(1500);await p.waitForTimeout(200);
+ console.log('tildados → c1: BRACCO',await cam('b'),'GRION',await cam('c'),'· aviso:',await p.evaluate(()=>{const a=document.querySelector('.aviso,#aviso,.toast');return a?a.innerText:'';}),'· quedan tildados:',await p.locator('input[data-sel]:checked').count());
  if(w===1100)await p.screenshot({path:SP+'/ped-cam.png',fullPage:true});
  console.log('desborde:',await p.evaluate(()=>document.documentElement.scrollWidth-innerWidth),'errores:',errs.join('|')||'ninguno');}
 await b.close();})();
