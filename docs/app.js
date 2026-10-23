@@ -2429,7 +2429,7 @@
     if (!S.editor) peds = peds.filter(function (p) { return p.camion; });
     var h = '<div class="nav"><button class="btn step" data-act="fl" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + fechaTit(f) + '</span><button class="btn step" data-act="fl" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="l-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">'
-      + (peds.length ? '<button class="btn" data-act="resumen" aria-pressed="' + !!S.resumen + '">' + (S.resumen ? 'Ver por camión' : 'Resumen del día') + '</button><button class="btn" data-act="imprimir">' + (S.resumen ? 'Imprimir resumen' : 'Imprimir') + '</button>' : '')
+      + (peds.length ? '<button class="btn" data-act="resumen" aria-pressed="' + !!S.resumen + '">' + (S.resumen ? 'Ver por camión' : 'Resumen del día') + '</button><button class="btn" data-act="imprimir">' + (S.resumen ? 'Imprimir resumen' : 'Imprimir') + '</button>' + (!S.resumen && cams.length > 1 ? '<button class="btn" data-act="imprimir-camiones" title="Todo el día, cada camión en su hoja">Imprimir por camión</button>' : '') : '')
       + (S.editor && cams.filter(function (c) { return c.hora; }).length > 1 ? '<button class="btn" data-act="cam-por-hora">Ordenar por horario</button>' : '')
       + (S.editor ? '<button class="btn" data-act="cam-nuevo">+ Camión para este día</button><button class="btn" data-act="link-log">Copiar link para compartir</button><span class="guardado" id="g-log"></span>' : '') + '</div>';
     h += '<div class="pd-busca"><input type="search" id="lg-buscar" value="' + esc(S.lgBuscar || '') + '" placeholder="Buscar cliente o N° de cuenta (en todos los días)" aria-label="Buscar un cliente en Logística" autocomplete="off">'
@@ -3002,6 +3002,16 @@
     if (a === 'ir') { irA(D.tab); if (D.ancla) { var an = $(D.ancla); if (an) an.scrollIntoView(); } }
     else if (a === 'ini-dia') { S.pd = D.f; S.abierto = {}; irA('pedidos'); }
     else if (a === 'imprimir' && S.tab === 'logistica' && !S.resumen) { imprimirAjustado(); }
+    else if (a === 'imprimir-camiones') {
+      // Todo el día, pero cada camión empieza en una hoja nueva (sin achicar para juntar camiones).
+      var vlc = $('view-logistica'); vlc.classList.add('por-camion');
+      var hjc = $('hoja-impresion');
+      if (!hjc) { hjc = document.createElement('style'); hjc.id = 'hoja-impresion'; document.head.appendChild(hjc); }
+      hjc.textContent = '@page{size:A4 portrait;margin:10mm}';
+      var limpiarC = function () { vlc.classList.remove('por-camion'); window.removeEventListener('afterprint', limpiarC); };
+      window.addEventListener('afterprint', limpiarC);
+      setTimeout(function () { window.print(); setTimeout(limpiarC, 60000); }, 60);
+    }
     else if (a === 'cam-imprimir') {
       // Solo ese camión: los demás se ocultan mientras dura la impresión.
       var vl = $('view-logistica'), sec = null;
