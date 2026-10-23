@@ -566,6 +566,7 @@
       + (o.estado === 'borrador' ? '<span class="badge warn">Borrador</span>' : '<span class="badge ok">Confirmada</span>') + '</header>';
     var acc = '<div class="acciones hoja-acc">'
       + (S.editor ? '<button class="btn pri" data-act="p-editar" data-id="' + (c3 ? 'c3-' : '') + f + '">' + (c3 ? 'Editar embutidos' : 'Editar') + '</button>' : '')
+      + '<button class="btn" data-act="hoja-imprimir">' + (c3 ? 'Imprimir embutidos' : 'Imprimir cortes') + '</button>'
       + '<button class="btn" data-act="copiar" data-t="' + k + '">Copiar como texto</button><button class="btn" data-act="hoja-pdf">Compartir PDF</button>'
       + (S.editor && !c3 ? '<button class="btn" data-act="ir-pedidos" data-f="' + f + '">Sumar cortes desde los pedidos</button>' : '')
       + (S.editor && c3 ? '<button class="btn" data-act="link-c3">Copiar link para el Ciclo III</button>' : '')
@@ -3028,6 +3029,8 @@
     else if (a === 'cam-subir' || a === 'cam-bajar') { moverEnCamion(S.fl, D.cam, D.id, a === 'cam-subir' ? -1 : 1).then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); }
     else if (a === 'resumen') { S.resumen = !S.resumen; render(); }
     else if (a === 'hoja-pdf') { compartirPDF(b.closest('.hoja'), b); }
+    // Una sola planilla (la de cortes o la de embutidos), sin las demás.
+    else if (a === 'hoja-imprimir') { var hjx = b.closest('.hoja'); if (hjx) imprimirPDF([hjx], b); }
     else if (a === 'imprimir' && S.tab === 'produccion' && !S.ep && document.querySelector('#view-produccion .hoja')) { imprimirPDF(Array.prototype.slice.call(document.querySelectorAll('#view-produccion .hoja')), b); }
     else if (a === 'imprimir') {
       // Se imprime siempre la vista de lectura, no la de edición.

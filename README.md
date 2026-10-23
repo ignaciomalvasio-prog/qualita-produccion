@@ -185,3 +185,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Pedidos: en "Sin camión" los últimos pedidos cargados aparecen arriba (campo `alta` del pedido; en los viejos se toma la hora de su id).
 - Pedidos/Logística: al mandar tildados a un camión (con la barra o con el cartelito), quedan en el orden en que se tildaron, al final de los que ya tenía; después se pueden reacomodar como siempre.
 - Logística: botón "Imprimir por camión" (con más de un camión): imprime todo el día con cada camión en una hoja aparte.
+- Producción: cada planilla tiene su botón para imprimirla sola ("Imprimir cortes" y "Imprimir embutidos"); el "Imprimir" de arriba sigue imprimiendo todo.
