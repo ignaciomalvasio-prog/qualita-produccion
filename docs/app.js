@@ -1603,7 +1603,7 @@
   function guardarPropuesta(q, auto) {
     var previo = q.editaId ? pedidoDe(q.editaId) : null, entrega = q.entrega || '';
     var p = { cliente: String(q.cliente || '').toUpperCase().trim(), entrega: entrega, medias: +q.medias || 0, peso: q.peso || '', frio: frioDe(q.frio), cuenta: String(q.cuenta || '').trim(), nota: q.nota || '', origen: q.origen || 'manual',
-      creado: previo && previo.creado ? previo.creado : ahoraTxt(), kg: +q.kg > 0 ? +q.kg : '',
+      creado: previo && previo.creado ? previo.creado : ahoraTxt(), alta: previo ? (previo.alta || '') : Date.now(), kg: +q.kg > 0 ? +q.kg : '',
       camion: previo && previo.entrega === entrega ? (previo.camion || '') : '',
       cortes: (q.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { k: c.k || uid(), corte: norm(c.corte), texto: sinCliente(String(c.texto).toUpperCase().replace(/\s+/g, ' ').trim(), q.cliente), orden: c.orden !== false, precio: precioNum(c.precio), iva: precioNum(c.precio) === '' ? '' : (c.iva || ''), frio: frioDe(c.frio) }; }).filter(function (c) { return c.texto; }) };
     var ff = 'faenaFija' in q ? q.faenaFija : previo && previo.faenaFija; if (ff && +p.medias > 0 && ff < p.entrega) p.faenaFija = ff;
@@ -2184,12 +2184,15 @@
     if (sueltos.length) h += bloque('Sin camión', '', sueltos, '');
     return h + '</div></div>';
   }
-  // Pedidos del día agrupados: primero los que no tienen camión, después cada camión en su orden.
+  // Cuándo se cargó un pedido (para mostrar arriba los últimos): el campo "alta" o, en los viejos, la hora que va en su id.
+  function altaDe(p) { if (+p.alta > 0) return +p.alta; var mm = /^[a-z]([0-9a-z]{8})/.exec(String(p.id || '')), t = mm ? parseInt(mm[1], 36) : 0; return t > 1.6e12 && t < 4e12 ? t : 0; }
+  function ultimosArriba(l) { return l.map(function (p, i) { return [p, i]; }).sort(function (a, b) { return altaDe(b[0]) - altaDe(a[0]) || a[1] - b[1]; }).map(function (x) { return x[0]; }); }
+  // Pedidos del día agrupados: primero los que no tienen camión (los últimos cargados arriba), después cada camión en su orden.
   function pedidosAgrupadosHTML(f, lista, m) {
     var cams = camionesDe(f), hay = {}; cams.forEach(function (c) { hay[c.id] = c; });
-    if (!cams.length) return '<div class="peds">' + lista.map(function (p) { return pedidoHTML(p, m); }).join('') + '</div>';
+    if (!cams.length) return '<div class="peds">' + ultimosArriba(lista).map(function (p) { return pedidoHTML(p, m); }).join('') + '</div>';
     var grupo = function (tit, extra, l, cls, camId, tot) { return '<div class="grupo-cam' + (cls ? ' ' + cls : '') + '" data-gcam="' + esc(camId || '') + '"><h3 class="grupo-tit">' + tit + ' <span class="small muted">' + esc(extra) + '</span>' + (tot || '') + '</h3><div class="peds">' + l.map(function (p) { return pedidoHTML(p, m, true); }).join('') + '</div></div>'; };
-    var h = '', sin = lista.filter(function (p) { return !(p.camion && hay[p.camion]); });
+    var h = '', sin = ultimosArriba(lista.filter(function (p) { return !(p.camion && hay[p.camion]); }));
     if (sin.length) h += grupo('Sin camión', resumenLog(sin), sin, 'sin-cam', '');
     cams.forEach(function (c) {
       var o = c.orden || [], l = lista.filter(function (p) { return p.camion === c.id; }).sort(function (a, b) { var i = o.indexOf(a.id), j = o.indexOf(b.id); return (i < 0 ? 1e6 : i) - (j < 0 ? 1e6 : j); });

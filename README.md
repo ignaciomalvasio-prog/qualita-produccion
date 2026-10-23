@@ -182,3 +182,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Arreglo del cuelgue al armar camión con nota (ej. "13:00HS"): la nota del camión y la nota de la semana de Cámara usaban el mismo id; con Cámara conectada a la Google Sheet, la nota del camión se guardaba como nota de la semana y el cálculo quedaba dando vueltas. Ahora la de Cámara es `cam-nota-sem` y hay frenos contra fechas rotas.
 - Logística: se saca el botón "Poner N°" del encabezado del camión (el número se sigue pudiendo poner con Editar).
 - Camiones sin N°: al armar un camión (Pedidos/Logística) y al editarlo solo se pone el nombre; el número del camión ya no aparece (el orden lo da la numeración 1, 2, 3… de Logística). Si un camión tenía el nombre escrito en el N°, al editarlo pasa al nombre.
+- Pedidos: en "Sin camión" los últimos pedidos cargados aparecen arriba (campo `alta` del pedido; en los viejos se toma la hora de su id).
