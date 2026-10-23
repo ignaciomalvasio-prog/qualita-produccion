@@ -408,7 +408,7 @@
     return pre + cant + cuerpo;
   }
   function opHTML(o, f) {
-    var h = '<div class="panel hoja op-hoja"><header class="hoja-cab"><div><p class="hoja-sup">Orden de producción</p><h2>' + esc(tituloDe(f)) + '</h2></div>'
+    var h = '<div class="panel hoja op-hoja"><header class="hoja-cab"><div><p class="hoja-sup">Orden de producción</p><h2>PRODUCCIÓN · ' + esc(tituloDe(f)) + '</h2></div>'
       + '<div class="hoja-dato"><b>' + n(+o.medias || 0) + '½</b><span>' + esc(o.mercado || 'medias') + '</span></div>'
       + (o.estado === 'borrador' ? '<span class="badge warn">Borrador</span>' : '<span class="badge ok">Confirmada</span>') + '</header>';
     h += '<div class="acciones hoja-acc">' + (S.editor ? '<button class="btn pri" data-act="p-editar" data-id="op-' + f + '">Editar la orden</button>' : '') + '<button class="btn" data-act="copiar" data-t="op">Copiar como texto</button><button class="btn" data-act="hoja-pdf">Compartir PDF</button><span class="small muted" id="copiado-op" aria-live="polite"></span></div>';
@@ -561,7 +561,7 @@
   // La planilla de un día, para leer (la de desposte o la de embutidos).
   function hojaHTML(o, f, c3) {
     var nl = (o.cortes || []).reduce(function (t, c) { return t + c.lineas.length; }, 0), k = c3 ? 'c3' : 'orden';
-    var h = '<div class="panel hoja' + (c3 ? ' hoja-c3' : '') + '"' + (c3 ? ' id="embutidos"' : '') + '><header class="hoja-cab"><div><p class="hoja-sup">' + (c3 ? (S.solo ? 'Ciclo III · Embutidos' : 'Ciclo III') : 'Planilla de producción') + '</p><h2>' + esc(c3 && !S.solo ? 'Embutidos' : tituloDe(f)) + '</h2></div>'
+    var h = '<div class="panel hoja' + (c3 ? ' hoja-c3' : '') + '"' + (c3 ? ' id="embutidos"' : '') + '><header class="hoja-cab"><div><p class="hoja-sup">' + (c3 ? (S.solo ? 'Ciclo III · Embutidos' : 'Ciclo III') : 'Planilla de empaque') + '</p><h2>' + esc(c3 && !S.solo ? 'Embutidos' : (c3 ? '' : 'EMPAQUE · ') + tituloDe(f)) + '</h2></div>'
       + (c3 ? (kgOrden(o) ? '<div class="hoja-dato"><b>' + n(kgOrden(o)) + '</b><span>kg</span></div>' : '') : '<div class="hoja-dato"><b>' + n(+o.medias || 0) + '</b><span>medias' + (o.mercado ? ' · ' + esc(o.mercado) : '') + '</span></div>')
       + (o.estado === 'borrador' ? '<span class="badge warn">Borrador</span>' : '<span class="badge ok">Confirmada</span>') + '</header>';
     var acc = '<div class="acciones hoja-acc">'
@@ -2170,6 +2170,27 @@
     var x = clone(v); delete x.id; x.estado = 'rechazado'; x.motivo = String(motivo || '').trim(); x.revisado = ahoraTxt(); x.por = S.user ? S.user.email : '';
     S.ventas = poner(S.ventas, v.id, x); return store.set('ventas', v.id, x);
   }
+  // Texto del resumen para WhatsApp: un bloque por camión, cada cliente en su renglón.
+  function resumenTexto(f, ids) {
+    var x = String(f).split('-'), cams = camionesDe(f).filter(function (c) { return !ids || ids.indexOf(c.id) >= 0; });
+    var peds = ((logDe(f) || {}).pedidos) || [];
+    var t = ['*' + diaDe(f).toUpperCase() + ' ' + x[2] + '-' + x[1] + '-' + x[0].slice(2) + '*'];
+    cams.forEach(function (c) {
+      var tit = (c.num && nomLimpio(c.nombre) ? 'N° ' + c.num + ' · ' : '') + nomCam(c);
+      t.push('', '*🚚 ' + tit.toUpperCase() + '*' + (c.hora ? ' — ' + c.hora + ' hs' : ''));
+      var o = c.orden || [], l = peds.filter(function (p) { return p.camion === c.id; }).sort(function (a, b) { var i = o.indexOf(a.id), j = o.indexOf(b.id); return (i < 0 ? 1e6 : i) - (j < 0 ? 1e6 : j); });
+      l.forEach(function (p, i) { t.push((i + 1) + '. ' + (p.cliente || 'Sin cliente') + (+p.medias ? ' ' + n(+p.medias) + '½' : '') + ((p.cortes || []).length ? ' + cortes' : '') + (p.frio === 'CONGELADO' ? ' (congelado)' : '')); });
+      if (!l.length) t.push('Sin pedidos');
+      if (c.nota) t.push('_' + c.nota + '_');
+    });
+    return t.join('\n');
+  }
+  function compartirWhatsApp(txt) {
+    var movil = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent || '');
+    if (window.__mock) { window.__mock.compartido = txt; return; }
+    if (movil && navigator.share) { navigator.share({ text: txt }).then(null, function () {}); return; }
+    window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank', 'noopener');
+  }
   /* Resumen del día, como la hoja que se arma a mano: un recuadro por camión con su número, nombre y hora,
      y los clientes en el orden de carga ("Aledo 12½ + C" = 12 medias y cortes). */
   function resumenDiaHTML(f, cams, peds) {
@@ -2184,11 +2205,13 @@
     var ed = S.editor && !S.solo;
     var bloque = function (tit, hora, lista, nota, id) {
       var hh = ed && id ? ' <input type="time" class="res-hora" data-hora="' + esc(id) + '" value="' + esc(hora || '') + '" aria-label="Hora de salida de ' + esc(tit) + '">' + (hora ? '<span class="solo-print">' + esc(hora) + ' hs</span>' : '') : hora ? ' ' + esc(hora) + ' hs' : '';
-      return '<div class="res-cam' + (ed && id ? ' movible' : '') + '"' + (id ? ' data-cam="' + esc(id) + '"' : '') + '><p class="res-tit">' + (ed && id ? '<button class="res-mover" data-arr="' + esc(id) + '" aria-label="Arrastrar para cambiar el orden de ' + esc(tit) + ' (o usar las flechas del teclado)" title="Arrastrar para ordenar">⠿</button>' : '') + '<mark># ' + esc(tit) + hh + '</mark></p>'
+      return '<div class="res-cam' + (ed && id ? ' movible' : '') + '"' + (id ? ' data-cam="' + esc(id) + '"' : '') + '><p class="res-tit">' + (ed && id ? '<button class="res-mover" data-arr="' + esc(id) + '" aria-label="Arrastrar para cambiar el orden de ' + esc(tit) + ' (o usar las flechas del teclado)" title="Arrastrar para ordenar">⠿</button>' : '') + (id ? '<label class="res-sel" title="Elegir para compartir"><input type="checkbox" data-res-sel="' + esc(id) + '"' + ((S.resSel || {})[f + '|' + id] ? ' checked' : '') + ' aria-label="Elegir ' + esc(tit) + ' para compartir"></label>' : '') + '<mark># ' + esc(tit) + hh + '</mark></p>'
         + '<p class="res-lista">' + (lista.length ? lista.map(cli).join(' – ') : '<span class="muted">Sin pedidos</span>') + '</p>'
         + (nota ? '<p class="res-nota">' + esc(nota) + '</p>' : '') + '</div>';
     };
-    var h = '<div class="resumen-dia"><h2 class="res-dia"><mark>' + esc(titulo) + '</mark></h2>' + (ed && cams.length > 1 ? '<p class="small muted res-ayuda">Arrastrá cada camión desde ⠿ para ordenarlos (queda igual en "Ver por camión"). La hora se cambia tocándola.</p>' : '') + '<div class="res-grilla">';
+    var nSel = cams.filter(function (c) { return (S.resSel || {})[f + '|' + c.id]; }).length;
+    var comp = cams.length ? '<div class="res-comp"><span class="small muted">Compartir por WhatsApp:</span><button class="btn sm wa" data-act="res-wa" data-f="' + esc(f) + '" data-cual="sel"' + (nSel ? '' : ' disabled') + '>Los elegidos' + (nSel ? ' (' + nSel + ')' : '') + '</button><button class="btn sm wa" data-act="res-wa" data-f="' + esc(f) + '" data-cual="todos">Todos</button>' + (nSel ? '<button class="btn sm lnk" data-act="res-sel-nada" data-f="' + esc(f) + '">Destildar</button>' : '') + '<span class="small muted">Tildá ☐ los camiones que quieras mandar.</span></div>' : '';
+    var h = '<div class="resumen-dia">' + comp + '<h2 class="res-dia"><mark>' + esc(titulo) + '</mark></h2>' + (ed && cams.length > 1 ? '<p class="small muted res-ayuda">Arrastrá cada camión desde ⠿ para ordenarlos (queda igual en "Ver por camión"). La hora se cambia tocándola.</p>' : '') + '<div class="res-grilla">';
     cams.forEach(function (c) {
       var tit = (c.num && nomLimpio(c.nombre) ? 'N° ' + c.num + ' · ' : '') + nomCam(c);
       h += bloque(tit, c.hora, peds.filter(function (p) { return p.camion === c.id; }), c.nota, c.id);
@@ -3011,6 +3034,12 @@
     if (a === 'ir') { irA(D.tab); if (D.ancla) { var an = $(D.ancla); if (an) an.scrollIntoView(); } }
     else if (a === 'ini-dia') { S.pd = D.f; S.abierto = {}; irA('pedidos'); }
     else if (a === 'imprimir' && S.tab === 'logistica' && !S.resumen) { imprimirAjustado(); }
+    else if (a === 'res-wa') {
+      var fw = D.f, idsW = D.cual === 'todos' ? null : camionesDe(fw).filter(function (c) { return (S.resSel || {})[fw + '|' + c.id]; }).map(function (c) { return c.id; });
+      if (idsW && !idsW.length) return;
+      compartirWhatsApp(resumenTexto(fw, idsW));
+    }
+    else if (a === 'res-sel-nada') { var fn0 = D.f; Object.keys(S.resSel || {}).forEach(function (k) { if (k.indexOf(fn0 + '|') === 0) delete S.resSel[k]; }); render(); }
     else if (a === 'imprimir-camiones') {
       // Todo el día, pero cada camión empieza en una hoja nueva (sin achicar para juntar camiones).
       var vlc = $('view-logistica'); vlc.classList.add('por-camion');
@@ -3439,6 +3468,7 @@
   });
   document.addEventListener('change', function (e) {
     var t = e.target, D = t.dataset;
+    if (D.resSel) { var fr = S.fl, kr = fr + '|' + D.resSel; S.resSel = S.resSel || {}; if (t.checked) S.resSel[kr] = true; else delete S.resSel[kr]; render(); return; }
     if (D.cf && D.f) {
       // Se redibuja después de que el foco pasó a la celda siguiente, y se lo devuelve ahí.
       var redib = function () { var ac = document.activeElement, sel = ac && ac.classList && ac.classList.contains('cam-in') ? '.cam-in[data-cf="' + ac.dataset.cf + '"][data-f="' + ac.dataset.f + '"]' : null; renderCamara(); if (sel) { var x = document.querySelector(sel); if (x) { x.focus(); try { x.select(); } catch (err) {} } } };

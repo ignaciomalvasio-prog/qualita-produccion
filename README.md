@@ -187,3 +187,5 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Logística: botón "Imprimir por camión" (con más de un camión): imprime todo el día con cada camión en una hoja aparte.
 - Producción: cada planilla tiene su botón para imprimirla sola ("Imprimir cortes" y "Imprimir embutidos"); el "Imprimir" de arriba sigue imprimiendo todo.
 - Producción: al escribir en la orden la pantalla ya no salta (el cuadro de texto se agranda sin mover la página).
+- Producción: títulos "PRODUCCIÓN · fecha" (orden de producción) y "EMPAQUE · fecha" (planilla de frescos), también en el PDF.
+- Logística, Resumen del día: se tildan camiones y se comparten por WhatsApp los elegidos o todos (un bloque por camión con hora y clientes en orden).
