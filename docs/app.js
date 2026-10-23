@@ -2443,7 +2443,7 @@
       var suyos = peds.filter(function (p) { return p.camion === cam.id; }), ed = S.ec === cam.id;
       var car = cargaDe(peds, cam.id), ct = capTxt(cam, car), pasa = +cam.kg > 0 && car > +cam.kg;
       h += '<section class="cam' + (pasa ? ' pasa' : '') + '" data-cam="' + esc(cam.id) + '"><header class="cam-cab">' + (S.editor && cams.length > 1 && !ed ? '<label class="cam-ord"><span>Orden</span>' + posSelHTML('data-pos-cam="' + esc(cam.id) + '"', k, cams.length, 'Orden del camión ' + nomCam(cam), { act: 'camion', attr: 'data-id="' + esc(cam.id) + '"' }) + '</label>' : '')
-        + (cam.num ? (nomLimpio(cam.nombre) ? '<span class="cam-num">N° ' + esc(cam.num) + '</span>' : '') : S.editor ? '<button class="cam-num falta" data-act="cam-editar" data-id="' + esc(cam.id) + '">Poner N°</button>' : '') + '<h2>' + esc(nomCam(cam)) + '</h2>' + (cam.hora ? '<span class="cam-hora">' + esc(cam.hora) + ' hs</span>' : '')
+        + (cam.num ? (nomLimpio(cam.nombre) ? '<span class="cam-num">N° ' + esc(cam.num) + '</span>' : '') : '') + '<h2>' + esc(nomCam(cam)) + '</h2>' + (cam.hora ? '<span class="cam-hora">' + esc(cam.hora) + ' hs</span>' : '')
         + (cam.nota && !ed ? '<span class="cam-nota">' + esc(cam.nota) + '</span>' : '')
         + (!ed ? '<span class="log-acc"><button class="btn sm" data-act="cam-imprimir" data-id="' + esc(cam.id) + '">Imprimir</button>'
           + (S.editor ? '<button class="btn sm" data-act="cam-editar" data-id="' + esc(cam.id) + '">Editar</button>' + botonBorrar('cam-borrar', cam.id, 'Borrar camión') : '') + '</span>' : '') + '</header>';
