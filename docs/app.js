@@ -844,7 +844,15 @@
     o.cortes = cortes;
     return o;
   }
-  function crecer(e) { if (!e) return; e.style.height = 'auto'; e.style.height = (e.scrollHeight + 4) + 'px'; }
+  // Agranda el cuadro de texto a su contenido. Al medir se achica un instante y la página saltaba al final:
+  // se guarda dónde estaba la pantalla (y el cuadro mantiene su alto mientras mide) y se vuelve ahí.
+  function crecer(e) {
+    if (!e) return;
+    var y = window.scrollY, x = window.scrollX;
+    e.style.height = 'auto';
+    var nuevo = e.scrollHeight + 4; e.style.height = nuevo + 'px';
+    if (window.scrollY !== y || window.scrollX !== x) window.scrollTo(x, y);
+  }
   function prodEditHTML(o) {
     var h = '<div class="panel">';
     var st = o.linea === 'ciclo3' ? null : stockParaFecha(o.fecha);
