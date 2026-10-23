@@ -47,7 +47,7 @@ for(const w of [1100,400]){const p=await b.newPage({viewport:{width:w,height:900
  // Remanente a mano y volver al calculado.
  const rm=p.locator('.cam-in[data-cf="rem"][data-f="2026-10-22"]');await rm.fill('1000');await rm.press('Enter');await p.waitForTimeout(200);console.log('rem jue a mano 1000 →',await fila('REMANENTE'));
  await p.locator('.cam-in[data-cf="rem"][data-f="2026-10-22"]').fill('');await p.locator('.cam-in[data-cf="rem"][data-f="2026-10-22"]').press('Enter');await p.waitForTimeout(200);console.log('borrado → vuelve:',await fila('REMANENTE'));
- await p.click('[data-act="cam-sem"][data-d="-7"]');await p.waitForTimeout(100);console.log('semana anterior:',await p.locator('.cam-tit').innerText(),'· nota:',await p.inputValue('#cam-nota'),'· remanente:',await fila('REMANENTE'));
+ await p.click('[data-act="cam-sem"][data-d="-7"]');await p.waitForTimeout(100);console.log('semana anterior:',await p.locator('.cam-tit').innerText(),'· nota:',await p.inputValue('#cam-nota-sem'),'· remanente:',await fila('REMANENTE'));
  await p.click('[data-act="cam-hoy"]');await p.waitForTimeout(100);
  await p.screenshot({path:SP+'/camara'+w+'.png',fullPage:true});
  await p.click('#tab-inicio');await p.waitForTimeout(200);console.log('cuadro Inicio:',(await p.locator('.t-camara').innerText()).replace(/\s+/g,' '));

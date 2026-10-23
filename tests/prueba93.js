@@ -24,7 +24,7 @@ for(const w of [1100,400]){const p=await b.newPage({viewport:{width:w,height:900
  await p.fill('#cam-sheet-url','https://script.google.com/macros/s/ABC/exec');await p.click('[data-act="cam-sheet-conectar"]');
  await p.clock.runFor(1500);await p.waitForTimeout(400);
  console.log('estado:',await p.locator('.cam-sync').innerText());
- console.log('venta en la app (de la planilla):',await fila('VENTA'),'· nota:',await p.inputValue('#cam-nota'));
+ console.log('venta en la app (de la planilla):',await fila('VENTA'),'· nota:',await p.inputValue('#cam-nota-sem'));
  const hs=await p.evaluate(()=>window.__hoja.sem.map(s=>s.lunes));console.log('semanas en la planilla:',hs.length,hs[0],'…',hs.at(-1),'· viernes 25/12 (feriado):',await p.evaluate(()=>JSON.stringify(window.__hoja.sem.find(s=>s.lunes==='2026-12-21').dias[4])));
  console.log('guardado:',await p.evaluate(()=>JSON.stringify(window.__mock.data.privado['camara-ajustes'])));
  // Cambio en la app → va a la planilla.

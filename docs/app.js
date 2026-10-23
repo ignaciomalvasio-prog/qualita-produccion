@@ -2501,6 +2501,7 @@
     return { propios: hay ? s.propios : null, usuario: hay ? (s.usuarios || null) : null, venta: hay ? s.clientes : null, desp: o && o.medias !== '' && o.medias != null ? +o.medias || 0 : null };
   }
   function camCalc(hasta) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(hasta || '')) hasta = mas(hoy(), 21);   // una fecha rota dejaba el cálculo dando vueltas sin fin
     var sem = camSemanas(), r = {};
     var ini = sem.length && sem[0] < CAM_FIJO.desde ? sem[0] : CAM_FIJO.desde, fin = hasta > mas(hoy(), 21) ? hasta : mas(hoy(), 21), d = ini, prev = null, ultimo = null, lista = [];
     while (d <= fin) { if (esHabil(d) || fecha(d).getDay() % 6) lista.push(d); d = mas(d, 1); }
@@ -2583,7 +2584,7 @@
         + fila('LUGAR LIBRE (de ' + n(camCap()) + ')', 'b', function (o, ver) { return ver ? '<span class="cam-v b' + (o.libre < 0 ? ' neg' : '') + '">' + n(o.libre) + '</span>' : ''; }, (function () { var m = dias.filter(function (f) { return c.dias[f] && (!ult || f <= ult); }).map(function (f) { return c.dias[f].libre; }); return m.length ? 'mín. ' + n(Math.min.apply(null, m)) : ''; })())
         + '</tbody></table></div>';
       var nota = ((S.cam || {})[L] || {}).nota || '';
-      h += '<label class="campo cam-nota"><span>Nota de la semana</span><input id="cam-nota" value="' + esc(nota) + '" placeholder="Ej.: si carga Recreo faenamos"></label>';
+      h += '<label class="campo cam-nota"><span>Nota de la semana</span><input id="cam-nota-sem" value="' + esc(nota) + '" placeholder="Ej.: si carga Recreo faenamos"></label>';
       h += '<div class="cam-ley"><span class="l-dato">Cargado o corregido</span><span class="l-auto">Sale solo de Medias / Producción</span><span class="l-calc">Calculado</span>'
         + '<span class="cam-cap">Capacidad de cámara: <input id="cam-cap" inputmode="numeric" value="' + esc(String(camCap())) + '" aria-label="Capacidad de cámara en medias"> medias</span></div>'
         + '<p class="small muted cam-tip">Hasta fin de año ya viene cargado de base: faena 680 por día (viernes 520 + 160 de usuario), la venta y el desposte habituales, y los feriados en rojo sin faena ni desposte. Tocá cualquier número de propios, usuario, venta, desposte o remanente para cambiarlo; todo lo demás se recalcula solo.</p>';
@@ -2721,7 +2722,8 @@
   }
   // Manda semanas a la planilla (una tanda por vez) y guarda lo que la planilla devuelve.
   function camMandar(lunes) {
-    var sh = camSheet(); if (!sh || !lunes || !lunes.length) return Promise.resolve();
+    lunes = (lunes || []).filter(function (x) { return /^\d{4}-\d{2}-\d{2}$/.test(x || ''); });
+    var sh = camSheet(); if (!sh || !lunes.length) return Promise.resolve();
     S.camGen = (S.camGen || 0) + 1; S.camCola = (S.camCola || []).concat(lunes);
     if (S.camEnv) return S.camEnv;
     var paso = function () {
@@ -3417,7 +3419,8 @@
       return;
     }
     if (t.id === 'cam-cap') { var cv = +String(t.value).replace(/\D/g, ''); if (cv > 0) camAjustes({ capacidad: cv }).then(function () { renderCamara(); }); return; }
-    if (t.id === 'cam-nota') { var Ln = S.camLun, dn = clone((S.cam || {})[Ln] || { dias: [] }); delete dn.id; dn.nota = t.value.trim(); if (!dn.nota) delete dn.nota; S.cam = S.cam || {}; var dn2 = clone(dn); dn2.id = Ln; S.cam[Ln] = dn2; store.set('privado', 'camara-' + Ln, dn).then(function () { camMandar(camSheet() ? [Ln] : []); }); return; }
+    // Ojo: "cam-nota" es la nota del camión (Pedidos/Logística); la de la semana de Cámara es "cam-nota-sem".
+    if (t.id === 'cam-nota-sem' && /^\d{4}-\d{2}-\d{2}$/.test(S.camLun || '')) { var Ln = S.camLun, dn = clone((S.cam || {})[Ln] || { dias: [] }); delete dn.id; dn.nota = t.value.trim(); if (!dn.nota) delete dn.nota; S.cam = S.cam || {}; var dn2 = clone(dn); dn2.id = Ln; S.cam[Ln] = dn2; store.set('privado', 'camara-' + Ln, dn).then(function () { camMandar(camSheet() ? [Ln] : []); }); return; }
     if (D.notaPed) {
       var pn = pedidoDe(D.notaPed), vn = t.value.replace(/\s+/g, ' ').trim(); if (S.notaAbierta === D.notaPed) S.notaAbierta = null;
       if (!pn || vn === String(pn.nota || '').trim()) { if (!vn) render(); return; }
