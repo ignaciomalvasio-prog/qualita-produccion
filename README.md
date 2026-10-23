@@ -178,3 +178,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Logística en pantalla más compacta: encabezado del camión, franja de totales, tarjetas de clientes, números de orden y renglones más chicos y con menos espacio. La impresión no cambia.
 - Google Sheet de Cámara: el programita de la planilla, al abrirla, va directo a la semana de hoy con el día marcado (sábado y domingo, a la semana que viene).
 - Pedidos con medias que se pasan a otro día cuando su faena ya pasó (el cliente no pudo recibir): las medias quedan en la faena del día en que se faenaron ("Ya en cámara") y no se vuelven a sumar. En el pedido se puede marcar a mano "¿Ya están en cámara?" o "Faenar de nuevo" (campo `faenaFija` del pedido).
+- Arreglo: la página se colgaba al armar un camión cuando había otra pantalla abierta con otra versión (cada una republicaba la logística del día sin parar). Ahora se republica como mucho una vez cada 30 s por día.

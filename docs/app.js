@@ -1442,8 +1442,10 @@
     Object.keys(S.log || {}).forEach(function (f) { if (f >= desde && !porFecha[f]) porFecha[f] = []; });
     Object.keys(porFecha).forEach(function (f) {
       var lg = logDe(f), kgDe = {}; S.pedidos.forEach(function (p) { if (p.entrega === f) kgDe[p.id] = kgPedido(p).kg; });
-      var a = porFecha[f].slice().sort().map(function (id) { var pp = pedidoDe(id) || {}; return id + ':' + kgDe[id] + ':' + (pp.frio || '') + ':' + cuentaPedido(pp) + ':' + firmaPrecios(pp.precioMedias, pp.ivaMedias, (pp.cortes || []).filter(function (c) { return c.texto; })); }).join(','), b = ((lg && lg.pedidos) || []).map(function (x) { return x.id + ':' + (+x.kg || 0) + ':' + (x.frio || '') + ':' + (x.cuenta || '') + ':' + firmaPrecios(x.precioMedias, x.ivaMedias, x.cortes || []); }).sort().join(',');
-      if (a !== b) publicarLog(f).then(null, function () {});
+      var a = porFecha[f].map(function (id) { var pp = pedidoDe(id) || {}; return id + ':' + kgDe[id] + ':' + (pp.frio || '') + ':' + cuentaPedido(pp) + ':' + firmaPrecios(pp.precioMedias, pp.ivaMedias, (pp.cortes || []).filter(function (c) { return c.texto; })); }).sort().join(','), b = ((lg && lg.pedidos) || []).map(function (x) { return x.id + ':' + (+x.kg || 0) + ':' + (x.frio || '') + ':' + (x.cuenta || '') + ':' + firmaPrecios(x.precioMedias, x.ivaMedias, x.cortes || []); }).sort().join(',');
+      // Freno: si otra pantalla abierta (por ejemplo, un celular con una versión vieja) calcula distinto, cada una
+      // republicaba lo suyo apenas llegaba lo de la otra, sin parar, y la página se colgaba. Ahora, una vez cada 30 s como mucho.
+      if (a !== b) { var ya = (S._pubLog = S._pubLog || {})[f], t0 = Date.now(); if (ya && t0 - ya < 30000) return; S._pubLog[f] = t0; publicarLog(f).then(null, function () {}); }
     });
   }
   function avisoCamion(f, camId, cuantos) {
@@ -3726,7 +3728,7 @@
     function emit(c) { var docs = Object.keys(m.data[c] || {}).map(function (id) { var o = clone(m.data[c][id]); o.id = id; return o; }); (subs[c] || []).forEach(function (f) { f(docs); }); }
     return {
       sub: function (c, cb) { (subs[c] = subs[c] || []).push(cb); setTimeout(function () { emit(c); }, 0); },
-      set: function (c, id, data) { if (m.fallar) return Promise.reject(new Error('x')); m.data[c] = m.data[c] || {}; m.data[c][id] = clone(data); setTimeout(function () { emit(c); }, 0); return Promise.resolve(); },
+      set: function (c, id, data) { if (m.fallar) return Promise.reject(new Error('x')); m.data[c] = m.data[c] || {}; m.data[c][id] = clone(data); if (m.alGuardar) m.alGuardar(c, id, m.data[c][id]); setTimeout(function () { emit(c); }, 0); return Promise.resolve(); },
       del: function (c, id) { if (m.data[c]) delete m.data[c][id]; setTimeout(function () { emit(c); }, 0); return Promise.resolve(); },
       onAuth: function (cb) { authCb = cb; setTimeout(function () { cb(m.user || null); }, 0); },
       signIn: function () { m.user = { email: m.loginAs }; authCb(m.user); return Promise.resolve(); },
