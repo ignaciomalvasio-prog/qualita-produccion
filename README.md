@@ -176,3 +176,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Pedidos en el celular: renglón más compacto (arriba nombre, kilos, estado y flecha; abajo N° de cuenta, cortes y cartelitos más chicos: "¿Fresco/cong.?" y "+ Camión"). En la compu no cambia.
 - Producción, imprimir y PDF: letra más chica (como mucho 13, antes llegaba a 20) y menos espacio entre cortes; el detalle del total va entre paréntesis (ej. "120 kg (6 cajas)").
 - Logística en pantalla más compacta: encabezado del camión, franja de totales, tarjetas de clientes, números de orden y renglones más chicos y con menos espacio. La impresión no cambia.
+- Google Sheet de Cámara: el programita de la planilla, al abrirla, va directo a la semana de hoy con el día marcado (sábado y domingo, a la semana que viene).

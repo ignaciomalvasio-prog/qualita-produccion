@@ -116,3 +116,19 @@ function agregar_(sh, ult) {
   sh.getRange(destino + 9, 16).setValue('');
   return { m: destino - 1, lunes: iso_(lun) };
 }
+
+// Al abrir la planilla, va directo a la semana de hoy (sábado y domingo: a la semana que viene), con el día de hoy marcado.
+function onOpen() {
+  var ss = SpreadsheetApp.getActive(), sh = hoja_(), tz = ss.getSpreadsheetTimeZone() || Session.getScriptTimeZone();
+  var ahora = new Date(), dsem = +Utilities.formatDate(ahora, tz, 'u');   // 1 = lunes … 7 = domingo
+  var hoy = new Date(Utilities.formatDate(ahora, tz, 'yyyy-MM-dd') + 'T00:00:00Z'), lun = new Date(hoy);
+  lun.setUTCDate(hoy.getUTCDate() - (dsem - 1) + (dsem > 5 ? 7 : 0));
+  var iso = iso_(lun), bl = bloques_(sh.getDataRange().getValues()), b = null;
+  bl.forEach(function (x) { if (x.lunes <= iso) b = x; });
+  if (!b) return;
+  var fila = b.m + 1, col = dsem > 5 || b.lunes !== iso ? 1 : 3 * (dsem - 1) + 1;
+  ss.setActiveSheet(sh);
+  sh.setActiveRange(sh.getRange(Math.min(sh.getMaxRows(), fila + 60), 1));   // primero abajo, así al volver la semana queda arriba
+  SpreadsheetApp.flush();
+  sh.setActiveRange(sh.getRange(fila + 1, col));
+}
