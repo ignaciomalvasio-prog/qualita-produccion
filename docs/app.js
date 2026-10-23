@@ -1182,9 +1182,12 @@
   // Cortes del pedido con su clave. Los pedidos viejos no la tenían: se usa la posición.
   function cortesDe(p) { return (p.cortes || []).map(function (c, j) { if (!c.k) c.k = 'i' + j; return c; }); }
   // Las medias del pedido van solas a la planilla semanal, en el día de faena anterior a la entrega.
+  /* Día de faena de las medias de un pedido: el día hábil anterior a la entrega, salvo que ya estén faenadas
+     (en cámara) de otro día: p.faenaFija. Pasa cuando un cliente no pudo recibir y el pedido se corre de día. */
+  function faenaDe(p) { return p.faenaFija && p.faenaFija < p.entrega ? p.faenaFija : habilAnterior(p.entrega); }
   function aplicarMedias(p) {
     var medias = +p.medias || 0, va = !!p.entrega && (medias > 0 || !(p.cortes || []).some(function (c) { return c.texto; }));
-    var fa = va ? habilAnterior(p.entrega) : null, lunes = fa ? lunesDe(fa) : null, i = fa ? Math.round((fecha(fa) - fecha(lunes)) / 86400000) : -1, cambios = {};
+    var fa = va ? faenaDe(p) : null, lunes = fa ? lunesDe(fa) : null, i = fa ? Math.round((fecha(fa) - fecha(lunes)) / 86400000) : -1, cambios = {};
     (S.faena || []).forEach(function (s) {
       var fuera = s.dias.some(function (d, k) { return !(s.id === lunes && k === i) && d.clientes.some(function (r) { return r.pedido === p.id; }); });
       if (!fuera) return;
@@ -1243,7 +1246,8 @@
   function moverPedido(p, f) {
     if (!p || !f || f === p.entrega) return Promise.resolve();
     S.prop.forEach(function (x) { if (x.editaId === p.id) x.entrega = f; });
-    return guardarPropuesta({ editaId: p.id, cliente: p.cliente, entrega: f, medias: p.medias, peso: p.peso, frio: p.frio, cuenta: p.cuenta || '', nota: p.nota, kg: p.kg, origen: p.origen, cortes: clone(cortesDe(p)) });
+    var fa0 = faenaDe(p), ff = +p.medias > 0 && fa0 < hoy() && fa0 < f ? fa0 : (p.faenaFija || '');   // ya faenadas: quedan en la faena de ese día
+    return guardarPropuesta({ editaId: p.id, faenaFija: ff, cliente: p.cliente, entrega: f, medias: p.medias, peso: p.peso, frio: p.frio, cuenta: p.cuenta || '', nota: p.nota, kg: p.kg, origen: p.origen, cortes: clone(cortesDe(p)) });
   }
   function diaCorto(f) { var x = String(f).split('-'); return diaDe(f) + ' ' + (+x[2]) + '/' + (+x[1]); }
   function opcionesDia(p) {
@@ -1600,6 +1604,7 @@
       creado: previo && previo.creado ? previo.creado : ahoraTxt(), kg: +q.kg > 0 ? +q.kg : '',
       camion: previo && previo.entrega === entrega ? (previo.camion || '') : '',
       cortes: (q.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { k: c.k || uid(), corte: norm(c.corte), texto: sinCliente(String(c.texto).toUpperCase().replace(/\s+/g, ' ').trim(), q.cliente), orden: c.orden !== false, precio: precioNum(c.precio), iva: precioNum(c.precio) === '' ? '' : (c.iva || ''), frio: frioDe(c.frio) }; }).filter(function (c) { return c.texto; }) };
+    var ff = 'faenaFija' in q ? q.faenaFija : previo && previo.faenaFija; if (ff && +p.medias > 0 && ff < p.entrega) p.faenaFija = ff;
     if ('precioMedias' in q) { p.precioMedias = precioNum(q.precioMedias); p.ivaMedias = p.precioMedias === '' ? '' : (q.ivaMedias || ''); }
     else { if (previo && (previo.precioMedias === 0 || previo.precioMedias)) p.precioMedias = previo.precioMedias; if (previo && previo.ivaMedias) p.ivaMedias = previo.ivaMedias; }
     var vd = q.vendedor || (previo && previo.vendedor); if (vd) { p.vendedor = vd; p.vendedorNombre = q.vendedorNombre || (previo && previo.vendedorNombre) || ''; }
@@ -2011,6 +2016,16 @@
       + (gr.some(function (x) { return x.camion; }) ? b('', gr.length > 1 ? 'Sacarlos del camión' : 'Sacar del camión') : '')
       + '<button class="btn sm lnk" data-act="camp-menu" data-id="' + esc(p.id) + '">Cerrar</button></div>';
   }
+  // Faena de las medias del pedido: normal (día hábil anterior a la entrega) o ya faenadas de otro día (en cámara).
+  function mediasFaenaHTML(p) {
+    if (!S.editor || S.solo || !(+p.medias > 0)) return '';
+    var fa = faenaDe(p), id = esc(p.id);
+    if (p.faenaFija) return ' <span class="mf-chip fija" title="Estas medias no se vuelven a faenar: ya están en cámara">Ya en cámara · faenadas el ' + esc(diaCorto(fa).toLowerCase()) + '</span> <button class="btn sm lnk" data-act="mf-set" data-id="' + id + '" data-f="">Faenar de nuevo</button>';
+    if (S.mfAbierto !== p.id) return ' <button class="btn sm lnk mf-abrir" data-act="mf-abrir" data-id="' + id + '" title="Si las medias ya están faenadas de otro día (por ejemplo, el cliente no las pudo recibir y se pasó la entrega)">¿Ya están en cámara?</button>';
+    var ops = [], d = hoy(); if (!esHabil(d)) d = habilAnterior(d);
+    while (ops.length < 6) { if (d < p.entrega) ops.push(d); d = habilAnterior(d); }
+    return '<span class="mf-menu"><span class="small muted">Faenadas el:</span>' + ops.map(function (x) { return '<button class="btn sm" data-act="mf-set" data-id="' + id + '" data-f="' + x + '">' + esc(diaCorto(x)) + '</button>'; }).join('') + '<button class="btn sm lnk" data-act="mf-abrir" data-id="' + id + '">Cancelar</button></span>';
+  }
   function frioMenuHTML(p) {
     var b = function (v, t) { return '<button class="btn sm' + ((p.frio || '') === v ? ' pri' : '') + '" data-act="frio-set" data-id="' + esc(p.id) + '" data-v="' + v + '">' + t + '</button>'; };
     return '<div class="frio-menu"><span class="small muted">Este pedido es:</span>' + b('FRESCO', 'Fresco') + b('CONGELADO', 'Congelado') + b('', 'Sin aclarar') + '<button class="btn sm lnk" data-act="frio-menu" data-id="' + esc(p.id) + '">Cerrar</button></div>';
@@ -2037,7 +2052,7 @@
     if (S.camMenu === p.id) h += camMenuHTML(p);
     if (!ab) return h + '</div>';
     h += '<div class="ped-det">' + elegirCuentaHTML(p) + '<div class="op-ped">';
-    if (+p.medias) h += '<p class="lp"><span class="lp-izq"><span class="lc-corte">Medias</span><span class="lc-txt">' + cantHTML(textoMedias(p)) + '</span></span><span class="lp-der">' + precioHTML(p.id, 'm', p.precioMedias, 'las medias', p.ivaMedias) + '</span></p>';
+    if (+p.medias) h += '<p class="lp"><span class="lp-izq"><span class="lc-corte">Medias</span><span class="lc-txt">' + cantHTML(textoMedias(p)) + mediasFaenaHTML(p) + '</span></span><span class="lp-der">' + precioHTML(p.id, 'm', p.precioMedias, 'las medias', p.ivaMedias) + '</span></p>';
     cs.forEach(function (c) {
       var f = fechaProdDe(m, p, c);
       h += '<p class="lp"><span class="lp-izq"><span class="lc-corte">' + esc(c.corte) + '</span><span class="lc-txt">' + cantHTML(sinCliente(c.texto, p.cliente), unidadSelHTML(p.id, c)) + (c.frio && c.frio !== p.frio ? ' ' + frioBadge(c.frio) : '') + '</span></span><span class="lp-der">' + precioHTML(p.id, c.k, c.precio, c.corte, c.iva) + (f
@@ -3158,6 +3173,12 @@
     }
     else if (a === 'e-dia') { var ye = S.entrega; do { ye = mas(ye, +D.d); } while (!esHabil(ye)); S.entrega = ye; S.sel = {}; renderPedidos(); }
     else if (a === 'recargar') { location.reload(); }
+    else if (a === 'mf-abrir') { e.preventDefault(); e.stopPropagation(); S.mfAbierto = S.mfAbierto === D.id ? null : D.id; renderPedidos(); }
+    else if (a === 'mf-set') {
+      e.preventDefault(); e.stopPropagation(); var pm2 = pedidoDe(D.id); S.mfAbierto = null; if (!pm2) { renderPedidos(); return; }
+      guardarPropuesta({ editaId: pm2.id, faenaFija: D.f || '', cliente: pm2.cliente, entrega: pm2.entrega, medias: pm2.medias, peso: pm2.peso, frio: pm2.frio || '', cuenta: pm2.cuenta || '', nota: pm2.nota, kg: pm2.kg, origen: pm2.origen, cortes: clone(cortesDe(pm2)) }, true)
+        .then(function () { avisar(D.f ? pm2.cliente + ': medias ya en cámara (faenadas el ' + diaCorto(D.f).toLowerCase() + '). No se suman a la faena del ' + diaCorto(habilAnterior(pm2.entrega)).toLowerCase() + '.' : pm2.cliente + ': las medias vuelven a la faena del ' + diaCorto(habilAnterior(pm2.entrega)).toLowerCase() + '.', 7000); renderPedidos(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); renderPedidos(); });
+    }
     else if (a === 'camp-menu') { e.preventDefault(); e.stopPropagation(); S.camMenu = S.camMenu === D.id ? null : D.id; S.frioMenu = null; renderPedidos(); }
     else if (a === 'camp-otro') { e.preventDefault(); e.stopPropagation(); var po = pedidoDe(D.id); S.camMenu = null; if (po) { if (!(S.sel[po.id] && S.selDia === po.entrega)) S.sel = {}; S.sel[po.id] = true; S.selDia = po.entrega; S.camOtro = true; } renderPedidos(); var fco = $('cam-num'); if (fco) fco.focus(); }
     else if (a === 'camp-set') {
@@ -3473,7 +3494,7 @@
       if (fm === 'otra') { editarPedido(D.mover, 'entrega'); return; }
       if (!pm || S._ocup) return;
       S._ocup = true; delete S.sel[pm.id];
-      moverPedido(pm, fm).then(function () { S._ocup = false; S.msg.fotos = 'Pedido de ' + pm.cliente + ' pasado al ' + diaCorto(fm).toLowerCase() + '.'; avisar(S.msg.fotos, 6000); renderPedidos(); },
+      moverPedido(pm, fm).then(function () { S._ocup = false; var pmn = pedidoDe(pm.id); S.msg.fotos = 'Pedido de ' + pm.cliente + ' pasado al ' + diaCorto(fm).toLowerCase() + '.' + (pmn && pmn.faenaFija ? ' Las medias ya están en cámara: quedan en la faena del ' + diaCorto(pmn.faenaFija).toLowerCase() + ' y no se vuelven a faenar.' : ''); avisar(S.msg.fotos, 6000); renderPedidos(); },
         function () { S._ocup = false; S.msg.fotos = '!No se pudo cambiar de día. Revisá la conexión.'; renderPedidos(); });
     }
     else if (t.id === 'cam-a' && t.value) {

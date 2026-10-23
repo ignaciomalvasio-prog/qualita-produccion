@@ -177,3 +177,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Producción, imprimir y PDF: letra más chica (como mucho 13, antes llegaba a 20) y menos espacio entre cortes; el detalle del total va entre paréntesis (ej. "120 kg (6 cajas)").
 - Logística en pantalla más compacta: encabezado del camión, franja de totales, tarjetas de clientes, números de orden y renglones más chicos y con menos espacio. La impresión no cambia.
 - Google Sheet de Cámara: el programita de la planilla, al abrirla, va directo a la semana de hoy con el día marcado (sábado y domingo, a la semana que viene).
+- Pedidos con medias que se pasan a otro día cuando su faena ya pasó (el cliente no pudo recibir): las medias quedan en la faena del día en que se faenaron ("Ya en cámara") y no se vuelven a sumar. En el pedido se puede marcar a mano "¿Ya están en cámara?" o "Faenar de nuevo" (campo `faenaFija` del pedido).
