@@ -11,14 +11,14 @@ console.log('=== ancho',w,'al abrir:',await cab());
 await p.locator('section.cam',{hasText:'Camión 2'}).locator('[data-act="camion-subir"]').click();await p.clock.runFor(800);
 console.log('subo Camión 2:',await cab());
 await p.locator('section.cam',{hasText:'Camión 1'}).locator('[data-act="cam-editar"]').first().click();
-await p.fill('#cam-e-num','7');await p.fill('#cam-e-nombre','');await p.click('[data-act="cam-guardar"]');await p.clock.runFor(800);
-console.log('N° 7 sin nombre:',await cab());
+await p.fill('#cam-e-nombre','CHAVEZ');await p.click('[data-act="cam-guardar"]');await p.clock.runFor(800);
+console.log('renombrado CHAVEZ:',await cab());
 if(w===400)await p.screenshot({path:SP+'/cam400.png',fullPage:true});else await p.screenshot({path:SP+'/cam1100.png'});
 const lg=await p.evaluate(()=>window.__mock.data.config['log-2026-10-09'].camiones.map(c=>[c.id,c.nombre,c.num]));console.log('guardado:',JSON.stringify(lg));
 // armar camión desde pedidos con N°
 await p.click('#tab-pedidos');await p.waitForSelector('.ped');await p.locator('.ped',{hasText:'GAMA'}).locator('input[type=checkbox]').check();
 await p.selectOption('#cam-a','nuevo').catch(()=>{});await p.waitForTimeout(100);
-if(await p.locator('#cam-num').count()){await p.fill('#cam-num','12');await p.click('[data-act="cam-crear"]');await p.clock.runFor(800);}
-const lg2=await p.evaluate(()=>window.__mock.data.config['log-2026-10-09'].camiones.map(c=>[c.nombre,c.num]));console.log('tras armar:',JSON.stringify(lg2),'· badge GAMA:',(await p.locator('.ped',{hasText:'GAMA'}).locator('.marcas').innerText().catch(()=>'')).replace(/\s+/g,' '));
+if(await p.locator('#cam-nombre').count()){console.log('campo N° en la barra:',await p.locator('#cam-num').count());await p.fill('#cam-nombre','LUCAS HEREDIA');await p.click('[data-act="cam-crear"]');await p.clock.runFor(800);}
+const lg2=await p.evaluate(()=>window.__mock.data.config['log-2026-10-09'].camiones.map(c=>[c.nombre,c.num]));console.log('tras armar:',JSON.stringify(lg2),'· cartel GAMA:',(await p.locator('.ped',{hasText:'GAMA'}).locator('.cam-chip').innerText().catch(()=>'')).replace(/\s+/g,' '));
 console.log('desborde:',await p.evaluate(()=>document.documentElement.scrollWidth-innerWidth),'errores:',errs.join('|')||'ninguno');await p.close();}
 await b.close();})();

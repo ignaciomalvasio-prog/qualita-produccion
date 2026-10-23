@@ -14,11 +14,11 @@ for(const w of [1100,400]){const p=await b.newPage({viewport:{width:w,height:800
  for(let i=0;i<3;i++){ if((await p.locator('#view-pedidos .nav-ped .tit').innerText()).includes('26'))break; await p.click('#view-pedidos [data-act="pd"][data-d="1"]');await p.waitForTimeout(150);}
  await p.locator('input[data-sel="b"]').check();await p.waitForTimeout(100);
  await p.selectOption('#cam-a','nuevo').catch(()=>{});await p.waitForTimeout(100);
- await p.fill('#cam-num','FABRO ANIBAL (F');await p.fill('#cam-nota','13:00HS');
+ await p.fill('#cam-nombre','FABRO ANIBAL (F');await p.fill('#cam-nota','13:00HS');
  const r=await Promise.race([p.click('[data-act="cam-crear"]').then(()=>p.clock.runFor(1500)).then(()=>'responde'),new Promise(r=>setTimeout(()=>r('COLGADA'),15000))]);
  console.log('=== ',w,'armar camión:',r);
  if(r==='COLGADA'){await b.close();process.exit(1);}
- console.log('camión:',await p.evaluate(()=>JSON.stringify(window.__mock.data.config['log-2026-10-26'].camiones.map(c=>[c.num,c.hora,c.nota,c.orden]))),
+ console.log('camión:',await p.evaluate(()=>JSON.stringify(window.__mock.data.config['log-2026-10-26'].camiones.map(c=>[c.nombre,c.hora,c.nota,c.orden]))),
   '· nota de Cámara:',await p.evaluate(()=>window.__mock.data.privado['camara-2026-10-19'].nota),'· envíos a la planilla:',await p.evaluate(()=>JSON.stringify(window.__mock.posts)));
  console.log('desborde:',await p.evaluate(()=>document.documentElement.scrollWidth-innerWidth),'errores:',errs.join('|')||'ninguno');}
 await b.close();process.exit(0);})();
