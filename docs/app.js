@@ -1460,8 +1460,12 @@
       var doc = clone(p); delete doc.id; doc.camion = cam || '';
       S.pedidos = poner(S.pedidos, id, doc); tareas.push(store.set('pedidos', id, doc));
     });
-    return Promise.all(tareas).then(function () { return publicarLog(f, camiones); }).then(tocar);
+    // Los que entran al camión quedan al final de su orden, en el orden en que se tildaron (después se pueden reacomodar).
+    var cams = cam ? clone(camiones || camionesDe(f)).map(function (c) { if (c.id === cam) c.orden = (c.orden || []).filter(function (x) { return ids.indexOf(x) < 0; }).concat(ids); return c; }) : camiones;
+    return Promise.all(tareas).then(function () { return publicarLog(f, cams); }).then(tocar);
   }
+  // Los tildados de un día, en el orden en que se fueron tildando.
+  function tildadosDe(f) { return Object.keys(S.sel || {}).filter(function (id) { var p = pedidoDe(id); return S.sel[id] && p && p.entrega === f; }); }
   function crearCamion(f, nombre, nota, ids, kg, idFijo, num) {
     var cams = camionesDe(f).slice(), cam = { id: idFijo || 'c' + uid(), nombre: String(nombre || '').trim(), num: String(num || '').trim(), nota: String(nota || '').trim(), kg: +kg || 0 };
     cams.push(cam);
@@ -2004,7 +2008,7 @@
   // Si el pedido está tildado, el camión que se elige va para todos los tildados de ese día.
   function camGrupo(p) {
     if (!S.sel || !S.sel[p.id] || S.selDia !== p.entrega) return [p];
-    return (S.pedidos || []).filter(function (x) { return x.entrega === p.entrega && S.sel[x.id]; });
+    return tildadosDe(p.entrega).map(pedidoDe);
   }
   function camMenuHTML(p) {
     var f = p.entrega, cams = camionesDe(f), lg = logDe(f), pubs = (lg && lg.pedidos) || [], fl = flota();
@@ -3218,7 +3222,7 @@
 
     // camiones
     else if (a === 'cam-crear' || a === 'cam-sacar') {
-      var idsT = (S.pedidos || []).filter(function (p) { return p.entrega === S.selDia && S.sel[p.id]; }).map(function (p) { return p.id; });
+      var idsT = tildadosDe(S.selDia);
       if (!idsT.length) return;
       var hecho = function () { S.sel = {}; S.camNombre = ''; S.camNota = ''; renderPedidos(); }, mal = function () { S.msg.fotos = '!No se pudo guardar el camión. Revisá la conexión.'; renderPedidos(); };
       if (a === 'cam-crear') crearCamion(S.selDia, S.camNombre, S.camNota, idsT, S.camKg, null, S.camNum).then(function (cam) { S.msg.fotos = avisoCamion(S.selDia, cam.id, idsT.length); S.camKg = ''; S.camNum = ''; S.camOtro = false; hecho(); }, mal);
@@ -3507,7 +3511,7 @@
     }
     else if (t.id === 'cam-a' && t.value) {
       if (t.value === 'nuevo') { S.camOtro = true; renderPedidos(); var fnn = $('cam-nombre'); if (fnn) fnn.focus(); return; }
-      var ids = (S.pedidos || []).filter(function (p) { return p.entrega === S.selDia && S.sel[p.id]; }).map(function (p) { return p.id; }), v = t.value.slice(2), f = S.selDia;
+      var ids = tildadosDe(S.selDia), v = t.value.slice(2), f = S.selDia;
       (t.value.charAt(0) === 'f' ? usarDeFlota(f, v, ids) : asignarCamion(f, ids, v).then(function () { return { id: v }; }))
         .then(function (cam) { S.msg.fotos = avisoCamion(f, cam.id, ids.length); S.sel = {}; S.camOtro = false; renderPedidos(); }, function (e) { S.msg.fotos = '!' + ((e && e.message) || 'No se pudo guardar. Revisá la conexión.'); renderPedidos(); });
     }
