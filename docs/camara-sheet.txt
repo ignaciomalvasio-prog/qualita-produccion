@@ -117,8 +117,95 @@ function agregar_(sh, ult) {
   return { m: destino - 1, lunes: iso_(lun) };
 }
 
+// ---------- VENTA desde la planilla FAENA (la de clientes por día) ----------
+// Menú Qualitá → "Conectar planilla FAENA": se pega el link de la planilla FAENA y queda revisándola cada 10 minutos.
+// Por cada día con clientes cargados, el TOTAL de clientes (la fila TOTAL de arriba de DESPOSTE) pasa a VENTA acá,
+// y de acá a la pestaña Cámara de la app. Los días sin clientes cargados no se tocan.
+function conectarFaena() {
+  var ui = SpreadsheetApp.getUi(), r = ui.prompt('Conectar planilla FAENA', 'Pegá el link de la planilla FAENA (la de clientes por día):', ui.ButtonSet.OK_CANCEL);
+  if (r.getSelectedButton() !== ui.Button.OK) return;
+  var m = String(r.getResponseText()).match(/\/d\/([a-zA-Z0-9_-]{20,})/) || String(r.getResponseText()).trim().match(/^([a-zA-Z0-9_-]{20,})$/);
+  if (!m) { ui.alert('No reconozco ese link. Copiá el link completo de la planilla FAENA.'); return; }
+  try { SpreadsheetApp.openById(m[1]).getName(); } catch (e) { ui.alert('No pude abrir esa planilla: ' + e.message); return; }
+  PropertiesService.getScriptProperties().setProperty('FAENA_ID', m[1]);
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'traerVenta') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('traerVenta').timeBased().everyMinutes(10).create();
+  var n = traerVenta();
+  ui.alert('Listo: la VENTA de cada día se toma de la planilla FAENA (se revisa cada 10 minutos). Días actualizados ahora: ' + n + '.');
+}
+function traerVentaAhora() { var n = traerVenta(); SpreadsheetApp.getUi().alert(n == null ? 'Primero conectá la planilla FAENA.' : 'Días actualizados: ' + n + '.'); }
+
+function traerVenta() {
+  var id = PropertiesService.getScriptProperties().getProperty('FAENA_ID'); if (!id) return null;
+  var ventas = ventasFaena_(SpreadsheetApp.openById(id)), n = 0;
+  var lock = LockService.getScriptLock(); lock.waitLock(25000);
+  try {
+    var sh = hoja_(), vals = sh.getDataRange().getValues();
+    bloques_(vals).forEach(function (b) {
+      var lun = new Date(b.lunes + 'T00:00:00Z');
+      for (var i = 0; i < 5; i++) {
+        var d = new Date(lun); d.setUTCDate(lun.getUTCDate() + i);
+        var v = ventas[iso_(d)]; if (v == null) continue;
+        var r = b.m + 5, c = 3 * i + 1, ant = r < vals.length ? num_(vals[r][c]) : null;
+        if (ant !== v) { sh.getRange(r + 1, c + 1).setValue(v); n++; }
+      }
+    });
+  } finally { lock.releaseLock(); }
+  return n;
+}
+
+// { 'AAAA-MM-DD': total de clientes } de todas las pestañas "MES AAAA" de la planilla FAENA.
+function ventasFaena_(ss) {
+  var out = {};
+  ss.getSheets().forEach(function (sh) {
+    var t = norm_(sh.getName()), mes = -1, y = (t.match(/(20\d\d)/) || [])[1];
+    MESES.forEach(function (n, k) { if (t.indexOf(n) === 0) mes = k; });
+    if (mes < 0 || !y) return;
+    var vals = sh.getDataRange().getValues(), txt = sh.getDataRange().getDisplayValues();
+    Object.assign(out, ventasHoja_(vals, txt, +y, mes));
+  });
+  return out;
+}
+function ventasHoja_(vals, txt, anio, mes) {
+  var out = {}, T = function (r, c) { return r < txt.length && c < txt[r].length ? norm_(txt[r][c]) : ''; };
+  for (var r = 0; r < txt.length; r++) {
+    if (!/^LUNES\s*\d{1,2}\b/.test(T(r, 1))) continue;   // "Lunes 12" o "Lunes 12 - FERIADO ..."
+    // Filas "TOTAL" de la columna B hasta "DESPOSTE": la primera es la de faena y la última la de clientes.
+    var tots = [], k;
+    for (k = r + 1; k < txt.length && k < r + 60; k++) {
+      if (T(k, 1) === 'DESPOSTE' || /^LUNES\s*\d/.test(T(k, 1))) break;
+      if (T(k, 1) === 'TOTAL') tots.push(k);
+    }
+    if (T(k, 1) !== 'DESPOSTE' || tots.length < 2) continue;
+    var desde = tots[0] + 1, tot = tots[tots.length - 1];
+    for (var i = 0; i < 5; i++) {
+      var c = 4 * i + 1, m = T(r, c).match(/^[A-Z]+\s*(\d{1,2})\b/); if (!m) continue;
+      var f = fechaDia_(anio, mes, +m[1], i + 1); if (!f) continue;
+      var hay = false;   // ¿hay algún cliente cargado ese día?
+      for (var q = desde; q < tot && !hay; q++) hay = !!T(q, c) && num_(vals[q][c + 1]) != null;
+      var v = num_(vals[tot][c + 3]); if (v == null) v = num_(vals[tot][c + 1]);
+      if (hay && v != null && v > 0) out[f] = v;
+    }
+  }
+  return out;
+}
+// Fecha del día "dia" (día del mes) que cae en el día de semana dsem (1 = lunes), en el mes de la pestaña o el de al lado.
+function fechaDia_(anio, mes, dia, dsem) {
+  var mejor = null;
+  [-1, 0, 1].forEach(function (k) {
+    var d = new Date(Date.UTC(anio, mes + k, dia));
+    if (d.getUTCDate() !== dia || d.getUTCDay() !== dsem) return;
+    var dif = Math.abs(d - new Date(Date.UTC(anio, mes, 15)));
+    if (!mejor || dif < mejor.dif) mejor = { d: d, dif: dif };
+  });
+  return mejor ? iso_(mejor.d) : null;
+}
+
 // Al abrir la planilla, va directo a la semana de hoy (sábado y domingo: a la semana que viene), con el día de hoy marcado.
 function onOpen() {
+  try {
+    SpreadsheetApp.getUi().createMenu('Qualitá').addItem('Conectar planilla FAENA (venta)', 'conectarFaena').addItem('Traer venta de FAENA ahora', 'traerVentaAhora').addToUi();
+  } catch (e) {}
   var ss = SpreadsheetApp.getActive(), sh = hoja_(), tz = ss.getSpreadsheetTimeZone() || Session.getScriptTimeZone();
   var ahora = new Date(), dsem = +Utilities.formatDate(ahora, tz, 'u');   // 1 = lunes … 7 = domingo
   var hoy = new Date(Utilities.formatDate(ahora, tz, 'yyyy-MM-dd') + 'T00:00:00Z'), lun = new Date(hoy);
