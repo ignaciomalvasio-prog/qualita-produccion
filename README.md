@@ -189,3 +189,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Producción: al escribir en la orden la pantalla ya no salta (el cuadro de texto se agranda sin mover la página).
 - Producción: títulos "PRODUCCIÓN · fecha" (orden de producción) y "EMPAQUE · fecha" (planilla de frescos), también en el PDF.
 - Logística, Resumen del día: se tildan camiones y se comparten por WhatsApp los elegidos o todos (un bloque por camión con hora y clientes en orden).
+- WhatsApp a choferes (Resumen del día): el mensaje lleva saludo de entrada (buen día/buenas tardes/buenas noches según la hora) y de salida, editables con "✎ Saludos" (config.waSaludo / waDespedida); cada camión tiene su botón WhatsApp para mandar solo ese.

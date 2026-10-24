@@ -2174,7 +2174,7 @@
   function resumenTexto(f, ids) {
     var x = String(f).split('-'), cams = camionesDe(f).filter(function (c) { return !ids || ids.indexOf(c.id) >= 0; });
     var peds = ((logDe(f) || {}).pedidos) || [];
-    var t = ['*' + diaDe(f).toUpperCase() + ' ' + x[2] + '-' + x[1] + '-' + x[0].slice(2) + '*'];
+    var t = [waSaludo(f), '', '*' + diaDe(f).toUpperCase() + ' ' + x[2] + '-' + x[1] + '-' + x[0].slice(2) + '*'];
     cams.forEach(function (c) {
       var tit = (c.num && nomLimpio(c.nombre) ? 'N° ' + c.num + ' · ' : '') + nomCam(c);
       t.push('', '*🚚 ' + tit.toUpperCase() + '*' + (c.hora ? ' — ' + c.hora + ' hs' : ''));
@@ -2183,8 +2183,16 @@
       if (!l.length) t.push('Sin pedidos');
       if (c.nota) t.push('_' + c.nota + '_');
     });
+    t.push('', waDespedida());
     return t.join('\n');
   }
+  // Saludo de entrada y de salida del mensaje a los choferes: los que se guardaron en "Saludos" o, si no, unos de base.
+  function waSaludo(f) {
+    var g = String((S.config || {}).waSaludo || '').trim(); if (g) return g;
+    var hr = new Date().getHours(), dd = f === hoy() ? 'de hoy' : f === mas(hoy(), 1) ? 'de mañana' : 'del ' + diaCorto(f).toLowerCase();
+    return (hr < 13 ? '¡Buen día' : hr < 20 ? '¡Buenas tardes' : '¡Buenas noches') + ', muchachos! 👋 Les paso la carga ' + dd + ':';
+  }
+  function waDespedida() { var g = String((S.config || {}).waDespedida || '').trim(); return g || 'Cualquier duda me avisan. ¡Buen viaje y gracias! 🚛'; }
   function compartirWhatsApp(txt) {
     var movil = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent || '');
     if (window.__mock) { window.__mock.compartido = txt; return; }
@@ -2205,12 +2213,13 @@
     var ed = S.editor && !S.solo;
     var bloque = function (tit, hora, lista, nota, id) {
       var hh = ed && id ? ' <input type="time" class="res-hora" data-hora="' + esc(id) + '" value="' + esc(hora || '') + '" aria-label="Hora de salida de ' + esc(tit) + '">' + (hora ? '<span class="solo-print">' + esc(hora) + ' hs</span>' : '') : hora ? ' ' + esc(hora) + ' hs' : '';
-      return '<div class="res-cam' + (ed && id ? ' movible' : '') + '"' + (id ? ' data-cam="' + esc(id) + '"' : '') + '><p class="res-tit">' + (ed && id ? '<button class="res-mover" data-arr="' + esc(id) + '" aria-label="Arrastrar para cambiar el orden de ' + esc(tit) + ' (o usar las flechas del teclado)" title="Arrastrar para ordenar">⠿</button>' : '') + (id ? '<label class="res-sel" title="Elegir para compartir"><input type="checkbox" data-res-sel="' + esc(id) + '"' + ((S.resSel || {})[f + '|' + id] ? ' checked' : '') + ' aria-label="Elegir ' + esc(tit) + ' para compartir"></label>' : '') + '<mark># ' + esc(tit) + hh + '</mark></p>'
+      return '<div class="res-cam' + (ed && id ? ' movible' : '') + '"' + (id ? ' data-cam="' + esc(id) + '"' : '') + '><p class="res-tit">' + (ed && id ? '<button class="res-mover" data-arr="' + esc(id) + '" aria-label="Arrastrar para cambiar el orden de ' + esc(tit) + ' (o usar las flechas del teclado)" title="Arrastrar para ordenar">⠿</button>' : '') + (id ? '<label class="res-sel" title="Elegir para compartir"><input type="checkbox" data-res-sel="' + esc(id) + '"' + ((S.resSel || {})[f + '|' + id] ? ' checked' : '') + ' aria-label="Elegir ' + esc(tit) + ' para compartir"></label>' : '') + '<mark># ' + esc(tit) + hh + '</mark>' + (id ? '<button class="btn sm wa res-wa-uno" data-act="res-wa" data-f="' + esc(f) + '" data-cual="' + esc(id) + '" title="Mandar solo este camión por WhatsApp">WhatsApp</button>' : '') + '</p>'
         + '<p class="res-lista">' + (lista.length ? lista.map(cli).join(' – ') : '<span class="muted">Sin pedidos</span>') + '</p>'
         + (nota ? '<p class="res-nota">' + esc(nota) + '</p>' : '') + '</div>';
     };
     var nSel = cams.filter(function (c) { return (S.resSel || {})[f + '|' + c.id]; }).length;
-    var comp = cams.length ? '<div class="res-comp"><span class="small muted">Compartir por WhatsApp:</span><button class="btn sm wa" data-act="res-wa" data-f="' + esc(f) + '" data-cual="sel"' + (nSel ? '' : ' disabled') + '>Los elegidos' + (nSel ? ' (' + nSel + ')' : '') + '</button><button class="btn sm wa" data-act="res-wa" data-f="' + esc(f) + '" data-cual="todos">Todos</button>' + (nSel ? '<button class="btn sm lnk" data-act="res-sel-nada" data-f="' + esc(f) + '">Destildar</button>' : '') + '<span class="small muted">Tildá ☐ los camiones que quieras mandar.</span></div>' : '';
+    var comp = cams.length ? '<div class="res-comp"><span class="small muted">Compartir por WhatsApp:</span><button class="btn sm wa" data-act="res-wa" data-f="' + esc(f) + '" data-cual="sel"' + (nSel ? '' : ' disabled') + '>Los elegidos' + (nSel ? ' (' + nSel + ')' : '') + '</button><button class="btn sm wa" data-act="res-wa" data-f="' + esc(f) + '" data-cual="todos">Todos</button>' + (nSel ? '<button class="btn sm lnk" data-act="res-sel-nada" data-f="' + esc(f) + '">Destildar</button>' : '') + (ed ? '<button class="btn sm lnk" data-act="res-saludos">' + (S.resSaludos ? 'Cerrar saludos' : '✎ Saludos') + '</button>' : '') + '<span class="small muted">Tildá ☐ los camiones que quieras mandar.</span></div>'
+      + (ed && S.resSaludos ? '<div class="res-saludos"><label class="campo"><span>Saludo de entrada</span><textarea id="wa-saludo" rows="2" placeholder="' + esc(waSaludo(f)) + '">' + esc((S.config || {}).waSaludo || '') + '</textarea></label><label class="campo"><span>Saludo de salida</span><textarea id="wa-despedida" rows="2" placeholder="' + esc(waDespedida()) + '">' + esc((S.config || {}).waDespedida || '') + '</textarea></label><p class="small muted">Si los dejás vacíos se usan los de base (el de entrada cambia solo: buen día, buenas tardes o buenas noches). Se guardan solos.</p></div>' : '') : '';
     var h = '<div class="resumen-dia">' + comp + '<h2 class="res-dia"><mark>' + esc(titulo) + '</mark></h2>' + (ed && cams.length > 1 ? '<p class="small muted res-ayuda">Arrastrá cada camión desde ⠿ para ordenarlos (queda igual en "Ver por camión"). La hora se cambia tocándola.</p>' : '') + '<div class="res-grilla">';
     cams.forEach(function (c) {
       var tit = (c.num && nomLimpio(c.nombre) ? 'N° ' + c.num + ' · ' : '') + nomCam(c);
@@ -3035,10 +3044,11 @@
     else if (a === 'ini-dia') { S.pd = D.f; S.abierto = {}; irA('pedidos'); }
     else if (a === 'imprimir' && S.tab === 'logistica' && !S.resumen) { imprimirAjustado(); }
     else if (a === 'res-wa') {
-      var fw = D.f, idsW = D.cual === 'todos' ? null : camionesDe(fw).filter(function (c) { return (S.resSel || {})[fw + '|' + c.id]; }).map(function (c) { return c.id; });
+      var fw = D.f, idsW = D.cual === 'todos' ? null : D.cual !== 'sel' ? [D.cual] : camionesDe(fw).filter(function (c) { return (S.resSel || {})[fw + '|' + c.id]; }).map(function (c) { return c.id; });
       if (idsW && !idsW.length) return;
       compartirWhatsApp(resumenTexto(fw, idsW));
     }
+    else if (a === 'res-saludos') { S.resSaludos = !S.resSaludos; render(); }
     else if (a === 'res-sel-nada') { var fn0 = D.f; Object.keys(S.resSel || {}).forEach(function (k) { if (k.indexOf(fn0 + '|') === 0) delete S.resSel[k]; }); render(); }
     else if (a === 'imprimir-camiones') {
       // Todo el día, pero cada camión empieza en una hoja nueva (sin achicar para juntar camiones).
@@ -3468,6 +3478,7 @@
   });
   document.addEventListener('change', function (e) {
     var t = e.target, D = t.dataset;
+    if (t.id === 'wa-saludo' || t.id === 'wa-despedida') { S.config = S.config || {}; S.config[t.id === 'wa-saludo' ? 'waSaludo' : 'waDespedida'] = t.value.trim(); guardarConfig(); return; }
     if (D.resSel) { var fr = S.fl, kr = fr + '|' + D.resSel; S.resSel = S.resSel || {}; if (t.checked) S.resSel[kr] = true; else delete S.resSel[kr]; render(); return; }
     if (D.cf && D.f) {
       // Se redibuja después de que el foco pasó a la celda siguiente, y se lo devuelve ahí.
