@@ -195,3 +195,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Planilla FAENA POR DÍA ← FAENA: menú "Qualitá → Conectar planilla FAENA (venta)" en el Apps Script (`docs/camara-sheet.txt`); cada 10 min copia el TOTAL de clientes de cada día de FAENA a VENTA (y de ahí a la pestaña Cámara). Días sin clientes cargados no se tocan.
 - Logística: barra de arriba más chica y prolija (botones cortos: Resumen del día · Imprimir · Imprimir x camión · Ordenar x hora · + Camión · Copiar link; en compu todo en un renglón al lado de la fecha).
 - WhatsApp a choferes: con camiones tildados desaparecen los botones sueltos y queda "Mandar los N juntos" (un solo mensaje al WhatsApp que se elija).
+- Venta FAENA → FAENA POR DÍA instalada (24/10): propiedad del script `FAENA_ID` cargada a mano en Configuración del proyecto y activador `traerVenta` cada 5 min (el menú Qualitá no apareció en la planilla; no hace falta).
