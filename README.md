@@ -191,3 +191,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Logística, Resumen del día: se tildan camiones y se comparten por WhatsApp los elegidos o todos (un bloque por camión con hora y clientes en orden).
 - WhatsApp a choferes (Resumen del día): el mensaje lleva saludo de entrada (buen día/buenas tardes/buenas noches según la hora) y de salida, editables con "✎ Saludos" (config.waSaludo / waDespedida); cada camión tiene su botón WhatsApp para mandar solo ese.
 - WhatsApp a choferes: saludo "buen día" (antes de las 13) o "buenas tardes"; despedida "hasta mañana" de lunes a jueves y "buen fin de semana" el viernes y el fin de semana.
+- WhatsApp a choferes: el saludo de base queda "¡Buen día! 👋" / "¡Buenas tardes! 👋" (sin "muchachos").

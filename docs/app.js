@@ -2190,7 +2190,7 @@
   function waSaludo(f) {
     var g = String((S.config || {}).waSaludo || '').trim(); if (g) return g;
     var hr = new Date().getHours(), dd = f === hoy() ? 'de hoy' : f === mas(hoy(), 1) ? 'de mañana' : 'del ' + diaCorto(f).toLowerCase();
-    return (hr < 13 ? '¡Buen día' : '¡Buenas tardes') + ', muchachos! 👋 Les paso la carga ' + dd + ':';
+    return (hr < 13 ? '¡Buen día' : '¡Buenas tardes') + '! 👋 Les paso la carga ' + dd + ':';
   }
   // De lunes a jueves "hasta mañana"; viernes (y fin de semana) "buen fin de semana".
   function waDespedida() { var g = String((S.config || {}).waDespedida || '').trim(), d = new Date().getDay(); return g || 'Cualquier duda me avisan. ' + (d >= 1 && d <= 4 ? '¡Gracias y hasta mañana!' : '¡Gracias y buen fin de semana!') + ' 🚛'; }
