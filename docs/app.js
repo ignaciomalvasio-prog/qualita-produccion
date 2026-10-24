@@ -2190,9 +2190,10 @@
   function waSaludo(f) {
     var g = String((S.config || {}).waSaludo || '').trim(); if (g) return g;
     var hr = new Date().getHours(), dd = f === hoy() ? 'de hoy' : f === mas(hoy(), 1) ? 'de mañana' : 'del ' + diaCorto(f).toLowerCase();
-    return (hr < 13 ? '¡Buen día' : hr < 20 ? '¡Buenas tardes' : '¡Buenas noches') + ', muchachos! 👋 Les paso la carga ' + dd + ':';
+    return (hr < 13 ? '¡Buen día' : '¡Buenas tardes') + ', muchachos! 👋 Les paso la carga ' + dd + ':';
   }
-  function waDespedida() { var g = String((S.config || {}).waDespedida || '').trim(); return g || 'Cualquier duda me avisan. ¡Buen viaje y gracias! 🚛'; }
+  // De lunes a jueves "hasta mañana"; viernes (y fin de semana) "buen fin de semana".
+  function waDespedida() { var g = String((S.config || {}).waDespedida || '').trim(), d = new Date().getDay(); return g || 'Cualquier duda me avisan. ' + (d >= 1 && d <= 4 ? '¡Gracias y hasta mañana!' : '¡Gracias y buen fin de semana!') + ' 🚛'; }
   function compartirWhatsApp(txt) {
     var movil = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent || '');
     if (window.__mock) { window.__mock.compartido = txt; return; }
@@ -2219,7 +2220,7 @@
     };
     var nSel = cams.filter(function (c) { return (S.resSel || {})[f + '|' + c.id]; }).length;
     var comp = cams.length ? '<div class="res-comp"><span class="small muted">Compartir por WhatsApp:</span><button class="btn sm wa" data-act="res-wa" data-f="' + esc(f) + '" data-cual="sel"' + (nSel ? '' : ' disabled') + '>Los elegidos' + (nSel ? ' (' + nSel + ')' : '') + '</button><button class="btn sm wa" data-act="res-wa" data-f="' + esc(f) + '" data-cual="todos">Todos</button>' + (nSel ? '<button class="btn sm lnk" data-act="res-sel-nada" data-f="' + esc(f) + '">Destildar</button>' : '') + (ed ? '<button class="btn sm lnk" data-act="res-saludos">' + (S.resSaludos ? 'Cerrar saludos' : '✎ Saludos') + '</button>' : '') + '<span class="small muted">Tildá ☐ los camiones que quieras mandar.</span></div>'
-      + (ed && S.resSaludos ? '<div class="res-saludos"><label class="campo"><span>Saludo de entrada</span><textarea id="wa-saludo" rows="2" placeholder="' + esc(waSaludo(f)) + '">' + esc((S.config || {}).waSaludo || '') + '</textarea></label><label class="campo"><span>Saludo de salida</span><textarea id="wa-despedida" rows="2" placeholder="' + esc(waDespedida()) + '">' + esc((S.config || {}).waDespedida || '') + '</textarea></label><p class="small muted">Si los dejás vacíos se usan los de base (el de entrada cambia solo: buen día, buenas tardes o buenas noches). Se guardan solos.</p></div>' : '') : '';
+      + (ed && S.resSaludos ? '<div class="res-saludos"><label class="campo"><span>Saludo de entrada</span><textarea id="wa-saludo" rows="2" placeholder="' + esc(waSaludo(f)) + '">' + esc((S.config || {}).waSaludo || '') + '</textarea></label><label class="campo"><span>Saludo de salida</span><textarea id="wa-despedida" rows="2" placeholder="' + esc(waDespedida()) + '">' + esc((S.config || {}).waDespedida || '') + '</textarea></label><p class="small muted">Si los dejás vacíos se usan los de base (el de entrada cambia solo según la hora: buen día o buenas tardes; el de salida, hasta mañana o buen fin de semana si es viernes). Se guardan solos.</p></div>' : '') : '';
     var h = '<div class="resumen-dia">' + comp + '<h2 class="res-dia"><mark>' + esc(titulo) + '</mark></h2>' + (ed && cams.length > 1 ? '<p class="small muted res-ayuda">Arrastrá cada camión desde ⠿ para ordenarlos (queda igual en "Ver por camión"). La hora se cambia tocándola.</p>' : '') + '<div class="res-grilla">';
     cams.forEach(function (c) {
       var tit = (c.num && nomLimpio(c.nombre) ? 'N° ' + c.num + ' · ' : '') + nomCam(c);

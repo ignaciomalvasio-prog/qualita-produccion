@@ -20,5 +20,7 @@ for(const w of [1100,400]){const p=await b.newPage({viewport:{width:w,height:900
  await p.click('[data-act="res-saludos"]');await p.fill('#wa-saludo','Hola choferes!');await p.locator('#wa-saludo').dispatchEvent('change');await p.fill('#wa-despedida','Saludos, Renzo');await p.locator('#wa-despedida').dispatchEvent('change');await p.clock.runFor(1500);
  await p.click('.res-wa-uno[data-cual="c1"]');console.log('con saludos propios:\n'+await p.evaluate(()=>window.__mock.compartido),'\n· guardado:',await p.evaluate(()=>JSON.stringify([window.__mock.data.config.general.waSaludo,window.__mock.data.config.general.waDespedida])));
  if(w===400)await p.screenshot({path:SP+'/resumen-wa.png',fullPage:false});
+ if(!(await p.locator('#wa-saludo').count())){await p.click('[data-act="res-saludos"]');await p.waitForTimeout(100);}{await p.fill('#wa-saludo','');await p.locator('#wa-saludo').dispatchEvent('change');await p.fill('#wa-despedida','');await p.locator('#wa-despedida').dispatchEvent('change');await p.clock.runFor(1500);}
+ await p.click('.res-wa-uno[data-cual="c1"]');console.log('base (viernes 18 h):',JSON.stringify((await p.evaluate(()=>window.__mock.compartido)).split('\n').filter((x,i,a)=>i===0||i===a.length-1)));
  console.log('desborde:',await p.evaluate(()=>document.documentElement.scrollWidth-innerWidth),'errores:',errs.join('|')||'ninguno');}
 await b.close();})();
