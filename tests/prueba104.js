@@ -16,7 +16,7 @@ for(const w of [1100,400]){const p=await b.newPage({viewport:{width:w,height:900
  console.log('con 2 tildados:',await p.locator('[data-act="res-wa"][data-cual="sel"]').innerText());
  await p.click('[data-act="res-wa"][data-cual="sel"]');console.log('mensaje elegidos:\n'+await p.evaluate(()=>window.__mock.compartido));
  await p.click('[data-act="res-wa"][data-cual="todos"]');console.log('todos → camiones:',await p.evaluate(()=>(window.__mock.compartido.match(/🚚/g)||[]).length));
- await p.click('.res-wa-uno[data-cual="c2"]');console.log('solo MAXIMO:\n'+await p.evaluate(()=>window.__mock.compartido));
+ console.log('botones sueltos con tildados:',await p.locator('.res-wa-uno').count());await p.click('[data-act="res-sel-nada"]');await p.waitForTimeout(150);await p.click('.res-wa-uno[data-cual="c2"]');console.log('solo MAXIMO:\n'+await p.evaluate(()=>window.__mock.compartido));
  await p.click('[data-act="res-saludos"]');await p.fill('#wa-saludo','Hola choferes!');await p.locator('#wa-saludo').dispatchEvent('change');await p.fill('#wa-despedida','Saludos, Renzo');await p.locator('#wa-despedida').dispatchEvent('change');await p.clock.runFor(1500);
  await p.click('.res-wa-uno[data-cual="c1"]');console.log('con saludos propios:\n'+await p.evaluate(()=>window.__mock.compartido),'\n· guardado:',await p.evaluate(()=>JSON.stringify([window.__mock.data.config.general.waSaludo,window.__mock.data.config.general.waDespedida])));
  if(w===400)await p.screenshot({path:SP+'/resumen-wa.png',fullPage:false});
