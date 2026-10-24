@@ -1,4 +1,4 @@
-// Logística: "Imprimir por camión" imprime todo el día con cada camión en una hoja aparte.
+// Logística: "Imprimir x camión" imprime todo el día con cada camión en una hoja aparte.
 const {chromium}=require('playwright');const SP=process.argv[2];const F='2026-10-26';const {execSync}=require('child_process');
 const P=(c,cam)=>({cliente:c,entrega:F,medias:10,peso:'',nota:'',origen:'manual',kg:'',camion:cam,cuenta:'',cortes:[]});
 const cams=[{id:'c1',nombre:'SEMI DOLCI',hora:'00:00',kg:0,orden:['a']},{id:'c2',nombre:'MAXIMO',hora:'02:00',kg:0,orden:['b','c']},{id:'c3',nombre:'LUCAS',hora:'05:00',kg:0,orden:['d']}];

@@ -193,3 +193,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - WhatsApp a choferes: saludo "buen día" (antes de las 13) o "buenas tardes"; despedida "hasta mañana" de lunes a jueves y "buen fin de semana" el viernes y el fin de semana.
 - WhatsApp a choferes: el saludo de base queda "¡Buen día! 👋" / "¡Buenas tardes! 👋" (sin "muchachos").
 - Planilla FAENA POR DÍA ← FAENA: menú "Qualitá → Conectar planilla FAENA (venta)" en el Apps Script (`docs/camara-sheet.txt`); cada 10 min copia el TOTAL de clientes de cada día de FAENA a VENTA (y de ahí a la pestaña Cámara). Días sin clientes cargados no se tocan.
+- Logística: barra de arriba más chica y prolija (botones cortos: Resumen del día · Imprimir · Imprimir x camión · Ordenar x hora · + Camión · Copiar link; en compu todo en un renglón al lado de la fecha).

@@ -108,6 +108,7 @@ html,body{overflow-x:clip}
 .nav-dia{display:inline-flex;gap:6px;align-items:center;justify-self:center}
 .nav-acc{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end;justify-self:end;min-width:0}
 .nav-acc:empty{display:none}
+@media (min-width:901px){ #view-logistica .nav.armada{grid-template-columns:auto auto minmax(0,1fr);gap:6px 12px} }
 @media (max-width:900px){ .nav.armada{grid-template-columns:minmax(0,1fr)} .nav-dia,.nav-acc{justify-self:start;justify-content:flex-start} }
 @media print{ .nav.armada{display:flex} .nav-dia,.nav-acc{display:none} }
 .tit-dia{display:inline-block;padding:4px 12px 3px;border-radius:6px;color:#fff;line-height:1.1}
@@ -743,6 +744,14 @@ details[open] > summary{margin-bottom:10px}
 .chip-co{display:none}
 /* Logística en pantalla, más compacto (pedido de Renzo). La impresión tiene sus propios ajustes. */
 @media screen{
+  #view-logistica .nav .tit{font-size:22px}
+  #view-logistica .nav .btn{min-height:32px;padding:4px 10px;font-size:13px}
+  #view-logistica .nav .btn.step{width:34px;padding:0;font-size:18px}
+  #view-logistica .nav input[type=date]{min-height:32px;padding:3px 8px;font-size:14px}
+  #view-logistica .nav-acc{gap:5px;flex-wrap:wrap}
+  #view-logistica .pd-busca{gap:6px}
+  #view-logistica .pd-busca input{min-height:34px;padding:5px 10px;font-size:14px}
+  #view-logistica .log-tip{margin:0;font-size:12px}
   #view-logistica .cam + .cam{margin-top:10px}
   #view-logistica .cam>.cam-cab{padding:6px 12px;gap:4px 10px}
   #view-logistica .cam:not(.suelto)>.cam-cab h2{font-size:21px;padding:3px 12px 2px}
