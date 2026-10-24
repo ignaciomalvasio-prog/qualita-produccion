@@ -133,6 +133,12 @@ function conectarFaena() {
   var n = traerVenta();
   ui.alert('Listo: la VENTA de cada día se toma de la planilla FAENA (se revisa cada 10 minutos). Días actualizados ahora: ' + n + '.');
 }
+// Para que el cambio pase al instante: corre traerVenta cada vez que se edita la planilla FAENA (además del reloj).
+function activarAlEditar() {
+  var id = PropertiesService.getScriptProperties().getProperty('FAENA_ID'); if (!id) throw new Error('Falta la propiedad FAENA_ID');
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'traerVenta' && t.getEventType() === ScriptApp.EventType.ON_EDIT) ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('traerVenta').forSpreadsheet(id).onEdit().create();
+}
 function traerVentaAhora() { var n = traerVenta(); SpreadsheetApp.getUi().alert(n == null ? 'Primero conectá la planilla FAENA.' : 'Días actualizados: ' + n + '.'); }
 
 function traerVenta() {
