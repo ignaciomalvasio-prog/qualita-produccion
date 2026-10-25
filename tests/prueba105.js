@@ -10,7 +10,7 @@ const data={faena:{},produccion:{},privado:{},config:{general:{}},pedidos:ped};
  await p.clock.install({time:new Date('2026-10-27T10:00:00-03:00')});
  await p.addInitScript(d=>{window.__mock={data:JSON.parse(JSON.stringify(d)),user:{email:'yo@x.com'},editores:['yo@x.com']}},data);
  await p.goto('http://127.0.0.1:8765/index.html#clientes');await p.clock.runFor(1500);
- const t=()=>p.locator('.rep-suc').innerText();
+ await p.click('.rep-det summary');await p.waitForTimeout(100);const t=()=>p.locator('.rep-suc').innerText();
  console.log('==',w,'\n'+(await t()));
  await p.click('[data-act="rep-copiar"]');console.log('copiado:\n'+await p.evaluate(()=>window.__mock.copiado));
  await p.click('[data-act="rep-excel"]');console.log('excel:',JSON.stringify(await p.evaluate(()=>window.__mock.excel)));

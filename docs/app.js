@@ -1095,11 +1095,20 @@
       var suc = c === P ? '(sin sucursal)' : c.slice(P.length + 1).trim(), k = kgPedido(p);
       var r = filas[suc] || (filas[suc] = { suc: suc, d: {}, tot: 0, aprox: false, falta: false });
       r.d[p.entrega] = (r.d[p.entrega] || 0) + k.kg; r.tot += k.kg; if (!k.manual) r.aprox = true; if (k.falta) r.falta = true;
+      r.cortes = r.cortes || {};
+      var suma = function (nom, kg, sinPeso) { var x = r.cortes[nom] || (r.cortes[nom] = { kg: 0, sin: [] }); x.kg += kg; if (sinPeso) x.sin.push(sinPeso); };
+      var enCortes = 0;
+      if (+p.medias) { suma('MEDIAS RES (' + n(+p.medias) + ')', +p.medias * kgMedia()); enCortes += +p.medias * kgMedia(); }
+      (p.cortes || []).forEach(function (c) { if (!c.texto) return; var kc = kgDeTexto(c.texto, c.corte); enCortes += kc.kg; suma(repNomCorte(c.texto), kc.kg, kc.falta ? String(c.texto).trim() : ''); });
+      if (k.manual && k.kg - enCortes >= 1) suma('SIN DETALLE (kg cargados a mano)', k.kg - enCortes);
       if (dias.indexOf(p.entrega) < 0) dias.push(p.entrega);
     });
     dias.sort();
     return { dias: dias, filas: Object.keys(filas).map(function (k) { return filas[k]; }).sort(function (a, b) { return a.suc.localeCompare(b.suc); }) };
   }
+  // Nombre del corte sin la cantidad del principio ni el cliente entre comillas: "100KG JAMON 4 MUSC (COD 341)" → "JAMON 4 MUSC (COD 341)".
+  function repNomCorte(t) { return norm(String(t || '').replace(/["“”][^"“”]*["“”]\s*$/, '').replace(/^\s*[\d.,½]+\s*(KGS?|KILOS?|K|CAJAS?|CJS?|CANASTOS?|CANASTAS?|UNIDADES|UNIDAD|UNID|UND|U)?\.?\s*(DE\s+|X\s+)?/i, '')) || 'SIN NOMBRE'; }
+  function repCortesDe(r) { return Object.keys(r.cortes || {}).map(function (k) { return { n: k, kg: Math.round(r.cortes[k].kg), sin: r.cortes[k].sin }; }).sort(function (a, b) { return b.kg - a.kg || a.n.localeCompare(b.n); }); }
   function repSemTxt(L) { return 'Semana del ' + diaCorto(L).replace(/^\S+ /, '') + ' al ' + diaCorto(mas(L, 6)).replace(/^\S+ /, ''); }
   function repHTML() {
     var L = S.repSem || lunesDe(hoy()), pref = S.repCli == null ? 'DINO' : S.repCli, d = repDatos(L, pref);
@@ -1116,6 +1125,9 @@
     h += '</tbody><tfoot><tr><th>Total</th>' + d.dias.map(function (f) { return '<th class="num">' + n(tDia[f] || 0) + '</th>'; }).join('') + '<th class="num">' + n(tot) + ' kg</th></tr></tfoot></table></div>';
     var falta = d.filas.some(function (r) { return r.falta; }), aprox = d.filas.some(function (r) { return r.aprox; });
     h += '<p class="small muted">' + (aprox ? 'Los kilos salen de lo pedido (medias a ' + kgMedia() + ' kg, cajas a ' + kgCaja() + ' kg y lo que viene en kg); si a un pedido le cargaste los kilos a mano, valen esos. ' : '') + (falta ? '* tiene renglones sin peso (unidades u otros) que no suman.' : '') + '</p>';
+    h += '<details class="rep-det"' + (S.repDet ? ' open' : '') + '><summary>Cortes de cada sucursal</summary><div class="rep-cortes">' + d.filas.map(function (r) {
+      return '<div class="rep-suc-c"><h3>' + esc(r.suc) + ' <small class="muted">' + n(r.tot) + ' kg</small></h3><table class="pl"><tbody>' + repCortesDe(r).map(function (c) { return '<tr><td>' + esc(c.n) + (c.sin.length ? ' <span class="small neg">(' + esc(c.sin.join(', ')) + ')</span>' : '') + '</td><td class="num">' + (c.kg ? n(c.kg) + ' kg' : '–') + '</td></tr>'; }).join('') + '</tbody></table></div>';
+    }).join('') + '</div></details>';
     return h + '<div class="acciones"><button class="btn" data-act="rep-copiar">Copiar el reporte</button><button class="btn" data-act="rep-excel">Descargar Excel</button><span class="guardado" id="g-rep"></span></div></div>';
   }
   function repTexto(sep) {
@@ -1125,11 +1137,13 @@
       t.push(['Sucursal'].concat(d.dias.map(diaCorto), ['Total semana (kg)']).join(sep));
       d.filas.forEach(function (r) { tot += r.tot; t.push([r.suc].concat(d.dias.map(function (f) { return r.d[f] || 0; }), [r.tot]).join(sep)); });
       t.push(['TOTAL'].concat(d.dias.map(function (f) { return d.filas.reduce(function (a, r) { return a + (r.d[f] || 0); }, 0); }), [tot]).join(sep));
+      t.push('', ['Sucursal', 'Corte', 'Kg semana', 'Sin peso'].join(sep));
+      d.filas.forEach(function (r) { repCortesDe(r).forEach(function (c) { t.push([r.suc, c.n, c.kg, c.sin.join(' / ')].join(sep)); }); });
       return t.join('\r\n');
     }
     t.push('*' + norm(pref) + ' · kilos por sucursal*', repSemTxt(L), '');
-    d.filas.forEach(function (r) { tot += r.tot; t.push(r.suc + ': *' + n(r.tot) + ' kg*' + (d.dias.length > 1 ? ' (' + d.dias.filter(function (f) { return r.d[f]; }).map(function (f) { return diaCorto(f) + ' ' + n(r.d[f]); }).join(' + ') + ')' : '')); });
-    t.push('', '*Total: ' + n(tot) + ' kg*');
+    d.filas.forEach(function (r) { tot += r.tot; t.push(r.suc + ': *' + n(r.tot) + ' kg*' + (d.dias.length > 1 ? ' (' + d.dias.filter(function (f) { return r.d[f]; }).map(function (f) { return diaCorto(f) + ' ' + n(r.d[f]); }).join(' + ') + ')' : '')); repCortesDe(r).forEach(function (c) { t.push('   • ' + c.n + ': ' + (c.kg ? n(c.kg) + ' kg' : c.sin.join(', '))); }); t.push(''); });
+    t.push('*Total: ' + n(tot) + ' kg*');
     return t.join('\n');
   }
   function filtrarClientes() {
@@ -3449,7 +3463,7 @@
     }
   });
   // Configuración queda abierta o cerrada como la dejó quien la usa, aunque se redibuje la pantalla.
-  document.addEventListener('toggle', function (e) { var d = e.target; if (d && d.tagName === 'DETAILS') { if (d.id === 'det-cli') S._cliVarios = d.open; else S._conf = d.open; } }, true);
+  document.addEventListener('toggle', function (e) { var d = e.target; if (d && d.tagName === 'DETAILS') { if (d.id === 'det-cli') S._cliVarios = d.open; else if (d.classList.contains('rep-det')) S.repDet = d.open; else S._conf = d.open; } }, true);
   // Arrastrar camiones en el Resumen del día (con el mouse o con el dedo).
   var arr = null;
   document.addEventListener('pointerdown', function (e) {
