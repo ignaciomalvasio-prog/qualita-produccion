@@ -44,3 +44,6 @@ En vivo: https://qualita-produccion.web.app (links para compartir: `/logistica`,
 - Producción (planilla de frescos) muestra cada renglón en la unidad en que se pidió (kg, cajas, canastos, unidades); el total de cada corte es un solo número en kg (caja y canasto = 20 kg, unidades según el peso por unidad) con el detalle de lo pedido abajo. Lo guardado no cambia.
 - Logística se publica en `config/log-{fecha}` con `publicarLog(f)`: cualquier cambio de pedidos, camiones o precios tiene que volver a publicarlo.
 - Después de las 15 h la app arranca en el próximo día hábil (`fechaProdInicial`).
+
+## Pedidos para más adelante (todavía no se hacen)
+- (Renzo, 25/10/2026) Ir agrupando pedidos y clientes según cómo salen todas las semanas (qué clientes van juntos, qué día, en qué camión), para armar las cargas más rápido. Antes de construirlo, preguntarle bien qué agrupación quiere.
