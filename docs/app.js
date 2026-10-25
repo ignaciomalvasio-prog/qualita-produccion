@@ -1076,6 +1076,7 @@
     if (l.length) h += '<table class="pl cli"><thead><tr><th>N° de cuenta</th><th>Cliente</th><th></th></tr></thead><tbody id="cli-filas"></tbody></table><p class="small muted" id="cli-nota"></p>';
     else h += '<p class="muted">Agregalos de a uno arriba, o varios juntos abajo.</p>';
     h += '</div>';
+    h += repHTML();
     var conocidos = clientesConocidos().filter(function (x) { return !l.some(function (y) { return norm(y.n) === norm(x.n); }); }).length;
     h += '<div class="panel"><details' + (S._cliVarios ? ' open' : '') + ' id="det-cli"><summary>Cargar varios juntos</summary>'
       + '<label class="campo"><span>Pegá la lista: una línea por cliente, con el número y el nombre (se puede copiar desde Excel)</span><textarea id="cli-txt" rows="8" placeholder="21588  ALMACOR&#10;21147  JAVIER BRISIGHELLI"></textarea></label>'
@@ -1084,6 +1085,53 @@
       + (conocidos ? '<button class="btn" data-act="cli-traer">Traer los ' + conocidos + ' nombres que ya figuran en pedidos y planillas</button>' : '') + '</div>'
       + '<p class="small muted">Los que ya estaban se actualizan; no se borra ninguno.</p></details></div>';
     el.innerHTML = h; pintarMsg('cli'); filtrarClientes();
+  }
+  /* Reporte de kilos por sucursal (pedido de Renzo para DINO): cada pedido cuyo cliente empieza con el nombre
+     elegido es una sucursal; se suman los kilos de las entregas de la semana (lunes a domingo) y se ve cada día aparte. */
+  function repDatos(L, pref) {
+    var P = norm(pref || ''), fin = mas(L, 6), filas = {}, dias = [];
+    if (!P) return { dias: [], filas: [] };
+    (S.pedidos || []).forEach(function (p) {
+      var c = norm(p.cliente || ''); if (!p.entrega || p.entrega < L || p.entrega > fin || (c !== P && c.indexOf(P + ' ') !== 0)) return;
+      var suc = c === P ? '(sin sucursal)' : c.slice(P.length + 1).trim(), k = kgPedido(p);
+      var r = filas[suc] || (filas[suc] = { suc: suc, d: {}, tot: 0, aprox: false, falta: false });
+      r.d[p.entrega] = (r.d[p.entrega] || 0) + k.kg; r.tot += k.kg; if (!k.manual) r.aprox = true; if (k.falta) r.falta = true;
+      if (dias.indexOf(p.entrega) < 0) dias.push(p.entrega);
+    });
+    dias.sort();
+    return { dias: dias, filas: Object.keys(filas).map(function (k) { return filas[k]; }).sort(function (a, b) { return a.suc.localeCompare(b.suc); }) };
+  }
+  function repSemTxt(L) { return 'Semana del ' + diaCorto(L).replace(/^\S+ /, '') + ' al ' + diaCorto(mas(L, 6)).replace(/^\S+ /, ''); }
+  function repHTML() {
+    var L = S.repSem || lunesDe(hoy()), pref = S.repCli == null ? 'DINO' : S.repCli, d = repDatos(L, pref);
+    var h = '<div class="panel rep-suc"><div class="cam-cab"><h2>Kilos por sucursal</h2><span class="small muted">para el reporte semanal</span></div>'
+      + '<div class="rep-barra"><label class="campo"><span>Cliente</span><input type="text" id="rep-cli" value="' + esc(pref) + '" style="text-transform:uppercase" autocomplete="off"></label>'
+      + '<span class="rep-sem"><button class="btn step" data-act="rep-sem" data-d="-7" aria-label="Semana anterior">‹</button><b>' + esc(repSemTxt(L)) + '</b><button class="btn step" data-act="rep-sem" data-d="7" aria-label="Semana siguiente">›</button></span></div>';
+    if (!d.filas.length) return h + '<p class="muted">No hay pedidos de ' + esc(pref || '…') + ' con entrega esa semana.</p></div>';
+    var tot = 0, tDia = {};
+    h += '<div class="rep-tabla"><table class="pl"><thead><tr><th>Sucursal</th>' + d.dias.map(function (f) { return '<th class="num">' + esc(diaCorto(f)) + '</th>'; }).join('') + '<th class="num">Total semana</th></tr></thead><tbody>';
+    d.filas.forEach(function (r) {
+      tot += r.tot; d.dias.forEach(function (f) { tDia[f] = (tDia[f] || 0) + (r.d[f] || 0); });
+      h += '<tr><td>' + esc(r.suc) + (r.falta ? ' <span class="small neg" title="Tiene renglones sin peso: no suman">*</span>' : '') + '</td>' + d.dias.map(function (f) { return '<td class="num">' + (r.d[f] ? n(r.d[f]) : '–') + '</td>'; }).join('') + '<td class="num"><b>' + n(r.tot) + '</b></td></tr>';
+    });
+    h += '</tbody><tfoot><tr><th>Total</th>' + d.dias.map(function (f) { return '<th class="num">' + n(tDia[f] || 0) + '</th>'; }).join('') + '<th class="num">' + n(tot) + ' kg</th></tr></tfoot></table></div>';
+    var falta = d.filas.some(function (r) { return r.falta; }), aprox = d.filas.some(function (r) { return r.aprox; });
+    h += '<p class="small muted">' + (aprox ? 'Los kilos salen de lo pedido (medias a ' + kgMedia() + ' kg, cajas a ' + kgCaja() + ' kg y lo que viene en kg); si a un pedido le cargaste los kilos a mano, valen esos. ' : '') + (falta ? '* tiene renglones sin peso (unidades u otros) que no suman.' : '') + '</p>';
+    return h + '<div class="acciones"><button class="btn" data-act="rep-copiar">Copiar el reporte</button><button class="btn" data-act="rep-excel">Descargar Excel</button><span class="guardado" id="g-rep"></span></div></div>';
+  }
+  function repTexto(sep) {
+    var L = S.repSem || lunesDe(hoy()), pref = S.repCli == null ? 'DINO' : S.repCli, d = repDatos(L, pref), t = [], tot = 0;
+    if (sep) {
+      t.push([norm(pref) + ' - ' + repSemTxt(L)].join(sep));
+      t.push(['Sucursal'].concat(d.dias.map(diaCorto), ['Total semana (kg)']).join(sep));
+      d.filas.forEach(function (r) { tot += r.tot; t.push([r.suc].concat(d.dias.map(function (f) { return r.d[f] || 0; }), [r.tot]).join(sep)); });
+      t.push(['TOTAL'].concat(d.dias.map(function (f) { return d.filas.reduce(function (a, r) { return a + (r.d[f] || 0); }, 0); }), [tot]).join(sep));
+      return t.join('\r\n');
+    }
+    t.push('*' + norm(pref) + ' · kilos por sucursal*', repSemTxt(L), '');
+    d.filas.forEach(function (r) { tot += r.tot; t.push(r.suc + ': *' + n(r.tot) + ' kg*' + (d.dias.length > 1 ? ' (' + d.dias.filter(function (f) { return r.d[f]; }).map(function (f) { return diaCorto(f) + ' ' + n(r.d[f]); }).join(' + ') + ')' : '')); });
+    t.push('', '*Total: ' + n(tot) + ' kg*');
+    return t.join('\n');
   }
   function filtrarClientes() {
     var tb = $('cli-filas'); if (!tb) return;
@@ -3036,6 +3084,19 @@
       }, function () { S.msg.cli = '!No se pudo guardar. Revisá la conexión.'; pintarMsg('cli'); });
       return;
     }
+    if (a === 'rep-sem') { S.repSem = mas(S.repSem || lunesDe(hoy()), +D.d); renderClientes(); return; }
+    if (a === 'rep-copiar') {
+      var txr = repTexto(), okr = function () { var g = $('g-rep'); if (g) g.textContent = 'Copiado: pegalo en WhatsApp o en un mail.'; };
+      if (window.__mock) { window.__mock.copiado = txr; okr(); return; }
+      try { navigator.clipboard.writeText(txr).then(okr, function () { window.prompt('Copiá el reporte:', txr); }); } catch (err) { window.prompt('Copiá el reporte:', txr); }
+      return;
+    }
+    if (a === 'rep-excel') {
+      var csv = '\ufeff' + repTexto(';'), Lr = S.repSem || lunesDe(hoy()), nomr = 'kilos-' + norm(S.repCli == null ? 'DINO' : S.repCli).replace(/\s+/g, '-').toLowerCase() + '-' + Lr + '.csv';
+      if (window.__mock) { window.__mock.excel = { nombre: nomr, csv: csv }; return; }
+      var ur = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })), ar = document.createElement('a'); ar.href = ur; ar.download = nomr; document.body.appendChild(ar); ar.click(); ar.remove(); setTimeout(function () { URL.revokeObjectURL(ur); }, 4000);
+      return;
+    }
     if (a === 'cli-quitar') {
       var lq = clone(clientes()); lq.splice(+D.i, 1);
       escribirClientes(lq).then(renderClientes, function () { avisar('!No se pudo quitar. Revisá la conexión.', 6000); });
@@ -3338,6 +3399,7 @@
   document.addEventListener('input', function (e) {
     var t = e.target, D = t.dataset;
     if (t.id === 'cli-buscar') { S.cliBuscar = t.value; filtrarClientes(); return; }
+    if (t.id === 'rep-cli') { var sr = t.selectionStart; S.repCli = t.value; var vp = document.querySelector('.rep-suc'); if (vp) { var tmpr = document.createElement('div'); tmpr.innerHTML = repHTML(); vp.replaceWith(tmpr.firstChild); var nr = $('rep-cli'); if (nr) { nr.focus(); try { nr.setSelectionRange(sr, sr); } catch (err) {} } } return; }
     if (t.id === 'lg-buscar' || t.id === 'lg-cam-buscar') { var sl = t.selectionStart, idl = t.id; if (idl === 'lg-buscar') { S.lgBuscar = t.value; S.lgCamBuscar = ''; } else { S.lgCamBuscar = t.value; S.lgBuscar = ''; } render(); var nl = $(idl); if (nl) { nl.focus(); try { nl.setSelectionRange(sl, sl); } catch (err) {} } return; }
     if (t.id === 'cam-txt') { S.camPrev = t.value.trim() ? leerCamaraPegada(t.value) : null; var pv2 = document.querySelector('.cam-pegar'); if (pv2) { var tmp = document.createElement('div'); tmp.innerHTML = camPegarHTML(!camSemanas().length); var val = t.value; pv2.replaceWith(tmp.firstChild); var nt2 = $('cam-txt'); if (nt2) { nt2.value = val; } } return; }
     if (t.id === 'pd-cam-buscar') { var sc = t.selectionStart; S.camBuscar = t.value; S.pdBuscar = ''; renderPedidos(); var nc = $('pd-cam-buscar'); if (nc) { nc.focus(); try { nc.setSelectionRange(sc, sc); } catch (err) {} } return; }
