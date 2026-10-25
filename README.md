@@ -197,3 +197,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - WhatsApp a choferes: con camiones tildados desaparecen los botones sueltos y queda "Mandar los N juntos" (un solo mensaje al WhatsApp que se elija).
 - Venta FAENA → FAENA POR DÍA instalada (24/10): propiedad del script `FAENA_ID` cargada a mano en Configuración del proyecto y activador `traerVenta` cada 5 min (el menú Qualitá no apareció en la planilla; no hace falta). Para que pase al instante: `activarAlEditar()` crea un activador "al editar" sobre la planilla FAENA.
 - Clientes › "Kilos por sucursal": reporte semanal (lunes a domingo) de un cliente con sucursales (por defecto DINO): kilos de cada sucursal por día de entrega y total de la semana, con "Copiar el reporte" (texto para WhatsApp/mail) y "Descargar Excel" (CSV). Kilos = los cargados a mano o, si no, lo pedido (medias, cajas, kg, unidades por su peso).
+- Clientes: el recuadro "Kilos por sucursal" pasa arriba de todo.

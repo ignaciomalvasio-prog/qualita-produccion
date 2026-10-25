@@ -1067,7 +1067,7 @@
     var el = $('view-clientes');
     if (!S.editor) { el.innerHTML = '<div class="panel"><p class="state">Para ver los clientes hay que ingresar con una cuenta autorizada.</p></div>'; return; }
     var l = clientes(), sinNum = l.filter(function (x) { return !x.c; }).length;
-    var h = '<div class="panel carga"><h2>Agregar cliente</h2><div class="campos cli-alta">'
+    var h = repHTML() + '<div class="panel carga"><h2>Agregar cliente</h2><div class="campos cli-alta">'
       + '<label class="campo"><span>N° de cuenta</span><input type="text" inputmode="numeric" id="cli-c" autocomplete="off"></label>'
       + '<label class="campo"><span>Nombre del cliente</span><input type="text" id="cli-n" autocomplete="off" style="text-transform:uppercase"></label></div>'
       + '<div class="acciones"><button class="btn pri" data-act="cli-agregar">Agregar</button><span class="guardado" id="g-cli"></span></div></div>';
@@ -1076,7 +1076,6 @@
     if (l.length) h += '<table class="pl cli"><thead><tr><th>N° de cuenta</th><th>Cliente</th><th></th></tr></thead><tbody id="cli-filas"></tbody></table><p class="small muted" id="cli-nota"></p>';
     else h += '<p class="muted">Agregalos de a uno arriba, o varios juntos abajo.</p>';
     h += '</div>';
-    h += repHTML();
     var conocidos = clientesConocidos().filter(function (x) { return !l.some(function (y) { return norm(y.n) === norm(x.n); }); }).length;
     h += '<div class="panel"><details' + (S._cliVarios ? ' open' : '') + ' id="det-cli"><summary>Cargar varios juntos</summary>'
       + '<label class="campo"><span>Pegá la lista: una línea por cliente, con el número y el nombre (se puede copiar desde Excel)</span><textarea id="cli-txt" rows="8" placeholder="21588  ALMACOR&#10;21147  JAVIER BRISIGHELLI"></textarea></label>'
