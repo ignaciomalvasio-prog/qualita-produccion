@@ -915,7 +915,7 @@
   /* ---------- pedidos ----------
      El listado de pedidos es el centro. De ahí salen la planilla de producción (se suma cada corte
      con un clic), la logística (pedidos agrupados en camiones) y, solas, las medias de la planilla semanal. */
-  function pedidoVacio() { return { k: uid(), cliente: '', entrega: habilSiguiente(hoy()), medias: '', peso: '', frio: '', cortes: [], nota: '', dudas: [], origen: 'manual' }; }
+  function pedidoVacio() { return { k: uid(), cliente: '', entrega: S.cargaDia || habilSiguiente(hoy()), medias: '', peso: '', frio: '', cortes: [], nota: '', dudas: [], origen: 'manual' }; }
   // Fresco o congelado, si el pedido lo aclara.
   function frioDe(x) { var t = norm(x); return /CONG/.test(t) ? 'CONGELADO' : /FRESC/.test(t) ? 'FRESCO' : ''; }
   function frioBadge(f) { return f ? '<span class="badge ' + (f === 'CONGELADO' ? 'cong' : 'fresco') + '">' + esc(f) + '</span>' : ''; }
@@ -1836,7 +1836,7 @@
   }
   function ctxCarga() {
     // Sin fecha en el pedido: va al día hábil siguiente.
-    return { tab: S.tab, porDefecto: habilSiguiente(hoy()), esperada: S.tab === 'medias' && S.sem ? S.sem : semanaActual() };
+    return { tab: S.tab, porDefecto: habilSiguiente(hoy()), dia: S.cargaDia || '', esperada: S.tab === 'medias' && S.sem ? S.sem : semanaActual() };
   }
   function escribiendo() {
     var a = document.activeElement, t = a && a.tagName;
@@ -1866,7 +1866,7 @@
     asentarEdicion();
     leidos.forEach(function (x) {
       (x.j.pedidos || []).forEach(function (p) {
-        nuevos.push({ k: uid(), cliente: p.cliente || '', entrega: /^\d{4}-\d{2}-\d{2}$/.test(p.entrega || '') ? p.entrega : ctx.porDefecto, medias: +p.medias || '', peso: p.peso || '', frio: frioDe(p.frio), nota: p.nota || '', origen: x.origen, foto: x.nombre,
+        nuevos.push({ k: uid(), cliente: p.cliente || '', entrega: ctx.dia || (/^\d{4}-\d{2}-\d{2}$/.test(p.entrega || '') ? p.entrega : ctx.porDefecto), medias: +p.medias || '', peso: p.peso || '', frio: frioDe(p.frio), nota: p.nota || '', origen: x.origen, foto: x.nombre,
           dudas: (p.dudas || []).filter(Boolean), precioMedias: +p.precioMedias > 0 ? +p.precioMedias : '', ivaMedias: +p.precioMedias > 0 && /^(iva|final)$/.test(p.ivaMedias || '') ? p.ivaMedias : '',
           cortes: (p.cortes || []).map(function (c) { var pr = +c.precio > 0 ? +c.precio : ''; return { corte: norm(c.corte), texto: c.texto || '', orden: c.orden !== false, precio: pr, iva: pr && /^(iva|final)$/.test(c.iva || '') ? c.iva : '' }; }) });
       });
@@ -1952,8 +1952,8 @@
     var txt = String(S.pegarTxt || '').trim();
     if (!txt) { S.msg.fotos = '!Pegá primero el texto del pedido.'; pintarMsg('fotos'); return; }
     if (S.leyendo) return;
-    var pa = leerAnimales(S.pegarTxt); if (pa) { cargarAnimales(pa, S.pegarDia || ''); return; }
-    var ctx = ctxCarga(), cli = String(S.pegarCli || '').toUpperCase().trim(), dia = S.pegarDia || '';
+    var pa = leerAnimales(S.pegarTxt); if (pa) { cargarAnimales(pa, S.cargaDia || ''); return; }
+    var ctx = ctxCarga(), cli = String(S.pegarCli || '').toUpperCase().trim(), dia = S.cargaDia || '';
     S.leyendo = true; S.pegar = false; S.msg.fotos = 'Leyendo el texto…'; cargas.activas++; estadoCarga(); render();
     leerTexto(txt, cli).then(function (j) {
       S.leyendo = false; cargas.activas--; S.pegarTxt = ''; S.pegarCli = ''; S.pegarDia = '';
@@ -2036,9 +2036,19 @@
     };
     try { r.start(); } catch (e) { S.dictando = false; avisar('!No se pudo empezar a dictar.', 6000); renderPedidos(); }
   }
+  /* Antes de cargar (foto, texto, dictado o a mano) se elige el día de entrega: todo lo que se cargue va a ese día.
+     "Según el pedido" deja que mande el día que diga el mensaje (o el próximo día hábil si no dice). */
+  function diasCarga() { var l = [], f = hoy(); while (l.length < 6) { f = mas(f, 1); var g = fecha(f).getDay(); if (g >= 1 && g <= 5) l.push(f); } return l; }
+  function cargaDiaHTML() {
+    var sel = S.cargaDia || '', dias = diasCarga();
+    if (sel && dias.indexOf(sel) < 0) dias.push(sel);
+    var chip = function (v, txt) { return '<button class="btn sm chip carga-dia' + (v === sel ? ' on' : '') + '" data-act="carga-dia" data-v="' + esc(v) + '" aria-pressed="' + (v === sel) + '">' + txt + '</button>'; };
+    return '<div class="carga-dias"><span class="small muted">¿Para qué día?</span>' + dias.map(function (f) { return chip(f, esc(diaCorto(f))); }).join('') + chip('', 'Según el pedido')
+      + '<label class="btn sm chip carga-otro" title="Elegir otra fecha">Otra fecha<input type="date" id="carga-dia-otra" value="' + esc(sel) + '"></label></div>';
+  }
   function cargaHTML(actMano) {
     var conIA = !!(S.ia && S.ia.clave) || !!(window.__mock && window.__mock.ia);
-    var h = '<div class="acciones"><label class="btn pri" style="display:inline-flex;align-items:center' + (conIA ? '' : ';opacity:.45') + '">Subir fotos o capturas<input type="file" id="fotos" accept="image/*" multiple hidden' + (conIA ? '' : ' disabled') + '></label>'
+    var h = cargaDiaHTML() + '<div class="acciones"><label class="btn pri" style="display:inline-flex;align-items:center' + (conIA ? '' : ';opacity:.45') + '">Subir fotos o capturas<input type="file" id="fotos" accept="image/*" multiple hidden' + (conIA ? '' : ' disabled') + '></label>'
       + '<button class="btn pri' + (S.pegar ? ' activo' : '') + '" data-act="q-pegar"' + (conIA ? '' : ' disabled') + '>Pegar texto</button>'
       + '<button class="btn pri" data-act="' + actMano + '">Cargar a mano</button>'
       + (actMano === 'q-nuevo' ? '<button class="btn pri' + (S.dictando ? ' dictando' : '') + '" data-act="q-dictar"' + (conIA ? '' : ' disabled') + '>' + (S.dictando ? '⏹ Detener dictado' : '🎤 Dictar pedido') + '</button>' : '')
@@ -2046,7 +2056,6 @@
       + (S.dictando ? '<p class="escuchando">● Escuchando… hablá tranquilo; lo que digas se va escribiendo abajo. Cuando termines tocá "Detener dictado" y después "Leer".</p>' : '');
     if (S.pegar && conIA) h += '<div class="pegar"><label class="campo"><span>Mensaje con los pedidos</span><textarea id="pegar-txt" rows="9">' + esc(S.pegarTxt || '') + '</textarea></label>'
       + '<label class="campo"><span>Cliente, si todo el mensaje es de uno solo con varias sucursales (opcional)</span><input type="text" id="pegar-cli" value="' + esc(S.pegarCli || '') + '"></label>'
-      + '<label class="campo"><span>Día de entrega (opcional: si lo elegís, todos los pedidos del mensaje van a ese día, aunque el mensaje diga otro)</span><input type="date" id="pegar-dia" value="' + esc(S.pegarDia || '') + '"></label>'
       + '<div class="acciones"><button class="btn pri" data-act="q-leer-texto">Leer</button><button class="btn" data-act="q-pegar">Cancelar</button></div></div>';
     if (!conIA) h += '<p class="small muted">Para leer fotos o texto falta cargar la clave de IA, en Pedidos, abajo, en Configuración.</p>';
     return h;
@@ -3219,6 +3228,7 @@
     else if (a === 'q-pegar') { if (S.dictando) pararDictado(); S.pegar = !S.pegar; if (!S.pegar) { S.pegarTxt = ''; S.pegarCli = ''; S.pegarDia = ''; } S.msg.fotos = ''; renderPedidos(); var ft = $('pegar-txt'); if (ft) ft.focus(); }
     else if (a === 'q-leer-texto') { if (S.dictando) pararDictado(); leerPegado(); }
     else if (a === 'q-dictar') { dictar(); }
+    else if (a === 'carga-dia') { S.cargaDia = D.v || ''; render(); }
     else if (a === 'q-nuevo') { S.prop.push(pedidoVacio()); renderPedidos(); var fq = $('q' + (S.prop.length - 1) + 'cliente'); if (fq) fq.focus(); }
     else if (a === 'q-corte') { S.prop[+D.q].cortes.push({ corte: CORTES_BASE[0], texto: '', orden: true }); renderPedidos(); }
     else if (a === 'q-quitar-corte') { S.prop[+D.q].cortes.splice(+D.j, 1); renderPedidos(); }
@@ -3420,7 +3430,7 @@
     if (D.cli != null) return;
     if (t.id === 'pf-txt' && S.pf) { S.pf.txt = t.value; S.pf.res = null; S.pf.error = ''; var rs = leerFaenaPegada(t.value), pv = $('pf-prev'), bg = $('pf-guardar'); if (pv) pv.innerHTML = faenaPegadaHTML(rs, semanaPegada(rs, S.sem)); if (bg) bg.disabled = !Object.keys(rs).some(function (k) { return rs[k].length; }); return; }
     if (t.id === 'pegar-cli') { S.pegarCli = t.value; return; }
-    if (t.id === 'pegar-dia') { S.pegarDia = t.value; return; }
+    if (t.id === 'carga-dia-otra') { S.cargaDia = t.value || ''; setTimeout(render, 0); return; }
     if (t.id === 'pegar-txt') { S.pegarTxt = t.value; if (S.msg.fotos) { S.msg.fotos = ''; pintarMsg('fotos'); } return; }
     if (t.id === 'cam-nombre') { S.camNombre = t.value; return; }
     if (t.id === 'cam-nota') { S.camNota = t.value; return; }
