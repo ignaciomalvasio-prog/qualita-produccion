@@ -202,3 +202,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Pedidos (carga): arriba de "Subir fotos / Pegar texto / Cargar a mano / Dictar" hay botones "¿Para qué día?" con los próximos días hábiles, "Según el pedido" y "Otra fecha". Lo que se cargue (foto, texto, dictado o a mano) va al día elegido; queda elegido hasta cambiarlo. Reemplaza el campo de fecha del texto pegado.
 - Cortes: se agrega VACIO (después de MATAMBRE).
 - Producción: botón verde "WhatsApp" al lado de "Copiar como texto" (orden de producción y planilla de empaque): manda ese mismo texto por WhatsApp.
+- Producción: el botón verde pasa a ser "PDF por WhatsApp": arma el PDF de la hoja; en el celu abre para elegir WhatsApp y el contacto, en la compu baja el PDF y abre WhatsApp Web para adjuntarlo.

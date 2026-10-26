@@ -411,7 +411,7 @@
     var h = '<div class="panel hoja op-hoja"><header class="hoja-cab"><div><p class="hoja-sup">Orden de producción</p><h2>PRODUCCIÓN · ' + esc(tituloDe(f)) + '</h2></div>'
       + '<div class="hoja-dato"><b>' + n(+o.medias || 0) + '½</b><span>' + esc(o.mercado || 'medias') + '</span></div>'
       + (o.estado === 'borrador' ? '<span class="badge warn">Borrador</span>' : '<span class="badge ok">Confirmada</span>') + '</header>';
-    h += '<div class="acciones hoja-acc">' + (S.editor ? '<button class="btn pri" data-act="p-editar" data-id="op-' + f + '">Editar la orden</button>' : '') + '<button class="btn" data-act="copiar" data-t="op">Copiar como texto</button><button class="btn wa" data-act="wa-texto" data-t="op">WhatsApp</button><button class="btn" data-act="hoja-pdf">Compartir PDF</button><span class="small muted" id="copiado-op" aria-live="polite"></span></div>';
+    h += '<div class="acciones hoja-acc">' + (S.editor ? '<button class="btn pri" data-act="p-editar" data-id="op-' + f + '">Editar la orden</button>' : '') + '<button class="btn" data-act="copiar" data-t="op">Copiar como texto</button><button class="btn wa" data-act="wa-pdf">PDF por WhatsApp</button><button class="btn" data-act="hoja-pdf">Compartir PDF</button><span class="small muted" id="copiado-op" aria-live="polite"></span></div>';
     h += '<div class="op-lista">' + (o.cortes || []).map(function (c) {
       var ls = c.lineas.length ? c.lineas : [{ t: '' }];
       return '<div class="op-c"><p><u class="op-corte">' + esc(c.corte || '') + '</u>: ' + opLineaHTML(ls[0].t) + '</p>' + ls.slice(1).map(function (l) { return '<p class="op-sig">' + opLineaHTML(l.t) + '</p>'; }).join('') + '</div>';
@@ -567,7 +567,7 @@
     var acc = '<div class="acciones hoja-acc">'
       + (S.editor ? '<button class="btn pri" data-act="p-editar" data-id="' + (c3 ? 'c3-' : '') + f + '">' + (c3 ? 'Editar embutidos' : 'Editar') + '</button>' : '')
       + '<button class="btn" data-act="hoja-imprimir">' + (c3 ? 'Imprimir embutidos' : 'Imprimir cortes') + '</button>'
-      + '<button class="btn" data-act="copiar" data-t="' + k + '">Copiar como texto</button><button class="btn wa" data-act="wa-texto" data-t="' + k + '">WhatsApp</button><button class="btn" data-act="hoja-pdf">Compartir PDF</button>'
+      + '<button class="btn" data-act="copiar" data-t="' + k + '">Copiar como texto</button><button class="btn wa" data-act="wa-pdf">PDF por WhatsApp</button><button class="btn" data-act="hoja-pdf">Compartir PDF</button>'
       + (S.editor && !c3 ? '<button class="btn" data-act="ir-pedidos" data-f="' + f + '">Sumar cortes desde los pedidos</button>' : '')
       + (S.editor && c3 ? '<button class="btn" data-act="link-c3">Copiar link para el Ciclo III</button>' : '')
       + '<span class="small muted" id="copiado-' + k + '" aria-live="polite"></span></div>';
@@ -701,7 +701,7 @@
       });
     });
   }
-  function compartirPDF(hoja, btn) {
+  function compartirPDF(hoja, btn, wa) {
     if (!hoja || (btn && btn.disabled)) return;
     var dia = S.fecha || '';
     var nombre = (hoja.classList.contains('op-hoja') ? 'Orden de produccion' : hoja.classList.contains('hoja-c3') ? 'Embutidos' : 'Planilla de frescos') + ' ' + dia.slice(8, 10) + '-' + dia.slice(5, 7) + '.pdf';
@@ -713,7 +713,10 @@
       if (file && navigator.canShare && /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) && navigator.canShare({ files: [file] })) {
         return navigator.share({ files: [file], title: nombre.replace(/\.pdf$/, '') }).then(function () { return ''; }, function (e) { if (e && e.name === 'AbortError') return ''; bajar(blob, nombre); return 'PDF descargado: ' + nombre; });
       }
-      bajar(blob, nombre); return 'PDF descargado: ' + nombre + '. Adjuntalo en WhatsApp o en el mail.';
+      bajar(blob, nombre);
+      // En la compu WhatsApp no deja adjuntar desde una página: se baja el PDF y se abre WhatsApp Web para arrastrarlo al chat.
+      if (wa) { if (window.__mock) window.__mock.abrioWA = true; else window.open('https://web.whatsapp.com/', '_blank', 'noopener'); return 'PDF descargado: ' + nombre + '. Se abrió WhatsApp: elegí el chat y arrastrá el PDF (o tocá el clip y adjuntalo).'; }
+      return 'PDF descargado: ' + nombre + '. Adjuntalo en WhatsApp o en el mail.';
     }).then(function (m) { fin(m); }, function () { fin('!No se pudo armar el PDF. Revisá la conexión y probá de nuevo.'); });
   }
   // Logística se imprime como se ve, pero achicada lo justo para usar la menor cantidad de hojas A4:
@@ -3175,7 +3178,7 @@
     }
     else if (a === 'ingresar') { if (window.Acceso && store.entrarMail) window.Acceso.abrir(store); else store.signIn().catch(function () {}); }
     else if (a === 'salir') store.signOut();
-    else if (a === 'wa-texto') { var tw = $('txt-' + (D.t || 'orden')); if (tw && tw.value.trim()) compartirWhatsApp(tw.value); }
+    else if (a === 'wa-pdf') { compartirPDF(b.closest('.hoja'), b, true); }
     else if (a === 'copiar') {
       var ta = $('txt-' + (D.t || 'orden')), msg = $('copiado-' + (D.t || 'orden')); ta.hidden = false;
       var ok = function () { msg.textContent = 'Copiado.'; }, no = function () { ta.focus(); ta.select(); msg.textContent = 'Seleccionado: copialo con Ctrl+C o manteniendo apretado.'; };
