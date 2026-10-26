@@ -11,11 +11,11 @@ const data={faena:{},config:{general:{}},privado:{clientes:{lista:[]}},pedidos:{
  for(let i=0;i<4;i++){ if((await p.locator('#view-produccion .nav .tit').innerText()).includes('27'))break; await p.click('#view-produccion [data-act="fecha"][data-d="1"]');await p.waitForTimeout(150);}
  await p.click('[data-act="pv"][data-v="frescos"]');await p.waitForTimeout(200);
  console.log('botones:',(await p.locator('[data-act="hoja-imprimir"]').allInnerTexts()).join(' | '));
- for(const [i,n] of [[0,'cortes'],[1,'embutidos']]){
+ for(const [i,n] of [[0,'cortes'],[1,'faena'],[2,'embutidos']]){
   if(i>=await p.locator('[data-act="hoja-imprimir"]').count())continue;
   await p.evaluate(()=>{delete window.__mock.ultimoPDF;});await p.locator('[data-act="hoja-imprimir"]').nth(i).click();
   await p.waitForFunction(()=>window.__mock.ultimoPDF,null,{timeout:15000});
   const b64=await p.evaluate(async()=>{const a=new Uint8Array(await window.__mock.ultimoPDF.blob.arrayBuffer());let s='';a.forEach(x=>s+=String.fromCharCode(x));return btoa(s);});
   fs.writeFileSync(SP+'/imp-'+n+'.pdf',Buffer.from(b64,'base64'));const t=execSync('pdftotext '+SP+'/imp-'+n+'.pdf -').toString();
-  console.log(n,'→ tiene MATAMBRE:',t.includes('MATAMBRE'),'· tiene CHORIZO:',t.includes('CHORIZO'));}
+  console.log(n,'→ tiene MATAMBRE:',t.includes('MATAMBRE'),'· HIGADO:',t.includes('HIGADO'),'· tiene CHORIZO:',t.includes('CHORIZO'));}
  console.log('errores:',errs.join('|')||'ninguno');await b.close();})();

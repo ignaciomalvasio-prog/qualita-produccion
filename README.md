@@ -203,3 +203,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Cortes: se agrega VACIO (después de MATAMBRE).
 - Producción: botón verde "WhatsApp" al lado de "Copiar como texto" (orden de producción y planilla de empaque): manda ese mismo texto por WhatsApp.
 - Producción: el botón verde pasa a ser "PDF por WhatsApp": arma el PDF de la hoja; en el celu abre para elegir WhatsApp y el contacto, en la compu baja el PDF y abre WhatsApp Web para adjuntarlo.
+- Producción: hoja aparte "FAENA · día" (achuras y frescos de faena: cabeza, orejas, pulmón, hígado, patas y manos, lengua, chinchulín, riñón, rabo, menudencias) con su Imprimir faena, Copiar, PDF por WhatsApp y Compartir PDF; ya no salen en la planilla de empaque. Cortes nuevos: LENGUA, CHINCHULIN, RIÑON, RABO.

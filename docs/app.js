@@ -28,7 +28,7 @@
   var SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
   var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
   var TABS = ['inicio', 'pedidos', 'produccion', 'ciclo3', 'logistica', 'medias', 'rendering', 'clientes', 'camara'];
-  var CORTES_BASE = ['JAMON', 'PALETA', 'PECHO', 'PECHO MANTA DOBLE', 'PECHO MANTA DOBLE CON CUERO', 'PANCETA CON CUERO', 'PANCETA SIN CUERO', 'CARRE SIN SOLOMILLO', 'CARRE CON SOLOMILLO', 'SOLOMILLO', 'CINTA DE LOMO', 'MATAMBRE', 'VACIO', 'BONDIOLA', 'RECORTE', 'GRASA BUENA', 'GRASA MALA', 'CUERO', 'TAPA DE PALETA', 'TAPA DE JAMON', 'TORTUGA', 'GARRON', 'TOCINO', 'CHURRASCO', 'PAPADA', 'OREJAS', 'CABEZA', 'PULMON', 'HIGADO', 'PATAS Y MANOS', 'HUESITOS', 'UNTO', 'MENUDENCIAS', 'EMBUTIDOS', 'CHORIZO', 'MORCILLA', 'SALCHICHA'];
+  var CORTES_BASE = ['JAMON', 'PALETA', 'PECHO', 'PECHO MANTA DOBLE', 'PECHO MANTA DOBLE CON CUERO', 'PANCETA CON CUERO', 'PANCETA SIN CUERO', 'CARRE SIN SOLOMILLO', 'CARRE CON SOLOMILLO', 'SOLOMILLO', 'CINTA DE LOMO', 'MATAMBRE', 'VACIO', 'BONDIOLA', 'RECORTE', 'GRASA BUENA', 'GRASA MALA', 'CUERO', 'TAPA DE PALETA', 'TAPA DE JAMON', 'TORTUGA', 'GARRON', 'TOCINO', 'CHURRASCO', 'PAPADA', 'HUESITOS', 'UNTO', 'CABEZA', 'OREJAS', 'PULMON', 'HIGADO', 'PATAS Y MANOS', 'LENGUA', 'CHINCHULIN', 'RIÑON', 'RABO', 'MENUDENCIAS', 'EMBUTIDOS', 'CHORIZO', 'MORCILLA', 'SALCHICHA'];
 
   var S = {
     faena: null, prod: null, pedidos: null, config: {}, ia: {}, status: 'loading', fuente: '',
@@ -369,7 +369,11 @@
   function esPedido(t) { return /^\s*\d/.test(t || ''); }
   function sinResto(t) { return String(t || '').replace(/^\s*RESTO\s*:?\s*/i, ''); }
   function corteDe(o, nombre) { var k = norm(nombre); return (o.cortes || []).filter(function (c) { return norm(c.corte) === k; })[0] || null; }
-  function ordenCorte(nombre) { var x = norm(nombre), i = CORTES_BASE.indexOf(x === 'CARRE' ? 'CARRE SIN SOLOMILLO' : x); return i < 0 ? 999 : i; }   // "CARRE" solo quedó en pedidos viejos
+  function ordenCorte(nombre) { var x = norm(nombre), i = CORTES_BASE.map(norm).indexOf(x === 'CARRE' ? 'CARRE SIN SOLOMILLO' : x); return i < 0 ? 999 : i; }
+  // Achuras y frescos que salen de FAENA (pedido de Renzo): van en una planilla aparte, con su propio título.
+  var CORTES_FAENA = ['CABEZA', 'OREJAS', 'PULMON', 'HIGADO', 'PATAS Y MANOS', 'LENGUA', 'CHINCHULIN', 'RIÑON', 'RABO', 'MENUDENCIAS'].map(norm);
+  function esFaena(corte) { var x = norm(corte); return CORTES_FAENA.indexOf(x) >= 0 || /^(PATAS?|MANOS?|CABEZAS?|OREJAS?|RIÑON|RINON|RIÑONES|RINONES|LENGUAS?|CHINCHULIN(ES)?|RABOS?)\b/.test(x); }
+  function partirFaena(o) { var a = clone(o), b = clone(o); a.cortes = (o.cortes || []).filter(function (c) { return !esFaena(c.corte); }); b.cortes = (o.cortes || []).filter(function (c) { return esFaena(c.corte); }); return { emp: a, fae: b }; }   // "CARRE" solo quedó en pedidos viejos
   /* Los embutidos (chorizo, morcilla, salchicha) se muestran en Producción, aparte, como "Embutidos". Se guardan
      en la misma colección "produccion" con el id "c3-AAAA-MM-DD"; la de desposte sigue con el id "AAAA-MM-DD".
      El link del Ciclo III (/ciclo3) muestra solo los embutidos. */
@@ -559,16 +563,16 @@
   function fechaProdInicial() { var h = hoy(); return esHabil(h) && new Date().getHours() < 15 ? h : habilSiguiente(h); }
 
   // La planilla de un día, para leer (la de desposte o la de embutidos).
-  function hojaHTML(o, f, c3) {
-    var nl = (o.cortes || []).reduce(function (t, c) { return t + c.lineas.length; }, 0), k = c3 ? 'c3' : 'orden';
-    var h = '<div class="panel hoja' + (c3 ? ' hoja-c3' : '') + '"' + (c3 ? ' id="embutidos"' : '') + '><header class="hoja-cab"><div><p class="hoja-sup">' + (c3 ? (S.solo ? 'Ciclo III · Embutidos' : 'Ciclo III') : 'Planilla de empaque') + '</p><h2>' + esc(c3 && !S.solo ? 'Embutidos' : (c3 ? '' : 'EMPAQUE · ') + tituloDe(f)) + '</h2></div>'
-      + (c3 ? (kgOrden(o) ? '<div class="hoja-dato"><b>' + n(kgOrden(o)) + '</b><span>kg</span></div>' : '') : '<div class="hoja-dato"><b>' + n(+o.medias || 0) + '</b><span>medias' + (o.mercado ? ' · ' + esc(o.mercado) : '') + '</span></div>')
+  function hojaHTML(o, f, c3, fae) {
+    var nl = (o.cortes || []).reduce(function (t, c) { return t + c.lineas.length; }, 0), k = c3 ? 'c3' : fae ? 'faena' : 'orden';
+    var h = '<div class="panel hoja' + (c3 ? ' hoja-c3' : fae ? ' hoja-faena' : '') + '"' + (c3 ? ' id="embutidos"' : fae ? ' id="faena"' : '') + '><header class="hoja-cab"><div><p class="hoja-sup">' + (c3 ? (S.solo ? 'Ciclo III · Embutidos' : 'Ciclo III') : fae ? 'Achuras y frescos de faena' : 'Planilla de empaque') + '</p><h2>' + esc(c3 && !S.solo ? 'Embutidos' : (c3 ? '' : fae ? 'FAENA · ' : 'EMPAQUE · ') + tituloDe(f)) + '</h2></div>'
+      + (c3 || fae ? (kgOrden(o) ? '<div class="hoja-dato"><b>' + n(kgOrden(o)) + '</b><span>kg</span></div>' : '') : '<div class="hoja-dato"><b>' + n(+o.medias || 0) + '</b><span>medias' + (o.mercado ? ' · ' + esc(o.mercado) : '') + '</span></div>')
       + (o.estado === 'borrador' ? '<span class="badge warn">Borrador</span>' : '<span class="badge ok">Confirmada</span>') + '</header>';
     var acc = '<div class="acciones hoja-acc">'
       + (S.editor ? '<button class="btn pri" data-act="p-editar" data-id="' + (c3 ? 'c3-' : '') + f + '">' + (c3 ? 'Editar embutidos' : 'Editar') + '</button>' : '')
-      + '<button class="btn" data-act="hoja-imprimir">' + (c3 ? 'Imprimir embutidos' : 'Imprimir cortes') + '</button>'
+      + '<button class="btn" data-act="hoja-imprimir">' + (c3 ? 'Imprimir embutidos' : fae ? 'Imprimir faena' : 'Imprimir cortes') + '</button>'
       + '<button class="btn" data-act="copiar" data-t="' + k + '">Copiar como texto</button><button class="btn wa" data-act="wa-pdf">PDF por WhatsApp</button><button class="btn" data-act="hoja-pdf">Compartir PDF</button>'
-      + (S.editor && !c3 ? '<button class="btn" data-act="ir-pedidos" data-f="' + f + '">Sumar cortes desde los pedidos</button>' : '')
+      + (S.editor && !c3 && !fae ? '<button class="btn" data-act="ir-pedidos" data-f="' + f + '">Sumar cortes desde los pedidos</button>' : '')
       + (S.editor && c3 ? '<button class="btn" data-act="link-c3">Copiar link para el Ciclo III</button>' : '')
       + '<span class="small muted" id="copiado-' + k + '" aria-live="polite"></span></div>';
     h += acc;
@@ -578,7 +582,7 @@
       var det = [td.det, td.sin ? (tot ? '+ ' : '') + td.sin : ''].filter(Boolean).join(' ');
       return '<div class="hoja-corte"><div class="hoja-nom"><h3>' + esc(c.corte || 'Sin corte') + '</h3>' + (tot || det ? '<p class="hoja-tot"><span>Total</span> ' + esc(tot) + (det ? '<small class="hoja-det"> (' + esc(det) + ')</small>' : '') + '</p>' : '') + '</div><ul>' + c.lineas.map(function (l) { return '<li>' + lineaHojaHTML(l.t) + (l.f ? ' ' + frioBadge(l.f) : '') + '</li>'; }).join('') + '</ul></div>';
     }).join('') + '</div>';
-    h += '<textarea id="txt-' + k + '" class="txt" readonly hidden aria-label="Planilla en texto">' + esc(textoOrden(o)) + '</textarea></div>';
+    h += '<textarea id="txt-' + k + '" class="txt" readonly hidden aria-label="Planilla en texto">' + esc(fae ? textoOrden(o).replace(/^([^\n]*)\n[^\n]*/, '$1\nFAENA') : textoOrden(o)) + '</textarea></div>';
     return h;
   }
   // PDF de una sola hoja (la orden, la planilla de frescos o la de embutidos), para mandarla por WhatsApp o mail.
@@ -704,7 +708,7 @@
   function compartirPDF(hoja, btn, wa) {
     if (!hoja || (btn && btn.disabled)) return;
     var dia = S.fecha || '';
-    var nombre = (hoja.classList.contains('op-hoja') ? 'Orden de produccion' : hoja.classList.contains('hoja-c3') ? 'Embutidos' : 'Planilla de frescos') + ' ' + dia.slice(8, 10) + '-' + dia.slice(5, 7) + '.pdf';
+    var nombre = (hoja.classList.contains('op-hoja') ? 'Orden de produccion' : hoja.classList.contains('hoja-c3') ? 'Embutidos' : hoja.classList.contains('hoja-faena') ? 'Faena' : 'Planilla de frescos') + ' ' + dia.slice(8, 10) + '-' + dia.slice(5, 7) + '.pdf';
     var txt0 = btn ? btn.textContent : ''; if (btn) { btn.disabled = true; btn.textContent = 'Armando el PDF…'; }
     var fin = function (m) { if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = txt0; } if (m) avisar(m, m.charAt(0) === '!' ? 7000 : 4000); };
     cargarScript('lib/pdf-lib.min.js').then(function () { return armarPDF(hoja); }).then(function (bytes) {
@@ -796,7 +800,7 @@
       h += o3 ? hojaHTML(o3, f, true) : '<div class="panel"><p class="state">Todavía no hay embutidos para este día.</p></div>';
       el.innerHTML = h; return;
     }
-    if (o) h += hojaHTML(o, f, false);
+    if (o) { var pf = partirFaena(o); h += hojaHTML(pf.emp, f, false); if (pf.fae.cortes.length) h += hojaHTML(pf.fae, f, false, true); }
     else {
       h += '<div class="panel"><p class="state">Todavía no hay nada en producción para este día.</p>';
       if (S.editor) h += '<div class="acciones" style="justify-content:center"><button class="btn pri" data-act="ir-pedidos" data-f="' + f + '">Ir a los pedidos de este día</button><button class="btn" data-act="p-nueva">Escribir a mano</button></div>';
