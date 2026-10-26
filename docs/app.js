@@ -711,7 +711,7 @@
     var nombre = nombre0 || (hoja.classList.contains('op-hoja') ? 'Orden de produccion' : hoja.classList.contains('hoja-c3') ? 'Embutidos' : hoja.classList.contains('hoja-faena') ? 'Faena' : 'Planilla de frescos') + ' ' + dia.slice(8, 10) + '-' + dia.slice(5, 7) + '.pdf';
     var txt0 = btn ? btn.textContent : ''; if (btn) { btn.disabled = true; btn.textContent = 'Armando el PDF…'; }
     var fin = function (m) { if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = txt0; } if (m) avisar(m, m.charAt(0) === '!' ? 7000 : 4000); };
-    cargarScript('lib/pdf-lib.min.js').then(function () { return armarPDF(hoja); }).then(function (bytes) {
+    cargarScript('lib/pdf-lib.min.js').then(function () { return typeof hoja === 'function' ? hoja() : armarPDF(hoja); }).then(function (bytes) {
       var blob = new Blob([bytes], { type: 'application/pdf' }), file = null; try { file = new File([blob], nombre, { type: 'application/pdf' }); } catch (e) {}
       if (window.__mock) window.__mock.ultimoPDF = { nombre: nombre, blob: blob };
       // Celular, y también la compu cuando el navegador lo permite (Chrome 128+ en Mac/Windows): abre "Compartir" del sistema con el PDF,
@@ -2289,6 +2289,78 @@
     });
     return { cab: { sup: 'Resumen del día · Logística', tit: diaDe(f) + ' ' + x[2] + '-' + x[1] + '-' + x[0].slice(2), dato: cams.length + (cams.length === 1 ? ' camión' : ' camiones'), estado: '' }, renglones: R };
   }
+  /* PDF del Resumen igual a como se ve/imprime (pedido de Renzo): hoja apaisada, el día arriba resaltado en amarillo
+     y los camiones en recuadros de a dos columnas, con el nombre y la hora resaltados y los clientes abajo.
+     La letra se achica lo justo para que entre todo en una hoja. */
+  function resumenPDF(f, ids) {
+    var L = window.PDFLib, x = String(f).split('-'), titulo = diaDe(f) + ' ' + x[2] + '-' + x[1] + '-' + x[0].slice(2);
+    var peds = ((logDe(f) || {}).pedidos) || [], cams = camionesDe(f).filter(function (c) { return !ids || ids.indexOf(c.id) >= 0; });
+    var bloques = cams.map(function (c) {
+      var o = c.orden || [], l = peds.filter(function (p) { return p.camion === c.id; }).sort(function (a, b) { var i = o.indexOf(a.id), j = o.indexOf(b.id); return (i < 0 ? 1e6 : i) - (j < 0 ? 1e6 : j); });
+      return { tit: '# ' + ((c.num && nomLimpio(c.nombre) ? 'N° ' + c.num + ' · ' : '') + nomCam(c)).toUpperCase(), hora: c.hora || '', peds: l, nota: c.nota || '' };
+    });
+    var sueltos = ids ? [] : peds.filter(function (p) { return !p.camion; });
+    if (sueltos.length) bloques.push({ tit: '# Sin camión', hora: '', peds: sueltos, nota: '' });
+    return L.PDFDocument.create().then(function (doc) {
+      return Promise.all([doc.embedFont(L.StandardFonts.Helvetica), doc.embedFont(L.StandardFonts.HelveticaBold)]).then(function (fs) {
+        var F = fs[0], FB = fs[1], AN = 841.89, AL = 595.28, M = 18, cache = {};
+        var negro = L.rgb(0.07, 0.07, 0.07), gris = L.rgb(0.45, 0.47, 0.5), amarillo = L.rgb(0.95, 1, 0.38), borde = L.rgb(0.1, 0.1, 0.1);
+        var limpio = function (t) { return Array.from(String(t || '')).map(function (ch) { if (cache[ch] != null) return cache[ch]; var v = ch; try { F.encodeText(ch); } catch (e) { v = ch === '–' ? '-' : '?'; } cache[ch] = v; return v; }).join(''); };
+        var ancho = function (fu, t, tam) { return fu.widthOfTextAtSize(t, tam); };
+        // Los clientes de un camión como trozos: nombre normal, medias y +C en negrita, "cong." en gris.
+        var trozosDe = function (b) {
+          var tr = [];
+          b.peds.forEach(function (p, i) { if (i) tr.push({ t: ' – ' }); tr.push({ t: String(p.cliente || 'Sin cliente').toUpperCase() }); var m = (+p.medias ? ' ' + n(+p.medias) + '½' : '') + ((p.cortes || []).length ? (+p.medias ? '' : ' ') + '+C' : ''); if (m) tr.push({ t: m, b: true }); if (p.frio === 'CONGELADO') tr.push({ t: ' (cong.)', g: true }); });
+          if (!b.peds.length) tr.push({ t: 'Sin pedidos', g: true });
+          return tr;
+        };
+        // Arma los renglones de un recuadro con el ancho dado; devuelve los renglones (cada uno, una lista de palabras con su fuente).
+        var renglones = function (tr, w, tam) {
+          var out = [[]], xx = 0;
+          tr.forEach(function (z) { limpio(z.t).split(/(\s+)/).forEach(function (pal) {
+            if (!pal) return; var fu = z.b ? FB : F, esp = /^\s+$/.test(pal), pw = ancho(fu, esp ? ' ' : pal, tam);
+            if (esp) { if (xx > 0) { out[out.length - 1].push({ t: ' ', f: fu, w: pw, g: z.g }); xx += pw; } return; }
+            if (xx + pw > w && xx > 0) { var u = out[out.length - 1]; while (u.length && u[u.length - 1].t === ' ') u.pop(); out.push([]); xx = 0; }
+            out[out.length - 1].push({ t: pal, f: fu, w: pw, g: z.g }); xx += pw;
+          }); });
+          return out;
+        };
+        var colW = (AN - 2 * M) / 2, pad = 6;
+        var medir = function (tam) {
+          var hTit = tam * 1.6, alto = 0, filas = [];
+          for (var i = 0; i < bloques.length; i += 2) {
+            var par = bloques.slice(i, i + 2).map(function (b) { var r = renglones(trozosDe(b), colW - 2 * pad, tam); return { b: b, r: r, h: pad + hTit + 3 + r.length * tam * 1.3 + (b.nota ? tam * 1.25 : 0) + pad }; });
+            var hf = Math.max.apply(null, par.map(function (q) { return q.h; })); filas.push({ par: par, h: hf }); alto += hf;
+          }
+          return { filas: filas, alto: alto, hTit: hTit };
+        };
+        var tope = AL - M - 40, tam = 12, med = medir(tam);
+        while (med.alto > tope && tam > 5.5) { tam -= 0.25; med = medir(tam); }
+        var pag = doc.addPage([AN, AL]), y = AL - M;
+        // Título del día, centrado y resaltado.
+        var tt = limpio(titulo), tw = ancho(FB, tt, 17);
+        pag.drawRectangle({ x: AN / 2 - tw / 2 - 5, y: y - 21, width: tw + 10, height: 22, color: amarillo });
+        pag.drawText(tt, { x: AN / 2 - tw / 2, y: y - 16, size: 17, font: FB, color: negro }); y -= 32;
+        med.filas.forEach(function (fila) {
+          if (y - fila.h < M) { pag = doc.addPage([AN, AL]); y = AL - M; }
+          fila.par.forEach(function (q, k) {
+            var x0 = M + k * colW, yy = y - pad;
+            pag.drawRectangle({ x: x0, y: y - fila.h, width: colW, height: fila.h, borderColor: borde, borderWidth: 0.8 });
+            var tit = limpio(q.b.tit), th = q.b.hora ? '  ' + limpio(q.b.hora) : '', tW = ancho(FB, tit, tam * 1.1), hW = th ? ancho(FB, th, tam) : 0;
+            pag.drawRectangle({ x: x0 + pad - 2, y: yy - med.hTit + 2, width: Math.min(tW + hW + 6, colW - 2 * pad + 4), height: med.hTit - 1, color: amarillo });
+            pag.drawText(tit, { x: x0 + pad, y: yy - tam * 1.15, size: tam * 1.1, font: FB, color: negro });
+            if (th) pag.drawText(th, { x: x0 + pad + tW, y: yy - tam * 1.15, size: tam, font: FB, color: negro });
+            yy -= med.hTit + 3;
+            q.r.forEach(function (ren) { yy -= tam * 1.3; var xx = x0 + pad; ren.forEach(function (w) { if (w.t !== ' ') pag.drawText(w.t, { x: xx, y: yy + tam * 0.3, size: tam, font: w.f, color: w.g ? gris : negro }); xx += w.w; }); });
+            if (q.b.nota) { yy -= tam * 1.25; pag.drawText(limpio(q.b.nota), { x: x0 + pad, y: yy + tam * 0.3, size: tam * 0.9, font: F, color: gris }); }
+          });
+          if (fila.par.length === 1) {}
+          y -= fila.h;
+        });
+        return doc.save();
+      });
+    });
+  }
   function compartirWhatsApp(txt) {
     var movil = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent || '');
     if (window.__mock) { window.__mock.compartido = txt; return; }
@@ -3160,7 +3232,7 @@
     else if (a === 'res-pdf') {
       var fp = D.f, idsP = camionesDe(fp).filter(function (c) { return (S.resSel || {})[fp + '|' + c.id]; }).map(function (c) { return c.id; });
       var xp = String(fp).split('-');
-      compartirPDF(resumenDatosPDF(fp, idsP.length ? idsP : null), b, true, 'Resumen ' + xp[2] + '-' + xp[1] + (idsP.length === 1 ? ' ' + nomCam(camionesDe(fp).filter(function (c) { return c.id === idsP[0]; })[0]) : '') + '.pdf');
+      compartirPDF(function () { return resumenPDF(fp, idsP.length ? idsP : null); }, b, true, 'Resumen ' + xp[2] + '-' + xp[1] + (idsP.length === 1 ? ' ' + nomCam(camionesDe(fp).filter(function (c) { return c.id === idsP[0]; })[0]) : '') + '.pdf');
     }
     else if (a === 'res-saludos') { S.resSaludos = !S.resSaludos; render(); }
     else if (a === 'res-sel-nada') { var fn0 = D.f; Object.keys(S.resSel || {}).forEach(function (k) { if (k.indexOf(fn0 + '|') === 0) delete S.resSel[k]; }); render(); }
