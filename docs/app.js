@@ -719,7 +719,7 @@
       var puede = false; try { puede = !!(file && navigator.canShare && navigator.canShare({ files: [file] })); } catch (e) {}
       if (window.__mock && window.__mock.compartirArchivos) { window.__mock.compartirArchivos(nombre); return ''; }
       if (puede && (wa || /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent))) {
-        return navigator.share({ files: [file], title: nombre.replace(/\.pdf$/, '') }).then(function () { return ''; }, function (e) { if (e && e.name === 'AbortError') return ''; bajar(blob, nombre); return 'PDF descargado: ' + nombre; });
+        return navigator.share({ files: [file] }).then(function () { return ''; }, function (e) { if (e && e.name === 'AbortError') return ''; bajar(blob, nombre); return 'PDF descargado: ' + nombre; });
       }
       bajar(blob, nombre);
       // En la compu WhatsApp no deja adjuntar desde una página: se baja el PDF y se abre WhatsApp Web para arrastrarlo al chat.
