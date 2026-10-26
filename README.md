@@ -206,3 +206,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Producción: hoja aparte "FAENA · día" (achuras y frescos de faena: cabeza, orejas, pulmón, hígado, patas y manos, lengua, chinchulín, riñón, rabo, menudencias) con su Imprimir faena, Copiar, PDF por WhatsApp y Compartir PDF; ya no salen en la planilla de empaque. Cortes nuevos: LENGUA, CHINCHULIN, RIÑON, RABO.
 - PDF por WhatsApp: en la compu también abre "Compartir" del sistema con el PDF (Chrome 128+), donde aparece WhatsApp para elegir el contacto; si el navegador no lo permite, baja el PDF y abre WhatsApp Web como antes.
 - Compartir PDF: se manda solo el archivo, sin título aparte (al copiarlo desde Compartir y pegarlo en WhatsApp salía duplicado).
+- Resumen del día: la hora de cada camión se guarda al cerrar el selector (en el iPhone se cerraba solo al girar la rueda porque guardaba y redibujaba con cada giro).

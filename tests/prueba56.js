@@ -11,7 +11,10 @@ for(let k=0;k<3&&!(await p.locator('.cam').count());k++){await p.click('[data-ac
 console.log('por camión:',(await p.locator('#view-logistica').innerText()).replace(/\s+/g,' ').slice(0,700));
 await p.click('[data-act="resumen"]');await p.waitForTimeout(150);
 console.log('horas en resumen:',await p.evaluate(()=>[...document.querySelectorAll('.res-hora')].map(i=>i.value).join(',')),'· notas:',(await p.locator('.res-nota').allInnerTexts()).join('|'));
+await p.evaluate(()=>{window.__h=document.querySelector('.res-hora');});
 await p.locator('.res-hora').nth(0).fill('02:30');await p.locator('.res-hora').nth(0).dispatchEvent('change');await p.clock.runFor(500);await p.waitForTimeout(200);
+console.log('mientras elige (como la rueda del iPhone): sigue el mismo selector abierto:',await p.evaluate(()=>window.__h.isConnected&&document.activeElement===window.__h),'· todavía sin guardar:',await p.evaluate(()=>window.__mock.data.config['log-2026-10-19'].camiones[0].hora!=='02:30'));
+await p.locator('.res-hora').nth(0).blur();await p.clock.runFor(500);await p.waitForTimeout(200);
 console.log('guardado:',await p.evaluate(()=>JSON.stringify(window.__mock.data.config['log-2026-10-19'].camiones.map(c=>[c.nombre,c.hora,c.nota]))));
 console.log('precios en log:',await p.evaluate(()=>JSON.stringify(window.__mock.data.config['log-2026-10-19'].pedidos.map(x=>[x.cliente,x.precioMedias,x.ivaMedias,x.cortes.map(c=>c.precio+'/'+c.iva)]))));
 // cambio de precio en pedidos se publica

@@ -3429,6 +3429,13 @@
     cambiarCamion(f, idh, c.nombre, c.nota, c.kg, null, v).then(function () { avisar(v ? nomCam(c) + ': sale a las ' + v + ' hs.' : nomCam(c) + ': sin horario.', 2500); renderPedidos(); }, function () { avisar('!No se pudo guardar el horario. Revisá la conexión.', 6000); renderPedidos(); });
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target && e.target.dataset && e.target.dataset.horaCam) { e.preventDefault(); e.target.blur(); } });
+  function guardarResHora(t) {
+    var idr = t.dataset.hora, f = S.fl, c = camionesDe(f).filter(function (x) { return x.id === idr; })[0], v = t.value || '';
+    if (!c || v === (c.hora || '')) return;
+    ponerHora(f, idr, v).then(function () { if (!escribiendo()) render(); }, function () { S.msg.log = '!No se pudo guardar.'; render(); });
+  }
+  document.addEventListener('focusout', function (e) { var t = e.target; if (t && t.classList && t.classList.contains('res-hora')) guardarResHora(t); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target && e.target.classList && e.target.classList.contains('res-hora')) { e.preventDefault(); e.target.blur(); } });
   document.addEventListener('focusout', function (e) { var t = e.target; if (t && t.dataset && t.dataset.notaPed && !t.value.trim() && S.notaAbierta === t.dataset.notaPed) { S.notaAbierta = null; setTimeout(render, 0); } });
   document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target && e.target.dataset && e.target.dataset.ctaIn) { e.preventDefault(); var bg = document.querySelector('[data-act="cta-guardar"][data-id="' + e.target.dataset.ctaIn + '"]'); if (bg) bg.click(); } });
   document.addEventListener('input', function (e) {
@@ -3598,7 +3605,9 @@
     if (t.id === 'rend-rep' && t.files && t.files[0]) { cargarReporteRend(t.files[0]); try { t.value = ''; } catch (err) {} return; }
     if (D.rend) { var fq = S.fr; S.msg.rend = 'Guardando…'; pintarMsg('rend'); guardarRend(fq, D.rend, t.value).then(function () { S.msg.rend = 'Guardado.'; if (!escribiendo()) render(); else pintarMsg('rend'); }, function () { S.msg.rend = '!No se pudo guardar. Revisá la conexión.'; pintarMsg('rend'); }); return; }
     if (D.rcfg) { S.rcfgAb = true; guardarRendCfg(D.rcfg, D.id, t.value).then(function () { S.msg.rend = 'Guardado.'; render(); }, function () { S.msg.rend = '!No se pudo guardar. Revisá la conexión.'; pintarMsg('rend'); }); return; }
-    if (D.hora != null && t.classList.contains('res-hora')) { ponerHora(S.fl, D.hora, t.value).then(null, function () { S.msg.log = '!No se pudo guardar.'; render(); }); return; }
+    // La hora del Resumen se guarda al cerrar el selector (focusout): en el iPhone el "change" salta con cada giro de la rueda
+    // y al guardar se redibujaba la pantalla y se cerraba el selector.
+    if (D.hora != null && t.classList.contains('res-hora')) { if (document.activeElement !== t) guardarResHora(t); return; }
     if (t.id === 'p-fecha' && t.value) { S.pv = null; if (S.ep) guardar('prod', true); S.ep = null; S.fechaFija = true; S.fecha = t.value; render(); }
     else if (t.id === 'm-fecha' && t.value) { S.fm = t.value; render(); }
     else if (t.id === 'e-fecha' && t.value) { S.entrega = t.value; S.sel = {}; renderPedidos(); }
