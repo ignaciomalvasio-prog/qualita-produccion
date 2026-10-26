@@ -176,7 +176,7 @@
     var f = S.fm, x = diaFaena(f), cl = x ? conMedias(x.d) : [];
     var h = '<div class="nav"><button class="btn step" data-act="fm" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + fechaTit(f) + '</span><button class="btn step" data-act="fm" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="m-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">'
-      + (cl.length ? '<button class="btn" data-act="imprimir">Imprimir</button>' : '')
+      + (cl.length ? '<button class="btn" data-act="imprimir">Imprimir</button><button class="btn wa" data-act="m-pdf" data-f="' + esc(f) + '">PDF por WhatsApp</button>' : '')
       + (S.editor && !S.solo ? '<button class="btn" data-act="m-semana">Volver a la planilla de la semana</button><button class="btn" data-act="link-medias">Copiar link para compartir</button>' : '') + '</div>';
     var lu = lunesDe(f);
     h += '<div class="semtabs" role="group" aria-label="Días de la semana">' + [0, 1, 2, 3, 4].map(function (k) {
@@ -3233,6 +3233,13 @@
       var fp = D.f, idsP = camionesDe(fp).filter(function (c) { return (S.resSel || {})[fp + '|' + c.id]; }).map(function (c) { return c.id; });
       var xp = String(fp).split('-');
       compartirPDF(function () { return resumenPDF(fp, idsP.length ? idsP : null); }, b, true, 'Resumen ' + xp[2] + '-' + xp[1] + (idsP.length === 1 ? ' ' + nomCam(camionesDe(fp).filter(function (c) { return c.id === idsP[0]; })[0]) : '') + '.pdf');
+    }
+    else if (a === 'm-pdf') {
+      var fm2 = D.f, xm = diaFaena(fm2), clm = xm ? conMedias(xm.d) : [], totm = clm.reduce(function (t, r) { return t + (+r.cant || 0); }, 0), pm = String(fm2).split('-');
+      var datosM = { cab: { sup: 'Medias · Animales para clientes', tit: diaDe(fm2) + ' ' + pm[2] + '-' + pm[1] + '-' + pm[0].slice(2), dato: animales(totm), estado: '' },
+        renglones: clm.map(function (r) { return { tipo: 'op', trozos: [{ t: String(r.cliente || 'Sin nombre').toUpperCase() }].concat(r.nota ? [{ t: '  ' + r.nota, gris: true }] : []), der: n(+r.cant || 0) }; })
+          .concat([{ tipo: 'tit', trozos: [{ t: 'TOTAL' }], der: animales(totm) }, { tipo: 'nota', trozos: [{ t: 'Un animal son dos medias. Faena del ' + tituloDe(fm2).toLowerCase() + ', se entregan el ' + tituloDe(habilSiguiente(fm2)).toLowerCase() + '.', gris: true }] }]) };
+      compartirPDF(datosM, b, true, 'Medias ' + pm[2] + '-' + pm[1] + '.pdf');
     }
     else if (a === 'res-saludos') { S.resSaludos = !S.resSaludos; render(); }
     else if (a === 'res-sel-nada') { var fn0 = D.f; Object.keys(S.resSel || {}).forEach(function (k) { if (k.indexOf(fn0 + '|') === 0) delete S.resSel[k]; }); render(); }
