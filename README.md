@@ -207,3 +207,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - PDF por WhatsApp: en la compu también abre "Compartir" del sistema con el PDF (Chrome 128+), donde aparece WhatsApp para elegir el contacto; si el navegador no lo permite, baja el PDF y abre WhatsApp Web como antes.
 - Compartir PDF: se manda solo el archivo, sin título aparte (al copiarlo desde Compartir y pegarlo en WhatsApp salía duplicado).
 - Resumen del día: la hora de cada camión se guarda al cerrar el selector (en el iPhone se cerraba solo al girar la rueda porque guardaba y redibujaba con cada giro).
+- Resumen del día: botón "PDF por WhatsApp" (o "(N)" con camiones tildados): arma un PDF del resumen con cada camión, su hora y sus clientes, y abre Compartir para elegir WhatsApp y el contacto. Los botones de texto (Los elegidos / Todos / WhatsApp de cada camión) siguen igual.
