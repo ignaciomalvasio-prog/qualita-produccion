@@ -210,3 +210,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Resumen del día: botón "PDF por WhatsApp" (o "(N)" con camiones tildados): arma un PDF del resumen con cada camión, su hora y sus clientes, y abre Compartir para elegir WhatsApp y el contacto. Los botones de texto (Los elegidos / Todos / WhatsApp de cada camión) siguen igual.
 - PDF por WhatsApp del Resumen: igual a como se ve el resumen (hoja apaisada, día resaltado arriba, camiones en recuadros de a dos columnas con nombre y hora en amarillo y los clientes abajo).
 - Medias (vista del día): botón "PDF por WhatsApp" con los animales para clientes del día (cliente, aclaración y cantidad, con el total).
+- Producción: los renglones de PECHO MANTA DOBLE que no dicen "DOBLE" (ej. "PECHITO CON MANTA") se muestran en PECHO; la IA ya no manda "pechito con manta" a manta doble. Lo guardado no cambia.

@@ -373,6 +373,18 @@
   // Achuras y frescos que salen de FAENA (pedido de Renzo): van en una planilla aparte, con su propio título.
   var CORTES_FAENA = ['CABEZA', 'OREJAS', 'PULMON', 'HIGADO', 'PATAS Y MANOS', 'LENGUA', 'CHINCHULIN', 'RIÑON', 'RABO', 'MENUDENCIAS'].map(norm);
   function esFaena(corte) { var x = norm(corte); return CORTES_FAENA.indexOf(x) >= 0 || /^(PATAS?|MANOS?|CABEZAS?|OREJAS?|RIÑON|RINON|RIÑONES|RINONES|LENGUAS?|CHINCHULIN(ES)?|RABOS?)\b/.test(x); }
+  // "Pechito con manta" no es manta doble: en la planilla esos renglones van a PECHO (pedido de Renzo).
+  // Solo quedan en PECHO MANTA DOBLE los que dicen "DOBLE".
+  function unirPecho(o) {
+    var md = (o.cortes || []).filter(function (c) { return norm(c.corte) === 'PECHO MANTA DOBLE'; })[0]; if (!md) return o;
+    var pasan = md.lineas.filter(function (l) { return !/DOBLE/.test(norm(l.t)); }); if (!pasan.length) return o;
+    var x = clone(o), m2 = x.cortes.filter(function (c) { return norm(c.corte) === 'PECHO MANTA DOBLE'; })[0], pe = x.cortes.filter(function (c) { return norm(c.corte) === 'PECHO'; })[0];
+    if (!pe) { pe = { corte: 'PECHO', lineas: [] }; x.cortes.splice(x.cortes.indexOf(m2), 0, pe); }
+    pe.lineas = pe.lineas.concat(m2.lineas.filter(function (l) { return !/DOBLE/.test(norm(l.t)); }));
+    m2.lineas = m2.lineas.filter(function (l) { return /DOBLE/.test(norm(l.t)); });
+    if (!m2.lineas.length) x.cortes.splice(x.cortes.indexOf(m2), 1);
+    return x;
+  }
   function partirFaena(o) { var a = clone(o), b = clone(o); a.cortes = (o.cortes || []).filter(function (c) { return !esFaena(c.corte); }); b.cortes = (o.cortes || []).filter(function (c) { return esFaena(c.corte); }); return { emp: a, fae: b }; }   // "CARRE" solo quedó en pedidos viejos
   /* Los embutidos (chorizo, morcilla, salchicha) se muestran en Producción, aparte, como "Embutidos". Se guardan
      en la misma colección "produccion" con el id "c3-AAAA-MM-DD"; la de desposte sigue con el id "AAAA-MM-DD".
@@ -804,7 +816,7 @@
       h += o3 ? hojaHTML(o3, f, true) : '<div class="panel"><p class="state">Todavía no hay embutidos para este día.</p></div>';
       el.innerHTML = h; return;
     }
-    if (o) { var pf = partirFaena(o); h += hojaHTML(pf.emp, f, false); if (pf.fae.cortes.length) h += hojaHTML(pf.fae, f, false, true); }
+    if (o) { var pf = partirFaena(unirPecho(o)); h += hojaHTML(pf.emp, f, false); if (pf.fae.cortes.length) h += hojaHTML(pf.fae, f, false, true); }
     else {
       h += '<div class="panel"><p class="state">Todavía no hay nada en producción para este día.</p>';
       if (S.editor) h += '<div class="acciones" style="justify-content:center"><button class="btn pri" data-act="ir-pedidos" data-f="' + f + '">Ir a los pedidos de este día</button><button class="btn" data-act="p-nueva">Escribir a mano</button></div>';
@@ -1751,7 +1763,7 @@
       + '- medias: cantidad de medias reses, número. 0 si no pide medias. Si un cliente figura en la planilla con 0 medias o con la cantidad en blanco, cargalo igual con medias 0: no lo saltees.\n'
       + '- peso: aclaración de peso de las medias (livianas, pesadas, rango de kg), o "".\n'
       + '- frio: "FRESCO" o "CONGELADO" cuando en cualquier parte de la imagen o del mensaje dice que la mercadería es fresca o congelada: en el título, el encabezado, el nombre de la planilla o de la hoja, una columna, una nota al margen, al lado del cliente o en la frase inicial de un mensaje. También valen las abreviaturas ("CONG.", "CGDO", "FCO", "FRESC."). Si lo dice una sola vez en general, vale para TODOS los pedidos de esa imagen o mensaje: ponelo en cada uno. Si no lo dice en ningún lado, "" (no lo supongas). Si en un mismo pedido hay cortes frescos y cortes congelados, dejá frio en "" y escribí FRESCO o CONGELADO dentro del texto de cada corte.\n'
-      + '- cortes: un elemento por cada corte pedido. "corte" es el rubro de la orden de producción, uno de: ' + CORTES_BASE.join(', ') + '. "texto" es lo que pide de ese corte, en mayúsculas: primero la cantidad, tal cual figura en el pedido, con su unidad si el pedido la dice (ej. "600KG", "10 CAJAS", "50 UND"), después la presentación o variante si se aclara (ej. "15 CAJAS PIERNA S/C", "107 CAJAS DE 20KG CARRE CON HUESO") y el código si figura (ej. "(ART 276)"). Cargá el pedido como aparece: la unidad (CAJAS, KG, UND, BINES) se escribe solo cuando el pedido la aclara, sea en el renglón, en el encabezado de la columna, en la fila de totales o en la frase general ("por caja", "en kilos", "cj", "x kg"); en ese caso escribila en cada corte al que le corresponde. Si el pedido no aclara si es caja o kg, NO pongas ninguna unidad: dejá la cantidad sola (ej. "2 MATAMBRE"). Nunca la supongas ni la deduzcas por costumbre. NO pongas el nombre del cliente ni de la sucursal en el texto, ni entre comillas ni suelto: ya va en "cliente". Si el cliente pide TODO el corte, la línea va sin cantidad (ej. "TODO FRESCO EN BINES").\n'
+      + '- cortes: un elemento por cada corte pedido. "corte" es el rubro de la orden de producción, uno de: ' + CORTES_BASE.join(', ') + '. PECHO MANTA DOBLE solo si el pedido dice "MANTA DOBLE"; "pechito con manta" o "pecho con manta" van en PECHO. "texto" es lo que pide de ese corte, en mayúsculas: primero la cantidad, tal cual figura en el pedido, con su unidad si el pedido la dice (ej. "600KG", "10 CAJAS", "50 UND"), después la presentación o variante si se aclara (ej. "15 CAJAS PIERNA S/C", "107 CAJAS DE 20KG CARRE CON HUESO") y el código si figura (ej. "(ART 276)"). Cargá el pedido como aparece: la unidad (CAJAS, KG, UND, BINES) se escribe solo cuando el pedido la aclara, sea en el renglón, en el encabezado de la columna, en la fila de totales o en la frase general ("por caja", "en kilos", "cj", "x kg"); en ese caso escribila en cada corte al que le corresponde. Si el pedido no aclara si es caja o kg, NO pongas ninguna unidad: dejá la cantidad sola (ej. "2 MATAMBRE"). Nunca la supongas ni la deduzcas por costumbre. NO pongas el nombre del cliente ni de la sucursal en el texto, ni entre comillas ni suelto: ya va en "cliente". Si el cliente pide TODO el corte, la línea va sin cantidad (ej. "TODO FRESCO EN BINES").\n'
       + '- orden: true si es un corte fresco que hay que producir ese día; false si es mercadería congelada que sale de stock, o productos que no salen del desposte (chorizo, morcilla, salchicha).\n'
       + '- precio (en cada corte) y precioMedias (de las medias): el precio por kilo en pesos, solo el número ("$4.200/kg" o "4200 + IVA" → 4200; "$ 2.850,50" → 2850.5). 0 si no figura. Si el precio es por caja, por unidad o por bulto (no por kilo), dejá 0 y anotalo en la nota.\n'
       + '- iva (en cada corte) e ivaMedias: "iva" si el precio es sin IVA (dice + IVA, más IVA, sin IVA, s/IVA, neto); "final" si es con IVA (dice final, con IVA, IVA incluido, c/IVA); "" si no lo aclara o no hay precio. Si una aclaración vale para todo el pedido ("todos los precios + IVA"), ponela en todos.\n'
