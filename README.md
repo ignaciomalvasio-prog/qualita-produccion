@@ -200,3 +200,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Clientes: el recuadro "Kilos por sucursal" pasa arriba de todo.
 - Kilos por sucursal: "Cortes de cada sucursal" (desplegable) con los kg de cada corte en la semana; también van en "Copiar el reporte" y en el Excel (segunda tabla Sucursal/Corte/Kg).
 - Pedidos (carga): arriba de "Subir fotos / Pegar texto / Cargar a mano / Dictar" hay botones "¿Para qué día?" con los próximos días hábiles, "Según el pedido" y "Otra fecha". Lo que se cargue (foto, texto, dictado o a mano) va al día elegido; queda elegido hasta cambiarlo. Reemplaza el campo de fecha del texto pegado.
+- Cortes: se agrega VACIO (después de MATAMBRE).
