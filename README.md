@@ -204,3 +204,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Producción: botón verde "WhatsApp" al lado de "Copiar como texto" (orden de producción y planilla de empaque): manda ese mismo texto por WhatsApp.
 - Producción: el botón verde pasa a ser "PDF por WhatsApp": arma el PDF de la hoja; en el celu abre para elegir WhatsApp y el contacto, en la compu baja el PDF y abre WhatsApp Web para adjuntarlo.
 - Producción: hoja aparte "FAENA · día" (achuras y frescos de faena: cabeza, orejas, pulmón, hígado, patas y manos, lengua, chinchulín, riñón, rabo, menudencias) con su Imprimir faena, Copiar, PDF por WhatsApp y Compartir PDF; ya no salen en la planilla de empaque. Cortes nuevos: LENGUA, CHINCHULIN, RIÑON, RABO.
+- PDF por WhatsApp: en la compu también abre "Compartir" del sistema con el PDF (Chrome 128+), donde aparece WhatsApp para elegir el contacto; si el navegador no lo permite, baja el PDF y abre WhatsApp Web como antes.

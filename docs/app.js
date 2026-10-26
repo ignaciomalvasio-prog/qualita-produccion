@@ -714,7 +714,11 @@
     cargarScript('lib/pdf-lib.min.js').then(function () { return armarPDF(hoja); }).then(function (bytes) {
       var blob = new Blob([bytes], { type: 'application/pdf' }), file = null; try { file = new File([blob], nombre, { type: 'application/pdf' }); } catch (e) {}
       if (window.__mock) window.__mock.ultimoPDF = { nombre: nombre, blob: blob };
-      if (file && navigator.canShare && /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) && navigator.canShare({ files: [file] })) {
+      // Celular, y también la compu cuando el navegador lo permite (Chrome 128+ en Mac/Windows): abre "Compartir" del sistema con el PDF,
+      // donde aparece WhatsApp y se elige el contacto.
+      var puede = false; try { puede = !!(file && navigator.canShare && navigator.canShare({ files: [file] })); } catch (e) {}
+      if (window.__mock && window.__mock.compartirArchivos) { window.__mock.compartirArchivos(nombre); return ''; }
+      if (puede && (wa || /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent))) {
         return navigator.share({ files: [file], title: nombre.replace(/\.pdf$/, '') }).then(function () { return ''; }, function (e) { if (e && e.name === 'AbortError') return ''; bajar(blob, nombre); return 'PDF descargado: ' + nombre; });
       }
       bajar(blob, nombre);
