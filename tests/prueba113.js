@@ -34,6 +34,7 @@ if(w===1300){console.log('producción:\n  '+filas.join('\n  '));console.log('obs
  await p.pdf({path:SP+'/ddjj.pdf',format:'A4',printBackground:true,margin:{top:0,bottom:0,left:0,right:0}});await p.emulateMedia({media:'screen'});
  await p.click('#nav a[data-t="c3"]');await p.waitForTimeout(400);console.log('ciclo III:',await p.evaluate(()=>planilla3(S.fecha3).filas.map(r=>r.n+' '+r.kg).join(' | ')));
  await p.evaluate(()=>{document.getElementById('impresion').innerHTML=hoja3(S.fecha3)});
+ await p.click('#nav a[data-t="rend"]');await p.waitForTimeout(400);console.log('rendimiento:',await p.evaluate(()=>{const R=calcularR('2026-10-23');return R.medias+' medias, pp '+R.pp.toFixed(2)+', bondiola '+(R.filas.find(r=>r.n==='Bondiola').rend*100).toFixed(1)+' %'}));
  await p.click('#nav a[data-t="equiv"]');await p.waitForTimeout(500);await p.screenshot({path:SP+'/ddjj-equiv.png',fullPage:true});}
 console.log(w,'desborde',await p.evaluate(()=>document.documentElement.scrollWidth-innerWidth),'· errores',errs.join('|')||'ninguno');
 if(w===400)await p.screenshot({path:SP+'/ddjj400.png',fullPage:true});await p.close();}

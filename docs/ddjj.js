@@ -14,36 +14,36 @@
 const EQ_DEF = {
   lineas: [
     { n: 'Bola de lomo', arts: [327] },
-    { n: 'Bondiola', arts: [101, 30105], cant: 'medias' },
+    { n: 'Bondiola', arts: [101, 109, 30105], cant: 'medias' },
     { n: 'Cabeza', arts: [431, 705], cant: 'piezas', dest: 'COSTA DE MARFIL' },
-    { n: 'Carre con hueso', arts: [271, 281, 308, 30276], cant: 'medias' },
+    { n: 'Carre con hueso', arts: [271, 281, 307, 308, 30276], cant: 'medias' },
     { n: 'Carre,pecho y matambre en juego', arts: [203], cant: 'piezas' },
-    { n: 'Churrasquito', arts: [241, 243, 245, 30246] },
-    { n: 'Cinta de lomo', arts: [289, 292], cant: 'piezas' },
+    { n: 'Churrasquito', arts: [241, 243, 245, 248, 30246] },
+    { n: 'Cinta de lomo', arts: [289, 292, 297], cant: 'piezas' },
     { n: 'Costeleta', arts: [225], cant: 'piezas' },
     { n: 'Cuadrada', arts: [329] },
     { n: 'Cuadril', arts: [322] },
-    { n: 'Cuero', arts: [411, 412, 418] },
-    { n: 'Garrón', arts: [401] },
+    { n: 'Cuero', arts: [411, 412, 418, 437] },
+    { n: 'Garrón', arts: [401, 404] },
     { n: 'Jamón con hueso', arts: [315, 316, 317, 318], cant: 'piezas' },
-    { n: 'Jamón sin hueso', arts: [321, 342, 343, 344, 346], cant: 'est', kgu: 5.5 },
+    { n: 'Jamón sin hueso', arts: [321, 326, 342, 343, 344, 346, 357], cant: 'est', kgu: 5.5 },
     { n: 'Matambrito', arts: [231, 240, 30236], cant: 'medias' },
     { n: 'Nalga', arts: [319] },
     { n: 'Oreja', arts: [611] },
-    { n: 'Paleta con hueso', arts: [136], cant: 'piezas' },
-    { n: 'Paleta sin hueso', arts: [134, 139, 141, 147, 377], cant: 'est', kgu: 4.2 },
-    { n: 'Patas y manos', arts: [] },
+    { n: 'Paleta con hueso', arts: [131, 132, 136, 137], cant: 'piezas' },
+    { n: 'Paleta sin hueso', arts: [134, 139, 141, 147, 159, 377], cant: 'est', kgu: 4.2 },
+    { n: 'Patas y manos', arts: [406, 626] },
     { n: 'Peceto', arts: [324] },
     { n: 'Pechito con manta', arts: [211, 215, 221, 305, 30216], cant: 'medias' },
-    { n: 'Recorte de carne', arts: [182, 359, 361, 362, 365, 374] },
-    { n: 'Recorte de grasa', arts: [156, 336, 479, 481, 482] },
-    { n: 'Solomillo', arts: [285, 30287] },
-    { n: 'Tocino', arts: [461, 465] },
-    { n: 'Tortuga', arts: [381] },
-    { n: 'Vacio', arts: [333] }
+    { n: 'Recorte de carne', arts: [148, 182, 183, 359, 361, 362, 365, 369, 371, 374] },
+    { n: 'Recorte de grasa', arts: [156, 336, 479, 481, 482, 484] },
+    { n: 'Solomillo', arts: [285, 298, 30287] },
+    { n: 'Tocino', arts: [461, 465, 466, 467] },
+    { n: 'Tortuga', arts: [381, 386] },
+    { n: 'Vacio', arts: [222, 333] }
   ],
   /* lo que sale del desposte y no va en la declaración (hueso, despojo, grasa en rama, reprocesos de recorte congelado…) */
-  ignorar: [22, 354, 358, 364, 372, 376, 420, 421, 422, 425, 430, 472, 488, 208],
+  ignorar: [22, 208, 354, 358, 364, 372, 376, 420, 421, 422, 424, 425, 430, 472, 488],
   /* contratos de exportación: lo que sale con estos contratos va en la columna Exportación (con el destino del renglón) */
   contExp: [8],
   /* cuero que va a rendering: se informa en la observación */
@@ -211,6 +211,7 @@ function render() {
   document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.t === S.tab));
   if (S.tab === 'equiv') return renderEquiv();
   if (S.tab === 'c3') return renderC3();
+  if (S.tab === 'rend') return renderRend();
   renderDia();
 }
 
@@ -454,6 +455,7 @@ function renderEquiv() {
   h += '<h3 class="dj-h3">Cuentas</h3><p><label><input type="checkbox"' + (E.restar !== false ? ' checked' : '') + ' onchange="cambiarEq(d=>{d.restar=this.checked},\'restar reproceso \'+this.checked)"> A cada corte restarle lo que de ese mismo corte reingresó al desposte (reproceso)</label></p>';
   h += '<p>Merma del ingreso: <input class="w-cp" value="' + fmtE(r2((1 - (E.merma || 1)) * 100)) + '" onchange="eqMerma(this.value)"> %</p></section>';
   h += equivC3();
+  h += equivRend();
   const aj = E.ajuste || { arriba: 0, izq: 0 };
   h += '<section><h2>Impresión</h2><p class="sub">Si al imprimir sobre el formulario la planilla queda corrida, corregilo acá en milímetros (positivo = más abajo / más a la derecha) y volvé a imprimir.</p>' +
     '<div class="row">Más abajo <input class="w-cp" value="' + fmtE(aj.arriba) + '" onchange="eqAjuste(\'arriba\',this.value)"> mm · Más a la derecha <input class="w-cp" value="' + fmtE(aj.izq) + '" onchange="eqAjuste(\'izq\',this.value)"> mm</div></section>';
