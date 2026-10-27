@@ -217,3 +217,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Cortes: se sacan PECHO MANTA DOBLE y PECHO MANTA DOBLE CON CUERO; todo es PECHO. Al entrar un editor, los pedidos y planillas que tenían esos rubros se pasan solos a PECHO (y se republica Logística de esos días).
 - Centro de control: pestañas agrupadas en dos cuadros, Ciclo III (Producción, Insumos) y Local comercial (Mercadería, Ventas, Caja).
 - Centro de control: pestaña propia "Usuarios" (solo la ven los editores) para habilitar a Carlos y Gastón; antes estaba al final de Cambios.
+- Centro de control: "Inicio" en negrita.

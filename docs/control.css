@@ -185,3 +185,4 @@ header nav>a{align-self:stretch}
 .ngl a{padding:7px 16px !important;margin-bottom:0 !important}
 .ng-loc .ngl a.on{color:#2f7a55;border-bottom-color:#2f7a55;background:#e8f4ec}
 @media (max-width:1400px){.ngl a{padding:7px 12px !important}}
+header nav a[data-t="inicio"]{font-weight:700;color:var(--ink)}
