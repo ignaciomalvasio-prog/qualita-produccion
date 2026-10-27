@@ -177,6 +177,7 @@
     var h = '<div class="nav"><button class="btn step" data-act="fm" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + fechaTit(f) + '</span><button class="btn step" data-act="fm" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="m-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">'
       + (cl.length ? '<button class="btn" data-act="imprimir">Imprimir</button><button class="btn wa" data-act="m-pdf" data-f="' + esc(f) + '">PDF por WhatsApp</button>' : '')
+      + (S.editor && !S.solo && cl.length ? '<button class="btn' + (S.mdEdit ? ' pri' : '') + '" data-act="md-editar">' + (S.mdEdit ? 'Listo' : 'Editar') + '</button>' : '')
       + (S.editor && !S.solo ? '<button class="btn" data-act="m-semana">Volver a la planilla de la semana</button><button class="btn" data-act="link-medias">Copiar link para compartir</button>' : '') + '</div>';
     var lu = lunesDe(f);
     h += '<div class="semtabs" role="group" aria-label="Días de la semana">' + [0, 1, 2, 3, 4].map(function (k) {
@@ -193,7 +194,12 @@
     }
     else {
       var tot = cl.reduce(function (t, r) { return t + (+r.cant || 0); }, 0);
-      h += '<table class="pl cl-dia"><thead><tr><th>Cliente</th><th>Animales</th></tr></thead><tbody>' + cl.map(function (r) {
+      var edM = S.editor && !S.solo && S.mdEdit;
+      h += '<table class="pl cl-dia' + (edM ? ' md-ed' : '') + '"><thead><tr><th>Cliente</th>' + (edM ? '<th>Nota</th>' : '') + '<th>Animales</th></tr></thead><tbody>' + cl.map(function (r) {
+        var j = x.d.clientes.indexOf(r), at = 'data-md="' + j + '" data-f="' + esc(f) + '"';
+        if (edM) return '<tr><td><input type="text" ' + at + ' data-k="cliente" value="' + esc(r.cliente || '') + '" style="text-transform:uppercase" aria-label="Cliente"></td>'
+          + '<td><input type="text" ' + at + ' data-k="nota" value="' + esc(r.nota || '') + '" placeholder="Ej.: NO GORDAS" style="text-transform:uppercase" aria-label="Nota de ' + esc(r.cliente || '') + '"></td>'
+          + '<td><input type="number" inputmode="decimal" step="0.5" min="0" class="n" ' + at + ' data-k="cant" value="' + esc(r.cant || '') + '" aria-label="Animales de ' + esc(r.cliente || '') + '"></td></tr>';
         return '<tr><td>' + esc(r.cliente || 'Sin nombre') + (r.nota ? ' <span class="small muted" style="text-transform:none;font-weight:400">' + esc(r.nota) + '</span>' : '') + '</td><td>' + n(+r.cant || 0) + '</td></tr>';
       }).join('') + '</tbody><tfoot><tr><th>Total</th><td>' + n(tot) + '</td></tr></tfoot></table>'
         + '<p class="small muted">Cantidades en animales enteros (un animal son dos medias). Salen de la faena del ' + esc(tituloDe(f).toLowerCase()) + ' y se entregan el ' + esc(tituloDe(habilSiguiente(f)).toLowerCase()) + '.</p>';
@@ -2245,6 +2251,21 @@
     var b = function (v, t) { return '<button class="btn sm' + ((p.frio || '') === v ? ' pri' : '') + '" data-act="frio-set" data-id="' + esc(p.id) + '" data-v="' + v + '">' + t + '</button>'; };
     return '<div class="frio-menu"><span class="small muted">Este pedido es:</span>' + b('FRESCO', 'Fresco') + b('CONGELADO', 'Congelado') + b('', 'Sin aclarar') + '<button class="btn sm lnk" data-act="frio-menu" data-id="' + esc(p.id) + '">Cerrar</button></div>';
   }
+  /* Editar un cliente desde Medias (vista del día). Si el renglón viene de un pedido, se cambia el pedido (cliente, nota = peso
+     o aclaración, medias = animales × 2), así queda todo igual en Pedidos y Logística; si se cargó a mano, se cambia solo acá. */
+  function guardarMediaDia(f, j, k, v) {
+    var x = diaFaena(f); if (!x) return Promise.resolve(); var r = x.d.clientes[j]; if (!r) return Promise.resolve();
+    v = k === 'cant' ? Math.max(0, +String(v).replace(',', '.') || 0) : String(v || '').toUpperCase().replace(/\s+/g, ' ').trim();
+    var p = r.pedido ? pedidoDe(r.pedido) : null;
+    if (p) {
+      var q = { editaId: p.id, cliente: p.cliente, entrega: p.entrega, medias: p.medias, peso: p.peso, frio: p.frio || '', cuenta: p.cuenta || '', nota: p.nota, kg: p.kg, origen: p.origen,
+        precioMedias: p.precioMedias === 0 || p.precioMedias ? p.precioMedias : '', ivaMedias: p.ivaMedias || '', cortes: clone(cortesDe(p)) };
+      if (k === 'cliente') q.cliente = v; else if (k === 'nota') q.peso = v; else q.medias = v * 2;
+      return guardarPropuesta(q);
+    }
+    var sem = clone(x.sem), id = sem.id; delete sem.id; sem.dias[x.i].clientes[j][k] = v;
+    var sl = limpiarSemana(sem); S.faena = poner(S.faena, id, sl); return store.set('faena', id, sl);
+  }
   function cambiarFrio(p, v) {
     return guardarPropuesta({ editaId: p.id, cliente: p.cliente, entrega: p.entrega, medias: p.medias, peso: p.peso, frio: v, cuenta: p.cuenta || '', nota: p.nota, kg: p.kg, origen: p.origen,
       precioMedias: p.precioMedias === 0 || p.precioMedias ? p.precioMedias : '', ivaMedias: p.ivaMedias || '', cortes: clone(cortesDe(p)) });
@@ -3366,6 +3387,7 @@
           .concat([{ tipo: 'tit', trozos: [{ t: 'TOTAL' }], der: animales(totm) }, { tipo: 'nota', trozos: [{ t: 'Un animal son dos medias. Faena del ' + tituloDe(fm2).toLowerCase() + ', se entregan el ' + tituloDe(habilSiguiente(fm2)).toLowerCase() + '.', gris: true }] }]) };
       compartirPDF(datosM, b, true, 'Medias ' + pm[2] + '-' + pm[1] + '.pdf');
     }
+    else if (a === 'md-editar') { S.mdEdit = !S.mdEdit; render(); }
     else if (a === 'res-saludos') { S.resSaludos = !S.resSaludos; render(); }
     else if (a === 'res-sel-nada') { var fn0 = D.f; Object.keys(S.resSel || {}).forEach(function (k) { if (k.indexOf(fn0 + '|') === 0) delete S.resSel[k]; }); render(); }
     else if (a === 'imprimir-camiones') {
@@ -3830,6 +3852,7 @@
     if (D.rcfg) { S.rcfgAb = true; guardarRendCfg(D.rcfg, D.id, t.value).then(function () { S.msg.rend = 'Guardado.'; render(); }, function () { S.msg.rend = '!No se pudo guardar. Revisá la conexión.'; pintarMsg('rend'); }); return; }
     // La hora del Resumen se guarda al cerrar el selector (focusout): en el iPhone el "change" salta con cada giro de la rueda
     // y al guardar se redibujaba la pantalla y se cerraba el selector.
+    if (D.md != null) { guardarMediaDia(D.f, +D.md, D.k, t.value).then(function () { tocar(); if (!escribiendo()) render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); }); return; }
     if (D.hora != null && t.classList.contains('res-hora')) { if (document.activeElement !== t) guardarResHora(t); return; }
     if (t.id === 'p-fecha' && t.value) { S.pv = null; if (S.ep) guardar('prod', true); S.ep = null; S.fechaFija = true; S.fecha = t.value; render(); }
     else if (t.id === 'm-fecha' && t.value) { S.fm = t.value; render(); }

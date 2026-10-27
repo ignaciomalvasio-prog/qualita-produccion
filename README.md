@@ -234,3 +234,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - WhatsApp: los mensajes ya no llevan emojis (👋 🚚 🚛), que desde Windows llegaban como "?"; también se limpian de los saludos guardados al mandar.
 - WhatsApp desde la compu: si no hay "Compartir" del sistema, abre la app de WhatsApp directo (whatsapp://) sin dejar pestañas; si no hay app, usa WhatsApp Web siempre en la misma pestaña (antes abría una pestaña nueva por cada envío).
 - WhatsApp (texto) en la compu: vuelve la página de WhatsApp con el mensaje para revisar/corregir antes de mandar, pero siempre en la misma pestaña (no una nueva por cada envío). En el celu sigue con Compartir.
+- Medias (vista del día): botón "Editar" para cambiar cliente, nota (aclaración en letra chica gris) y animales. Si el renglón viene de un pedido, se cambia el pedido (cliente, peso/aclaración, medias = animales × 2); si se cargó a mano, solo la planilla.
