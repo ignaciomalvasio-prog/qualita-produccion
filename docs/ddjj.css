@@ -68,3 +68,5 @@ body.vista .hoja{margin:0 auto 20px;box-shadow:0 2px 10px rgba(0,0,0,.18)}
 body.vista .hoja::before{content:"Encabezado del formulario";position:absolute;left:57pt;right:57pt;top:60pt;height:200pt;border:1.5pt dashed #c7cdd1;color:#a3acb2;font:14px "Segoe UI",sans-serif;display:flex;align-items:center;justify-content:center}
 .vista-bar{max-width:595pt;margin:0 auto 14px;font:14px "Segoe UI",sans-serif;color:#3c4850}
 @media print{body.vista{padding:0;background:#fff}body.vista .hoja{margin:0;box-shadow:none}body.vista .hoja::before,.vista-bar{display:none}}
+
+.dj-mover{width:auto;font-size:13px;padding:3px 6px}

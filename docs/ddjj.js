@@ -84,15 +84,25 @@ function estadoArt(art) {
 }
 
 /* La planilla que propone el sistema para el día f (sin lo corregido a mano) */
+/* A qué renglón va un artículo del sistema el día f: primero lo movido solo ese día, después las equivalencias.
+   Devuelve el nombre del renglón, '#I' (no va), '#R' (cuero a rendering) o null (artículo nuevo sin asignar). */
+function destino(art, f) {
+  const mv = (diaDoc(f).mover || {})[art];
+  if (mv) return mv === 'I' ? '#I' : mv === 'R' ? '#R' : mv.slice(2);
+  const e = estadoArt(art);
+  return e === 'linea' ? lineaDe(art).n : e === 'ignorar' ? '#I' : e === 'rendering' ? '#R' : null;
+}
 function calcular(f) {
   const d = (S.sis && S.sis.dias[f]) || { tr: [], in: [], re: [] };
   const medias = d.tr.reduce((a, t) => a + t.medias, 0);
   const prod = {};
-  for (const l of eq().lineas) {
-    const re = d.re.filter(r => (l.arts || []).includes(r.art));
+  const lineas = eq().lineas.slice();
+  for (const v of Object.values(diaDoc(f).mover || {})) if (v.startsWith('L:') && !lineas.some(l => l.n === v.slice(2))) lineas.push({ n: v.slice(2), arts: [] });
+  for (const l of lineas) {
+    const re = d.re.filter(r => destino(r.art, f) === l.n);
     if (!re.length) continue;   // si de ese corte solo hubo reingreso (sin producción), no va
     const bruto = re.reduce((a, r) => a + r.kg, 0);
-    let ing = eq().restar === false ? [] : d.in.filter(r => (l.arts || []).includes(r.art));
+    let ing = eq().restar === false ? [] : d.in.filter(r => destino(r.art, f) === l.n);
     if (bruto - ing.reduce((a, r) => a + r.kg, 0) <= 0) ing = [];   // no se resta si daría negativo
     const kgs = bruto - ing.reduce((a, r) => a + r.kg, 0);
     const ce = eq().contExp || [];
@@ -108,8 +118,8 @@ function calcular(f) {
     faena: t.faena, tropa: t.tropa, cab: t.cab, medias: t.medias,
     kg: t.medias ? t.medias * Math.round(t.kg / t.medias) : 0, obs: obsAnterior(t.tropa, f) || 'Consumo'
   }));
-  const rend = d.re.filter(r => estadoArt(r.art) === 'rendering');
-  const nuevos = d.re.filter(r => estadoArt(r.art) === 'nuevo');
+  const rend = d.re.filter(r => destino(r.art, f) === '#R');
+  const nuevos = d.re.filter(r => destino(r.art, f) === null);
   return { medias, prod, ingreso, rendKg: r2(rend.reduce((a, r) => a + r.kg, 0)), rend, nuevos, hay: d.tr.length + d.re.length > 0, d };
 }
 
@@ -279,9 +289,15 @@ function celdaIng(i, k, txt, n) {
 function detalle(r) {
   const s = r.sis;
   if (!s.re.length && !s.ing.length) return '<span class="muted">Renglón cargado a mano (no sale del sistema).</span>';
-  let h = '<table class="dj-mini"><tr><th>Artículo del sistema</th><th class="num">Unid.</th><th class="num">Piezas</th><th class="num">Kg</th></tr>';
-  h += s.re.map(x => '<tr><td>' + x.art + ' · ' + esc(x.den) + (x.cont > 1 ? ' <span class="muted">(contrato ' + x.cont + (S.sis.co[x.cont] && S.sis.co[x.cont].den ? ' ' + esc(S.sis.co[x.cont].den) : '') + ')</span>' : '') + '</td><td class="num">' + fmt0(x.uni) + '</td><td class="num">' + fmt0(x.pz) + '</td><td class="num">' + fmt2(x.kg) + '</td></tr>').join('');
-  h += s.ing.map(x => '<tr class="neg"><td>− reingresó al desposte: ' + x.art + ' · ' + esc(x.den) + '</td><td class="num">' + fmt0(x.uni) + '</td><td></td><td class="num">−' + fmt2(x.kg) + '</td></tr>').join('');
+  const mv = diaDoc(S.fecha).mover || {}, vistos = new Set();
+  let h = '<table class="dj-mini"><tr><th>Artículo del sistema</th><th class="num">Unid.</th><th class="num">Piezas</th><th class="num">Kg</th><th>Mandarlo a</th></tr>';
+  h += s.re.map(x => {
+    const sel = vistos.has(x.art) ? '' : selectMover(x.art, r.n); vistos.add(x.art);
+    return '<tr><td>' + x.art + ' · ' + esc(x.den) + (x.cont > 1 ? ' <span class="muted">(contrato ' + x.cont + (S.sis.co[x.cont] && S.sis.co[x.cont].den ? ' ' + esc(S.sis.co[x.cont].den) : '') + ')</span>' : '') +
+      (mv[x.art] ? ' <span class="chip sm warn">movido solo este día</span> <a href="#" onclick="desmover(' + x.art + ');return false">deshacer</a>' : '') +
+      '</td><td class="num">' + fmt0(x.uni) + '</td><td class="num">' + fmt0(x.pz) + '</td><td class="num">' + fmt2(x.kg) + '</td><td>' + sel + '</td></tr>';
+  }).join('');
+  h += s.ing.map(x => '<tr class="neg"><td>− reingresó al desposte: ' + x.art + ' · ' + esc(x.den) + '</td><td class="num">' + fmt0(x.uni) + '</td><td></td><td class="num">−' + fmt2(x.kg) + '</td><td></td></tr>').join('');
   h += '</table>';
   return h;
 }
@@ -290,6 +306,24 @@ function selectLinea(art) {
     eq().lineas.map(l => '<option value="L:' + esc(l.n) + '">' + esc(l.n) + '</option>').join('') + '</optgroup>' +
     '<option value="I">No va en la declaración</option><option value="R">Cuero a rendering (va en la observación)</option></select>';
 }
+
+/* "Mandarlo a": pasar un artículo del sistema a otro renglón (solo ese día o siempre) */
+function selectMover(art, actual) {
+  return '<select class="dj-mover" onchange="moverArt(' + art + ',this.value,\'' + jsq(actual) + '\')"><option value="">' + esc(actual) + ' (está acá)</option>' +
+    eq().lineas.filter(l => l.n !== actual).map(l => '<option value="L:' + esc(l.n) + '">' + esc(l.n) + '</option>').join('') +
+    '<option value="I">No va en la declaración</option><option value="R">Cuero a rendering</option></select>';
+}
+function moverArt(art, v, actual) {
+  if (!v) return;
+  const nom = v === 'I' ? 'que no vaya en la declaración' : v === 'R' ? 'cuero a rendering' : v.slice(2);
+  $('dlg-h').textContent = 'Mandar el artículo ' + art + ' a ' + nom;
+  $('dlg-b').innerHTML = '<p class="sub">¿Solo para el ' + esc(fechaLarga(S.fecha)) + ', o para siempre (todos los días)?</p>';
+  $('dlg-f').innerHTML = '<button onclick="cerrarDlg();render()">Cancelar</button><button id="mv-dia">Solo este día</button><button class="primary" id="mv-siempre">Siempre</button>';
+  $('mv-dia').onclick = () => { cerrarDlg(); cambiarDia(x => { x.mover = x.mover || {}; x.mover[art] = v; }, 'artículo ' + art + ' de ' + actual + ' a ' + nom + ' (solo este día)'); };
+  $('mv-siempre').onclick = () => { cerrarDlg(); asignar(art, v); };
+  $('dlg').showModal();
+}
+function desmover(art) { cambiarDia(x => { if (x.mover) { delete x.mover[art]; if (!Object.keys(x.mover).length) delete x.mover; } }, 'artículo ' + art + ' vuelve a su renglón'); }
 
 /* ---------- acciones del día ---------- */
 function irDia(f) { S.fecha = f; S.abierto = {}; render(); window.scrollTo(0, 0); }
