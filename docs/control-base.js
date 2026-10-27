@@ -105,7 +105,7 @@ window.C3API = (function () {
     if (main) main.innerHTML = '<section style="max-width:560px;margin:40px auto;text-align:center">' + html + '</section>';
   }
   function pedirIngreso() {
-    cartel('<h2 style="justify-content:center">Centro de control Ciclo III y Qualitá Express</h2><p class="sub">Ingresá con tu cuenta para ver y cargar los datos.</p><button class="primary big" id="c3-entrar">Ingresar</button>');
+    cartel('<h2 style="justify-content:center">' + (window.C3_TITULO || 'Centro de control Ciclo III y Qualitá Express') + '</h2><p class="sub">Ingresá con tu cuenta para ver y cargar los datos.</p><button class="primary big" id="c3-entrar">Ingresar</button>');
     var b = document.getElementById('c3-entrar'); if (b) b.onclick = function () { window.Acceso.abrir(store); };
     window.Acceso.abrir(store);
   }
@@ -114,7 +114,7 @@ window.C3API = (function () {
     if (u.emailVerified === false) { window.Acceso.verificar(store, u.email); return; }
     store.permiso(u.email).then(function (p) {
       if (!p.editor && !p.c3) {
-        cartel('<h2 style="justify-content:center">Tu cuenta todavía no está habilitada</h2><p class="sub">Entraste como <b>' + String(u.email).replace(/</g, '&lt;') + '</b>. Pedile a Igna que la agregue en el Centro de control (Cambios › Usuarios).</p><button id="c3-salir">Usar otra cuenta</button>');
+        cartel('<h2 style="justify-content:center">Tu cuenta todavía no está habilitada</h2><p class="sub">Entraste como <b>' + String(u.email).replace(/</g, '&lt;') + '</b>. Pedile a Igna que la habilite (Centro de control › Usuarios).</p><button id="c3-salir">Usar otra cuenta</button>');
         document.getElementById('c3-salir').onclick = function () { store.signOut(); };
         return;
       }

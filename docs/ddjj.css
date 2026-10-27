@@ -1,0 +1,70 @@
+/* DDJJ de producción de desposte (/ddjj): pantalla + hojas para imprimir sobre el formulario */
+.dj-wrap{display:grid;grid-template-columns:190px 1fr;gap:18px;align-items:start}
+.dj-dias{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:8px;position:sticky;top:86px;max-height:calc(100vh - 110px);overflow:auto}
+.dj-dias-t{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;font-weight:600;padding:4px 8px 8px}
+.dj-dia{display:flex;justify-content:space-between;align-items:center;gap:6px;padding:7px 8px;border-radius:8px;color:var(--ink);text-decoration:none;font-size:14px}
+.dj-dia:hover{background:var(--line-2)}
+.dj-dia.on{background:var(--accent-soft);color:var(--accent)}
+.dj-cont{min-width:0}
+main .tw{max-height:none}
+main input.w-cp{width:80px;display:inline-block}
+.dj-top{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.dj-top h2{font-size:20px;margin-bottom:4px}
+.dj-tab td{font-size:15px}
+.dj-tab td.num{font-variant-numeric:tabular-nums}
+.dj-tab td.ed{cursor:pointer}
+.dj-tab td.ed:hover{background:var(--accent-soft)}
+.dj-tab td.aj{background:#fff6d6}
+.dj-tab td.dj-est{color:var(--warn)}
+.dj-sis{display:block;font-size:11.5px;color:var(--muted);text-decoration:line-through}
+.dj-n{color:var(--ink);text-decoration:none;font-weight:600}
+.dj-n:hover{color:var(--accent)}
+.dj-det td{background:#fafbfb}
+.dj-mini{width:auto;min-width:520px;margin:2px 0 4px 18px}
+.dj-mini th,.dj-mini td{font-size:13px;padding:3px 10px;border-bottom:1px solid var(--line-2)}
+.dj-mini tr.neg td{color:var(--bad)}
+.dj-h3{font-size:14px;margin:18px 0 6px}
+.dj-nuevos{width:auto;margin-top:6px}
+.dj-nuevos td{border:0;padding:3px 10px 3px 0}
+.dj-nuevos select{width:auto;max-width:100%}
+@media (max-width:600px){.dj-nuevos,.dj-nuevos tbody,.dj-nuevos tr,.dj-nuevos td{display:block}.dj-nuevos tr{padding:6px 0;border-bottom:1px solid #eadfc8}}
+.alerta>div{min-width:0}
+.dj-art{display:inline-block;background:var(--line-2);border-radius:6px;padding:1px 7px;margin:2px 3px 2px 0;font-size:13px;font-variant-numeric:tabular-nums}
+.dj-art small{color:var(--muted)}
+.dj-eq td{vertical-align:middle}
+.dj-eq select{width:auto}
+textarea#obs{font-size:14px;line-height:1.45}
+@media (max-width:900px){.dj-wrap{grid-template-columns:1fr}.dj-dias{position:static;max-height:none;display:flex;flex-wrap:wrap;gap:4px}.dj-dias-t{width:100%}.dj-dia{flex:0 0 auto;border:1px solid var(--line)}}
+
+/* ---------- hojas impresas (A4, mismas medidas que la planilla de Excel) ---------- */
+.solo-print{display:none}
+.hoja{position:relative;width:595pt;height:841pt;overflow:hidden;background:#fff;page-break-after:always;break-after:page}
+.hoja:last-child{page-break-after:auto;break-after:auto}
+.imp{position:absolute;border-collapse:collapse;table-layout:fixed;font-family:Arial,"Liberation Sans",sans-serif;color:#000}
+.imp td,.imp tr:hover td{background:#fff!important;box-sizing:border-box;border:.8pt solid #000;padding:0 2pt;overflow:hidden;white-space:nowrap;line-height:1.1}
+.imp1{font-size:5.6pt;font-weight:bold}
+.imp1 td{text-align:center;vertical-align:middle}
+.imp1 tr.th td{font-size:7pt;white-space:normal}
+.imp1t{font-size:5.6pt;font-weight:bold}
+.imp1t td{text-align:center;height:28pt;vertical-align:bottom}
+.imp1t td:nth-child(1),.imp1t td:nth-child(3){border:0;border-right:.8pt solid #000}
+.imp1t td:nth-child(2),.imp1t td:nth-child(4){border-top:0}
+.imp2 td{text-align:center;vertical-align:bottom;padding-bottom:1.5pt}
+.imp2 td.n{text-align:left;vertical-align:top;padding-top:1pt}
+.imp2 td.d{font-weight:bold}
+.imp2 tr.th td{font-weight:bold;white-space:normal;vertical-align:middle;font-size:7pt}
+.imp2 tr.tot td{font-weight:bold;font-size:6.3pt;vertical-align:middle}
+.imp2 tr.obs td{text-align:left;vertical-align:top;white-space:normal;font-weight:bold;font-size:6.3pt;height:32pt;padding:2pt}
+
+@page{size:A4 portrait;margin:0}
+@media print{
+  body{background:#fff;margin:0}
+  .no-print,header,main,dialog,.toast{display:none!important}
+  .solo-print{display:block}
+}
+/* "Ver cómo sale": las hojas en pantalla */
+body.vista{background:#e9ecee;margin:0;padding:20px 0}
+body.vista .hoja{margin:0 auto 20px;box-shadow:0 2px 10px rgba(0,0,0,.18)}
+body.vista .hoja::before{content:"Encabezado del formulario";position:absolute;left:57pt;right:57pt;top:60pt;height:200pt;border:1.5pt dashed #c7cdd1;color:#a3acb2;font:14px "Segoe UI",sans-serif;display:flex;align-items:center;justify-content:center}
+.vista-bar{max-width:595pt;margin:0 auto 14px;font:14px "Segoe UI",sans-serif;color:#3c4850}
+@media print{body.vista{padding:0;background:#fff}body.vista .hoja{margin:0;box-shadow:none}body.vista .hoja::before,.vista-bar{display:none}}

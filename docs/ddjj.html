@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DDJJ Desposte · Qualitá</title>
+<link rel="icon" type="image/png" href="/icon-192.png">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="/control-estilo.css">
+<link rel="stylesheet" href="/control.css">
+<link rel="stylesheet" href="/ddjj.css">
+</head>
+<body>
+<header class="no-print">
+  <div class="brand"><img src="/logo.png" alt="Qualitá"><div><div class="t">DDJJ de producción</div><div class="s">Desposte de cerdo</div></div></div>
+  <nav id="nav">
+    <a href="#" data-t="dia" class="on">Planilla del día</a>
+    <a href="#" data-t="equiv">Equivalencias</a>
+  </nav>
+  <div class="mes">
+    <button class="small" onclick="moverMes(-1)" title="Mes anterior">◀</button>
+    <input type="month" id="mes" onchange="cambiarMes(this.value)">
+    <button class="small" onclick="moverMes(1)" title="Mes siguiente">▶</button>
+  </div>
+  <div class="stat" id="st"></div>
+  <button class="small" onclick="cargar(true)" title="Vuelve a leer los datos">⟳ Actualizar</button>
+</header>
+
+<main id="main" class="no-print"><div class="cargando"><span class="spin"></span> Conectando…</div></main>
+
+<div id="impresion" class="solo-print"></div>
+
+<dialog id="dlg">
+  <div class="dlg-h" id="dlg-h"></div>
+  <div class="dlg-b" id="dlg-b"></div>
+  <div class="dlg-f" id="dlg-f"></div>
+</dialog>
+<div class="toast no-print" id="toast"></div>
+
+<script>window.C3_TITULO = 'DDJJ de producción de desposte';</script>
+<script src="/acceso.js"></script>
+<script src="/control-base.js"></script>
+<script src="/control-comun.js"></script>
+<script src="/ddjj.js"></script>
+</body>
+</html>
