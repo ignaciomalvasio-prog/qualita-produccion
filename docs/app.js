@@ -3280,6 +3280,8 @@
   function esImpresora() { try { return localStorage.getItem('qualita-imprime') === '1'; } catch (e) { return false; } }
   function nombreImpresora() { try { return localStorage.getItem('qualita-imprime-nombre') || 'Compu'; } catch (e) { return 'Compu'; } }
   function impRemotoOk() { return !!(S.editor && !S.solo && !esImpresora() && S.impresora && S.impresora.visto && Date.now() - S.impresora.visto < 6 * 60000); }
+  // '' = no hay compu configurada; 'off' = configurada pero sin la app abierta (el botón igual se ve, para que se entienda qué pasa).
+  function impEstado() { if (!(S.editor && !S.solo && !esImpresora() && S.impresora && S.impresora.visto)) return ''; return impRemotoOk() ? 'on' : 'off'; }
   var latidoImp = null;
   function latirImpresora() {
     clearInterval(latidoImp); latidoImp = null;
@@ -3331,7 +3333,8 @@
     nav.appendChild(dia); nav.appendChild(acc);
     nav.classList.add('armada');
     var bi = acc.querySelector('[data-act="imprimir"]');
-    if (bi && impRemotoOk()) { var br = document.createElement('button'); br.className = 'btn imp-remoto'; br.dataset.act = 'imprimir-remoto'; br.textContent = '🖨 Imprimir en la compu' + (S.impresora.nombre ? ' (' + S.impresora.nombre + ')' : ''); bi.insertAdjacentElement('afterend', br); }
+    var est = impEstado();
+    if (bi && est) { var br = document.createElement('button'); br.className = 'btn imp-remoto' + (est === 'off' ? ' off' : ''); br.dataset.act = 'imprimir-remoto'; br.textContent = '🖨 Imprimir en la compu' + (S.impresora.nombre ? ' (' + S.impresora.nombre + ')' : '') + (est === 'off' ? ' · apagada' : ''); bi.insertAdjacentElement('afterend', br); }
   }
   if (window.MutationObserver) new MutationObserver(function () { document.querySelectorAll('.nav:not(.armada)').forEach(armarNav); }).observe(document.body, { childList: true, subtree: true });
   function render() {
@@ -3438,7 +3441,7 @@
           .concat([{ tipo: 'tit', trozos: [{ t: 'TOTAL' }], der: animales(totm) }, { tipo: 'nota', trozos: [{ t: 'Un animal son dos medias. Faena del ' + tituloDe(fm2).toLowerCase() + ', se entregan el ' + tituloDe(habilSiguiente(fm2)).toLowerCase() + '.', gris: true }] }]) };
       compartirPDF(datosM, b, true, 'Medias ' + pm[2] + '-' + pm[1] + '.pdf');
     }
-    else if (a === 'imprimir-remoto') { abrirHojaImp(); }
+    else if (a === 'imprimir-remoto') { if (impRemotoOk()) abrirHojaImp(); else avisar('!La compu' + (S.impresora && S.impresora.nombre ? ' (' + S.impresora.nombre + ')' : '') + ' no tiene la app abierta. Abrila allá, esperá unos segundos y probá de nuevo.', 7000); }
     else if (a === 'imp-mas' || a === 'imp-menos') { var en = $('imp-n'); if (en) en.textContent = Math.max(1, Math.min(20, +en.textContent + (a === 'imp-mas' ? 1 : -1))); }
     else if (a === 'imp-mandar') { var cn = $('imp-n'), cc = cn ? +cn.textContent : 1, hj = $('imp-hoja'); if (hj) hj.remove(); mandarAImprimir(cc); }
     else if (a === 'imp-cerrar') { var hj2 = $('imp-hoja'); if (hj2) hj2.remove(); }
@@ -4339,8 +4342,8 @@
               if (JSON.stringify(S.clientes) !== antesC) { conciliarLog(); renderDatos(); }
               var pap = l.filter(function (x) { return x.id === 'papelera'; })[0], antesP = JSON.stringify(S.papelera || []); S.papelera = (pap && pap.items) || [];
               if (JSON.stringify(S.papelera) !== antesP && S.tab === 'pedidos' && !ocupado()) renderPedidos();
-              var imp = l.filter(function (x) { return x.id === 'impresora'; })[0], antesI = impRemotoOk(); S.impresora = imp || null;
-              if (impRemotoOk() !== antesI && !ocupado()) render();
+              var imp = l.filter(function (x) { return x.id === 'impresora'; })[0], antesI = impEstado(); S.impresora = imp || null;
+              if (impEstado() !== antesI && !ocupado()) render();
               var job = l.filter(function (x) { return x.id === 'imprimir'; })[0]; if (job) recibirImpresion(clone(job));
               var c = l.filter(function (x) { return x.id === 'ia'; })[0]; if (c) { var antes = !!(S.ia && S.ia.clave); S.ia = c; if (!antes && !S.prop.length && !S.em && !S.ep && !S.pegar) render(); } });
           }

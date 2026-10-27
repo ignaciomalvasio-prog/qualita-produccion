@@ -239,3 +239,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Producción en el celular más compacta: botones chicos, pestañas en un renglón, y cada pedido en un solo renglón (cliente + cantidad + corte).
 - Imprimir en la compu: en el celular se eligen las copias antes de mandar; la compu imprime esa cantidad (con Chrome en --kiosk-printing sale directo, sin el cartel).
 - Ahorro de lecturas de la base: la app ya no baja toda la colección config cada vez que se abre; escucha solo general, rendering2, la logística de los últimos 45 días (y lo que viene) y el rendering de los últimos 150 días (store.subRangos). Antes eran ~100 documentos por apertura y crecía todos los días; el 27/10/2026 se agotó el cupo gratis y se pasó el proyecto a Blaze.
+- Imprimir en la compu: el botón se ve aunque la compu esté sin la app abierta (dice "apagada" y avisa al tocarlo).
