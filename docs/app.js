@@ -964,7 +964,7 @@
   /* ---------- pedidos ----------
      El listado de pedidos es el centro. De ahí salen la planilla de producción (se suma cada corte
      con un clic), la logística (pedidos agrupados en camiones) y, solas, las medias de la planilla semanal. */
-  function pedidoVacio() { return { k: uid(), cliente: '', entrega: S.cargaDia || habilSiguiente(hoy()), medias: '', peso: '', frio: '', cortes: [], nota: '', dudas: [], origen: 'manual' }; }
+  function pedidoVacio() { return { k: uid(), cliente: '', entrega: cargaDiaActual() || habilSiguiente(hoy()), medias: '', peso: '', frio: '', cortes: [], nota: '', dudas: [], origen: 'manual' }; }
   // Fresco o congelado, si el pedido lo aclara.
   function frioDe(x) { var t = norm(x); return /CONG/.test(t) ? 'CONGELADO' : /FRESC/.test(t) ? 'FRESCO' : ''; }
   function frioBadge(f) { return f ? '<span class="badge ' + (f === 'CONGELADO' ? 'cong' : 'fresco') + '">' + esc(f) + '</span>' : ''; }
@@ -1960,7 +1960,7 @@
   }
   function ctxCarga() {
     // Sin fecha en el pedido: va al día hábil siguiente.
-    return { tab: S.tab, porDefecto: habilSiguiente(hoy()), dia: S.cargaDia || '', esperada: S.tab === 'medias' && S.sem ? S.sem : semanaActual() };
+    return { tab: S.tab, porDefecto: habilSiguiente(hoy()), dia: cargaDiaActual(), esperada: S.tab === 'medias' && S.sem ? S.sem : semanaActual() };
   }
   function escribiendo() {
     var a = document.activeElement, t = a && a.tagName;
@@ -2076,8 +2076,8 @@
     var txt = String(S.pegarTxt || '').trim();
     if (!txt) { S.msg.fotos = '!Pegá primero el texto del pedido.'; pintarMsg('fotos'); return; }
     if (S.leyendo) return;
-    var pa = leerAnimales(S.pegarTxt); if (pa) { cargarAnimales(pa, S.cargaDia || ''); return; }
-    var ctx = ctxCarga(), cli = String(S.pegarCli || '').toUpperCase().trim(), dia = S.cargaDia || '';
+    var pa = leerAnimales(S.pegarTxt); if (pa) { cargarAnimales(pa, cargaDiaActual()); return; }
+    var ctx = ctxCarga(), cli = String(S.pegarCli || '').toUpperCase().trim(), dia = cargaDiaActual();
     S.leyendo = true; S.pegar = false; S.msg.fotos = 'Leyendo el texto…'; cargas.activas++; estadoCarga(); render();
     leerTexto(txt, cli).then(function (j) {
       S.leyendo = false; cargas.activas--; S.pegarTxt = ''; S.pegarCli = ''; S.pegarDia = '';
@@ -2162,12 +2162,15 @@
   }
   /* Antes de cargar (foto, texto, dictado o a mano) se elige el día de entrega: todo lo que se cargue va a ese día.
      "Según el pedido" deja que mande el día que diga el mensaje (o el próximo día hábil si no dice). */
+  // En Pedidos el día de carga es el mismo día que se está viendo (para no confundirse): elegir un día lo muestra abajo,
+  // y pasar de día con ‹ › cambia también el día de carga. "Según el pedido" deja que mande el mensaje.
+  function cargaDiaActual() { if (S.tab === 'pedidos') return S.cargaSegun ? '' : (S.pd || habilSiguiente(hoy())); return S.cargaDia || ''; }
   function diasCarga() { var l = [], f = hoy(); while (l.length < 6) { f = mas(f, 1); var g = fecha(f).getDay(); if (g >= 1 && g <= 5) l.push(f); } return l; }
   function cargaDiaHTML() {
-    var sel = S.cargaDia || '', dias = diasCarga();
+    var sel = cargaDiaActual(), dias = diasCarga();
     if (sel && dias.indexOf(sel) < 0) dias.push(sel);
     var chip = function (v, txt) { return '<button class="btn sm chip carga-dia' + (v === sel ? ' on' : '') + '" data-act="carga-dia" data-v="' + esc(v) + '" aria-pressed="' + (v === sel) + '">' + txt + '</button>'; };
-    return '<div class="carga-dias"><span class="small muted">¿Para qué día?</span>' + dias.map(function (f) { return chip(f, esc(diaCorto(f))); }).join('') + chip('', 'Según el pedido')
+    return '<div class="carga-dias"><span class="small muted">' + (S.tab === 'pedidos' ? 'Cargar para el' : '¿Para qué día?') + '</span>' + dias.map(function (f) { return chip(f, esc(diaCorto(f))); }).join('') + chip('', 'Según el pedido')
       + '<label class="btn sm chip carga-otro" title="Elegir otra fecha">Otra fecha<input type="date" id="carga-dia-otra" value="' + esc(sel) + '"></label></div>';
   }
   function cargaHTML(actMano) {
@@ -3455,7 +3458,7 @@
     else if (a === 'q-pegar') { if (S.dictando) pararDictado(); S.pegar = !S.pegar; if (!S.pegar) { S.pegarTxt = ''; S.pegarCli = ''; S.pegarDia = ''; } S.msg.fotos = ''; renderPedidos(); var ft = $('pegar-txt'); if (ft) ft.focus(); }
     else if (a === 'q-leer-texto') { if (S.dictando) pararDictado(); leerPegado(); }
     else if (a === 'q-dictar') { dictar(); }
-    else if (a === 'carga-dia') { S.cargaDia = D.v || ''; render(); }
+    else if (a === 'carga-dia') { if (S.tab === 'pedidos') { if (D.v) { S.pd = D.v; S.cargaSegun = false; S.abierto = {}; } else S.cargaSegun = true; } else S.cargaDia = D.v || ''; render(); }
     else if (a === 'q-nuevo') { S.prop.push(pedidoVacio()); renderPedidos(); var fq = $('q' + (S.prop.length - 1) + 'cliente'); if (fq) fq.focus(); }
     else if (a === 'q-corte') { S.prop[+D.q].cortes.push({ corte: CORTES_BASE[0], texto: '', orden: true }); renderPedidos(); }
     else if (a === 'q-quitar-corte') { S.prop[+D.q].cortes.splice(+D.j, 1); renderPedidos(); }
@@ -3664,7 +3667,7 @@
     if (D.cli != null) return;
     if (t.id === 'pf-txt' && S.pf) { S.pf.txt = t.value; S.pf.res = null; S.pf.error = ''; var rs = leerFaenaPegada(t.value), pv = $('pf-prev'), bg = $('pf-guardar'); if (pv) pv.innerHTML = faenaPegadaHTML(rs, semanaPegada(rs, S.sem)); if (bg) bg.disabled = !Object.keys(rs).some(function (k) { return rs[k].length; }); return; }
     if (t.id === 'pegar-cli') { S.pegarCli = t.value; return; }
-    if (t.id === 'carga-dia-otra') { S.cargaDia = t.value || ''; setTimeout(render, 0); return; }
+    if (t.id === 'carga-dia-otra') { if (S.tab === 'pedidos' && t.value) { S.pd = t.value; S.cargaSegun = false; S.abierto = {}; } else S.cargaDia = t.value || ''; setTimeout(render, 0); return; }
     if (t.id === 'pegar-txt') { S.pegarTxt = t.value; if (S.msg.fotos) { S.msg.fotos = ''; pintarMsg('fotos'); } return; }
     if (t.id === 'cam-nombre') { S.camNombre = t.value; return; }
     if (t.id === 'cam-nota') { S.camNota = t.value; return; }
