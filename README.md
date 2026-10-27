@@ -228,3 +228,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Vista /faena (rol "faena" en Usuarios: "Solo ver faena y mortalidad"): solo la pestaña Faena y mortalidad, sin botones para cambiar nada. Logo para "Agregar a pantalla de inicio" en /ddjj, /faena, /control y /caja.
 - Link público de solo lectura para faena y mortalidad: /faena?k=<clave> (sin ingresar). Lee config/fp-<clave>, que publica la notebook (dj_sync.ps1, clave en C:\InformeQualita\ddjj\faena_link_clave.txt). Cambiando la clave, el link viejo deja de andar.
 - Pedidos: el día de "Cargar para el…" es el mismo que se está viendo abajo: tocar un día lo muestra, y pasar de día con ‹ › también cambia el día de carga ("Según el pedido" sigue disponible).
+- Pedidos: la fecha del día (ej. "MIÉRCOLES 28 DE OCTUBRE") va en un recuadro azul oscuro, como el nombre de los camiones.
