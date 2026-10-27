@@ -4232,6 +4232,20 @@
       auth.languageCode = 'es';
       return {
         sub: function (c, cb, err) { return fs.onSnapshot(fs.collection(db, c), function (snap) { cb(snap.docs.map(function (x) { var o = x.data(); o.id = x.id; return o; })); }, err || function () {}); },
+        // Escucha solo algunos documentos de una colección (por id exacto o por rango de ids) y avisa con todos juntos.
+        // Se usa para config: así no se bajan cada vez todos los log-* y rend-* históricos (cuidar el cupo de lecturas).
+        subRangos: function (c, rangos, cb, err) {
+          var partes = {};
+          rangos.forEach(function (r, i) {
+            var rango = Array.isArray(r);
+            var q = rango ? fs.query(fs.collection(db, c), fs.where(fs.documentId(), '>=', r[0]), fs.where(fs.documentId(), '<', r[1])) : fs.doc(db, c, r);
+            fs.onSnapshot(q, function (s) {
+              partes[i] = rango ? s.docs.map(function (x) { var o = x.data(); o.id = x.id; return o; }) : (s.exists() ? [Object.assign(s.data(), { id: s.id })] : []);
+              if (Object.keys(partes).length < rangos.length) return;
+              var todo = []; Object.keys(partes).forEach(function (k) { todo = todo.concat(partes[k]); }); cb(todo);
+            }, err || function () {});
+          });
+        },
         set: function (c, id, data) { return fs.setDoc(fs.doc(db, c, id), clone(data)); },
         del: function (c, id) { return fs.deleteDoc(fs.doc(db, c, id)); },
         onAuth: function (cb) { authCb = cb; return au.onAuthStateChanged(auth, cb); },
@@ -4278,7 +4292,12 @@
     var fallo = function () { if (!got.faena || !got.prod) { var c = cache(true); if (c && c.produccion) aplicar(c, 'cache'); else S.status = 'error'; render(); } };
     store.sub('faena', function (l) { if (S.fuente === 'respaldo' && !l.length) return; S.faena = ordenar(l.map(function (x) { x.desde = x.desde || x.id; return x; })); llego('faena'); conciliarMedias(); }, fallo);
     store.sub('produccion', function (l) { if (S.fuente === 'respaldo' && !l.length) return; S.prod = ordenar(l.map(function (x) { x.fecha = x.fecha || x.id; return x; })); llego('prod'); migrarPecho(); }, fallo);
-    store.sub('config', function (l) {
+    // config: 'general', 'rendering2', la logística de los últimos 45 días (y lo que viene) y el rendering de los últimos 150 días.
+    var hace = function (n) { var d = new Date(); d.setDate(d.getDate() - n); return iso(d); };
+    var rangosConfig = ['general', 'rendering2', ['log-' + hace(45), 'log-~'], ['rend-' + hace(150), 'rend-~']];
+    var dentroConfig = function (x) { var k = String(x.id); return k === 'general' || k === 'rendering2' || (k >= rangosConfig[2][0] && k < 'log-~') || (k >= rangosConfig[3][0] && k < 'rend-~'); };
+    var subConfig = function (fn) { return store.subRangos ? store.subRangos('config', rangosConfig, fn) : store.sub('config', function (l) { fn(l.filter(dentroConfig)); }); };
+    subConfig(function (l) {
       var c = l.filter(function (x) { return x.id === 'general'; })[0], lg = {};
       var rd = {}, rc = null;
       l.forEach(function (x) { var k = String(x.id); if (k.indexOf('log-') === 0) { (x.camiones || []).forEach(horaDeNota); lg[x.id.slice(4)] = x; } else if (k.indexOf('rend-') === 0) rd[k.slice(5)] = x; else if (k === 'rendering2') rc = x; });
