@@ -2661,7 +2661,10 @@
     }
 
     h += papeleraHTML();
-    h += '<div class="panel"><details' + (S._conf ? ' open' : '') + '><summary>Configuración</summary><div class="campos">'
+    h += '<div class="panel"><details' + (S._conf ? ' open' : '') + '><summary>Configuración</summary>'
+      + '<div class="imp-cfg"><label class="chk"><input type="checkbox" data-act="imp-esta"' + (esImpresora() ? ' checked' : '') + '> <b>Esta compu imprime lo que mande desde el celular</b></label>'
+      + (esImpresora() ? ' <label class="campo" style="display:inline-flex;max-width:260px"><span>Nombre de esta compu</span><input type="text" id="imp-nombre" value="' + esc(nombreImpresora()) + '"></label>' : '')
+      + '<p class="small muted">Marcalo en la compu que tiene la impresora y dejá la app abierta. En el celular aparece "Imprimir en la compu" al lado de Imprimir. Para que salga sin el cartel de imprimir, abrí Chrome en esa compu con la opción --kiosk-printing.</p></div><div class="campos">'
       + '<label class="campo"><span>Clave de IA (Anthropic)</span><input type="password" id="cfg-clave" autocomplete="off" placeholder="' + (S.ia && S.ia.clave ? 'Cargada. Escribí otra para cambiarla.' : 'sk-ant-…') + '"></label>'
       + '<label class="campo"><span>Desposte habitual (medias por día)</span><input type="number" inputmode="numeric" id="cfg-desposte" value="' + esc(S.config.desposteHabitual || 750) + '"></label>'
       + '<label class="campo"><span>Capacidad de cámaras (medias)</span><input type="number" inputmode="numeric" id="cfg-cap" value="' + esc(S.config.capacidadCamara || '') + '"></label></div>'
@@ -3270,6 +3273,43 @@
   }
   /* Barra de arriba de cada pantalla: el título a la izquierda, las flechas ‹ › con la fecha juntas en el medio
      y los demás botones a la derecha. Se acomoda sola cada vez que se dibuja una barra. */
+  /* Imprimir desde el celular en la compu (pedido de Renzo): una compu marcada como "impresora" (en Configuración) avisa
+     cada 2 minutos que está prendida (privado/impresora). El celular manda en privado/imprimir qué pantalla imprimir
+     (pestaña y fecha); la compu la abre y aprieta su propio "Imprimir". Con Chrome abierto con --kiosk-printing sale directo. */
+  var IMP_KEYS = ['tab', 'mv', 'fm', 'sem', 'dia', 'fl', 'resumen', 'fecha', 'pv', 'fr'];
+  function esImpresora() { try { return localStorage.getItem('qualita-imprime') === '1'; } catch (e) { return false; } }
+  function nombreImpresora() { try { return localStorage.getItem('qualita-imprime-nombre') || 'Compu'; } catch (e) { return 'Compu'; } }
+  function impRemotoOk() { return !!(S.editor && !S.solo && !esImpresora() && S.impresora && S.impresora.visto && Date.now() - S.impresora.visto < 6 * 60000); }
+  var latidoImp = null;
+  function latirImpresora() {
+    clearInterval(latidoImp); latidoImp = null;
+    if (!esImpresora() || !S.editor) return;
+    var latir = function () { store.set('privado', 'impresora', { nombre: nombreImpresora(), visto: Date.now() }).then(null, function () {}); };
+    latir(); latidoImp = setInterval(latir, 2 * 60000);
+  }
+  function mandarAImprimir() {
+    var job = { jid: uid(), ts: Date.now(), quien: S.user ? S.user.email : '' };
+    IMP_KEYS.forEach(function (k) { if (S[k] != null) job[k] = S[k]; });
+    return store.set('privado', 'imprimir', job).then(function () { S.impEsperando = job.jid; avisar('Mandado a imprimir a la compu' + (S.impresora && S.impresora.nombre ? ' (' + S.impresora.nombre + ')' : '') + '…', 4000); }, function () { avisar('!No se pudo mandar. Revisá la conexión.', 6000); });
+  }
+  function recibirImpresion(job) {
+    if (!job) return;
+    if (S.impEsperando && job.jid === S.impEsperando && job.hecho) { S.impEsperando = null; avisar('Listo: se imprimió en ' + (job.por || 'la compu') + '.', 5000); return; }
+    if (!esImpresora() || job.hecho || !job.ts || Date.now() - job.ts > 5 * 60000) return;
+    var ult = ''; try { ult = localStorage.getItem('qualita-imprime-ult') || ''; } catch (e) {}
+    if (ult === job.jid) return;
+    try { localStorage.setItem('qualita-imprime-ult', job.jid); } catch (e) {}
+    if (S.ep) { asentarEdicion(); S.ep = null; } S.em = null; S.ec = null;
+    IMP_KEYS.forEach(function (k) { if (k in job) S[k] = job[k]; });
+    if (job.tab === 'produccion') S.fechaFija = true;
+    render();
+    setTimeout(function () {
+      var b = document.querySelector('#view-' + (job.tab === 'ciclo3' ? 'ciclo3' : job.tab) + ' .nav [data-act="imprimir"]');
+      if (b) b.click();
+      var hecho = clone(job); delete hecho.id; hecho.hecho = Date.now(); hecho.por = nombreImpresora();
+      store.set('privado', 'imprimir', hecho).then(null, function () {});
+    }, 1500);
+  }
   function armarNav(nav) {
     if (nav.classList.contains('armada')) return;
     var steps = nav.querySelectorAll(':scope > .btn.step'), tit = nav.querySelector(':scope > .tit');
@@ -3281,6 +3321,8 @@
     Array.prototype.slice.call(nav.children).forEach(function (x) { if (x !== tit) acc.appendChild(x); });
     nav.appendChild(dia); nav.appendChild(acc);
     nav.classList.add('armada');
+    var bi = acc.querySelector('[data-act="imprimir"]');
+    if (bi && impRemotoOk()) { var br = document.createElement('button'); br.className = 'btn imp-remoto'; br.dataset.act = 'imprimir-remoto'; br.textContent = '🖨 Imprimir en la compu' + (S.impresora.nombre ? ' (' + S.impresora.nombre + ')' : ''); bi.insertAdjacentElement('afterend', br); }
   }
   if (window.MutationObserver) new MutationObserver(function () { document.querySelectorAll('.nav:not(.armada)').forEach(armarNav); }).observe(document.body, { childList: true, subtree: true });
   function render() {
@@ -3387,6 +3429,8 @@
           .concat([{ tipo: 'tit', trozos: [{ t: 'TOTAL' }], der: animales(totm) }, { tipo: 'nota', trozos: [{ t: 'Un animal son dos medias. Faena del ' + tituloDe(fm2).toLowerCase() + ', se entregan el ' + tituloDe(habilSiguiente(fm2)).toLowerCase() + '.', gris: true }] }]) };
       compartirPDF(datosM, b, true, 'Medias ' + pm[2] + '-' + pm[1] + '.pdf');
     }
+    else if (a === 'imprimir-remoto') { mandarAImprimir(); }
+    else if (a === 'imp-esta') { var on = !esImpresora(); try { localStorage.setItem('qualita-imprime', on ? '1' : '0'); } catch (e) {} latirImpresora(); if (!on) store.set('privado', 'impresora', { nombre: '', visto: 0 }).then(null, function () {}); render(); }
     else if (a === 'md-editar') { S.mdEdit = !S.mdEdit; render(); }
     else if (a === 'res-saludos') { S.resSaludos = !S.resSaludos; render(); }
     else if (a === 'res-sel-nada') { var fn0 = D.f; Object.keys(S.resSel || {}).forEach(function (k) { if (k.indexOf(fn0 + '|') === 0) delete S.resSel[k]; }); render(); }
@@ -3852,6 +3896,7 @@
     if (D.rcfg) { S.rcfgAb = true; guardarRendCfg(D.rcfg, D.id, t.value).then(function () { S.msg.rend = 'Guardado.'; render(); }, function () { S.msg.rend = '!No se pudo guardar. Revisá la conexión.'; pintarMsg('rend'); }); return; }
     // La hora del Resumen se guarda al cerrar el selector (focusout): en el iPhone el "change" salta con cada giro de la rueda
     // y al guardar se redibujaba la pantalla y se cerraba el selector.
+    if (t.id === 'imp-nombre') { try { localStorage.setItem('qualita-imprime-nombre', String(t.value || '').trim() || 'Compu'); } catch (e) {} latirImpresora(); return; }
     if (D.md != null) { guardarMediaDia(D.f, +D.md, D.k, t.value).then(function () { tocar(); if (!escribiendo()) render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); }); return; }
     if (D.hora != null && t.classList.contains('res-hora')) { if (document.activeElement !== t) guardarResHora(t); return; }
     if (t.id === 'p-fecha' && t.value) { S.pv = null; if (S.ep) guardar('prod', true); S.ep = null; S.fechaFija = true; S.fecha = t.value; render(); }
@@ -4243,7 +4288,7 @@
         render();
       });
       (store.renovar ? store.renovar() : Promise.resolve()).then(null, function () {}).then(function () { return store.esEditor(u.email); }).then(function (ok) {
-        S.editor = ok; S.editorVisto = true;
+        S.editor = ok; S.editorVisto = true; latirImpresora();
         if (ok && S.volver && S.tab === 'inicio') { S.tab = S.volver; S.volver = null; }
         if (ok) {
           if (S.fuente === 'respaldo' || vacia) traer();
@@ -4263,6 +4308,9 @@
               if (JSON.stringify(S.clientes) !== antesC) { conciliarLog(); renderDatos(); }
               var pap = l.filter(function (x) { return x.id === 'papelera'; })[0], antesP = JSON.stringify(S.papelera || []); S.papelera = (pap && pap.items) || [];
               if (JSON.stringify(S.papelera) !== antesP && S.tab === 'pedidos' && !ocupado()) renderPedidos();
+              var imp = l.filter(function (x) { return x.id === 'impresora'; })[0], antesI = impRemotoOk(); S.impresora = imp || null;
+              if (impRemotoOk() !== antesI && !ocupado()) render();
+              var job = l.filter(function (x) { return x.id === 'imprimir'; })[0]; if (job) recibirImpresion(clone(job));
               var c = l.filter(function (x) { return x.id === 'ia'; })[0]; if (c) { var antes = !!(S.ia && S.ia.clave); S.ia = c; if (!antes && !S.prop.length && !S.em && !S.ep && !S.pegar) render(); } });
           }
         }
