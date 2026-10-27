@@ -3287,8 +3287,16 @@
     var latir = function () { store.set('privado', 'impresora', { nombre: nombreImpresora(), visto: Date.now() }).then(null, function () {}); };
     latir(); latidoImp = setInterval(latir, 2 * 60000);
   }
-  function mandarAImprimir() {
-    var job = { jid: uid(), ts: Date.now(), quien: S.user ? S.user.email : '' };
+  // Cartelito en el celular antes de mandar: cuántas copias.
+  function abrirHojaImp() {
+    var v = document.getElementById('imp-hoja'); if (v) { v.remove(); return; }
+    v = document.createElement('div'); v.id = 'imp-hoja'; v.className = 'imp-hoja'; v.setAttribute('role', 'dialog');
+    v.innerHTML = '<b>Imprimir en ' + esc((S.impresora && S.impresora.nombre) || 'la compu') + '</b><div class="imp-cop"><span>Copias</span><button class="btn" data-act="imp-menos" aria-label="Una copia menos">−</button><b id="imp-n">1</b><button class="btn" data-act="imp-mas" aria-label="Una copia más">+</button></div>'
+      + '<div class="acciones"><button class="btn pri" data-act="imp-mandar">Imprimir</button><button class="btn" data-act="imp-cerrar">Cancelar</button></div>';
+    document.body.appendChild(v);
+  }
+  function mandarAImprimir(copias) {
+    var job = { jid: uid(), ts: Date.now(), quien: S.user ? S.user.email : '', copias: Math.max(1, Math.min(20, +copias || 1)) };
     IMP_KEYS.forEach(function (k) { if (S[k] != null) job[k] = S[k]; });
     return store.set('privado', 'imprimir', job).then(function () { S.impEsperando = job.jid; avisar('Mandado a imprimir a la compu' + (S.impresora && S.impresora.nombre ? ' (' + S.impresora.nombre + ')' : '') + '…', 4000); }, function () { avisar('!No se pudo mandar. Revisá la conexión.', 6000); });
   }
@@ -3304,8 +3312,9 @@
     if (job.tab === 'produccion') S.fechaFija = true;
     render();
     setTimeout(function () {
-      var b = document.querySelector('#view-' + (job.tab === 'ciclo3' ? 'ciclo3' : job.tab) + ' .nav [data-act="imprimir"]');
-      if (b) b.click();
+      var sel = '#view-' + (job.tab === 'ciclo3' ? 'ciclo3' : job.tab) + ' .nav [data-act="imprimir"]', n = Math.max(1, Math.min(20, +job.copias || 1)), k = 0;
+      // Cada copia es una impresión (con Chrome en --kiosk-printing salen solas, una atrás de la otra).
+      (function otra() { var b = document.querySelector(sel); if (!b) return; if (b.disabled) { setTimeout(otra, 800); return; } b.click(); if (++k < n) setTimeout(otra, 3500); })();
       var hecho = clone(job); delete hecho.id; hecho.hecho = Date.now(); hecho.por = nombreImpresora();
       store.set('privado', 'imprimir', hecho).then(null, function () {});
     }, 1500);
@@ -3429,7 +3438,10 @@
           .concat([{ tipo: 'tit', trozos: [{ t: 'TOTAL' }], der: animales(totm) }, { tipo: 'nota', trozos: [{ t: 'Un animal son dos medias. Faena del ' + tituloDe(fm2).toLowerCase() + ', se entregan el ' + tituloDe(habilSiguiente(fm2)).toLowerCase() + '.', gris: true }] }]) };
       compartirPDF(datosM, b, true, 'Medias ' + pm[2] + '-' + pm[1] + '.pdf');
     }
-    else if (a === 'imprimir-remoto') { mandarAImprimir(); }
+    else if (a === 'imprimir-remoto') { abrirHojaImp(); }
+    else if (a === 'imp-mas' || a === 'imp-menos') { var en = $('imp-n'); if (en) en.textContent = Math.max(1, Math.min(20, +en.textContent + (a === 'imp-mas' ? 1 : -1))); }
+    else if (a === 'imp-mandar') { var cn = $('imp-n'), cc = cn ? +cn.textContent : 1, hj = $('imp-hoja'); if (hj) hj.remove(); mandarAImprimir(cc); }
+    else if (a === 'imp-cerrar') { var hj2 = $('imp-hoja'); if (hj2) hj2.remove(); }
     else if (a === 'imp-esta') { var on = !esImpresora(); try { localStorage.setItem('qualita-imprime', on ? '1' : '0'); } catch (e) {} latirImpresora(); if (!on) store.set('privado', 'impresora', { nombre: '', visto: 0 }).then(null, function () {}); render(); }
     else if (a === 'md-editar') { S.mdEdit = !S.mdEdit; render(); }
     else if (a === 'res-saludos') { S.resSaludos = !S.resSaludos; render(); }
