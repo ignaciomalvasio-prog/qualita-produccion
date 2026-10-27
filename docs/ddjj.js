@@ -177,6 +177,7 @@ async function cargar(forzar) {
   if (!S.mes) S.mes = mesHoy();
   $('mes').value = S.mes;
   $('main').innerHTML = '<div class="cargando"><span class="spin"></span> Leyendo…</div>';
+  if (window.FAENA_PUB) return cargarPublico();
   try {
     const [txt, e, doc, anual, mu] = await Promise.all([sisTexto('dj-' + S.mes), leerDoc('ddjj-equiv'), leerDoc('ddjj-' + S.mes), sisTexto('dj-anual'), leerDoc('ddjj-muertos')]);
     S.sis = parseDJ(txt); S.hora = S.sis.hora;
@@ -200,9 +201,27 @@ function proximoSinHacer(dias) {
   const pend = dias.filter(f => f < hoyIso() && !diaDoc(f).impreso);
   return pend.length ? pend[pend.length - 1] : null;
 }
+/* link público /faena?k=…: lee config/fp-<clave> (lo publica dj_sync.ps1 de la notebook) sin ingresar */
+async function cargarPublico() {
+  try {
+    let d = window.__mockPub;
+    if (!d) {
+      const r = await fetch('https://firestore.googleapis.com/v1/projects/qualita-produccion/databases/(default)/documents/config/fp-' + encodeURIComponent(window.FAENA_PUB) + '?key=AIzaSyD9DSR82lLUigI8WeCjlR4nIc5I7xyjmTY');
+      if (!r.ok) throw new Error('link no válido');
+      const j = await r.json(), f = j.fields || {};
+      d = { txt: (f.txt || {}).stringValue || '', muertos: (f.muertos || {}).stringValue || '{}' };
+    }
+    S.sis = parseDJ(''); S.anual = parseAnual(d.txt); S.hora = S.anual.hora; S.eq = JSON.parse(JSON.stringify(EQ_DEF)); S.doc = {};
+    try { S.muertos = JSON.parse(d.muertos || '{}'); } catch (e) { S.muertos = {}; }
+    S.tab = 'faena';
+  } catch (e) {
+    $('main').innerHTML = '<section style="max-width:560px;margin:40px auto;text-align:center"><h2 style="justify-content:center">Este link no funciona</h2><p class="sub">Pedile a Igna que te pase el link de nuevo.</p></section>'; return;
+  }
+  cabecera(); render();
+}
 function cabecera() {
   $('st').innerHTML = (S.hora ? '<span class="dot"></span>Sistema al ' + esc(ddmm(S.hora.slice(0, 10)) + ' ' + S.hora.slice(11)) : '<span class="dot off"></span>Sin datos del sistema para este mes') +
-    '<br>' + esc(quien()) + ' · <a href="#" onclick="C3API.salir();return false">Salir</a>';
+    (window.FAENA_PUB ? '' : '<br>' + esc(quien()) + ' · <a href="#" onclick="C3API.salir();return false">Salir</a>');
 }
 function cambiarMes(m) { if (!m) return; S.mes = m; S.fecha = ''; cargar(false); }
 function moverMes(n) { cambiarMes(n < 0 ? mesAnterior(S.mes) : mesSiguiente(S.mes)); }

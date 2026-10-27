@@ -143,6 +143,8 @@ window.C3API = (function () {
   api.sacarUsuario = function (e) { return store.sacarUsuario(e); };
   api.salir = function () { return store.signOut().then(function () { location.reload(); }); };
 
+  /* link público de solo lectura (/faena?k=clave): no pide ingreso; los datos los lee ddjj.js del documento público */
+  if (window.FAENA_PUB) { api.usuario = { email: '', nombre: 'Invitado' }; api.rol = 'faena'; resolverListo(api); return api; }
   (window.__mock ? Promise.resolve(mockStore(window.__mock)) : firebaseStore()).then(function (s) { store = s; store.onAuth(revisar); }, function () {
     cartel('<h2 style="justify-content:center">No hay conexión</h2><p class="sub">No se pudo conectar. Revisá internet y recargá la página.</p>');
   });
