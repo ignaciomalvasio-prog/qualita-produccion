@@ -15,12 +15,12 @@ const EQ_DEF = {
   lineas: [
     { n: 'Bola de lomo', arts: [327] },
     { n: 'Bondiola', arts: [101, 30105], cant: 'medias' },
-    { n: 'Cabeza', arts: [705], cant: 'piezas', exp: true, dest: 'COSTA DE MARFIL' },
+    { n: 'Cabeza', arts: [431, 705], cant: 'piezas', dest: 'COSTA DE MARFIL' },
     { n: 'Carre con hueso', arts: [271, 281, 308, 30276], cant: 'medias' },
-    { n: 'Carre,pecho y matambre en juego', arts: [203], cant: 'unid' },
+    { n: 'Carre,pecho y matambre en juego', arts: [203], cant: 'piezas' },
     { n: 'Churrasquito', arts: [241, 243, 245, 30246] },
     { n: 'Cinta de lomo', arts: [289, 292], cant: 'piezas' },
-    { n: 'Costeleta', arts: [225], cant: 'unid' },
+    { n: 'Costeleta', arts: [225], cant: 'piezas' },
     { n: 'Cuadrada', arts: [329] },
     { n: 'Cuadril', arts: [322] },
     { n: 'Cuero', arts: [411, 412, 418] },
@@ -43,7 +43,9 @@ const EQ_DEF = {
     { n: 'Vacio', arts: [333] }
   ],
   /* lo que sale del desposte y no va en la declaración (hueso, despojo, grasa en rama, reprocesos de recorte congelado…) */
-  ignorar: [22, 354, 358, 364, 372, 376, 420, 421, 422, 425, 430, 431, 472, 488, 208],
+  ignorar: [22, 354, 358, 364, 372, 376, 420, 421, 422, 425, 430, 472, 488, 208],
+  /* contratos de exportación: lo que sale con estos contratos va en la columna Exportación (con el destino del renglón) */
+  contExp: [8],
   /* cuero que va a rendering: se informa en la observación */
   rendering: [417],
   restar: true,      // a cada renglón se le resta lo que reingresó al desposte de esos mismos artículos (reproceso)
@@ -93,20 +95,30 @@ function calcular(f) {
     let ing = eq().restar === false ? [] : d.in.filter(r => (l.arts || []).includes(r.art));
     if (bruto - ing.reduce((a, r) => a + r.kg, 0) <= 0) ing = [];   // no se resta si daría negativo
     const kgs = bruto - ing.reduce((a, r) => a + r.kg, 0);
+    const ce = eq().contExp || [];
+    const kgExp = r2(re.filter(r => ce.includes(r.cont)).reduce((a, r) => a + r.kg, 0)), kgCons = r2(kgs - kgExp);
     let cant = null;
     if (l.cant === 'medias') cant = medias;
     else if (l.cant === 'piezas') cant = re.reduce((a, r) => a + (r.pz || r.uni), 0);
     else if (l.cant === 'unid') cant = re.reduce((a, r) => a + r.uni, 0);
     else if (l.cant === 'est' && l.kgu) cant = Math.round(kgs / l.kgu / 10) * 10;
-    prod[l.n] = { n: l.n, cant, exp: l.exp ? r2(kgs) : null, cons: l.exp ? null : r2(kgs), dest: l.dest || 'CONSUMO', re, ing, est: l.cant === 'est' };
+    prod[l.n] = { n: l.n, cant, exp: kgExp || null, cons: kgExp && !kgCons ? null : kgCons, dest: (kgExp && l.dest) || 'CONSUMO', re, ing, est: l.cant === 'est' };
   }
   const ingreso = d.tr.slice().sort((a, b) => String(a.tropa).localeCompare(String(b.tropa))).map(t => ({
     faena: t.faena, tropa: t.tropa, cab: t.cab, medias: t.medias,
-    kg: t.medias ? t.medias * Math.round(t.kg / t.medias) : 0, obs: 'Consumo'
+    kg: t.medias ? t.medias * Math.round(t.kg / t.medias) : 0, obs: obsAnterior(t.tropa, f) || 'Consumo'
   }));
   const rend = d.re.filter(r => estadoArt(r.art) === 'rendering');
   const nuevos = d.re.filter(r => estadoArt(r.art) === 'nuevo');
   return { medias, prod, ingreso, rendKg: r2(rend.reduce((a, r) => a + r.kg, 0)), rend, nuevos, hay: d.tr.length + d.re.length > 0, d };
+}
+
+/* Si a una tropa se le puso otra observación un día anterior (ej. "FAENA PARCIAL"), se repite */
+function obsAnterior(tropa, f) {
+  const dias = (S.doc && S.doc.dias) || {};
+  const prev = Object.keys(dias).filter(x => x < f).sort().reverse();
+  for (const x of prev) { const r = (dias[x].ing || []).find(z => String(z.tropa) === String(tropa)); if (r && r.obs) return r.obs; }
+  return '';
 }
 
 /* La planilla final: lo del sistema + lo corregido */
@@ -156,6 +168,10 @@ async function cargar(forzar) {
     const [txt, e, doc] = await Promise.all([sisTexto('dj-' + S.mes), leerDoc('ddjj-equiv'), leerDoc('ddjj-' + S.mes)]);
     S.sis = parseDJ(txt); S.hora = S.sis.hora;
     S.eq = e.d && e.d.lineas ? e.d : JSON.parse(JSON.stringify(EQ_DEF));
+    if (!S.eq.contExp) {   // equivalencias guardadas antes de que la exportación se tomara por contrato
+      S.eq.contExp = [8]; S.eq.ignorar = (S.eq.ignorar || []).filter(a => a !== 431);
+      const cab = S.eq.lineas.find(l => l.n === 'Cabeza'); if (cab && !cab.arts.includes(431)) cab.arts.unshift(431);
+    }
     S.doc = doc.d || {};
     const dias = Object.keys(S.sis.dias).sort();
     if (!S.fecha || S.fecha.slice(0, 7) !== S.mes || !S.sis.dias[S.fecha]) S.fecha = proximoSinHacer(dias) || dias[dias.length - 1] || '';
@@ -385,17 +401,18 @@ function renderEquiv() {
   for (const d of Object.values(S.sis.dias)) { d.re.forEach(r => { nom[r.art] = r.den; }); d.in.forEach(r => { nom[r.art] = nom[r.art] || r.den; }); }
   const artTxt = a => '<span class="dj-art" title="' + esc(nom[a] || '') + '">' + a + (nom[a] ? ' <small>' + esc(nom[a].toLowerCase()) + '</small>' : '') + '</span>';
   let h = '<section><h2>Equivalencias</h2><p class="sub">Qué artículos del sistema se suman en cada renglón de la planilla. Lo que cambies acá vale para todos los días que no tengan esa casilla corregida a mano.</p>';
-  h += '<div class="tw"><table class="planilla dj-eq"><thead><tr><th>Renglón</th><th>Artículos del sistema</th><th>Cantidad de cortes</th><th>Exportación</th><th></th></tr></thead><tbody>';
+  h += '<div class="tw"><table class="planilla dj-eq"><thead><tr><th>Renglón</th><th>Artículos del sistema</th><th>Cantidad de cortes</th><th>Destino si sale con contrato de exportación</th><th></th></tr></thead><tbody>';
   E.lineas.forEach((l, i) => {
     h += '<tr><td><b>' + esc(l.n) + '</b></td><td>' + ((l.arts || []).map(artTxt).join(' ') || '<span class="muted">ninguno</span>') + ' <button class="small" onclick="eqArts(' + i + ')">Cambiar</button></td>' +
       '<td><select onchange="eqCant(' + i + ',this.value)">' + Object.keys(CANT_TXT).map(k => '<option value="' + k + '"' + ((l.cant || '') === k ? ' selected' : '') + '>' + CANT_TXT[k] + '</option>').join('') + '</select>' +
       (l.cant === 'est' ? ' <input class="w-cp" value="' + fmtE(l.kgu) + '" onchange="eqKgu(' + i + ',this.value)" title="kg por unidad"> kg c/u' : '') + '</td>' +
-      '<td><label><input type="checkbox"' + (l.exp ? ' checked' : '') + ' onchange="eqExp(' + i + ',this.checked)"> sí</label>' + (l.exp ? ' <input style="width:160px" value="' + esc(l.dest || '') + '" onchange="eqDest(' + i + ',this.value)" placeholder="destino">' : '') + '</td>' +
+      '<td><input style="width:170px" value="' + esc(l.dest || '') + '" onchange="eqDest(' + i + ',this.value)" placeholder="—"></td>' +
       '<td><button class="small danger" onclick="eqQuitar(' + i + ')">✕</button></td></tr>';
   });
   h += '<tr><td colspan="5"><button class="small" onclick="eqNueva()">+ Renglón nuevo</button></td></tr></tbody></table></div>';
   h += '<h3 class="dj-h3">No van en la declaración</h3><p>' + (E.ignorar || []).map(artTxt).join(' ') + ' <button class="small" onclick="eqLista(\'ignorar\')">Cambiar</button></p>';
   h += '<h3 class="dj-h3">Cuero a rendering (va en la observación)</h3><p>' + (E.rendering || []).map(artTxt).join(' ') + ' <button class="small" onclick="eqLista(\'rendering\')">Cambiar</button></p>';
+  h += '<h3 class="dj-h3">Contratos de exportación</h3><p>' + (E.contExp || []).map(c => '<span class="dj-art">' + c + (S.sis.co[c] && S.sis.co[c].den ? ' <small>' + esc(S.sis.co[c].den) + '</small>' : '') + '</span>').join(' ') + ' <button class="small" onclick="eqContExp()">Cambiar</button></p>';
   h += '<h3 class="dj-h3">Cuentas</h3><p><label><input type="checkbox"' + (E.restar !== false ? ' checked' : '') + ' onchange="cambiarEq(d=>{d.restar=this.checked},\'restar reproceso \'+this.checked)"> A cada corte restarle lo que de ese mismo corte reingresó al desposte (reproceso)</label></p>';
   h += '<p>Merma del ingreso: <input class="w-cp" value="' + fmtE(r2((1 - (E.merma || 1)) * 100)) + '" onchange="eqMerma(this.value)"> %</p></section>';
   const aj = E.ajuste || { arriba: 0, izq: 0 };
@@ -417,7 +434,7 @@ function eqLista(k) {
 }
 function eqCant(i, v) { cambiarEq(d => { d.lineas[i].cant = v || undefined; if (v === 'est' && !d.lineas[i].kgu) d.lineas[i].kgu = 5; if (!v) delete d.lineas[i].cant; }, d0n(i) + ' cantidad = ' + (v || 'nada')); }
 function eqKgu(i, v) { const n = leerNum(v); if (!n) return; cambiarEq(d => { d.lineas[i].kgu = n; }, d0n(i) + ' kg por unidad = ' + n); }
-function eqExp(i, v) { cambiarEq(d => { d.lineas[i].exp = v; if (!v) delete d.lineas[i].exp; }, d0n(i) + ' exportación = ' + v); }
+function eqContExp() { pedir('Contratos de exportación', (eq().contExp || []).join(', '), 'Números de contrato separados por coma. Lo que sale del desposte con estos contratos va en la columna Exportación.', v => cambiarEq(d => { d.contExp = listaNum(v); }, 'contratos de exportación = ' + v), 'txt'); }
 function eqDest(i, v) { cambiarEq(d => { d.lineas[i].dest = String(v).trim().toUpperCase(); }, d0n(i) + ' destino = ' + v); }
 function eqQuitar(i) { if (!confirm('¿Sacar el renglón ' + d0n(i) + ' de las equivalencias?')) return; cambiarEq(d => { d.lineas.splice(i, 1); }, 'saca ' + d0n(i)); }
 function eqNueva() { pedir('Renglón nuevo', '', 'Nombre como tiene que salir en la planilla.', v => { v = String(v || '').trim(); if (v) cambiarEq(d => { d.lineas.push({ n: v, arts: [] }); d.lineas.sort((a, b) => a.n.localeCompare(b.n, 'es')); }, 'renglón nuevo ' + v); }, 'txt'); }
