@@ -28,7 +28,7 @@
   var SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
   var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
   var TABS = ['inicio', 'pedidos', 'produccion', 'ciclo3', 'logistica', 'medias', 'rendering', 'clientes', 'camara'];
-  var CORTES_BASE = ['JAMON', 'PALETA', 'PECHO', 'PECHO MANTA DOBLE', 'PECHO MANTA DOBLE CON CUERO', 'PANCETA CON CUERO', 'PANCETA SIN CUERO', 'CARRE SIN SOLOMILLO', 'CARRE CON SOLOMILLO', 'SOLOMILLO', 'CINTA DE LOMO', 'MATAMBRE', 'VACIO', 'BONDIOLA', 'RECORTE', 'GRASA BUENA', 'GRASA MALA', 'CUERO', 'TAPA DE PALETA', 'TAPA DE JAMON', 'TORTUGA', 'GARRON', 'TOCINO', 'CHURRASCO', 'PAPADA', 'HUESITOS', 'UNTO', 'CABEZA', 'OREJAS', 'PULMON', 'HIGADO', 'PATAS Y MANOS', 'LENGUA', 'CHINCHULIN', 'RIÑON', 'RABO', 'MENUDENCIAS', 'EMBUTIDOS', 'CHORIZO', 'MORCILLA', 'SALCHICHA'];
+  var CORTES_BASE = ['JAMON', 'PALETA', 'PECHO', 'PANCETA CON CUERO', 'PANCETA SIN CUERO', 'CARRE SIN SOLOMILLO', 'CARRE CON SOLOMILLO', 'SOLOMILLO', 'CINTA DE LOMO', 'MATAMBRE', 'VACIO', 'BONDIOLA', 'RECORTE', 'GRASA BUENA', 'GRASA MALA', 'CUERO', 'TAPA DE PALETA', 'TAPA DE JAMON', 'TORTUGA', 'GARRON', 'TOCINO', 'CHURRASCO', 'PAPADA', 'HUESITOS', 'UNTO', 'CABEZA', 'OREJAS', 'PULMON', 'HIGADO', 'PATAS Y MANOS', 'LENGUA', 'CHINCHULIN', 'RIÑON', 'RABO', 'MENUDENCIAS', 'EMBUTIDOS', 'CHORIZO', 'MORCILLA', 'SALCHICHA'];
 
   var S = {
     faena: null, prod: null, pedidos: null, config: {}, ia: {}, status: 'loading', fuente: '',
@@ -375,6 +375,32 @@
   function esFaena(corte) { var x = norm(corte); return CORTES_FAENA.indexOf(x) >= 0 || /^(PATAS?|MANOS?|CABEZAS?|OREJAS?|RIÑON|RINON|RIÑONES|RINONES|LENGUAS?|CHINCHULIN(ES)?|RABOS?)\b/.test(x); }
   // "Pechito con manta" no es manta doble: en la planilla esos renglones van a PECHO (pedido de Renzo).
   // Solo quedan en PECHO MANTA DOBLE los que dicen "DOBLE".
+  // Ya no hay rubros "PECHO MANTA DOBLE" ni "PECHO MANTA DOBLE CON CUERO": todo es PECHO (pedido de Renzo).
+  // Los pedidos y planillas que todavía los tengan se pasan a PECHO una vez, cuando entra un editor.
+  var PECHOS_VIEJOS = ['PECHO MANTA DOBLE', 'PECHO MANTA DOBLE CON CUERO'];
+  function esPechoViejo(c) { return PECHOS_VIEJOS.indexOf(norm(c || '')) >= 0; }
+  var migrandoPecho = {};
+  function migrarPecho() {
+    if (!S.editor) return;
+    var fechas = {}, t = [];
+    (S.pedidos || []).forEach(function (p) {
+      if (migrandoPecho['p' + p.id] || !(p.cortes || []).some(function (c) { return esPechoViejo(c.corte); })) return;
+      migrandoPecho['p' + p.id] = 1;
+      var doc = clone(p), id = doc.id; delete doc.id;
+      doc.cortes = doc.cortes.map(function (c) { if (esPechoViejo(c.corte)) c.corte = 'PECHO'; return c; });
+      S.pedidos = poner(S.pedidos, id, doc); t.push(store.set('pedidos', id, doc)); if (doc.entrega) fechas[doc.entrega] = 1;
+    });
+    (S.prod || []).forEach(function (o) {
+      if (migrandoPecho['o' + o.id] || !(o.cortes || []).some(function (c) { return esPechoViejo(c.corte); })) return;
+      migrandoPecho['o' + o.id] = 1;
+      var x = clone(o), id = x.id, pe = x.cortes.filter(function (c) { return norm(c.corte) === 'PECHO'; })[0];
+      x.cortes.forEach(function (c) { if (!esPechoViejo(c.corte)) return; if (pe) { pe.lineas = pe.lineas.concat(c.lineas); c.lineas = []; } else { c.corte = 'PECHO'; pe = c; } });
+      x.cortes = x.cortes.filter(function (c) { return !esPechoViejo(c.corte) || c.lineas.length; });
+      var dl = limpiarOrden(x); S.prod = poner(S.prod, id, dl); t.push(store.set('produccion', id, dl));
+    });
+    if (!t.length) return;
+    Promise.all(t).then(function () { return Promise.all(Object.keys(fechas).filter(function (f) { return logDe(f); }).map(function (f) { return publicarLog(f); })); }).then(function () { tocar(); if (!escribiendo()) render(); }, function () {});
+  }
   function unirPecho(o) {
     var md = (o.cortes || []).filter(function (c) { return norm(c.corte) === 'PECHO MANTA DOBLE'; })[0]; if (!md) return o;
     var pasan = md.lineas.filter(function (l) { return !/DOBLE/.test(norm(l.t)); }); if (!pasan.length) return o;
@@ -1838,7 +1864,7 @@
       + '- medias: cantidad de medias reses, número. 0 si no pide medias. Si un cliente figura en la planilla con 0 medias o con la cantidad en blanco, cargalo igual con medias 0: no lo saltees.\n'
       + '- peso: aclaración de peso de las medias (livianas, pesadas, rango de kg), o "".\n'
       + '- frio: "FRESCO" o "CONGELADO" cuando en cualquier parte de la imagen o del mensaje dice que la mercadería es fresca o congelada: en el título, el encabezado, el nombre de la planilla o de la hoja, una columna, una nota al margen, al lado del cliente o en la frase inicial de un mensaje. También valen las abreviaturas ("CONG.", "CGDO", "FCO", "FRESC."). Si lo dice una sola vez en general, vale para TODOS los pedidos de esa imagen o mensaje: ponelo en cada uno. Si no lo dice en ningún lado, "" (no lo supongas). Si en un mismo pedido hay cortes frescos y cortes congelados, dejá frio en "" y escribí FRESCO o CONGELADO dentro del texto de cada corte.\n'
-      + '- cortes: un elemento por cada corte pedido. "corte" es el rubro de la orden de producción, uno de: ' + CORTES_BASE.join(', ') + '. PECHO MANTA DOBLE solo si el pedido dice "MANTA DOBLE"; "pechito con manta" o "pecho con manta" van en PECHO. "texto" es lo que pide de ese corte, en mayúsculas: primero la cantidad, tal cual figura en el pedido, con su unidad si el pedido la dice (ej. "600KG", "10 CAJAS", "50 UND"), después la presentación o variante si se aclara (ej. "15 CAJAS PIERNA S/C", "107 CAJAS DE 20KG CARRE CON HUESO") y el código si figura (ej. "(ART 276)"). Cargá el pedido como aparece: la unidad (CAJAS, KG, UND, BINES) se escribe solo cuando el pedido la aclara, sea en el renglón, en el encabezado de la columna, en la fila de totales o en la frase general ("por caja", "en kilos", "cj", "x kg"); en ese caso escribila en cada corte al que le corresponde. Si el pedido no aclara si es caja o kg, NO pongas ninguna unidad: dejá la cantidad sola (ej. "2 MATAMBRE"). Nunca la supongas ni la deduzcas por costumbre. NO pongas el nombre del cliente ni de la sucursal en el texto, ni entre comillas ni suelto: ya va en "cliente". Si el cliente pide TODO el corte, la línea va sin cantidad (ej. "TODO FRESCO EN BINES").\n'
+      + '- cortes: un elemento por cada corte pedido. "corte" es el rubro de la orden de producción, uno de: ' + CORTES_BASE.join(', ') + '. Todo pecho o pechito (con manta, manta doble, con o sin cuero) va en PECHO. "texto" es lo que pide de ese corte, en mayúsculas: primero la cantidad, tal cual figura en el pedido, con su unidad si el pedido la dice (ej. "600KG", "10 CAJAS", "50 UND"), después la presentación o variante si se aclara (ej. "15 CAJAS PIERNA S/C", "107 CAJAS DE 20KG CARRE CON HUESO") y el código si figura (ej. "(ART 276)"). Cargá el pedido como aparece: la unidad (CAJAS, KG, UND, BINES) se escribe solo cuando el pedido la aclara, sea en el renglón, en el encabezado de la columna, en la fila de totales o en la frase general ("por caja", "en kilos", "cj", "x kg"); en ese caso escribila en cada corte al que le corresponde. Si el pedido no aclara si es caja o kg, NO pongas ninguna unidad: dejá la cantidad sola (ej. "2 MATAMBRE"). Nunca la supongas ni la deduzcas por costumbre. NO pongas el nombre del cliente ni de la sucursal en el texto, ni entre comillas ni suelto: ya va en "cliente". Si el cliente pide TODO el corte, la línea va sin cantidad (ej. "TODO FRESCO EN BINES").\n'
       + '- orden: true si es un corte fresco que hay que producir ese día; false si es mercadería congelada que sale de stock, o productos que no salen del desposte (chorizo, morcilla, salchicha).\n'
       + '- precio (en cada corte) y precioMedias (de las medias): el precio por kilo en pesos, solo el número ("$4.200/kg" o "4200 + IVA" → 4200; "$ 2.850,50" → 2850.5). 0 si no figura. Si el precio es por caja, por unidad o por bulto (no por kilo), dejá 0 y anotalo en la nota.\n'
       + '- iva (en cada corte) e ivaMedias: "iva" si el precio es sin IVA (dice + IVA, más IVA, sin IVA, s/IVA, neto); "final" si es con IVA (dice final, con IVA, IVA incluido, c/IVA); "" si no lo aclara o no hay precio. Si una aclaración vale para todo el pedido ("todos los precios + IVA"), ponela en todos.\n'
@@ -4163,7 +4189,7 @@
     }
     var fallo = function () { if (!got.faena || !got.prod) { var c = cache(true); if (c && c.produccion) aplicar(c, 'cache'); else S.status = 'error'; render(); } };
     store.sub('faena', function (l) { if (S.fuente === 'respaldo' && !l.length) return; S.faena = ordenar(l.map(function (x) { x.desde = x.desde || x.id; return x; })); llego('faena'); conciliarMedias(); }, fallo);
-    store.sub('produccion', function (l) { if (S.fuente === 'respaldo' && !l.length) return; S.prod = ordenar(l.map(function (x) { x.fecha = x.fecha || x.id; return x; })); llego('prod'); }, fallo);
+    store.sub('produccion', function (l) { if (S.fuente === 'respaldo' && !l.length) return; S.prod = ordenar(l.map(function (x) { x.fecha = x.fecha || x.id; return x; })); llego('prod'); migrarPecho(); }, fallo);
     store.sub('config', function (l) {
       var c = l.filter(function (x) { return x.id === 'general'; })[0], lg = {};
       var rd = {}, rc = null;
@@ -4192,7 +4218,7 @@
           if (S.fuente === 'respaldo' || vacia) traer();
           if (!suscripto) {
             suscripto = true;
-            store.sub('pedidos', function (l) { S.pedidos = ordenar(l); conciliarLog(); renderDatos(); conciliarMedias(); });
+            store.sub('pedidos', function (l) { S.pedidos = ordenar(l); conciliarLog(); renderDatos(); conciliarMedias(); migrarPecho(); });
             store.sub('ventas', function (l) { var antes = ventasPendientes(true).length; S.ventas = l; if (antes !== ventasPendientes(true).length && (S.tab === 'pedidos' || S.tab === 'inicio')) renderDatos(); });
             store.sub('privado', function (l) {
               var fl = {}, antesF = JSON.stringify(S.fletes || {});
