@@ -211,3 +211,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - PDF por WhatsApp del Resumen: igual a como se ve el resumen (hoja apaisada, día resaltado arriba, camiones en recuadros de a dos columnas con nombre y hora en amarillo y los clientes abajo).
 - Medias (vista del día): botón "PDF por WhatsApp" con los animales para clientes del día (cliente, aclaración y cantidad, con el total).
 - Producción: los renglones de PECHO MANTA DOBLE que no dicen "DOBLE" (ej. "PECHITO CON MANTA") se muestran en PECHO; la IA ya no manda "pechito con manta" a manta doble. Lo guardado no cambia.
+- Fresco/congelado es solo para las cajas (cortes): los pedidos de solo medias ya no muestran el cartel ni salen como "cong." en Logística, Resumen ni WhatsApp (las medias siempre van frescas).

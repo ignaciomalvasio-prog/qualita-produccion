@@ -2097,7 +2097,10 @@
   }
   // Un pedido del listado: cerrado muestra el resumen; abierto, el desglose por corte.
   // Fresco o congelado, elegible desde el renglón del pedido: se toca el cartelito y aparecen las opciones.
+  // Las medias siempre van frescas: fresco/congelado es solo para las cajas (cortes). Un pedido de solo medias no lleva cartel.
+  function frioPed(p) { return (p && (p.cortes || []).length) ? (p.frio || '') : ''; }
   function frioChipHTML(p) {
+    if (!(p.cortes || []).length) return '';
     var f = p.frio || '', cls = f === 'CONGELADO' ? 'cong' : f === 'FRESCO' ? 'fresco' : 'nada';
     return '<span class="frio-chip ' + cls + '" data-act="frio-menu" data-id="' + esc(p.id) + '" role="button" tabindex="0" title="Tocá para elegir fresco o congelado">' + (f || '<span class="chip-lg">¿Fresco o congelado?</span><span class="chip-co">¿Fresco/cong.?</span>') + ' ▾</span>';
   }
@@ -2272,7 +2275,7 @@
       var tit = (c.num && nomLimpio(c.nombre) ? 'N° ' + c.num + ' · ' : '') + nomCam(c);
       t.push('', '*🚚 ' + tit.toUpperCase() + '*' + (c.hora ? ' — ' + c.hora + ' hs' : ''));
       var o = c.orden || [], l = peds.filter(function (p) { return p.camion === c.id; }).sort(function (a, b) { var i = o.indexOf(a.id), j = o.indexOf(b.id); return (i < 0 ? 1e6 : i) - (j < 0 ? 1e6 : j); });
-      l.forEach(function (p, i) { t.push((i + 1) + '. ' + (p.cliente || 'Sin cliente') + (+p.medias ? ' ' + n(+p.medias) + '½' : '') + ((p.cortes || []).length ? ' + cortes' : '') + (p.frio === 'CONGELADO' ? ' (congelado)' : '')); });
+      l.forEach(function (p, i) { t.push((i + 1) + '. ' + (p.cliente || 'Sin cliente') + (+p.medias ? ' ' + n(+p.medias) + '½' : '') + ((p.cortes || []).length ? ' + cortes' : '') + (frioPed(p) === 'CONGELADO' ? ' (congelado)' : '')); });
       if (!l.length) t.push('Sin pedidos');
       if (c.nota) t.push('_' + c.nota + '_');
     });
@@ -2295,7 +2298,7 @@
       R.push({ tipo: 'tit', trozos: [{ t: '# ' + tit.toUpperCase() }], der: c.hora ? c.hora + ' hs' : '' });
       var o = c.orden || [], l = peds.filter(function (p) { return p.camion === c.id; }).sort(function (a, b) { var i = o.indexOf(a.id), j = o.indexOf(b.id); return (i < 0 ? 1e6 : i) - (j < 0 ? 1e6 : j); });
       var tr = [];
-      l.forEach(function (p, i) { if (i) tr.push({ t: '  –  ', gris: true }); tr.push({ t: String(p.cliente || 'Sin cliente').toUpperCase() }); var m = (+p.medias ? ' ' + n(+p.medias) + '½' : '') + ((p.cortes || []).length ? ' +C' : ''); if (m) tr.push({ t: m, b: true }); if (p.frio === 'CONGELADO') tr.push({ t: ' cong.', gris: true }); });
+      l.forEach(function (p, i) { if (i) tr.push({ t: '  –  ', gris: true }); tr.push({ t: String(p.cliente || 'Sin cliente').toUpperCase() }); var m = (+p.medias ? ' ' + n(+p.medias) + '½' : '') + ((p.cortes || []).length ? ' +C' : ''); if (m) tr.push({ t: m, b: true }); if (frioPed(p) === 'CONGELADO') tr.push({ t: ' cong.', gris: true }); });
       R.push({ tipo: 'op', trozos: tr.length ? tr : [{ t: 'Sin pedidos', gris: true }] });
       if (c.nota) R.push({ tipo: 'nota', trozos: [{ t: c.nota, gris: true }] });
     });
@@ -2322,7 +2325,7 @@
         // Los clientes de un camión como trozos: nombre normal, medias y +C en negrita, "cong." en gris.
         var trozosDe = function (b) {
           var tr = [];
-          b.peds.forEach(function (p, i) { if (i) tr.push({ t: ' – ' }); tr.push({ t: String(p.cliente || 'Sin cliente').toUpperCase() }); var m = (+p.medias ? ' ' + n(+p.medias) + '½' : '') + ((p.cortes || []).length ? (+p.medias ? '' : ' ') + '+C' : ''); if (m) tr.push({ t: m, b: true }); if (p.frio === 'CONGELADO') tr.push({ t: ' (cong.)', g: true }); });
+          b.peds.forEach(function (p, i) { if (i) tr.push({ t: ' – ' }); tr.push({ t: String(p.cliente || 'Sin cliente').toUpperCase() }); var m = (+p.medias ? ' ' + n(+p.medias) + '½' : '') + ((p.cortes || []).length ? (+p.medias ? '' : ' ') + '+C' : ''); if (m) tr.push({ t: m, b: true }); if (frioPed(p) === 'CONGELADO') tr.push({ t: ' (cong.)', g: true }); });
           if (!b.peds.length) tr.push({ t: 'Sin pedidos', g: true });
           return tr;
         };
@@ -2387,7 +2390,7 @@
       var t = esc(p.cliente || 'Sin cliente');
       if (+p.medias) t += ' <b>' + n(+p.medias) + '½</b>';
       if ((p.cortes || []).length) t += (+p.medias ? '' : ' ') + '<b>+C</b>';
-      if (p.frio === 'CONGELADO') t += ' <span class="res-cong">cong.</span>';
+      if (frioPed(p) === 'CONGELADO') t += ' <span class="res-cong">cong.</span>';
       return '<span class="res-cli">' + t + '</span>';
     };
     var ed = S.editor && !S.solo;
@@ -2587,7 +2590,7 @@
     var num = cam && pos != null;
     var h = '<div class="log-ped' + (num ? '' : ' sin-num') + '" data-lp="' + id + '">' + (num ? (S.editor && !S.solo && total > 1 ? '<span class="log-num log-num-sel"><select data-pos-ped="' + id + '" data-cam="' + esc(cam.id) + '" aria-label="Lugar de ' + esc(p.cliente) + ' en el camión (elegí el número)">' + (function () { var o = ''; for (var i = 0; i < total; i++) o += '<option value="' + i + '"' + (i === pos ? ' selected' : '') + '>' + (i + 1) + '</option>'; return o; })() + '</select><span class="solo-print">' + (pos + 1) + '</span></span>' : '<span class="log-num" aria-label="Lugar ' + (pos + 1) + '">' + (pos + 1) + '</span>') : '') + '<div class="log-body"><div class="log-cab">'
       + (S.editor && !S.solo && pedidoDe(p.id) ? '<label class="chk log-chk"><input type="checkbox" data-sel="' + id + '"' + (S.sel[p.id] && S.selDia === S.fl ? ' checked' : '') + ' aria-label="Tildar a ' + esc(p.cliente) + ' para un camión"></label>' : '')
-      + '<strong>' + esc(p.cliente || 'Sin cliente') + '</strong>' + ctaHTML(p.cuenta) + frioBadge(p.frio)
+      + '<strong>' + esc(p.cliente || 'Sin cliente') + '</strong>' + ctaHTML(p.cuenta) + frioBadge(frioPed(p))
       + '<span class="small muted">' + esc(kgTxt({ kg: +p.kg || 0, falta: p.kgFalta, manual: p.kgManual })) + '</span>';
     var ke = -1; if (S.editor) (S.prop || []).forEach(function (x, i) { if (x.editaId === p.id) ke = i; });
     if (S.editor) h += '<span class="log-acc">' + (cam && total > 1 ? '<span class="pos-ctl"><button class="btn sm ord" data-act="cam-subir" data-id="' + id + '" data-cam="' + esc(cam.id) + '"' + (pos === 0 ? ' disabled' : '') + ' aria-label="Subir un lugar">↑</button><button class="btn sm ord" data-act="cam-bajar" data-id="' + id + '" data-cam="' + esc(cam.id) + '"' + (pos === total - 1 ? ' disabled' : '') + ' aria-label="Bajar un lugar">↓</button></span>' : '')
