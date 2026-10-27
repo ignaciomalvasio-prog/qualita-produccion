@@ -178,8 +178,9 @@ async function cargar(forzar) {
   $('mes').value = S.mes;
   $('main').innerHTML = '<div class="cargando"><span class="spin"></span> Leyendo…</div>';
   try {
-    const [txt, e, doc] = await Promise.all([sisTexto('dj-' + S.mes), leerDoc('ddjj-equiv'), leerDoc('ddjj-' + S.mes)]);
+    const [txt, e, doc, anual, mu] = await Promise.all([sisTexto('dj-' + S.mes), leerDoc('ddjj-equiv'), leerDoc('ddjj-' + S.mes), sisTexto('dj-anual'), leerDoc('ddjj-muertos')]);
     S.sis = parseDJ(txt); S.hora = S.sis.hora;
+    S.anual = anual ? parseAnual(anual) : null; S.muertos = mu.d || {};
     S.eq = e.d && e.d.lineas ? e.d : JSON.parse(JSON.stringify(EQ_DEF));
     if (!S.eq.contExp) {   // equivalencias guardadas antes de que la exportación se tomara por contrato
       S.eq.contExp = [8]; S.eq.ignorar = (S.eq.ignorar || []).filter(a => a !== 431);
@@ -212,6 +213,7 @@ function render() {
   if (S.tab === 'equiv') return renderEquiv();
   if (S.tab === 'c3') return renderC3();
   if (S.tab === 'rend') return renderRend();
+  if (S.tab === 'faena') return renderFaena();
   renderDia();
 }
 

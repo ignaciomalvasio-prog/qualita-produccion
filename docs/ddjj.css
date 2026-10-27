@@ -98,3 +98,10 @@ body.vista .hoja::before{content:"Encabezado del formulario";position:absolute;l
 .dj-rm td.ralta{color:var(--ok);font-weight:600}
 .dj-rm tr.hoy td{background:var(--accent-soft)!important}
 .dj-tab tr.dj-sep td{background:var(--line-2)!important;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;font-weight:600}
+
+/* faena y mortalidad */
+.dj-rm td.pos{color:var(--ok)} .dj-rm td.neg{color:var(--bad)}
+.dj-campos{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.dj-campos label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+section .chart{max-width:900px;margin:6px 0 4px}
+@media (max-width:600px){.dj-campos{grid-template-columns:1fr}}
