@@ -1119,11 +1119,12 @@
       var r = filas[suc] || (filas[suc] = { suc: suc, d: {}, tot: 0, aprox: false, falta: false });
       r.d[p.entrega] = (r.d[p.entrega] || 0) + k.kg; r.tot += k.kg; if (!k.manual) r.aprox = true; if (k.falta) r.falta = true;
       r.cortes = r.cortes || {};
-      var suma = function (nom, kg, sinPeso) { var x = r.cortes[nom] || (r.cortes[nom] = { kg: 0, sin: [] }); x.kg += kg; if (sinPeso) x.sin.push(sinPeso); };
+      r.grupos = r.grupos || {};
+      var suma = function (nom, kg, sinPeso, grupo) { var x = r.cortes[nom] || (r.cortes[nom] = { kg: 0, sin: [] }); x.kg += kg; if (sinPeso) x.sin.push(sinPeso); r.grupos[grupo] = (r.grupos[grupo] || 0) + kg; };
       var enCortes = 0;
-      if (+p.medias) { suma('MEDIAS RES (' + n(+p.medias) + ')', +p.medias * kgMedia()); enCortes += +p.medias * kgMedia(); }
-      (p.cortes || []).forEach(function (c) { if (!c.texto) return; var kc = kgDeTexto(c.texto, c.corte); enCortes += kc.kg; suma(repNomCorte(c.texto), kc.kg, kc.falta ? String(c.texto).trim() : ''); });
-      if (k.manual && k.kg - enCortes >= 1) suma('SIN DETALLE (kg cargados a mano)', k.kg - enCortes);
+      if (+p.medias) { suma('MEDIAS RES (' + n(+p.medias) + ')', +p.medias * kgMedia(), '', 'MEDIAS RES'); enCortes += +p.medias * kgMedia(); }
+      (p.cortes || []).forEach(function (c) { if (!c.texto) return; var kc = kgDeTexto(c.texto, c.corte); enCortes += kc.kg; suma(repNomCorte(c.texto), kc.kg, kc.falta ? String(c.texto).trim() : '', norm(c.corte || '') || 'OTROS'); });
+      if (k.manual && k.kg - enCortes >= 1) suma('SIN DETALLE (kg cargados a mano)', k.kg - enCortes, '', 'SIN DETALLE');
       if (dias.indexOf(p.entrega) < 0) dias.push(p.entrega);
     });
     dias.sort();
@@ -1132,6 +1133,19 @@
   // Nombre del corte sin la cantidad del principio ni el cliente entre comillas: "100KG JAMON 4 MUSC (COD 341)" → "JAMON 4 MUSC (COD 341)".
   function repNomCorte(t) { return norm(String(t || '').replace(/["“”][^"“”]*["“”]\s*$/, '').replace(/^\s*[\d.,½]+\s*(KGS?|KILOS?|K|CAJAS?|CJS?|CANASTOS?|CANASTAS?|UNIDADES|UNIDAD|UNID|UND|U)?\.?\s*(DE\s+|X\s+)?/i, '')) || 'SIN NOMBRE'; }
   function repCortesDe(r) { return Object.keys(r.cortes || {}).map(function (k) { return { n: k, kg: Math.round(r.cortes[k].kg), sin: r.cortes[k].sin }; }).sort(function (a, b) { return b.kg - a.kg || a.n.localeCompare(b.n); }); }
+  // Total unificado por corte (JAMON, PECHO, BONDIOLA…, sin importar el código de cada sucursal).
+  function repOrdenGrupos(nombres) { return nombres.sort(function (a, b) { var oa = a === 'MEDIAS RES' ? -1 : a === 'SIN DETALLE' ? 1e4 : ordenCorte(a), ob = b === 'MEDIAS RES' ? -1 : b === 'SIN DETALLE' ? 1e4 : ordenCorte(b); return oa - ob || a.localeCompare(b); }); }
+  function repMatriz(d) {
+    var g = {}; d.filas.forEach(function (r) { Object.keys(r.grupos || {}).forEach(function (k) { g[k] = 1; }); });
+    return repOrdenGrupos(Object.keys(g)).map(function (k) { var fila = { corte: k, por: {}, tot: 0 }; d.filas.forEach(function (r) { var v = Math.round((r.grupos || {})[k] || 0); fila.por[r.suc] = v; fila.tot += v; }); return fila; });
+  }
+  var REP_SEMANAS = 4;
+  function repSemanas(L, pref) {
+    var sems = [], g = {};
+    for (var k = REP_SEMANAS - 1; k >= 0; k--) { var Lk = mas(L, -7 * k), dk = repDatos(Lk, pref), tk = {}; dk.filas.forEach(function (r) { Object.keys(r.grupos || {}).forEach(function (q) { tk[q] = (tk[q] || 0) + (r.grupos[q] || 0); g[q] = 1; }); }); sems.push({ L: Lk, t: tk }); }
+    return { sems: sems, filas: repOrdenGrupos(Object.keys(g)).map(function (q) { var f = { corte: q, por: {}, tot: 0 }; sems.forEach(function (sm) { var v = Math.round(sm.t[q] || 0); f.por[sm.L] = v; f.tot += v; }); return f; }) };
+  }
+  function repSemCorta(L) { var a = String(L).split('-'), b = String(mas(L, 6)).split('-'); return (+a[2]) + '/' + (+a[1]) + '–' + (+b[2]) + '/' + (+b[1]); }
   function repSemTxt(L) { return 'Semana del ' + diaCorto(L).replace(/^\S+ /, '') + ' al ' + diaCorto(mas(L, 6)).replace(/^\S+ /, ''); }
   function repHTML() {
     var L = S.repSem || lunesDe(hoy()), pref = S.repCli == null ? 'DINO' : S.repCli, d = repDatos(L, pref);
@@ -1151,6 +1165,16 @@
     h += '<details class="rep-det"' + (S.repDet ? ' open' : '') + '><summary>Cortes de cada sucursal</summary><div class="rep-cortes">' + d.filas.map(function (r) {
       return '<div class="rep-suc-c"><h3>' + esc(r.suc) + ' <small class="muted">' + n(r.tot) + ' kg</small></h3><table class="pl"><tbody>' + repCortesDe(r).map(function (c) { return '<tr><td>' + esc(c.n) + (c.sin.length ? ' <span class="small neg">(' + esc(c.sin.join(', ')) + ')</span>' : '') + '</td><td class="num">' + (c.kg ? n(c.kg) + ' kg' : '–') + '</td></tr>'; }).join('') + '</tbody></table></div>';
     }).join('') + '</div></details>';
+    // Total unificado: cada corte una fila, cada sucursal una columna.
+    var mz = repMatriz(d), totM = 0;
+    h += '<h3 class="rep-sub">Total por corte y sucursal <small class="muted">' + esc(repSemTxt(L).toLowerCase()) + '</small></h3><div class="rep-tabla"><table class="pl rep-mz"><thead><tr><th>Corte</th>' + d.filas.map(function (r) { return '<th class="num">' + esc(r.suc) + '</th>'; }).join('') + '<th class="num">Total</th></tr></thead><tbody>'
+      + mz.map(function (f) { totM += f.tot; return '<tr><td>' + esc(f.corte) + '</td>' + d.filas.map(function (r) { return '<td class="num">' + (f.por[r.suc] ? n(f.por[r.suc]) : '–') + '</td>'; }).join('') + '<td class="num"><b>' + n(f.tot) + '</b></td></tr>'; }).join('')
+      + '</tbody><tfoot><tr><th>Total</th>' + d.filas.map(function (r) { return '<th class="num">' + n(Math.round(r.tot)) + '</th>'; }).join('') + '<th class="num">' + n(totM) + ' kg</th></tr></tfoot></table></div>';
+    // Y por semanas: las últimas 4 (todas las sucursales juntas).
+    var ss = repSemanas(L, pref), totS = 0;
+    h += '<h3 class="rep-sub">Total por corte, últimas ' + REP_SEMANAS + ' semanas <small class="muted">todas las sucursales</small></h3><div class="rep-tabla"><table class="pl rep-mz"><thead><tr><th>Corte</th>' + ss.sems.map(function (sm) { return '<th class="num">' + esc(repSemCorta(sm.L)) + '</th>'; }).join('') + '<th class="num">Total</th></tr></thead><tbody>'
+      + ss.filas.map(function (f) { totS += f.tot; return '<tr><td>' + esc(f.corte) + '</td>' + ss.sems.map(function (sm) { return '<td class="num">' + (f.por[sm.L] ? n(f.por[sm.L]) : '–') + '</td>'; }).join('') + '<td class="num"><b>' + n(f.tot) + '</b></td></tr>'; }).join('')
+      + '</tbody><tfoot><tr><th>Total</th>' + ss.sems.map(function (sm) { return '<th class="num">' + n(ss.filas.reduce(function (a, f) { return a + (f.por[sm.L] || 0); }, 0)) + '</th>'; }).join('') + '<th class="num">' + n(totS) + ' kg</th></tr></tfoot></table></div>';
     return h + '<div class="acciones"><button class="btn" data-act="rep-copiar">Copiar el reporte</button><button class="btn" data-act="rep-excel">Descargar Excel</button><span class="guardado" id="g-rep"></span></div></div>';
   }
   function repTexto(sep) {
@@ -1162,11 +1186,18 @@
       t.push(['TOTAL'].concat(d.dias.map(function (f) { return d.filas.reduce(function (a, r) { return a + (r.d[f] || 0); }, 0); }), [tot]).join(sep));
       t.push('', ['Sucursal', 'Corte', 'Kg semana', 'Sin peso'].join(sep));
       d.filas.forEach(function (r) { repCortesDe(r).forEach(function (c) { t.push([r.suc, c.n, c.kg, c.sin.join(' / ')].join(sep)); }); });
+      var mz = repMatriz(d);
+      t.push('', ['Total por corte'].concat(d.filas.map(function (r) { return r.suc; }), ['Total (kg)']).join(sep));
+      mz.forEach(function (f) { t.push([f.corte].concat(d.filas.map(function (r) { return f.por[r.suc] || 0; }), [f.tot]).join(sep)); });
+      var ss = repSemanas(L, pref);
+      t.push('', ['Por semanas'].concat(ss.sems.map(function (sm) { return repSemCorta(sm.L); }), ['Total (kg)']).join(sep));
+      ss.filas.forEach(function (f) { t.push([f.corte].concat(ss.sems.map(function (sm) { return f.por[sm.L] || 0; }), [f.tot]).join(sep)); });
       return t.join('\r\n');
     }
     t.push('*' + norm(pref) + ' · kilos por sucursal*', repSemTxt(L), '');
     d.filas.forEach(function (r) { tot += r.tot; t.push(r.suc + ': *' + n(r.tot) + ' kg*' + (d.dias.length > 1 ? ' (' + d.dias.filter(function (f) { return r.d[f]; }).map(function (f) { return diaCorto(f) + ' ' + n(r.d[f]); }).join(' + ') + ')' : '')); repCortesDe(r).forEach(function (c) { t.push('   • ' + c.n + ': ' + (c.kg ? n(c.kg) + ' kg' : c.sin.join(', '))); }); t.push(''); });
-    t.push('*Total: ' + n(tot) + ' kg*');
+    t.push('*Total: ' + n(tot) + ' kg*', '', '*Total por corte*');
+    repMatriz(d).forEach(function (f) { t.push(f.corte + ': ' + n(f.tot) + ' kg'); });
     return t.join('\n');
   }
   function filtrarClientes() {

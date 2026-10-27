@@ -212,3 +212,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Medias (vista del día): botón "PDF por WhatsApp" con los animales para clientes del día (cliente, aclaración y cantidad, con el total).
 - Producción: los renglones de PECHO MANTA DOBLE que no dicen "DOBLE" (ej. "PECHITO CON MANTA") se muestran en PECHO; la IA ya no manda "pechito con manta" a manta doble. Lo guardado no cambia.
 - Fresco/congelado es solo para las cajas (cortes): los pedidos de solo medias ya no muestran el cartel ni salen como "cong." en Logística, Resumen ni WhatsApp (las medias siempre van frescas).
+- Kilos por sucursal: tablas "Total por corte y sucursal" (cortes unificados por rubro: JAMON, PECHO, BONDIOLA…, sin importar el código de cada sucursal; una columna por sucursal) y "Total por corte, últimas 4 semanas"; también en Copiar el reporte y en el Excel.
