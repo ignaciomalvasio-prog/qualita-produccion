@@ -2485,22 +2485,11 @@
     txt = String(txt || '').replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, '').replace(/[ \t]+\n/g, '\n').replace(/ {2,}/g, ' ');
     var movil = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent || '');
     if (window.__mock) { window.__mock.compartido = txt; return; }
-    // En la compu también se usa "Compartir" del sistema cuando se puede (Chrome 128+): así sale por la misma app de WhatsApp
-    // que el PDF de la planilla. Antes el link wa.me abría otra cuenta (WhatsApp Web o la otra app instalada).
-    var puede = false; try { puede = !!(navigator.share && (!navigator.canShare || navigator.canShare({ text: txt }))); } catch (e) {}
-    if (puede) { navigator.share({ text: txt }).then(null, function (e) { if (e && e.name !== 'AbortError') abrirWhatsAppApp(txt); }); return; }
-    abrirWhatsAppApp(txt);
-  }
-  // Sin "Compartir" del sistema: abre la app de WhatsApp de la compu directo (whatsapp://), sin dejar pestañas abiertas.
-  // Si en 2 segundos no se abrió ninguna app, usa WhatsApp Web, siempre en la misma pestaña (no una nueva por cada envío).
-  function abrirWhatsAppApp(txt) {
-    var salio = false, alSalir = function () { salio = true; };
-    window.addEventListener('blur', alSalir); document.addEventListener('visibilitychange', alSalir);
-    var a = document.createElement('a'); a.href = 'whatsapp://send?text=' + encodeURIComponent(txt); a.style.display = 'none'; document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(function () {
-      window.removeEventListener('blur', alSalir); document.removeEventListener('visibilitychange', alSalir);
-      if (!salio) window.open('https://web.whatsapp.com/send?text=' + encodeURIComponent(txt), 'qualita-whatsapp');
-    }, 2000);
+    // Celular: "Compartir" del sistema. Compu: la página de WhatsApp con el mensaje para revisarlo y corregirlo antes de mandar
+    // (como le gusta a Renzo), pero siempre en la MISMA pestaña: antes se abría una pestaña nueva por cada envío.
+    if (movil && navigator.share) { navigator.share({ text: txt }).then(null, function () {}); return; }
+    var w = window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(txt), 'qualita-whatsapp');
+    try { if (w) w.focus(); } catch (e) {}
   }
   /* Resumen del día, como la hoja que se arma a mano: un recuadro por camión con su número, nombre y hora,
      y los clientes en el orden de carga ("Aledo 12½ + C" = 12 medias y cortes). */

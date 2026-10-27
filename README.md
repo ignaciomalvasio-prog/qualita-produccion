@@ -233,3 +233,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Pedidos: el selector de unidad también aparece en los renglones en BINES y tiene la opción BINES; se puede pasar de bines a unidades/kg/cajas (y la planilla de producción lo toma).
 - WhatsApp: los mensajes ya no llevan emojis (👋 🚚 🚛), que desde Windows llegaban como "?"; también se limpian de los saludos guardados al mandar.
 - WhatsApp desde la compu: si no hay "Compartir" del sistema, abre la app de WhatsApp directo (whatsapp://) sin dejar pestañas; si no hay app, usa WhatsApp Web siempre en la misma pestaña (antes abría una pestaña nueva por cada envío).
+- WhatsApp (texto) en la compu: vuelve la página de WhatsApp con el mensaje para revisar/corregir antes de mandar, pero siempre en la misma pestaña (no una nueva por cada envío). En el celu sigue con Compartir.
