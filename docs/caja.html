@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Planilla de caja · Qualitá Express</title>
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="manifest" href="/caja.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Caja">
+<meta name="theme-color" content="#0b5d75">
 <link rel="icon" type="image/png" href="/icon-192.png">
 <meta name="robots" content="noindex">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -367,7 +372,7 @@ async function subirExcel(file) {
 
 const qf = new URLSearchParams(location.search).get('f');
 $('f').value = /^\d{4}-\d{2}-\d{2}$/.test(qf || '') ? qf : hoyIso();
-C3API.listo.then(api => { if (api.rol === 'ddjj') location.replace('/ddjj'); else cargarDia(); });
+C3API.listo.then(api => { if (api.rol === 'ddjj') location.replace('/ddjj'); else if (api.rol === 'faena') location.replace('/faena'); else cargarDia(); });
 </script>
 </body>
 </html>

@@ -5,6 +5,8 @@
    - Productores del informe por granja (La Quimera y Consultores Asociados): eq().fm.lq. */
 'use strict';
 
+/* solo lectura: la vista /faena (rol "faena") no muestra botones para cambiar nada */
+const soloVer = () => window.SOLO_FAENA || (window.C3API && C3API.rol === 'faena');
 const FM_DEF = { lq: [5153, 5208], lqNombre: 'La Quimera' };
 const eqF = () => (eq().fm || FM_DEF);
 const MESES3 = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -78,7 +80,7 @@ function renderFaena() {
     return '<td class="num">' + z0(sum(tq, 'tropas')) + '</td><td class="num">' + z0(cab) + '</td><td class="num">' + z0(c) + '</td><td class="num">' + z0(v) + '</td><td class="num"><b>' + z0(c + v) + '</b></td><td class="num">' + (cab ? pct2(c / cab) : '') + '</td><td class="num">' + (cab ? pct2(v / cab) : '') + '</td><td class="num"><b>' + (cab ? pct2((c + v) / cab) : '') + '</b></td>';
   };
   const cab = '<th class="num">Tropas</th><th class="num">Cabezas</th><th class="num">Corral</th><th class="num">Viaje</th><th class="num">Total muertos</th><th class="num">% corral</th><th class="num">% viaje</th><th class="num">% mortalidad</th>';
-  h += '<section><h2>Mortalidad ' + esc(eqF().lqNombre) + ' por granja · ' + A + '</h2><p class="sub">Tropas recibidas de ' + esc(lq.join(', ')) + ' (cuentas del sistema) y sus muertos en corral y en viaje. <a href="#" onclick="cambiarLq();return false">Cambiar productores</a></p>';
+  h += '<section><h2>Mortalidad ' + esc(eqF().lqNombre) + ' por granja · ' + A + '</h2><p class="sub">Tropas recibidas de ' + esc(lq.join(', ')) + ' (cuentas del sistema) y sus muertos en corral y en viaje.' + (soloVer() ? '' : ' <a href="#" onclick="cambiarLq();return false">Cambiar productores</a>') + '</p>';
   h += '<div class="tw"><table class="planilla dj-rm"><thead><tr><th>Granja</th>' + cab + '</tr></thead><tbody>' +
     granjas.map(g => '<tr><td><b>' + esc(titulo(g)) + '</b></td>' + fila(g, TQ.filter(t => t.loc === g), MQ.filter(m => m.loc === g)) + '</tr>').join('') +
     '<tr class="tot"><td>Total</td>' + fila('', TQ, MQ) + '</tr></tbody></table></div>';
@@ -86,10 +88,10 @@ function renderFaena() {
     meses.filter(i => TQ.some(t => Number(t.mes.slice(5, 7)) === i + 1)).map(i => '<tr><td><b>' + MESES[i] + '</b></td>' + fila('', TQ.filter(t => Number(t.mes.slice(5, 7)) === i + 1), MQ.filter(m => Number(m.fecha.slice(5, 7)) === i + 1)) + '</tr>').join('') + '</tbody></table></div></section>';
 
   /* ---- listado ---- */
-  h += '<section><div class="dj-top"><div><h2>Muertos ' + A + ' (' + z0(tm) + ')</h2><p class="sub" style="margin:0">Del sistema y cargados a mano. Los cargados a mano se pueden borrar.</p></div><button class="primary" onclick="agregarMuerto()">+ Agregar un muerto que no está en el sistema</button></div>';
+  h += '<section><div class="dj-top"><div><h2>Muertos ' + A + ' (' + z0(tm) + ')</h2><p class="sub" style="margin:0">Del sistema y cargados a mano.</p></div>' + (soloVer() ? '' : '<button class="primary" onclick="agregarMuerto()">+ Agregar un muerto que no está en el sistema</button>') + '</div>';
   h += '<div class="tw" style="max-height:520px"><table class="planilla dj-rm"><thead><tr><th>Fecha</th><th>Tropa</th><th class="num">Cant.</th><th>Lugar</th><th>Jaula</th><th>Productor</th><th>Granja</th><th>Observación</th><th></th></tr></thead><tbody>' +
     MU.slice().reverse().map(m => '<tr><td>' + ddmm(m.fecha) + '</td><td>' + esc(m.tropa) + '</td><td class="num">' + z0(m.cab) + '</td><td>' + esc(m.lugar) + '</td><td>' + esc(m.patente || '') + '</td><td>' + esc(titulo(m.prod)) + '</td><td>' + esc(titulo(m.loc)) + '</td><td class="muted">' + esc(m.obs || '') + '</td><td>' +
-      (m.man ? '<span class="chip sm warn">a mano</span> <button class="small danger" onclick="borrarMuerto(\'' + esc(m.id) + '\')">✕</button>' : '') + '</td></tr>').join('') + '</tbody></table></div></section>';
+      (m.man ? '<span class="chip sm warn">a mano</span>' + (soloVer() ? '' : ' <button class="small danger" onclick="borrarMuerto(\'' + esc(m.id) + '\')">✕</button>') : '') + '</td></tr>').join('') + '</tbody></table></div></section>';
   $('main').innerHTML = h;
 }
 

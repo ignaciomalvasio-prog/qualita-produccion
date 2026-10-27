@@ -1,0 +1,25 @@
+{
+  "name": "Centro de control Qualitá",
+  "short_name": "Control",
+  "description": "Ciclo III y Qualitá Express.",
+  "lang": "es",
+  "start_url": "./control",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0b5d75",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

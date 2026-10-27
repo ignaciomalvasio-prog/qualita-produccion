@@ -530,9 +530,17 @@ function verImpresion() {
 /* ---------- arranque ---------- */
 document.getElementById('nav').addEventListener('click', e => {
   const a = e.target.closest('a[data-t]'); if (!a) return; e.preventDefault();
+  if (window.SOLO_FAENA && a.dataset.t !== 'faena') return;
   S.tab = a.dataset.t; render(); window.scrollTo(0, 0);
 });
 C3API.listo.then(() => {
+  /* vista solo de Faena y mortalidad (link /faena o usuarios con rol "faena") */
+  if (window.SOLO_FAENA || C3API.rol === 'faena') {
+    window.SOLO_FAENA = true; S.tab = 'faena';
+    document.querySelectorAll('#nav > *').forEach(x => { if (!(x.dataset && x.dataset.t === 'faena')) x.style.display = 'none'; });
+    const st = document.querySelector('header .brand .s'); if (st) st.textContent = 'Faena y mortalidad';
+    const mes = document.querySelector('header .mes'); if (mes) mes.title = 'El año se toma del mes elegido';
+  }
   const q = new URLSearchParams(location.search).get('f');
   if (q && /^\d{4}-\d{2}-\d{2}$/.test(q)) { S.mes = q.slice(0, 7); S.fecha = q; S.tab = 'dia'; }
   const q3 = new URLSearchParams(location.search).get('c3');

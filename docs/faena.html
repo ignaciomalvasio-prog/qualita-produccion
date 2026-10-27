@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Faena y mortalidad · Qualitá</title>
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="manifest" href="/faena.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Faena">
+<meta name="theme-color" content="#0b5d75">
+<link rel="icon" type="image/png" href="/icon-192.png">
+<meta name="robots" content="noindex">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+<link rel="stylesheet" href="/control-estilo.css">
+<link rel="stylesheet" href="/control.css">
+<link rel="stylesheet" href="/ddjj.css">
+</head>
+<body>
+<header class="no-print">
+  <div class="brand"><img src="/logo.png" alt="Qualitá"><div><div class="t">Frigorífico Qualitá</div><div class="s">Rendimiento, faena y DDJJ</div></div></div>
+  <nav id="nav">
+    <a href="#" data-t="rend" class="on">Rendimiento</a>
+    <a href="#" data-t="faena">Faena y mortalidad</a>
+    <div class="ng"><span class="ngt">DDJJ</span><div class="ngl">
+      <a href="#" data-t="dia">Desposte</a>
+      <a href="#" data-t="c3">Ciclo III</a>
+    </div></div>
+    <a href="#" data-t="equiv">Equivalencias</a>
+  </nav>
+  <div class="mes">
+    <button class="small" onclick="moverMes(-1)" title="Mes anterior">◀</button>
+    <input type="month" id="mes" onchange="cambiarMes(this.value)">
+    <button class="small" onclick="moverMes(1)" title="Mes siguiente">▶</button>
+  </div>
+  <div class="stat" id="st"></div>
+  <button class="small" onclick="cargar(true)" title="Vuelve a leer los datos">⟳ Actualizar</button>
+</header>
+
+<main id="main" class="no-print"><div class="cargando"><span class="spin"></span> Conectando…</div></main>
+
+<div id="impresion" class="solo-print"></div>
+
+<dialog id="dlg">
+  <div class="dlg-h" id="dlg-h"></div>
+  <div class="dlg-b" id="dlg-b"></div>
+  <div class="dlg-f" id="dlg-f"></div>
+</dialog>
+<div class="toast no-print" id="toast"></div>
+
+<script>window.C3_TITULO = 'Faena y mortalidad · Frigorífico Qualitá'; window.SOLO_FAENA = true;</script>
+<script src="/acceso.js"></script>
+<script src="/control-base.js"></script>
+<script src="/control-comun.js"></script>
+<script src="/ddjj-c3.js"></script>
+<script src="/ddjj-rend.js"></script>
+<script src="/ddjj-faena.js"></script>
+<script src="/ddjj.js"></script>
+</body>
+</html>
