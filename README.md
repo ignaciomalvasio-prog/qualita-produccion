@@ -232,3 +232,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - WhatsApp (texto del Resumen y de cada camión): en la compu también abre "Compartir" del sistema, igual que los PDF, así sale siempre por la misma app/cuenta de WhatsApp (antes el link abría WhatsApp Web u otra cuenta).
 - Pedidos: el selector de unidad también aparece en los renglones en BINES y tiene la opción BINES; se puede pasar de bines a unidades/kg/cajas (y la planilla de producción lo toma).
 - WhatsApp: los mensajes ya no llevan emojis (👋 🚚 🚛), que desde Windows llegaban como "?"; también se limpian de los saludos guardados al mandar.
+- WhatsApp desde la compu: si no hay "Compartir" del sistema, abre la app de WhatsApp directo (whatsapp://) sin dejar pestañas; si no hay app, usa WhatsApp Web siempre en la misma pestaña (antes abría una pestaña nueva por cada envío).

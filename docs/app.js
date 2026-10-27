@@ -761,7 +761,7 @@
       }
       bajar(blob, nombre);
       // En la compu WhatsApp no deja adjuntar desde una página: se baja el PDF y se abre WhatsApp Web para arrastrarlo al chat.
-      if (wa) { if (window.__mock) window.__mock.abrioWA = true; else window.open('https://web.whatsapp.com/', '_blank', 'noopener'); return 'PDF descargado: ' + nombre + '. Se abrió WhatsApp: elegí el chat y arrastrá el PDF (o tocá el clip y adjuntalo).'; }
+      if (wa) { if (window.__mock) window.__mock.abrioWA = true; else window.open('https://web.whatsapp.com/', 'qualita-whatsapp'); return 'PDF descargado: ' + nombre + '. Se abrió WhatsApp: elegí el chat y arrastrá el PDF (o tocá el clip y adjuntalo).'; }
       return 'PDF descargado: ' + nombre + '. Adjuntalo en WhatsApp o en el mail.';
     }).then(function (m) { fin(m); }, function () { fin('!No se pudo armar el PDF. Revisá la conexión y probá de nuevo.'); });
   }
@@ -2488,8 +2488,19 @@
     // En la compu también se usa "Compartir" del sistema cuando se puede (Chrome 128+): así sale por la misma app de WhatsApp
     // que el PDF de la planilla. Antes el link wa.me abría otra cuenta (WhatsApp Web o la otra app instalada).
     var puede = false; try { puede = !!(navigator.share && (!navigator.canShare || navigator.canShare({ text: txt }))); } catch (e) {}
-    if (puede) { navigator.share({ text: txt }).then(null, function (e) { if (e && e.name !== 'AbortError') window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank', 'noopener'); }); return; }
-    window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank', 'noopener');
+    if (puede) { navigator.share({ text: txt }).then(null, function (e) { if (e && e.name !== 'AbortError') abrirWhatsAppApp(txt); }); return; }
+    abrirWhatsAppApp(txt);
+  }
+  // Sin "Compartir" del sistema: abre la app de WhatsApp de la compu directo (whatsapp://), sin dejar pestañas abiertas.
+  // Si en 2 segundos no se abrió ninguna app, usa WhatsApp Web, siempre en la misma pestaña (no una nueva por cada envío).
+  function abrirWhatsAppApp(txt) {
+    var salio = false, alSalir = function () { salio = true; };
+    window.addEventListener('blur', alSalir); document.addEventListener('visibilitychange', alSalir);
+    var a = document.createElement('a'); a.href = 'whatsapp://send?text=' + encodeURIComponent(txt); a.style.display = 'none'; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () {
+      window.removeEventListener('blur', alSalir); document.removeEventListener('visibilitychange', alSalir);
+      if (!salio) window.open('https://web.whatsapp.com/send?text=' + encodeURIComponent(txt), 'qualita-whatsapp');
+    }, 2000);
   }
   /* Resumen del día, como la hoja que se arma a mano: un recuadro por camión con su número, nombre y hora,
      y los clientes en el orden de carga ("Aledo 12½ + C" = 12 medias y cortes). */
