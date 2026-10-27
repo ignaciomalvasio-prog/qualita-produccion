@@ -1318,12 +1318,12 @@
   }
   /* Unidad de un renglón ("20 JAMON" → sin unidad; "20 KG JAMON" → kg). Se elige en Logística y se escribe en el texto,
      así los kilos, la planilla de producción y los totales la toman igual que si hubiera venido en el pedido. */
-  var UNIDADES = [['kg', 'KG'], ['cajas', 'CAJAS'], ['und', 'UNIDADES']];
-  var RE_UNI = /^(\s*[\d.,]+)\s*(?:(KGS?|KILOS?|K|CAJAS?|CJS?|UND|UNIDAD(?:ES)?|UNID|U)\.?(?:\s+(?:DE|X)\s*[\d.,]+\s*(?:KGS?|KILOS?)\.?)?)?(?=\s|$)/i;
+  var UNIDADES = [['kg', 'KG'], ['cajas', 'CAJAS'], ['und', 'UNIDADES'], ['bines', 'BINES']];
+  var RE_UNI = /^(\s*[\d.,]+)\s*(?:(KGS?|KILOS?|K|CAJAS?|CJS?|UND|UNIDAD(?:ES)?|UNID|U|BINES?)\.?(?:\s+(?:DE|X)\s*[\d.,]+\s*(?:KGS?|KILOS?)\.?)?)?(?=\s|$)/i;
   function unidadDe(t) {
     var m = String(t || '').match(RE_UNI); if (!m) return null;
     var u = (m[2] || '').toUpperCase();
-    return !u ? '' : /^K/.test(u) ? 'kg' : /^C/.test(u) ? 'cajas' : 'und';
+    return !u ? '' : /^K/.test(u) ? 'kg' : /^C/.test(u) ? 'cajas' : /^B/.test(u) ? 'bines' : 'und';
   }
   function conUnidad(t, u) {
     var s = String(t || ''), m = s.match(RE_UNI), uu = UNIDADES.filter(function (x) { return x[0] === u; })[0];
@@ -2686,7 +2686,7 @@
   function cantHTML(t, sel) {
     var s = String(t || ''), m = s.match(RE_CANT); if (!m) return esc(s);
     var resto = s.slice(m[0].length).trim(), pal = (m[2] || '').trim();
-    var cant = sel && !/^MEDIA|^CANAST|^BIN/i.test(pal) ? esc(m[1]) + ' ' + sel + (pal ? '<span class="solo-print">' + esc(pal) + '</span>' : '') : esc(m[1] + (pal ? ' ' + pal : ''));
+    var cant = sel && !/^MEDIA|^CANAST/i.test(pal) ? esc(m[1]) + ' ' + sel + (pal ? '<span class="solo-print">' + esc(pal) + '</span>' : '') : esc(m[1] + (pal ? ' ' + pal : ''));
     return '<b class="lc-cant">' + cant + '</b>' + (resto ? ' ' + esc(resto) : '');
   }
   // Un cliente dentro del camión: su lugar bien grande, el nombre y los cortes en columnas; cada cliente en su recuadro.
