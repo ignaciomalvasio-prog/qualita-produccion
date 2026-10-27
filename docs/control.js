@@ -108,7 +108,7 @@ function fijarCabeceras() {
 new MutationObserver(() => { clearTimeout(window._fc); window._fc = setTimeout(fijarCabeceras, 30); }).observe(document.getElementById('main'), { childList: true, subtree: false });
 function render() {
   if (!S) return;
-  const f = { inicio: renderInicio, c3: renderC3, insumos: renderInsumos, merc: renderMerc, ventas: renderVentas, caja: renderCaja, cambios: renderCambios }[TAB];
+  const f = { inicio: renderInicio, c3: renderC3, insumos: renderInsumos, merc: renderMerc, ventas: renderVentas, caja: renderCaja, cambios: renderCambios, usuarios: renderUsuarios }[TAB];
   f();
 }
 function cabecera(titulo, sub, botones) {
@@ -1146,21 +1146,27 @@ async function renderCambios() {
   let filas = [];
   try { filas = await C3API.cambios(); } catch (e) { toast('No se pudo leer el historial', true); }
   let h = cabecera('Cambios', sub, '') +
-    '<section>' + (filas.length ? '<table class="xl" data-hoja="Cambios"><thead><tr><th>Cuándo</th><th>Quién</th><th>Qué</th></tr></thead><tbody>' +
+    '<section>' + (filas.length ? '<div class="tw" style="max-height:none"><table class="xl" data-hoja="Cambios"><thead><tr><th>Cuándo</th><th>Quién</th><th>Qué</th></tr></thead><tbody>' +
       filas.map(f => '<tr><td style="white-space:nowrap">' + esc(new Date(f.ts).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })) + '</td><td>' + esc(f.quien) + '</td><td>' + esc(f.cambio || f.doc) + '</td></tr>').join('') +
-      '</tbody></table>' : '<div class="empty">Todavía no hay cambios.</div>') + '</section>';
-  if (C3API.editor) h += '<section id="sec-usr"><h2>Usuarios</h2><p class="sub">Quién puede entrar. <b>Todo</b>: tablero completo (Carlos). <b>Solo caja</b>: la planilla de caja del local (Gastón). Los editores de la app de producción entran siempre.</p><div id="usr" class="cargando"><span class="spin"></span></div></section>';
+      '</tbody></table></div>' : '<div class="empty">Todavía no hay cambios.</div>') + '</section>';
+  if (C3API.editor) h += '<p class="nota">Para habilitar a alguien (Carlos, Gastón) andá a la pestaña <a href="#" onclick="irA(\'usuarios\');return false">Usuarios</a>.</p>';
   $('main').innerHTML = h;
-  if (C3API.editor) dibujarUsuarios();
 }
+/* Usuarios: quién puede entrar al Centro de control y a la planilla de caja (solo lo ven los editores) */
+function renderUsuarios() {
+  if (!C3API.editor) { $('main').innerHTML = cabecera('Usuarios', '', '') + '<div class="empty">Solo Igna puede habilitar usuarios.</div>'; return; }
+  $('main').innerHTML = cabecera('Usuarios', 'Agregá el mail de la persona, su nombre y qué puede ver, y tocá Agregar. Después le pasás el link y entra con ese mail.', '') + '<section id="sec-usr"><h2>Usuarios</h2><p class="sub">Quién puede entrar. <b>Todo</b>: tablero completo (Carlos). <b>Solo caja</b>: la planilla de caja del local (Gastón). Los editores de la app de producción entran siempre.</p><div id="usr" class="cargando"><span class="spin"></span></div><p class="nota" style="font-size:14px">Links para pasar: <b>qualita-produccion.web.app/control</b> (tablero, Carlos) · <b>qualita-produccion.web.app/caja</b> (planilla de caja, Gastón).</p></section>';
+  dibujarUsuarios();
+}
+C3API.listo.then(a => { if (a.editor) $('nav-usr').style.display = ''; });
 async function dibujarUsuarios() {
   let us = [];
   try { us = await C3API.usuarios(); } catch (e) { $('usr').innerHTML = '<div class="alerta bad">No se pudo leer la lista (¿están publicadas las reglas nuevas de Firestore?)</div>'; return; }
   us.sort((a, b) => a.email.localeCompare(b.email));
   $('usr').className = '';
-  $('usr').innerHTML = '<table style="max-width:820px"><thead><tr><th>Mail</th><th>Nombre</th><th>Puede ver</th><th></th></tr></thead><tbody>' +
+  $('usr').innerHTML = '<div style="overflow-x:auto"><table style="max-width:820px;min-width:560px"><thead><tr><th>Mail</th><th>Nombre</th><th>Puede ver</th><th></th></tr></thead><tbody>' +
     us.map(u => '<tr><td>' + esc(u.email) + '</td><td>' + esc(u.nombre || '') + '</td><td>' + (u.rol === 'caja' ? 'Solo caja' : 'Todo') + '</td><td><button class="small danger" onclick="sacarUsuario(\'' + esc(u.email) + '\')">Sacar</button></td></tr>').join('') +
-    '<tr><td><input id="nu-mail" placeholder="mail con el que ingresa (Google o el que use)"></td><td><input id="nu-nom" placeholder="Nombre (ej: Carlos)"></td><td><select id="nu-rol"><option value="todo">Todo</option><option value="caja">Solo caja</option></select></td><td><button class="small primary" onclick="agregarUsuario()">Agregar</button></td></tr></tbody></table>';
+    '<tr><td><input id="nu-mail" placeholder="mail con el que ingresa (Google o el que use)"></td><td><input id="nu-nom" placeholder="Nombre (ej: Carlos)"></td><td><select id="nu-rol"><option value="todo">Todo</option><option value="caja">Solo caja</option></select></td><td><button class="small primary" onclick="agregarUsuario()">Agregar</button></td></tr></tbody></table></div>';
 }
 async function agregarUsuario() {
   const mail = $('nu-mail').value.trim().toLowerCase(), nombre = $('nu-nom').value.trim(), rol = $('nu-rol').value;
@@ -1168,7 +1174,7 @@ async function agregarUsuario() {
   try {
     await C3API.ponerUsuario(mail, { nombre, rol, por: quien(), ts: new Date().toISOString() });
     await C3API.cambiarDoc('usuarios-log', d => { d.n = (d.n || 0) + 1; }, 'Usuario agregado: ' + mail + ' (' + (rol === 'caja' ? 'solo caja' : 'todo') + ')');
-    toast('Listo: ' + mail + ' ya puede entrar'); renderCambios();
+    toast('Listo: ' + mail + ' ya puede entrar'); dibujarUsuarios();
   } catch (e) { toast('No se pudo agregar: ' + (e.message || e), true); }
 }
 async function sacarUsuario(mail) {
@@ -1176,7 +1182,7 @@ async function sacarUsuario(mail) {
   try {
     await C3API.sacarUsuario(mail);
     await C3API.cambiarDoc('usuarios-log', d => { d.n = (d.n || 0) + 1; }, 'Usuario sacado: ' + mail);
-    renderCambios();
+    dibujarUsuarios();
   } catch (e) { toast('No se pudo sacar: ' + (e.message || e), true); }
 }
 
