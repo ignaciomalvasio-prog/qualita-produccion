@@ -54,7 +54,7 @@ const EQ_DEF = {
 };
 
 /* ---------- estado ---------- */
-const S = { tab: 'dia', mes: '', fecha: '', sis: null, hora: '', eq: null, doc: null, abierto: {}, editando: false };
+const S = { tab: 'rend', mes: '', fecha: '', sis: null, hora: '', eq: null, doc: null, abierto: {}, editando: false };
 const mesHoy = () => hoyIso().slice(0, 7);
 
 /* ---------- lectura de lo que subió la notebook ---------- */
@@ -534,7 +534,7 @@ document.getElementById('nav').addEventListener('click', e => {
 });
 C3API.listo.then(() => {
   const q = new URLSearchParams(location.search).get('f');
-  if (q && /^\d{4}-\d{2}-\d{2}$/.test(q)) { S.mes = q.slice(0, 7); S.fecha = q; }
+  if (q && /^\d{4}-\d{2}-\d{2}$/.test(q)) { S.mes = q.slice(0, 7); S.fecha = q; S.tab = 'dia'; }
   const q3 = new URLSearchParams(location.search).get('c3');
   if (q3 && /^\d{4}-\d{2}-\d{2}$/.test(q3)) { S.mes = q3.slice(0, 7); S.fecha3 = q3; S.tab = 'c3'; }
   cargar(false);
