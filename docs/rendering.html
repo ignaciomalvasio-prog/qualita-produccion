@@ -355,6 +355,31 @@ h1 a{color:inherit;text-decoration:none}
 .h-txt{min-width:0}
 .h-cant{font:800 19px var(--display);color:var(--ink);margin-right:4px;letter-spacing:.01em}
 @media (max-width:560px){ .hoja-corte li{flex-direction:column;gap:2px} .h-cli{flex:0 0 auto;align-self:flex-start} .h-cli.vacio{display:none} }
+/* Producción en el celular, más compacta (pedido de Renzo): botones chicos, cliente y pedido en el mismo renglón. */
+@media screen and (max-width:560px){
+  #view-produccion .nav{gap:5px}
+  #view-produccion .nav .tit{font-size:20px}
+  #view-produccion .nav .btn{min-height:32px;padding:4px 10px;font-size:13px}
+  #view-produccion .nav .btn.step{width:36px;padding:0;font-size:18px}
+  #view-produccion .nav input[type=date]{min-height:32px;padding:3px 8px;font-size:14px}
+  #view-produccion .pv-tabs .btn{padding:6px 10px;font-size:14px}
+  #view-produccion .hoja{padding:12px 10px}
+  #view-produccion .hoja-cab{gap:4px 14px;padding-bottom:8px}
+  #view-produccion .hoja-cab h2{font-size:19px}
+  #view-produccion .hoja-sup{font-size:10px}
+  #view-produccion .hoja-dato b{font-size:22px}
+  #view-produccion .hoja-acc{gap:5px;margin:0 0 6px;padding-bottom:8px}
+  #view-produccion .hoja-acc .btn{min-height:30px;padding:3px 9px;font-size:12.5px}
+  #view-produccion .hoja-corte{padding:6px 2px;gap:2px}
+  #view-produccion .hoja-corte h3{font-size:16px}
+  #view-produccion .hoja-tot{font-size:14px}
+  #view-produccion .hoja-corte ul{gap:3px}
+  #view-produccion .hoja-corte li{display:block;font-size:13.5px;line-height:1.35}
+  #view-produccion .hoja-corte li .h-cli{display:inline;padding:1px 6px;margin-right:6px;font-size:11.5px}
+  #view-produccion .hoja-corte li .h-cli.vacio{display:none}
+  #view-produccion .hoja-corte li .h-txt{display:inline}
+  #view-produccion .hoja-corte li .badge{font-size:10px;padding:0 5px;vertical-align:1px}
+}
 @media (max-width:560px){ .hoja-corte{grid-template-columns:minmax(0,1fr)} .hoja-nom{flex-direction:row;align-items:baseline;justify-content:space-between;gap:12px} .hoja-tot span{display:inline;margin-right:4px} .hoja-dato{margin-left:0} .hoja-cab h2{font-size:24px} }
 /* listado de pedidos */
 .peds{display:flex;flex-direction:column;border-top:1px solid var(--line)}
