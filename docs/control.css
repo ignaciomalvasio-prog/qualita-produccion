@@ -173,3 +173,15 @@ header nav a+a::before{content:'';position:absolute;left:0;top:28%;bottom:28%;bo
 header nav a.on{background:var(--accent-soft);border-bottom-width:3px}
 header nav a:hover{background:#f1f5f7}
 @media (max-width:900px){header nav a+a::before{top:22%;bottom:22%}}
+
+/* pestañas agrupadas: Ciclo III y Local comercial */
+header nav{align-items:center}
+header nav>a{align-self:stretch}
+.ng{display:flex;flex-direction:column;flex-shrink:0;margin:5px 6px;border:1.5px solid var(--accent);border-radius:10px;overflow:hidden;background:#fff}
+.ng .ngt{font-size:10.5px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;text-align:center;padding:2px 10px;color:#fff;background:var(--accent)}
+.ng-loc{border-color:#2f7a55}
+.ng-loc .ngt{background:#2f7a55}
+.ngl{display:flex}
+.ngl a{padding:7px 16px !important;margin-bottom:0 !important}
+.ng-loc .ngl a.on{color:#2f7a55;border-bottom-color:#2f7a55;background:#e8f4ec}
+@media (max-width:1400px){.ngl a{padding:7px 12px !important}}

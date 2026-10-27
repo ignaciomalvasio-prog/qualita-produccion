@@ -215,3 +215,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Kilos por sucursal: tablas "Total por corte y sucursal" (cortes unificados por rubro: JAMON, PECHO, BONDIOLA…, sin importar el código de cada sucursal; una columna por sucursal) y "Total por corte, últimas 4 semanas"; también en Copiar el reporte y en el Excel.
 - Kilos por sucursal: botón "PDF por WhatsApp" en el cuadro Total por corte y sucursal (hoja apaisada, entran todas las sucursales).
 - Cortes: se sacan PECHO MANTA DOBLE y PECHO MANTA DOBLE CON CUERO; todo es PECHO. Al entrar un editor, los pedidos y planillas que tenían esos rubros se pasan solos a PECHO (y se republica Logística de esos días).
+- Centro de control: pestañas agrupadas en dos cuadros, Ciclo III (Producción, Insumos) y Local comercial (Mercadería, Ventas, Caja).
