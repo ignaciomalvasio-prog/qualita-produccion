@@ -2377,7 +2377,7 @@
     var t = [waSaludo(f), '', '*' + diaDe(f).toUpperCase() + ' ' + x[2] + '-' + x[1] + '-' + x[0].slice(2) + '*'];
     cams.forEach(function (c) {
       var tit = (c.num && nomLimpio(c.nombre) ? 'N° ' + c.num + ' · ' : '') + nomCam(c);
-      t.push('', '*🚚 ' + tit.toUpperCase() + '*' + (c.hora ? ' — ' + c.hora + ' hs' : ''));
+      t.push('', '*' + tit.toUpperCase() + '*' + (c.hora ? ' — ' + c.hora + ' hs' : ''));
       var o = c.orden || [], l = peds.filter(function (p) { return p.camion === c.id; }).sort(function (a, b) { var i = o.indexOf(a.id), j = o.indexOf(b.id); return (i < 0 ? 1e6 : i) - (j < 0 ? 1e6 : j); });
       l.forEach(function (p, i) { t.push((i + 1) + '. ' + (p.cliente || 'Sin cliente') + (+p.medias ? ' ' + n(+p.medias) + '½' : '') + ((p.cortes || []).length ? ' + cortes' : '') + (frioPed(p) === 'CONGELADO' ? ' (congelado)' : '')); });
       if (!l.length) t.push('Sin pedidos');
@@ -2390,10 +2390,10 @@
   function waSaludo(f) {
     var g = String((S.config || {}).waSaludo || '').trim(); if (g) return g;
     var hr = new Date().getHours(), dd = f === hoy() ? 'de hoy' : f === mas(hoy(), 1) ? 'de mañana' : 'del ' + diaCorto(f).toLowerCase();
-    return (hr < 13 ? '¡Buen día' : '¡Buenas tardes') + '! 👋 Les paso la carga ' + dd + ':';
+    return (hr < 13 ? '¡Buen día' : '¡Buenas tardes') + '! Les paso la carga ' + dd + ':';
   }
   // De lunes a jueves "hasta mañana"; viernes (y fin de semana) "buen fin de semana".
-  function waDespedida() { var g = String((S.config || {}).waDespedida || '').trim(), d = new Date().getDay(); return g || 'Cualquier duda me avisan. ' + (d >= 1 && d <= 4 ? '¡Gracias y hasta mañana!' : '¡Gracias y buen fin de semana!') + ' 🚛'; }
+  function waDespedida() { var g = String((S.config || {}).waDespedida || '').trim(), d = new Date().getDay(); return g || 'Cualquier duda me avisan. ' + (d >= 1 && d <= 4 ? '¡Gracias y hasta mañana!' : '¡Gracias y buen fin de semana!'); }
   // El Resumen del día en PDF (los camiones elegidos o todos), con el mismo armado que las demás hojas.
   function resumenDatosPDF(f, ids) {
     var x = String(f).split('-'), cams = camionesDe(f).filter(function (c) { return !ids || ids.indexOf(c.id) >= 0; }), peds = ((logDe(f) || {}).pedidos) || [], R = [];
@@ -2481,6 +2481,8 @@
     });
   }
   function compartirWhatsApp(txt) {
+    // Sin emojis: al compartir desde Windows llegaban como "?" (y rompían la negrita del nombre del camión).
+    txt = String(txt || '').replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, '').replace(/[ \t]+\n/g, '\n').replace(/ {2,}/g, ' ');
     var movil = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent || '');
     if (window.__mock) { window.__mock.compartido = txt; return; }
     // En la compu también se usa "Compartir" del sistema cuando se puede (Chrome 128+): así sale por la misma app de WhatsApp
