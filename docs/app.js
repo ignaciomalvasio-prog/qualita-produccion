@@ -2483,7 +2483,10 @@
   function compartirWhatsApp(txt) {
     var movil = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent || '');
     if (window.__mock) { window.__mock.compartido = txt; return; }
-    if (movil && navigator.share) { navigator.share({ text: txt }).then(null, function () {}); return; }
+    // En la compu también se usa "Compartir" del sistema cuando se puede (Chrome 128+): así sale por la misma app de WhatsApp
+    // que el PDF de la planilla. Antes el link wa.me abría otra cuenta (WhatsApp Web o la otra app instalada).
+    var puede = false; try { puede = !!(navigator.share && (!navigator.canShare || navigator.canShare({ text: txt }))); } catch (e) {}
+    if (puede) { navigator.share({ text: txt }).then(null, function (e) { if (e && e.name !== 'AbortError') window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank', 'noopener'); }); return; }
     window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank', 'noopener');
   }
   /* Resumen del día, como la hoja que se arma a mano: un recuadro por camión con su número, nombre y hora,
