@@ -1139,6 +1139,50 @@
     var g = {}; d.filas.forEach(function (r) { Object.keys(r.grupos || {}).forEach(function (k) { g[k] = 1; }); });
     return repOrdenGrupos(Object.keys(g)).map(function (k) { var fila = { corte: k, por: {}, tot: 0 }; d.filas.forEach(function (r) { var v = Math.round((r.grupos || {})[k] || 0); fila.por[r.suc] = v; fila.tot += v; }); return fila; });
   }
+  // PDF del cuadro "Total por corte y sucursal": hoja apaisada, la letra se achica para que entren todas las sucursales.
+  function repMatrizPDF() {
+    var L0 = window.PDFLib, L = S.repSem || lunesDe(hoy()), pref = S.repCli == null ? 'DINO' : S.repCli, d = repDatos(L, pref), mz = repMatriz(d);
+    var cols = d.filas.map(function (r) { return r.suc; }).concat(['TOTAL']), filas = mz.map(function (f) { return [f.corte].concat(d.filas.map(function (r) { return f.por[r.suc] ? n(f.por[r.suc]) : '-'; }), [n(f.tot)]); });
+    var totF = ['TOTAL'].concat(d.filas.map(function (r) { return n(Math.round(r.tot)); }), [n(mz.reduce(function (a, f) { return a + f.tot; }, 0))]);
+    return L0.PDFDocument.create().then(function (doc) {
+      return Promise.all([doc.embedFont(L0.StandardFonts.Helvetica), doc.embedFont(L0.StandardFonts.HelveticaBold)]).then(function (fs) {
+        var F = fs[0], FB = fs[1], AN = 841.89, AL = 595.28, M = 24, cache = {};
+        var negro = L0.rgb(0.1, 0.1, 0.1), gris = L0.rgb(0.42, 0.45, 0.48), linea = L0.rgb(0.82, 0.84, 0.86), fondo = L0.rgb(0.93, 0.95, 0.96);
+        var limpio = function (t) { return Array.from(String(t || '')).map(function (ch) { if (cache[ch] != null) return cache[ch]; var v = ch; try { F.encodeText(ch); } catch (e) { v = ch === '–' ? '-' : '?'; } cache[ch] = v; return v; }).join(''); };
+        var W = function (fu, t, z) { return fu.widthOfTextAtSize(limpio(t), z); };
+        // Encabezado de columna en hasta 2 renglones.
+        var partir = function (t, w, z) { var pals = String(t).split(' ').map(function (p) { var q = p; while (q.length > 3 && W(FB, q, z) > w) q = q.slice(0, -2) + '.'; return q; }), a = '', b = ''; pals.forEach(function (p) { if (!b && W(FB, (a ? a + ' ' : '') + p, z) <= w) a = (a ? a + ' ' : '') + p; else b = (b ? b + ' ' : '') + p; }); return b ? [a, b] : [a]; };
+        var tam = 11.5, ancho0, anchoC;
+        for (; tam > 5; tam -= 0.25) {
+          ancho0 = Math.max.apply(null, filas.map(function (f) { return W(FB, f[0], tam); }).concat([W(FB, 'CORTE', tam)])) + 10;
+          anchoC = (AN - 2 * M - ancho0) / cols.length;
+          var cabe = filas.concat([totF]).every(function (f) { return f.slice(1).every(function (v) { return W(FB, v, tam) + 14 <= anchoC; }); });
+          if (cabe && (filas.length + 3) * tam * 1.9 < AL - 2 * M - 70) break;
+        }
+        // Los nombres de las sucursales pueden ir en letra más chica que los números (en dos renglones si hace falta).
+        var tz = Math.min(tam * 0.8, 8); while (tz > 5.5 && !cols.every(function (c) { return partir(c, anchoC - 12, tz).every(function (x) { return W(FB, x, tz) <= anchoC - 12; }) && partir(c, anchoC - 12, tz).length <= 2; })) tz -= 0.25;
+        var pag = doc.addPage([AN, AL]), y = AL - M;
+        pag.drawText(limpio(norm(pref) + ' · TOTAL POR CORTE Y SUCURSAL'), { x: M, y: y - 14, size: 15, font: FB, color: negro });
+        pag.drawText(limpio(repSemTxt(L)), { x: M, y: y - 30, size: 10, font: F, color: gris }); y -= 46;
+        var fila = Math.min(tam * 2.6, (y - M - 30 - tz * 2.6) / (filas.length + 1)), xCol = function (i) { return M + ancho0 + i * anchoC; };
+        // Encabezados
+        var hCab = tz * 2.6;
+        pag.drawText('CORTE', { x: M + 4, y: y - hCab + 4, size: tz, font: FB, color: gris });
+        cols.forEach(function (c, i) { var ls = partir(c, anchoC - 12, tz); ls.forEach(function (t, k) { var w = W(FB, t, tz); pag.drawText(limpio(t), { x: xCol(i + 1) - 3 - w, y: y - hCab + 4 + (ls.length - 1 - k) * tz * 1.15, size: tz, font: FB, color: i === cols.length - 1 ? negro : gris }); }); });
+        y -= hCab; pag.drawLine({ start: { x: M, y: y }, end: { x: AN - M, y: y }, thickness: 1.4, color: negro });
+        var dibFila = function (f, total) {
+          if (total) pag.drawRectangle({ x: M, y: y - fila, width: AN - 2 * M, height: fila, color: fondo });
+          pag.drawText(limpio(f[0]), { x: M + 4, y: y - fila / 2 - tam * 0.35, size: tam, font: FB, color: negro });
+          f.slice(1).forEach(function (v, i) { var t = limpio(v), w = W(i === f.length - 2 || total ? FB : F, t, tam); pag.drawText(t, { x: xCol(i + 1) - 3 - w, y: y - fila / 2 - tam * 0.35, size: tam, font: i === f.length - 2 || total ? FB : F, color: v === '-' ? gris : negro }); });
+          y -= fila; pag.drawLine({ start: { x: M, y: y }, end: { x: AN - M, y: y }, thickness: total ? 1.4 : 0.5, color: total ? negro : linea });
+        };
+        filas.forEach(function (f) { if (y - fila < M + fila) { pag = doc.addPage([AN, AL]); y = AL - M; } dibFila(f, false); });
+        dibFila(totF, true);
+        pag.drawText(limpio('Todo en kilos, según lo pedido (medias a ' + kgMedia() + ' kg, cajas a ' + kgCaja() + ' kg). Cortes unificados por rubro.'), { x: M, y: M - 8, size: 7.5, font: F, color: gris });
+        return doc.save();
+      });
+    });
+  }
   var REP_SEMANAS = 4;
   function repSemanas(L, pref) {
     var sems = [], g = {};
@@ -1167,7 +1211,7 @@
     }).join('') + '</div></details>';
     // Total unificado: cada corte una fila, cada sucursal una columna.
     var mz = repMatriz(d), totM = 0;
-    h += '<h3 class="rep-sub">Total por corte y sucursal <small class="muted">' + esc(repSemTxt(L).toLowerCase()) + '</small></h3><div class="rep-tabla"><table class="pl rep-mz"><thead><tr><th>Corte</th>' + d.filas.map(function (r) { return '<th class="num">' + esc(r.suc) + '</th>'; }).join('') + '<th class="num">Total</th></tr></thead><tbody>'
+    h += '<h3 class="rep-sub">Total por corte y sucursal <small class="muted">' + esc(repSemTxt(L).toLowerCase()) + '</small> <button class="btn sm wa" data-act="rep-mz-pdf">PDF por WhatsApp</button></h3><div class="rep-tabla"><table class="pl rep-mz"><thead><tr><th>Corte</th>' + d.filas.map(function (r) { return '<th class="num">' + esc(r.suc) + '</th>'; }).join('') + '<th class="num">Total</th></tr></thead><tbody>'
       + mz.map(function (f) { totM += f.tot; return '<tr><td>' + esc(f.corte) + '</td>' + d.filas.map(function (r) { return '<td class="num">' + (f.por[r.suc] ? n(f.por[r.suc]) : '–') + '</td>'; }).join('') + '<td class="num"><b>' + n(f.tot) + '</b></td></tr>'; }).join('')
       + '</tbody><tfoot><tr><th>Total</th>' + d.filas.map(function (r) { return '<th class="num">' + n(Math.round(r.tot)) + '</th>'; }).join('') + '<th class="num">' + n(totM) + ' kg</th></tr></tfoot></table></div>';
     // Y por semanas: las últimas 4 (todas las sucursales juntas).
@@ -3249,6 +3293,7 @@
       }, function () { S.msg.cli = '!No se pudo guardar. Revisá la conexión.'; pintarMsg('cli'); });
       return;
     }
+    if (a === 'rep-mz-pdf') { var Lz = S.repSem || lunesDe(hoy()), pz = String(Lz).split('-'); compartirPDF(function () { return repMatrizPDF(); }, b, true, norm(S.repCli == null ? 'DINO' : S.repCli) + ' por corte ' + pz[2] + '-' + pz[1] + '.pdf'); return; }
     if (a === 'rep-sem') { S.repSem = mas(S.repSem || lunesDe(hoy()), +D.d); renderClientes(); return; }
     if (a === 'rep-copiar') {
       var txr = repTexto(), okr = function () { var g = $('g-rep'); if (g) g.textContent = 'Copiado: pegalo en WhatsApp o en un mail.'; };
