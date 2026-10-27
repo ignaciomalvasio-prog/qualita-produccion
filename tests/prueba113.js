@@ -9,7 +9,7 @@ let TXT=process.env.DJ_DATOS?fs.readFileSync(process.env.DJ_DATOS,'utf8'):['OK|2
  'RE|2026-10-23|316|JAMON CON HUESO Y CUERO CONGELADO|2|23|23|322.78','RE|2026-10-23|136|PALETA C/HUESO Y S/CUERO CONGELADA|2|50|150|921.67',
  'RE|2026-10-23|377|PALETA S/HUESO S/ CUERO Y S/ GRASA  CONG|2|38|0|666.55','RE|2026-10-23|376|RECORTE 70/30 CONGELADO|2|2|95|1811',
  'RE|2026-10-23|417|CUERO  "CH"|1|109|0|1909.3','RE|2026-10-23|705|CABEZA|8|45|180|913.04','RE|2026-10-23|999|ARTICULO NUEVO|1|1|0|50',
- 'RE|2026-10-22|101|BONDIOLA|1|64|554|1355.97','TR|2026-10-22|261780|160|2026-10-18|62|3085','CO|8|EXP|Argentina'].join('\n');
+ 'RE|2026-10-22|101|BONDIOLA|1|64|554|1355.97','TR|2026-10-22|261780|160|2026-10-18|62|3085','CO|8|EXP|Argentina','C3|2026-10-23|2000|CHORIZO FRESCO ESPECIAL|46|950','C3|2026-10-23|2003|CHORIZO BOMBON FRESCO ESPECIAL|3|33','C3|2026-10-23|2001|MORCILLA FRESCA|14|258'].join('\n');
 const F=process.env.DJ_FECHA||'2026-10-23';
 (async()=>{const b=await chromium.launch();
 for(const w of [1300,400]){const p=await b.newPage({viewport:{width:w,height:900}});const errs=[];p.on('pageerror',e=>errs.push(e.message));
@@ -32,6 +32,8 @@ if(w===1300){console.log('producción:\n  '+filas.join('\n  '));console.log('obs
  // impresión
  await p.evaluate(()=>{document.getElementById('impresion').innerHTML=hojas(S.fecha)});await p.emulateMedia({media:'print'});
  await p.pdf({path:SP+'/ddjj.pdf',format:'A4',printBackground:true,margin:{top:0,bottom:0,left:0,right:0}});await p.emulateMedia({media:'screen'});
+ await p.click('#nav a[data-t="c3"]');await p.waitForTimeout(400);console.log('ciclo III:',await p.evaluate(()=>planilla3(S.fecha3).filas.map(r=>r.n+' '+r.kg).join(' | ')));
+ await p.evaluate(()=>{document.getElementById('impresion').innerHTML=hoja3(S.fecha3)});
  await p.click('#nav a[data-t="equiv"]');await p.waitForTimeout(500);await p.screenshot({path:SP+'/ddjj-equiv.png',fullPage:true});}
 console.log(w,'desborde',await p.evaluate(()=>document.documentElement.scrollWidth-innerWidth),'· errores',errs.join('|')||'ninguno');
 if(w===400)await p.screenshot({path:SP+'/ddjj400.png',fullPage:true});await p.close();}

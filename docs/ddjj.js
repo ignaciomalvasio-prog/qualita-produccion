@@ -59,7 +59,8 @@ const mesHoy = () => hoyIso().slice(0, 7);
 
 /* ---------- lectura de lo que subió la notebook ---------- */
 function parseDJ(txt) {
-  const o = { hora: '', dias: {}, co: {} };
+  const o = { hora: '', dias: {}, co: {}, c3: {} };
+  const d3 = f => o.c3[f] || (o.c3[f] = { re: [], in: [] });
   const dia = f => o.dias[f] || (o.dias[f] = { tr: [], in: [], re: [] });
   for (const l of String(txt || '').split(/\r?\n/)) {
     const p = l.replace(/^\uFEFF/, '').split('|'), t = p[0];
@@ -67,6 +68,8 @@ function parseDJ(txt) {
     else if (t === 'TR') dia(p[1]).tr.push({ tropa: p[2], cab: num(p[3]), faena: p[4], medias: num(p[5]), kg: num(p[6]) });
     else if (t === 'IN') dia(p[1]).in.push({ art: +p[2], den: (p[3] || '').trim(), uni: num(p[4]), kg: num(p[5]) });
     else if (t === 'RE') dia(p[1]).re.push({ art: +p[2], den: (p[3] || '').trim(), cont: +p[4], uni: num(p[5]), pz: num(p[6]), kg: num(p[7]) });
+    else if (t === 'C3') d3(p[1]).re.push({ art: +p[2], den: (p[3] || '').trim(), uni: num(p[4]), kg: num(p[5]) });
+    else if (t === 'C3I') d3(p[1]).in.push({ art: +p[2], den: (p[3] || '').trim(), uni: num(p[4]), kg: num(p[5]) });
     else if (t === 'CO') o.co[p[1]] = { den: (p[2] || '').trim(), pais: (p[3] || '').trim() };
   }
   return o;
@@ -207,6 +210,7 @@ function moverMes(n) { cambiarMes(n < 0 ? mesAnterior(S.mes) : mesSiguiente(S.me
 function render() {
   document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.t === S.tab));
   if (S.tab === 'equiv') return renderEquiv();
+  if (S.tab === 'c3') return renderC3();
   renderDia();
 }
 
@@ -449,6 +453,7 @@ function renderEquiv() {
   h += '<h3 class="dj-h3">Contratos de exportación</h3><p>' + (E.contExp || []).map(c => '<span class="dj-art">' + c + (S.sis.co[c] && S.sis.co[c].den ? ' <small>' + esc(S.sis.co[c].den) + '</small>' : '') + '</span>').join(' ') + ' <button class="small" onclick="eqContExp()">Cambiar</button></p>';
   h += '<h3 class="dj-h3">Cuentas</h3><p><label><input type="checkbox"' + (E.restar !== false ? ' checked' : '') + ' onchange="cambiarEq(d=>{d.restar=this.checked},\'restar reproceso \'+this.checked)"> A cada corte restarle lo que de ese mismo corte reingresó al desposte (reproceso)</label></p>';
   h += '<p>Merma del ingreso: <input class="w-cp" value="' + fmtE(r2((1 - (E.merma || 1)) * 100)) + '" onchange="eqMerma(this.value)"> %</p></section>';
+  h += equivC3();
   const aj = E.ajuste || { arriba: 0, izq: 0 };
   h += '<section><h2>Impresión</h2><p class="sub">Si al imprimir sobre el formulario la planilla queda corrida, corregilo acá en milímetros (positivo = más abajo / más a la derecha) y volvé a imprimir.</p>' +
     '<div class="row">Más abajo <input class="w-cp" value="' + fmtE(aj.arriba) + '" onchange="eqAjuste(\'arriba\',this.value)"> mm · Más a la derecha <input class="w-cp" value="' + fmtE(aj.izq) + '" onchange="eqAjuste(\'izq\',this.value)"> mm</div></section>';
@@ -526,5 +531,7 @@ document.getElementById('nav').addEventListener('click', e => {
 C3API.listo.then(() => {
   const q = new URLSearchParams(location.search).get('f');
   if (q && /^\d{4}-\d{2}-\d{2}$/.test(q)) { S.mes = q.slice(0, 7); S.fecha = q; }
+  const q3 = new URLSearchParams(location.search).get('c3');
+  if (q3 && /^\d{4}-\d{2}-\d{2}$/.test(q3)) { S.mes = q3.slice(0, 7); S.fecha3 = q3; S.tab = 'c3'; }
   cargar(false);
 });
