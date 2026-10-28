@@ -2527,7 +2527,12 @@
   }
   /* Teléfono de cada chofer (pedido de Renzo): se carga una vez y el botón WhatsApp de su camión abre directo su chat con el
      mensaje escrito; solo falta apretar Enviar. Quedan en privado/choferes (solo editores; nunca en el link público). */
-  function choferKey(nombre) { return norm(String(nombre || '').replace(/\([^)]*\)/g, ' ')).replace(/\s+/g, ' ').trim(); }
+  // El mismo chofer aunque el camión se escriba distinto: "MAXIMO", "MAXIMO (PRIMER VIAJE)", "MAXIMO 1", "MAXIMO 2DO VIAJE" → MAXIMO.
+  function choferKey(nombre) {
+    var k = norm(String(nombre || '').replace(/\([^)]*\)/g, ' ')).replace(/[°º.\-]/g, ' ').replace(/\s+/g, ' ').trim();
+    var sin = k.replace(/\b(\d+(ER|DO|RO|TO|O)?|PRIMER|PRIMERO|SEGUNDO|TERCER|TERCERO|VIAJE|VIAJES)\b/g, ' ').replace(/\s+/g, ' ').trim();
+    return sin || k;
+  }
   function telChofer(nombre) { var t = ((S.choferes || {}).tel || {})[choferKey(nombre)]; return t ? String(t) : ''; }
   // A formato internacional de Argentina para WhatsApp: 0351 15 1234567 → 5493511234567.
   function telWA(t) {

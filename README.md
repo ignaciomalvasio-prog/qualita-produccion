@@ -257,3 +257,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Compu: arriba, el día a la izquierda, ‹ fecha › centrado en el medio de la barra y los botones a la derecha (también en Logística).
 - Logística › Resumen: "☎ Teléfonos de choferes" para cargar el celular de cada chofer (privado/choferes, no sale en el link público). El botón WhatsApp de su camión pasa a decir "WhatsApp a NOMBRE" y abre directo su chat con el mensaje escrito (en la compu, la app de WhatsApp; en el celu, wa.me).
 - Medias (día): título grande "FAENA" arriba de Animales para clientes (también en el PDF).
+- Teléfonos de choferes: el mismo chofer aunque el camión se escriba distinto (MAXIMO, MAXIMO 1, MAXIMO (PRIMER VIAJE), MAXIMO 2DO VIAJE).
