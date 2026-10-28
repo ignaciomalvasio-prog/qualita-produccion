@@ -17,6 +17,8 @@ if(w===1300){
  console.log('menudencias:\n  '+(await tabla(0)).join('\n  '));console.log('rendering:\n  '+(await tabla(1)).join('\n  '));
  await p.evaluate(()=>editarStockM('r|Sebo líquido de alta acidez','fin'));await p.fill('#dlg-v','5000');await p.click('#dlg-ok');await p.clock.runFor(800);
  console.log('después de cargar stock final 5000:\n  '+(await tabla(1)).join('\n  '));
+ await p.locator('.dj-tab').first().locator('input.dj-chk').nth(1).click();await p.clock.runFor(800);console.log('afuera:',await p.evaluate(()=>JSON.stringify(S.eq.men.sinSuma)));
+ console.log('destildada la cabeza:\n  '+(await tabla(0)).join('\n  '));
  await p.evaluate(()=>{$('impresion').innerHTML=hojaM();});console.log('hoja:',(await p.innerText('#impresion')).replace(/\s+/g,' ').slice(0,400));
  await p.evaluate(()=>{document.body.classList.add('vista','vista-m');document.querySelector('#impresion').classList.remove('solo-print');});
  await p.locator('#impresion .hoja').screenshot({path:SP+'/p119_hoja.png'});

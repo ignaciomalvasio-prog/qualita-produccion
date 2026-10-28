@@ -114,3 +114,6 @@ section .chart{max-width:900px;margin:6px 0 4px}
 .hm-tab tr.th td,.hm-tab tr.tt td{font-weight:bold}
 .hm-tab td:last-child{width:110pt}
 body.vista-m .hoja::before{display:none}
+.dj-tab tr.dj-off td{color:var(--muted);text-decoration:line-through}
+.dj-tab tr.dj-off td .dj-chk{text-decoration:none}
+.dj-chk{width:auto;margin:0 4px 0 0;vertical-align:middle;cursor:pointer}

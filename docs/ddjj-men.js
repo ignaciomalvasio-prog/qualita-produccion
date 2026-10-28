@@ -48,7 +48,7 @@ function calcularM(m) {
   }
   const D = docM(), ov = D.kg || {}, st = D.stock || {}, prev = (S.menPrev || {})[mesAnterior(m)] || {};
   for (const k of Object.keys(ov)) if (!filas[k]) { const [sec, n] = k.split('|'); filas[k] = { k, sec, n, kgSis: 0, arts: {}, aMano: true }; }
-  const out = { m: [], r: [], fuera: Object.values(fuera), tot: { m: 0, r: 0 } };
+  const out = { m: [], r: [], fuera: Object.values(fuera), tot: { m: 0, r: 0 } }, sinSuma = new Set(E.sinSuma || []);
   for (const r of Object.values(filas)) {
     r.kgSis = r2(r.kgSis);
     r.kg = ov[r.k] != null ? ov[r.k] : r.kgSis;
@@ -60,9 +60,10 @@ function calcularM(m) {
       r.prod = r2((Number(r.kg) || 0) + (Number(r.fin) || 0) - (Number(r.ini) || 0));
     } else r.prod = Number(r.kg) || 0;
     if (r.kg == null && !r.kgSis && !r.aMano) continue;
-    out[r.sec].push(r); out.tot[r.sec] += r.prod;
+    r.fuera = sinSuma.has(r.k);
+    out[r.sec].push(r); if (!r.fuera) out.tot[r.sec] += r.prod;
   }
-  const orden = (a, b) => b.prod - a.prod || a.n.localeCompare(b.n, 'es');
+  const orden = (a, b) => (a.fuera - b.fuera) || b.prod - a.prod || a.n.localeCompare(b.n, 'es');
   out.m.sort(orden); out.r.sort(orden);
   out.tot.m = r2(out.tot.m); out.tot.r = r2(out.tot.r);
   return out;
@@ -79,7 +80,7 @@ function renderMen() {
   cargarPrevM(S.mes);
   const R = calcularM(S.mes), D = docM(), enCurso = S.mes >= mesHoy();
   let h = '<section><div class="dj-top" style="margin-bottom:8px"><div><h2>Menudencias y rendering · ' + esc(nombreMes(S.mes)) +
-    (enCurso ? ' <span class="chip sm mut">mes en curso</span>' : '') + '</h2><p class="sub" style="margin:0">Kg producidos en el mes, para el resumen de SENASA. Tocá un número para corregirlo; tocá el nombre para ver de qué artículos sale.' +
+    (enCurso ? ' <span class="chip sm mut">mes en curso</span>' : '') + '</h2><p class="sub" style="margin:0">Kg producidos en el mes, para el resumen de SENASA. Tocá un número para corregirlo; tocá el nombre para ver de qué artículos sale; destildá un producto para dejarlo afuera de la suma.' +
     (D.por ? ' Último cambio: ' + esc(D.por) + ' ' + esc(horaDe(D.ts)) + '.' : '') + '</p></div>' +
     '<div class="row"><button onclick="verImpresionM()">👁 Ver cómo sale</button><button class="primary" onclick="imprimirM()">🖨 Imprimir</button><button onclick="excelMen()">⬇ Excel</button></div></div>';
   if (!(S.sis.me || []).length) h += '<div class="alerta warn">Todavía no llegaron del sistema los datos de menudencias y rendering de este mes. Tocá «Traer datos nuevos» arriba (tarda hasta 5 minutos).</div>';
@@ -109,9 +110,9 @@ function renderMen() {
 
 function filaM(r, rend) {
   const ab = S.abierto['m|' + r.k], ov = (docM().kg || {})[r.k] != null;
-  const nombre = '<a href="#" class="dj-n" onclick="S.abierto[\'m|' + jsq(r.k) + '\']=!S.abierto[\'m|' + jsq(r.k) + '\'];render();return false">' + (ab ? '▾ ' : '▸ ') + esc(r.n) + '</a>' + (r.aMano ? ' <span class="chip sm info">a mano</span>' : '');
+  const nombre = '<input type="checkbox" class="dj-chk" title="Destildá para dejarlo afuera de la suma"' + (r.fuera ? '' : ' checked') + ' onchange="tildarM(\'' + jsq(r.k) + '\',this.checked)"> <a href="#" class="dj-n" onclick="S.abierto[\'m|' + jsq(r.k) + '\']=!S.abierto[\'m|' + jsq(r.k) + '\'];render();return false">' + (ab ? '▾ ' : '▸ ') + esc(r.n) + '</a>' + (r.aMano ? ' <span class="chip sm info">a mano</span>' : '');
   const ckg = '<td class="num ed' + (ov ? ' aj' : '') + '" onclick="editarM(\'' + jsq(r.k) + '\')">' + fmt2(r.kg) + (ov && !r.aMano ? '<span class="dj-sis">' + fmt2(r.kgSis) + '</span>' : '') + '</td>';
-  let h = '<tr><td>' + nombre + '</td>' + ckg;
+  let h = '<tr' + (r.fuera ? ' class="dj-off" title="Afuera de la suma"' : '') + '><td>' + nombre + '</td>' + ckg;
   if (rend) {
     h += '<td class="num ed" onclick="editarStockM(\'' + jsq(r.k) + '\',\'ini\')">' + (r.ini == null ? '<span class="muted">' + (r.sebo ? 'cargar' : '—') + '</span>' : fmt2(r.ini) + (r.iniPrev ? '<span class="dj-sis" style="text-decoration:none">del mes anterior</span>' : '')) + '</td>' +
       '<td class="num ed" onclick="editarStockM(\'' + jsq(r.k) + '\',\'fin\')">' + (r.fin == null ? '<span class="muted">' + (r.sebo ? 'cargar' : '—') + '</span>' : fmt2(r.fin)) + '</td>' +
@@ -160,6 +161,13 @@ function agregarM(sec) {
   }, 'txt');
 }
 function quitarM(k) { cambiarMen(x => { delete x.kg[k]; if (x.stock) delete x.stock[k]; }, 'saca ' + k.split('|')[1]); }
+/* tildado = suma; destildado = queda afuera de la suma (y de la hoja impresa) en todos los meses, hasta que se vuelva a tildar */
+function tildarM(k, si) {
+  cambiarEq(d => {
+    d.men = d.men || JSON.parse(JSON.stringify(MEN_DEF));
+    const l = new Set(d.men.sinSuma || []); si ? l.delete(k) : l.add(k); d.men.sinSuma = [...l];
+  }, 'menudencias/rendering: ' + k.split('|')[1] + (si ? ' vuelve a la suma' : ' afuera de la suma'));
+}
 function ignorarM(art, si) {
   cambiarEq(d => {
     d.men = d.men || JSON.parse(JSON.stringify(MEN_DEF));
@@ -176,9 +184,9 @@ function hojaM() {
   const R = calcularM(S.mes), fin = diasDelMes(S.mes).pop();
   let h = '<div class="hoja hm"><div class="h3-cab"><img src="/logo.png" alt=""><div><div class="h3-t">FRIGORÍFICO QUALITÁ S.A.</div><div class="h3-s">Colonia Caroya · Córdoba</div></div></div>' +
     '<div class="h3-c b">RESUMEN MENSUAL DE PRODUCCIÓN DE MENUDENCIAS Y RENDERING</div><div class="h3-c">Período: ' + esc(nombreMes(S.mes)) + ' (del 01/' + S.mes.slice(5, 7) + ' al ' + ddmmaaaa(fin) + ')</div>';
-  h += '<table class="hm-tab"><tr class="th"><td>MENUDENCIAS</td><td>KG</td></tr>' + R.m.map(r => '<tr><td class="n">' + esc(r.n) + '</td><td>' + fmt2(r.prod) + '</td></tr>').join('') +
+  h += '<table class="hm-tab"><tr class="th"><td>MENUDENCIAS</td><td>KG</td></tr>' + R.m.filter(r => !r.fuera).map(r => '<tr><td class="n">' + esc(r.n) + '</td><td>' + fmt2(r.prod) + '</td></tr>').join('') +
     '<tr class="tt"><td class="n">TOTAL MENUDENCIAS</td><td>' + fmt2(R.tot.m) + '</td></tr></table>';
-  h += '<table class="hm-tab"><tr class="th"><td>RENDERING</td><td>KG</td></tr>' + R.r.map(r => '<tr><td class="n">' + esc(r.n) + '</td><td>' + fmt2(r.prod) + '</td></tr>').join('') +
+  h += '<table class="hm-tab"><tr class="th"><td>RENDERING</td><td>KG</td></tr>' + R.r.filter(r => !r.fuera).map(r => '<tr><td class="n">' + esc(r.n) + '</td><td>' + fmt2(r.prod) + '</td></tr>').join('') +
     '<tr class="tt"><td class="n">TOTAL RENDERING</td><td>' + fmt2(R.tot.r) + '</td></tr></table>';
   h += '<div class="h3-firma" style="margin-top:70pt">……………………………………………<br>Firma y aclaración</div></div>';
   return h;
@@ -193,8 +201,8 @@ function verImpresionM() {
 function excelMen() {
   if (!window.XLSX) { toast('No se pudo cargar el Excel. Revisá internet.', true); return; }
   const R = calcularM(S.mes), filas = [['Resumen de menudencias y rendering · ' + nombreMes(S.mes)], [], ['MENUDENCIAS', 'Kg']];
-  R.m.forEach(r => filas.push([r.n, r.prod])); filas.push(['Total menudencias', R.tot.m], [], ['RENDERING', 'Cargado en el sistema', 'Stock al principio', 'Stock al final', 'Producido']);
-  R.r.forEach(r => filas.push([r.n, Number(r.kg) || 0, r.ini == null ? '' : r.ini, r.fin == null ? '' : r.fin, r.prod])); filas.push(['Total rendering', '', '', '', R.tot.r]);
+  R.m.filter(r => !r.fuera).forEach(r => filas.push([r.n, r.prod])); filas.push(['Total menudencias', R.tot.m], [], ['RENDERING', 'Cargado en el sistema', 'Stock al principio', 'Stock al final', 'Producido']);
+  R.r.filter(r => !r.fuera).forEach(r => filas.push([r.n, Number(r.kg) || 0, r.ini == null ? '' : r.ini, r.fin == null ? '' : r.fin, r.prod])); filas.push(['Total rendering', '', '', '', R.tot.r]);
   const ws = XLSX.utils.aoa_to_sheet(filas), wb = XLSX.utils.book_new();
   ws['!cols'] = [{ wch: 28 }, { wch: 20 }, { wch: 18 }, { wch: 16 }, { wch: 14 }];
   XLSX.utils.book_append_sheet(wb, ws, 'SENASA');
