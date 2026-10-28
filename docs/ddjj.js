@@ -63,7 +63,7 @@ const mesHoy = () => hoyIso().slice(0, 7);
 function parseDJ(txt) {
   const o = { hora: '', dias: {}, co: {}, c3: {} };
   const d3 = f => o.c3[f] || (o.c3[f] = { re: [], in: [] });
-  const dia = f => o.dias[f] || (o.dias[f] = { tr: [], in: [], re: [] });
+  const dia = f => o.dias[f] || (o.dias[f] = { tr: [], in: [], re: [], en: [] });
   for (const l of String(txt || '').split(/\r?\n/)) {
     const p = l.replace(/^\uFEFF/, '').split('|'), t = p[0];
     if (t === 'OK') o.hora = p[1];
@@ -72,6 +72,7 @@ function parseDJ(txt) {
     else if (t === 'RE') dia(p[1]).re.push({ art: +p[2], den: (p[3] || '').trim(), cont: +p[4], uni: num(p[5]), pz: num(p[6]), kg: num(p[7]) });
     else if (t === 'C3') d3(p[1]).re.push({ art: +p[2], den: (p[3] || '').trim(), uni: num(p[4]), kg: num(p[5]) });
     else if (t === 'C3I') d3(p[1]).in.push({ art: +p[2], den: (p[3] || '').trim(), uni: num(p[4]), kg: num(p[5]) });
+    else if (t === 'EN') { const x = dia(p[1]); (x.en = x.en || []).push({ art: +p[2], tropa: String(p[3] || '').trim(), uni: num(p[4]) }); }
     else if (t === 'CO') o.co[p[1]] = { den: (p[2] || '').trim(), pais: (p[3] || '').trim() };
   }
   return o;
@@ -127,12 +128,19 @@ function calcular(f) {
     faena: t.faena, tropa: t.tropa, cab: t.cab, medias: t.medias, prom: t.medias ? Math.round(t.kg / t.medias) : 0,
     kg: t.medias ? t.medias * Math.round(t.kg / t.medias) : 0, obs: veces[t.tropa] > 1 ? 'FAENA PARCIAL' : (obsAnterior(t.tropa, f) || 'Consumo')
   }));
-  /* medias que salieron enteras (1/2 res sin jamón y sin paleta): se descuentan de la tropa con más medias */
+  /* medias que salieron enteras (1/2 res sin jamón y sin paleta): se descuentan de su tropa (el sistema la guarda en el desposte);
+     si no se sabe la tropa, de la faenada más tarde (como hace Sabi) */
   const enteras = d.re.filter(r => (eq().enteras || []).includes(r.art)).reduce((a, r) => a + r.uni, 0);
-  let descEn = null;
+  const descEn = [];
   if (enteras && ingreso.length) {
-    const mx = ingreso.reduce((a, r) => (r.medias > a.medias ? r : a), ingreso[0]);
-    mx.medias = Math.max(mx.medias - enteras, 0); mx.kg = mx.medias * mx.prom; descEn = mx.tropa;
+    let resto = enteras;
+    const descontar = (row, n) => { const q = Math.min(n, row.medias); row.medias -= q; row.kg = row.medias * row.prom; resto -= q; if (q) descEn.push(row.tropa + ' (' + q + ')'); };
+    for (const e of (d.en || [])) {
+      const row = ingreso.filter(r => e.tropa && (String(r.tropa) === e.tropa || e.tropa.endsWith(String(r.tropa)))).sort((a, b) => String(b.faena).localeCompare(String(a.faena)))[0];
+      if (row) descontar(row, Math.min(e.uni, resto));
+    }
+    const porFaena = ingreso.slice().sort((a, b) => String(b.faena).localeCompare(String(a.faena)) || b.medias - a.medias);
+    for (const row of porFaena) { if (resto <= 0) break; descontar(row, resto); }
   }
   ingreso.forEach(r => { delete r.prom; });
   const rend = d.re.filter(r => destino(r.art, f) === '#R');
@@ -340,7 +348,7 @@ function renderDia() {
   /* ---- ingreso ---- */
   h += '<section><h2>Ingreso</h2><p class="sub">Tropas que entraron al desposte este día. Los kilos son medias × el peso promedio por media (redondeado), como en la planilla. El total se declara con ' +
     Math.round((1 - (eq().merma || 1)) * 100) + ' % de merma.' + (P.ingEditado ? ' <b>Esta parte está corregida a mano.</b> <a href="#" onclick="ingSistema();return false">Volver a lo del sistema</a>' : '') + '</p>' +
-    (P.c.enteras && !P.ingEditado ? '<div class="alerta warn">Se descontaron <b>' + fmt0(P.c.enteras) + ' medias</b> que salieron enteras como 1/2 res sin jamón y sin paleta, de la tropa ' + esc(P.c.descEn) + '. Si iban de otra tropa, corregilo tocando las medias.</div>' : '');
+    (P.c.enteras && !P.ingEditado ? '<div class="alerta warn">Se descontaron <b>' + fmt0(P.c.enteras) + ' medias</b> que salieron enteras como 1/2 res sin jamón y sin paleta, de la tropa ' + esc(P.c.descEn.join(', ')) + '. Si iban de otra tropa, corregilo tocando las medias.</div>' : '');
   h += '<div class="tw"><table class="planilla dj-tab"><thead><tr><th>Fecha de faena</th><th>Nº de tropa</th><th class="num">Total de tropa</th><th class="num">Medias reses</th><th class="num">Kg de ingreso</th><th>Observaciones</th><th></th></tr></thead><tbody>';
   P.ingreso.forEach((t, i) => {
     h += '<tr>' + celdaIng(i, 'faena', ddmmaaaa(t.faena)) + celdaIng(i, 'tropa', esc(t.tropa)) + celdaIng(i, 'cab', fmt0(t.cab), 1) + celdaIng(i, 'medias', fmt0(t.medias), 1) +
