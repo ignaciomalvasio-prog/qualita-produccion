@@ -105,7 +105,8 @@ header{flex-wrap:wrap;row-gap:0}
 @media (max-width:1400px){header nav a{padding:0 8px;font-size:14px}}
 @media (max-width:900px){
   header{padding:6px 12px;gap:8px}
-  header nav{order:5;width:100%;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch}
+  header nav{order:5;width:100%;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;overflow-y:hidden;overscroll-behavior:contain;touch-action:pan-x;scrollbar-width:none}
+  header nav::-webkit-scrollbar{display:none}
   header nav a{padding:10px 10px}
   header .stat{margin-left:0;white-space:normal}
   main{padding:14px 10px 60px}
