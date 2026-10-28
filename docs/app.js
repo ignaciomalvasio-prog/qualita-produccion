@@ -184,7 +184,7 @@
       var fk = mas(lu, k), xk = diaFaena(fk), tk = xk ? conMedias(xk.d).reduce(function (t, r) { return t + (+r.cant || 0); }, 0) : 0;
       return '<button class="btn" data-act="fm-ir" data-f="' + fk + '" aria-pressed="' + (fk === f) + '"><b>' + diaDe(fk).slice(0, 3) + ' ' + fecha(fk).getDate() + '</b><span>' + (tk ? n(tk) + '<i class="m-largo">' + (tk === 1 ? ' animal' : ' animales') + '</i>' : '<i class="m-largo">sin ventas</i><i class="m-corto">—</i>') + '</span></button>';
     }).join('') + '</div>';
-    h += '<div class="panel"><h2>Animales para clientes</h2>';
+    h += '<div class="panel"><h2 class="m-faena">Faena</h2><p class="m-sub">Animales para clientes</p>';
     if (!cl.length) {
       var con = []; (S.faena || []).forEach(function (sm) { sm.dias.forEach(function (d, k) { if (conMedias(d).length) con.push(mas(sm.id, k)); }); });
       con.sort();
@@ -2525,11 +2525,30 @@
       });
     });
   }
-  function compartirWhatsApp(txt) {
+  /* Teléfono de cada chofer (pedido de Renzo): se carga una vez y el botón WhatsApp de su camión abre directo su chat con el
+     mensaje escrito; solo falta apretar Enviar. Quedan en privado/choferes (solo editores; nunca en el link público). */
+  function choferKey(nombre) { return norm(String(nombre || '').replace(/\([^)]*\)/g, ' ')).replace(/\s+/g, ' ').trim(); }
+  function telChofer(nombre) { var t = ((S.choferes || {}).tel || {})[choferKey(nombre)]; return t ? String(t) : ''; }
+  // A formato internacional de Argentina para WhatsApp: 0351 15 1234567 → 5493511234567.
+  function telWA(t) {
+    var d = String(t || '').replace(/\D/g, ''); if (!d) return '';
+    if (/^549\d{10}$/.test(d)) return d;
+    if (/^54\d{10}$/.test(d)) return '549' + d.slice(2);
+    d = d.replace(/^0/, '');
+    if (d.length === 12 && /^\d{2,4}15/.test(d)) { var m = d.match(/^(\d{2,4})15(\d+)$/); if (m && (m[1] + m[2]).length === 10) d = m[1] + m[2]; }
+    return d.length === 10 ? '549' + d : d;
+  }
+  function compartirWhatsApp(txt, tel) {
     // Sin emojis: al compartir desde Windows llegaban como "?" (y rompían la negrita del nombre del camión).
     txt = String(txt || '').replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, '').replace(/[ \t]+\n/g, '\n').replace(/ {2,}/g, ' ');
     var movil = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent || '');
-    if (window.__mock) { window.__mock.compartido = txt; return; }
+    var nro = telWA(tel);
+    if (window.__mock) { window.__mock.compartido = txt; window.__mock.waTel = nro; return; }
+    // Con el teléfono del chofer: abre directo su chat con el mensaje escrito (se puede corregir antes de apretar Enviar).
+    if (nro) {
+      if (movil) { location.href = 'https://wa.me/' + nro + '?text=' + encodeURIComponent(txt); return; }
+      location.href = 'whatsapp://send?phone=' + nro + '&text=' + encodeURIComponent(txt); return;
+    }
     // Celular: "Compartir" del sistema. Compu: la página de WhatsApp con el mensaje para revisarlo y corregirlo antes de mandar
     // (como le gusta a Renzo), pero siempre en la MISMA pestaña: antes se abría una pestaña nueva por cada envío.
     if (movil && navigator.share) { navigator.share({ text: txt }).then(null, function () {}); return; }
@@ -2550,13 +2569,19 @@
     var ed = S.editor && !S.solo;
     var nSel = cams.filter(function (c) { return (S.resSel || {})[f + '|' + c.id]; }).length;   // con camiones tildados se mandan todos juntos en un solo mensaje
     var bloque = function (tit, hora, lista, nota, id) {
+      var nomT = String(tit || '').replace(/^N° [^·]*· /, '');
       var hh = ed && id ? ' <input type="time" class="res-hora" data-hora="' + esc(id) + '" value="' + esc(hora || '') + '" aria-label="Hora de salida de ' + esc(tit) + '">' + (hora ? '<span class="solo-print">' + esc(hora) + ' hs</span>' : '') : hora ? ' ' + esc(hora) + ' hs' : '';
-      return '<div class="res-cam' + (ed && id ? ' movible' : '') + '"' + (id ? ' data-cam="' + esc(id) + '"' : '') + '><p class="res-tit">' + (ed && id ? '<button class="res-mover" data-arr="' + esc(id) + '" aria-label="Arrastrar para cambiar el orden de ' + esc(tit) + ' (o usar las flechas del teclado)" title="Arrastrar para ordenar">⠿</button>' : '') + (id ? '<label class="res-sel" title="Elegir para compartir"><input type="checkbox" data-res-sel="' + esc(id) + '"' + ((S.resSel || {})[f + '|' + id] ? ' checked' : '') + ' aria-label="Elegir ' + esc(tit) + ' para compartir"></label>' : '') + '<mark># ' + esc(tit) + hh + '</mark>' + (id && !nSel ? '<button class="btn sm wa res-wa-uno" data-act="res-wa" data-f="' + esc(f) + '" data-cual="' + esc(id) + '" title="Mandar solo este camión por WhatsApp">WhatsApp</button>' : '') + '</p>'
+      return '<div class="res-cam' + (ed && id ? ' movible' : '') + '"' + (id ? ' data-cam="' + esc(id) + '"' : '') + '><p class="res-tit">' + (ed && id ? '<button class="res-mover" data-arr="' + esc(id) + '" aria-label="Arrastrar para cambiar el orden de ' + esc(tit) + ' (o usar las flechas del teclado)" title="Arrastrar para ordenar">⠿</button>' : '') + (id ? '<label class="res-sel" title="Elegir para compartir"><input type="checkbox" data-res-sel="' + esc(id) + '"' + ((S.resSel || {})[f + '|' + id] ? ' checked' : '') + ' aria-label="Elegir ' + esc(tit) + ' para compartir"></label>' : '') + '<mark># ' + esc(tit) + hh + '</mark>' + (id && !nSel ? '<button class="btn sm wa res-wa-uno" data-act="res-wa" data-f="' + esc(f) + '" data-cual="' + esc(id) + '" title="' + (telChofer(nomT) ? 'Abre el chat de ' + esc(choferKey(nomT)) + ' con el mensaje escrito' : 'Mandar solo este camión por WhatsApp') + '">' + (telChofer(nomT) ? 'WhatsApp a ' + esc(choferKey(nomT)) : 'WhatsApp') + '</button>' : '') + '</p>'
         + '<p class="res-lista">' + (lista.length ? lista.map(cli).join(' – ') : '<span class="muted">Sin pedidos</span>') + '</p>'
         + (nota ? '<p class="res-nota">' + esc(nota) + '</p>' : '') + '</div>';
     };
-    var comp = cams.length ? '<div class="res-comp"><span class="small muted">Compartir por WhatsApp:</span><button class="btn sm wa" data-act="res-wa" data-f="' + esc(f) + '" data-cual="sel"' + (nSel ? '' : ' disabled') + '>' + (nSel > 1 ? 'Mandar los ' + nSel + ' juntos' : nSel ? 'Mandar el elegido' : 'Los elegidos') + '</button><button class="btn sm wa" data-act="res-wa" data-f="' + esc(f) + '" data-cual="todos">Todos</button><button class="btn sm wa res-pdf" data-act="res-pdf" data-f="' + esc(f) + '">PDF por WhatsApp' + (nSel ? ' (' + nSel + ')' : '') + '</button>' + (nSel ? '<button class="btn sm lnk" data-act="res-sel-nada" data-f="' + esc(f) + '">Destildar</button>' : '') + (ed ? '<button class="btn sm lnk" data-act="res-saludos">' + (S.resSaludos ? 'Cerrar saludos' : '✎ Saludos') + '</button>' : '') + '<span class="small muted">' + (nSel ? 'Van todos en un solo mensaje, al WhatsApp que elijas.' : 'Tildá ☐ los camiones que quieras mandar juntos al mismo WhatsApp.') + '</span></div>'
+    var comp = cams.length ? '<div class="res-comp"><span class="small muted">Compartir por WhatsApp:</span><button class="btn sm wa" data-act="res-wa" data-f="' + esc(f) + '" data-cual="sel"' + (nSel ? '' : ' disabled') + '>' + (nSel > 1 ? 'Mandar los ' + nSel + ' juntos' : nSel ? 'Mandar el elegido' : 'Los elegidos') + '</button><button class="btn sm wa" data-act="res-wa" data-f="' + esc(f) + '" data-cual="todos">Todos</button><button class="btn sm wa res-pdf" data-act="res-pdf" data-f="' + esc(f) + '">PDF por WhatsApp' + (nSel ? ' (' + nSel + ')' : '') + '</button>' + (nSel ? '<button class="btn sm lnk" data-act="res-sel-nada" data-f="' + esc(f) + '">Destildar</button>' : '') + (ed ? '<button class="btn sm lnk" data-act="res-saludos">' + (S.resSaludos ? 'Cerrar saludos' : '✎ Saludos') + '</button><button class="btn sm lnk" data-act="res-tels">' + (S.resTels ? 'Cerrar teléfonos' : '☎ Teléfonos de choferes') + '</button>' : '') + '<span class="small muted">' + (nSel ? 'Van todos en un solo mensaje, al WhatsApp que elijas.' : 'Tildá ☐ los camiones que quieras mandar juntos al mismo WhatsApp.') + '</span></div>'
       + (ed && S.resSaludos ? '<div class="res-saludos"><label class="campo"><span>Saludo de entrada</span><textarea id="wa-saludo" rows="2" placeholder="' + esc(waSaludo(f)) + '">' + esc((S.config || {}).waSaludo || '') + '</textarea></label><label class="campo"><span>Saludo de salida</span><textarea id="wa-despedida" rows="2" placeholder="' + esc(waDespedida()) + '">' + esc((S.config || {}).waDespedida || '') + '</textarea></label><p class="small muted">Si los dejás vacíos se usan los de base (el de entrada cambia solo según la hora: buen día o buenas tardes; el de salida, hasta mañana o buen fin de semana si es viernes). Se guardan solos.</p></div>' : '') : '';
+    if (ed && S.resTels && cams.length) {
+      var ks = []; cams.forEach(function (c) { var k = choferKey(nomCam(c)); if (k && ks.indexOf(k) < 0) ks.push(k); });
+      comp += '<div class="res-tels"><p class="small muted">Cargá el celular de cada chofer una sola vez (con característica, ej.: 351 1234567). El botón WhatsApp de su camión abre directo su chat con el mensaje escrito: solo apretás Enviar. Se guardan solos y no se ven en el link para compartir.</p><div class="res-tels-l">'
+        + ks.map(function (k) { return '<label class="campo"><span>' + esc(k) + '</span><input type="tel" inputmode="tel" data-tel="' + esc(k) + '" value="' + esc(((S.choferes || {}).tel || {})[k] || '') + '" placeholder="Celular" autocomplete="off"></label>'; }).join('') + '</div></div>';
+    }
     var h = '<div class="resumen-dia">' + comp + '<h2 class="res-dia"><mark>' + esc(titulo) + '</mark></h2>' + (ed && cams.length > 1 ? '<p class="small muted res-ayuda">Arrastrá cada camión desde ⠿ para ordenarlos (queda igual en "Ver por camión"). La hora se cambia tocándola.</p>' : '') + '<div class="res-grilla">';
     cams.forEach(function (c) {
       var tit = (c.num && nomLimpio(c.nombre) ? 'N° ' + c.num + ' · ' : '') + nomCam(c);
@@ -3461,7 +3486,10 @@
     else if (a === 'res-wa') {
       var fw = D.f, idsW = D.cual === 'todos' ? null : D.cual !== 'sel' ? [D.cual] : camionesDe(fw).filter(function (c) { return (S.resSel || {})[fw + '|' + c.id]; }).map(function (c) { return c.id; });
       if (idsW && !idsW.length) return;
-      compartirWhatsApp(resumenTexto(fw, idsW));
+      // Teléfono: el del chofer del camión (o de los tildados, si todos son del mismo chofer).
+      var camsW = camionesDe(fw).filter(function (c) { return idsW && idsW.indexOf(c.id) >= 0; }), telsW = camsW.map(function (c) { return telChofer(nomCam(c)); });
+      var telW = telsW.length && telsW[0] && telsW.every(function (x) { return telWA(x) === telWA(telsW[0]); }) ? telsW[0] : '';
+      compartirWhatsApp(resumenTexto(fw, idsW), telW);
     }
     else if (a === 'res-pdf') {
       var fp = D.f, idsP = camionesDe(fp).filter(function (c) { return (S.resSel || {})[fp + '|' + c.id]; }).map(function (c) { return c.id; });
@@ -3470,7 +3498,7 @@
     }
     else if (a === 'm-pdf') {
       var fm2 = D.f, xm = diaFaena(fm2), clm = xm ? conMedias(xm.d) : [], totm = clm.reduce(function (t, r) { return t + (+r.cant || 0); }, 0), pm = String(fm2).split('-');
-      var datosM = { cab: { sup: 'Medias · Animales para clientes', tit: diaDe(fm2) + ' ' + pm[2] + '-' + pm[1] + '-' + pm[0].slice(2), dato: animales(totm), estado: '' },
+      var datosM = { cab: { sup: 'Medias · Animales para clientes', tit: 'FAENA · ' + diaDe(fm2) + ' ' + pm[2] + '-' + pm[1] + '-' + pm[0].slice(2), dato: animales(totm), estado: '' },
         renglones: clm.map(function (r) { return { tipo: 'op', trozos: [{ t: String(r.cliente || 'Sin nombre').toUpperCase() }].concat(r.nota ? [{ t: '  ' + r.nota, gris: true }] : []), der: n(+r.cant || 0) }; })
           .concat([{ tipo: 'tit', trozos: [{ t: 'TOTAL' }], der: animales(totm) }, { tipo: 'nota', trozos: [{ t: 'Un animal son dos medias. Faena del ' + tituloDe(fm2).toLowerCase() + ', se entregan el ' + tituloDe(habilSiguiente(fm2)).toLowerCase() + '.', gris: true }] }]) };
       compartirPDF(datosM, b, true, 'Medias ' + pm[2] + '-' + pm[1] + '.pdf');
@@ -3482,6 +3510,7 @@
     else if (a === 'imp-esta') { var on = !esImpresora(); try { localStorage.setItem('qualita-imprime', on ? '1' : '0'); } catch (e) {} latirImpresora(); if (!on) store.set('privado', 'impresora', { nombre: '', visto: 0 }).then(null, function () {}); render(); }
     else if (a === 'md-editar') { S.mdEdit = !S.mdEdit; render(); }
     else if (a === 'res-saludos') { S.resSaludos = !S.resSaludos; render(); }
+    else if (a === 'res-tels') { S.resTels = !S.resTels; render(); }
     else if (a === 'res-sel-nada') { var fn0 = D.f; Object.keys(S.resSel || {}).forEach(function (k) { if (k.indexOf(fn0 + '|') === 0) delete S.resSel[k]; }); render(); }
     else if (a === 'imprimir-camiones') {
       // Todo el día, pero cada camión empieza en una hoja nueva (sin achicar para juntar camiones).
@@ -3923,6 +3952,7 @@
   });
   document.addEventListener('change', function (e) {
     var t = e.target, D = t.dataset;
+    if (D.tel != null && t.matches('input[data-tel]')) { var ch = clone(S.choferes || {}); delete ch.id; ch.tel = ch.tel || {}; var tv = String(t.value || '').trim(); if (tv) ch.tel[D.tel] = tv; else delete ch.tel[D.tel]; var ch2 = clone(ch); ch2.id = 'choferes'; S.choferes = ch2; store.set('privado', 'choferes', ch).then(function () { avisar(tv ? 'Guardado el celular de ' + D.tel + '.' : 'Borrado el celular de ' + D.tel + '.', 3000); }, function () { avisar('!No se pudo guardar el celular.', 5000); }); return; }
     if (t.id === 'wa-saludo' || t.id === 'wa-despedida') { S.config = S.config || {}; S.config[t.id === 'wa-saludo' ? 'waSaludo' : 'waDespedida'] = t.value.trim(); guardarConfig(); return; }
     if (D.resSel) { var fr = S.fl, kr = fr + '|' + D.resSel; S.resSel = S.resSel || {}; if (t.checked) S.resSel[kr] = true; else delete S.resSel[kr]; render(); return; }
     if (D.cf && D.f) {
@@ -4378,6 +4408,8 @@
               if (JSON.stringify(S.clientes) !== antesC) { conciliarLog(); renderDatos(); }
               var pap = l.filter(function (x) { return x.id === 'papelera'; })[0], antesP = JSON.stringify(S.papelera || []); S.papelera = (pap && pap.items) || [];
               if (JSON.stringify(S.papelera) !== antesP && S.tab === 'pedidos' && !ocupado()) renderPedidos();
+              var chf = l.filter(function (x) { return x.id === 'choferes'; })[0], antesCh = JSON.stringify(S.choferes || null); S.choferes = chf || null;
+              if (JSON.stringify(S.choferes || null) !== antesCh && S.tab === 'logistica' && S.resumen && !ocupado()) render();
               var imp = l.filter(function (x) { return x.id === 'impresora'; })[0], antesI = impEstado(); S.impresora = imp || null;
               if (impEstado() !== antesI && !ocupado()) render();
               var job = l.filter(function (x) { return x.id === 'imprimir'; })[0]; if (job) recibirImpresion(clone(job));

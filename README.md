@@ -255,3 +255,5 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Imprimir en la compu: un celular nunca cuenta como "la compu que imprime" (si quedaba tildado en el celu, escondía el botón); en el celu ya no aparece esa casilla.
 - Compu: la barra de arriba vuelve a como estaba (día, flechas y fecha); el cambio de ‹ DÍA › queda solo en el celular.
 - Compu: arriba, el día a la izquierda, ‹ fecha › centrado en el medio de la barra y los botones a la derecha (también en Logística).
+- Logística › Resumen: "☎ Teléfonos de choferes" para cargar el celular de cada chofer (privado/choferes, no sale en el link público). El botón WhatsApp de su camión pasa a decir "WhatsApp a NOMBRE" y abre directo su chat con el mensaje escrito (en la compu, la app de WhatsApp; en el celu, wa.me).
+- Medias (día): título grande "FAENA" arriba de Animales para clientes (también en el PDF).
