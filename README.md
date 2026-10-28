@@ -251,3 +251,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Trazabilidad: el correlativo es el primer número de la etiqueta de la caja (correlativo-artículo-kilos, pro_identif); se puede pegar el código entero. Verificado con el desposte 416227 del 28/10 (caja 4905612 → tropa 261798).
 - Pedidos: cada pedido abierto tiene "Duplicar" (arma otro igual en Cargar pedidos para cambiar día, cantidades o sumar cortes antes de guardar) y "Copiar texto" (copia el pedido para pegarlo en WhatsApp o en Pegar texto).
 - Imprimir en la compu: en Configuración (Pedidos) se ve el estado: qué compu está marcada como impresora y hace cuánto avisó que está prendida.
+- Compu: arriba de cada pantalla ‹ DÍA › juntos a la izquierda (sin la fecha repetida; tocando el día se abre el calendario) y los botones a la derecha.
