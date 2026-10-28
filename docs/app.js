@@ -1465,6 +1465,30 @@
     var k = -1; S.prop.forEach(function (x, i) { if (x.editaId === id) k = i; });
     var fe = $('q' + k + (campo || 'cliente')); if (fe) { fe.focus(); if (fe.scrollIntoView) fe.scrollIntoView({ block: 'center' }); }
   }
+  /* Duplicar (pedido de Renzo): arma un pedido nuevo igual (cliente, medias, cortes, precios, nota) en "Cargar pedidos",
+     para cambiar lo que haga falta (día, cantidades, + Corte) antes de guardarlo. No queda en producción hasta sumarlo. */
+  function duplicarPedido(id) {
+    var pe = pedidoDe(id); if (!pe) return;
+    S.prop.push({ k: uid(), precioMedias: pe.precioMedias === 0 || pe.precioMedias ? pe.precioMedias : '', ivaMedias: pe.ivaMedias || '', cliente: pe.cliente || '', entrega: pe.entrega || cargaDiaActual() || habilSiguiente(hoy()), medias: pe.medias || '', peso: pe.peso || '', frio: pe.frio || '', cuenta: pe.cuenta || '', nota: pe.nota || '', kg: pe.kg || '', origen: 'manual', dudas: [], cortes: clone(cortesDe(pe)).map(function (c, j) { c.texto = sinCliente(c.texto, pe.cliente); c.k = 'i' + j; return c; }) });
+    S.msg.fotos = ''; if (S.tab !== 'pedidos' && !S.solo) irA('pedidos'); else renderPedidos();
+    var k = S.prop.length - 1, fe = $('q' + k + 'cliente');
+    if (fe) { if (fe.scrollIntoView) fe.scrollIntoView({ block: 'center' }); fe.focus(); }
+    avisar('Copia lista arriba, en Cargar pedidos: cambiá lo que necesites (día, cantidades, + Corte) y tocá "Guardar pedido".', 7000);
+  }
+  // El pedido como texto, para pegarlo en WhatsApp o en "Pegar texto".
+  function pedidoTexto(pe) {
+    var l = [String(pe.cliente || '').toUpperCase() + (cuentaPedido(pe) ? ' (N° ' + cuentaPedido(pe) + ')' : '')];
+    if (pe.frio) l.push(pe.frio);
+    if (+pe.medias) l.push(textoMedias(pe));
+    cortesDe(pe).forEach(function (c) { var t = String(sinCliente(c.texto, pe.cliente) || '').toUpperCase().trim(); if (!t) return; l.push(norm(t).indexOf(norm(c.corte)) >= 0 ? t : c.corte + ': ' + t); });
+    if (pe.nota) l.push('Nota: ' + pe.nota);
+    return l.join('\n');
+  }
+  function copiarPedido(id) {
+    var pe = pedidoDe(id); if (!pe) return;
+    var t = pedidoTexto(pe), ok = function () { if (window.__mock) window.__mock.copiado = t; avisar('Pedido copiado. Pegalo en WhatsApp o en "Pegar texto".', 5000); };
+    try { if (window.__mock) return ok(); navigator.clipboard.writeText(t).then(ok, function () { window.prompt('Copiá el pedido:', t); }); } catch (e) { window.prompt('Copiá el pedido:', t); }
+  }
   function borrarPedido(p) { return borrarPedidos([p]); }
   /* Papelera: antes de borrar pedidos se guarda una copia (los pedidos y sus renglones en producción) en privado/papelera,
      para poder recuperarlos con "Deshacer" o desde "Borrados recientes". Quedan los últimos 15 borrados. */
@@ -2298,7 +2322,7 @@
     h += '</div>';
     if (p.nota) h += '<p class="log-nota">' + esc(p.nota) + '</p>';
     h += '<div class="acciones">' + (cs.length - enP > 1 ? '<button class="btn sm" data-act="c-todos" data-id="' + id + '">Sumar todos a producción</button>' : '')
-      + '<button class="btn sm" data-act="ped-editar" data-id="' + id + '">Editar</button>' + opcionesDia(p)
+      + '<button class="btn sm" data-act="ped-editar" data-id="' + id + '">Editar</button><button class="btn sm" data-act="ped-dup" data-id="' + id + '" title="Hace otro pedido igual, para cambiarlo antes de guardar">Duplicar</button><button class="btn sm" data-act="ped-txt" data-id="' + id + '" title="Copia el pedido como texto para pegarlo en WhatsApp o en Pegar texto">Copiar texto</button>' + opcionesDia(p)
       + '<button class="btn sm rojo" data-act="ped-borrar" data-id="' + id + '" data-i="' + id + '">' + (S._c2 === 'ped-borrar' + p.id ? 'Tocá de nuevo para confirmar' : 'Quitar') + '</button></div>';
     return h + '</div></div>';
   }
@@ -3573,6 +3597,8 @@
       renderPedidos();
     }
     else if (a === 'ped-editar') editarPedido(D.id);
+    else if (a === 'ped-dup') duplicarPedido(D.id);
+    else if (a === 'ped-txt') copiarPedido(D.id);
     else if (a === 'log-editar') {
       var pl = pedidoDe(D.id);
       if (pl && !S.prop.some(function (x) { return x.editaId === pl.id; })) S.prop.push({ k: uid(), editaId: pl.id, cliente: pl.cliente || '', entrega: pl.entrega || '', medias: pl.medias || '', peso: pl.peso || '', frio: pl.frio || '', cuenta: pl.cuenta || '', nota: pl.nota || '', kg: pl.kg || '', origen: pl.origen || 'manual', dudas: (pl.dudas || []).slice(), cortes: clone(cortesDe(pl)).map(function (c) { c.texto = sinCliente(c.texto, pl.cliente); return c; }) });
