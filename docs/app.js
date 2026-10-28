@@ -2688,6 +2688,7 @@
     h += '<div class="panel"><details' + (S._conf ? ' open' : '') + '><summary>Configuración</summary>'
       + '<div class="imp-cfg"><label class="chk"><input type="checkbox" data-act="imp-esta"' + (esImpresora() ? ' checked' : '') + '> <b>Esta compu imprime lo que mande desde el celular</b></label>'
       + (esImpresora() ? ' <label class="campo" style="display:inline-flex;max-width:260px"><span>Nombre de esta compu</span><input type="text" id="imp-nombre" value="' + esc(nombreImpresora()) + '"></label>' : '')
+      + '<p class="small"><b>Estado:</b> ' + impEstadoTxt() + '</p>'
       + '<p class="small muted">Marcalo en la compu que tiene la impresora y dejá la app abierta. En el celular aparece "Imprimir en la compu" al lado de Imprimir. Para que salga sin el cartel de imprimir, abrí Chrome en esa compu con la opción --kiosk-printing.</p></div><div class="campos">'
       + '<label class="campo"><span>Clave de IA (Anthropic)</span><input type="password" id="cfg-clave" autocomplete="off" placeholder="' + (S.ia && S.ia.clave ? 'Cargada. Escribí otra para cambiarla.' : 'sk-ant-…') + '"></label>'
       + '<label class="campo"><span>Desposte habitual (medias por día)</span><input type="number" inputmode="numeric" id="cfg-desposte" value="' + esc(S.config.desposteHabitual || 750) + '"></label>'
@@ -3306,6 +3307,13 @@
   function impRemotoOk() { return !!(S.editor && !S.solo && !esImpresora() && S.impresora && S.impresora.visto && Date.now() - S.impresora.visto < 6 * 60000); }
   // '' = no hay compu configurada; 'off' = configurada pero sin la app abierta (el botón igual se ve, para que se entienda qué pasa).
   function impEstado() { if (!(S.editor && !S.solo && !esImpresora() && S.impresora && S.impresora.visto)) return ''; return impRemotoOk() ? 'on' : 'off'; }
+  // Para saber qué pasa con la impresora desde cualquier lado (celular o compu).
+  function impEstadoTxt() {
+    var i = S.impresora;
+    if (!i || !i.visto) return 'ninguna compu marcada como impresora todavía.';
+    var min = Math.max(0, Math.round((Date.now() - i.visto) / 60000));
+    return 'la compu "' + esc(i.nombre || 'Compu') + '" ' + (min < 6 ? 'está prendida con la app abierta (avisó hace ' + (min ? min + ' min' : 'menos de 1 min') + ').' : 'no avisa desde hace ' + (min < 120 ? min + ' min' : Math.round(min / 60) + ' h') + ': está apagada o con la app cerrada.') + (esImpresora() ? ' (Es esta compu.)' : '');
+  }
   var latidoImp = null;
   function latirImpresora() {
     clearInterval(latidoImp); latidoImp = null;
