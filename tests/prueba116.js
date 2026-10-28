@@ -22,4 +22,11 @@ const base={faena:{[L]:sem},produccion:{},config:{general:{}},pedidos:{}};
  await pc.addInitScript(d=>{localStorage.setItem('qualita-imprime','1');localStorage.setItem('qualita-imprime-nombre','FRIGO');window.print=()=>{window.__impreso=(window.__impreso||0)+1;};window.__mock={data:d,user:{email:'yo@x.com'},editores:['yo@x.com']}},d2);
  await pc.goto('http://127.0.0.1:8765/index.html#pedidos');await pc.clock.runFor(12000);await pc.waitForTimeout(500);
  console.log('compu: pestaña',await pc.evaluate(()=>document.querySelector('.tabs [aria-current="page"], .tabs .on, [data-tab][aria-selected="true"]')?.textContent||location.hash),'· imprimió:',await pc.evaluate(()=>window.__impreso||0),'· marcado hecho:',await pc.evaluate(()=>!!window.__mock.data.privado.imprimir.hecho),'· latido:',await pc.evaluate(()=>!!window.__mock.data.privado.impresora));
+ // Celular táctil que quedó tildado como impresora: igual muestra el botón (un celu nunca es la impresora).
+ const ctx=await b.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});const c2=await ctx.newPage();c2.on('pageerror',e=>errs.push('c2:'+e.message));
+ await c2.clock.install({time:new Date('2026-10-27T18:00:00-03:00')});
+ await c2.addInitScript(d=>{localStorage.setItem('qualita-imprime','1');window.__mock={data:d,user:{email:'yo@x.com'},editores:['yo@x.com']}},d1);
+ await c2.goto('http://127.0.0.1:8765/index.html#medias');await c2.clock.runFor(1500);
+ const m2=c2.locator('[data-act="m-dia"]');if(await m2.count())await m2.click();await c2.waitForTimeout(200);await c2.click('[data-act="fm-ir"][data-f="2026-10-28"]');await c2.waitForTimeout(300);
+ console.log('celu tildado: botón',await c2.locator('[data-act="imprimir-remoto"]').count(),'· casilla en Configuración:',await c2.evaluate(()=>!!document.querySelector('[data-act="imp-esta"]')));
  console.log('errores:',errs.join('|')||'ninguno');await b.close();})();

@@ -2686,7 +2686,7 @@
 
     h += papeleraHTML();
     h += '<div class="panel"><details' + (S._conf ? ' open' : '') + '><summary>Configuración</summary>'
-      + '<div class="imp-cfg"><label class="chk"><input type="checkbox" data-act="imp-esta"' + (esImpresora() ? ' checked' : '') + '> <b>Esta compu imprime lo que mande desde el celular</b></label>'
+      + '<div class="imp-cfg">' + (esCelu() ? '' : '<label class="chk"><input type="checkbox" data-act="imp-esta"' + (esImpresora() ? ' checked' : '') + '> <b>Esta compu imprime lo que mande desde el celular</b></label>')
       + (esImpresora() ? ' <label class="campo" style="display:inline-flex;max-width:260px"><span>Nombre de esta compu</span><input type="text" id="imp-nombre" value="' + esc(nombreImpresora()) + '"></label>' : '')
       + '<p class="small"><b>Estado:</b> ' + impEstadoTxt() + '</p>'
       + '<p class="small muted">Marcalo en la compu que tiene la impresora y dejá la app abierta. En el celular aparece "Imprimir en la compu" al lado de Imprimir. Para que salga sin el cartel de imprimir, abrí Chrome en esa compu con la opción --kiosk-printing.</p></div><div class="campos">'
@@ -3302,7 +3302,9 @@
      cada 2 minutos que está prendida (privado/impresora). El celular manda en privado/imprimir qué pantalla imprimir
      (pestaña y fecha); la compu la abre y aprieta su propio "Imprimir". Con Chrome abierto con --kiosk-printing sale directo. */
   var IMP_KEYS = ['tab', 'mv', 'fm', 'sem', 'dia', 'fl', 'resumen', 'fecha', 'pv', 'fr'];
-  function esImpresora() { try { return localStorage.getItem('qualita-imprime') === '1'; } catch (e) { return false; } }
+  // Un celular o tablet nunca es "la compu que imprime" (si quedó tildado ahí, el celular escondía el botón de mandar a imprimir).
+  function esCelu() { try { return matchMedia('(pointer:coarse)').matches && !matchMedia('(any-pointer:fine)').matches; } catch (e) { return false; } }
+  function esImpresora() { if (esCelu()) return false; try { return localStorage.getItem('qualita-imprime') === '1'; } catch (e) { return false; } }
   function nombreImpresora() { try { return localStorage.getItem('qualita-imprime-nombre') || 'Compu'; } catch (e) { return 'Compu'; } }
   function impRemotoOk() { return !!(S.editor && !S.solo && !esImpresora() && S.impresora && S.impresora.visto && Date.now() - S.impresora.visto < 6 * 60000); }
   // '' = no hay compu configurada; 'off' = configurada pero sin la app abierta (el botón igual se ve, para que se entienda qué pasa).

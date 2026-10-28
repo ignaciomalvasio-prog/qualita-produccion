@@ -252,3 +252,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Pedidos: cada pedido abierto tiene "Duplicar" (arma otro igual en Cargar pedidos para cambiar día, cantidades o sumar cortes antes de guardar) y "Copiar texto" (copia el pedido para pegarlo en WhatsApp o en Pegar texto).
 - Imprimir en la compu: en Configuración (Pedidos) se ve el estado: qué compu está marcada como impresora y hace cuánto avisó que está prendida.
 - Compu: arriba de cada pantalla ‹ DÍA › juntos a la izquierda (sin la fecha repetida; tocando el día se abre el calendario) y los botones a la derecha.
+- Imprimir en la compu: un celular nunca cuenta como "la compu que imprime" (si quedaba tildado en el celu, escondía el botón); en el celu ya no aparece esa casilla.
