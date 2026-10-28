@@ -38,11 +38,11 @@ function renderTraza() {
   if (S.traza === undefined) { S.traza = null; cargarTraza(); }
   const T = S.traza || {}, pend = !!(T.pedido && !(T.hecho && T.hecho >= T.pedido));
   const tipo = S.trazaTipo || T.tipo || 'tropa';
-  let h = '<section><h2>Trazabilidad</h2><p class="sub">Poné un número de tropa para ver en qué despostes entró y a qué clientes se vendió, o el correlativo de una caja (el número de la etiqueta) para ver de qué desposte y de qué tropas salió.</p>' +
+  let h = '<section><h2>Trazabilidad</h2><p class="sub">Poné un número de tropa para ver en qué despostes entró y a qué clientes se vendió, o el correlativo de una caja (el primer número de la etiqueta, por ejemplo 4905612 de «4905612-30276-17.68»; se puede pegar entero) para ver de qué desposte y de qué tropas salió.</p>' +
     '<form class="row tz-form" onsubmit="consultarTraza();return false">' +
     '<div class="tz-tipo"><label><input type="radio" name="tz-t" value="tropa"' + (tipo === 'tropa' ? ' checked' : '') + ' onchange="S.trazaTipo=this.value"> Tropa</label>' +
     '<label><input type="radio" name="tz-t" value="correlativo"' + (tipo === 'correlativo' ? ' checked' : '') + ' onchange="S.trazaTipo=this.value"> Correlativo</label></div>' +
-    '<input id="tz-v" inputmode="numeric" autocomplete="off" placeholder="Número" value="' + esc(S.trazaValor || '') + '">' +
+    '<input id="tz-v" autocomplete="off" placeholder="Número" value="' + esc(S.trazaValor || '') + '">' +
     '<button class="primary" type="submit"' + (esperandoTraza ? ' disabled' : '') + '>' + (esperandoTraza ? '⏳ Consultando…' : 'Buscar') + '</button></form>';
   if (esperandoTraza) h += '<div class="alerta info" style="margin-top:12px"><span class="spin"></span> Consultando el sistema… tarda unos segundos (la notebook de Igna tiene que estar prendida).</div>';
   h += '</section>';
@@ -54,7 +54,8 @@ function renderTraza() {
 
 async function consultarTraza(tipo, valor) {
   tipo = tipo || (document.querySelector('input[name="tz-t"]:checked') || {}).value || 'tropa';
-  valor = String(valor != null ? valor : ($('tz-v') || {}).value || '').replace(/\D/g, '');
+  /* de la etiqueta "4905612-30276-17.68" (correlativo-artículo-kilos) vale el primer número */
+  valor = (String(valor != null ? valor : ($('tz-v') || {}).value || '').match(/\d+/) || [''])[0];
   if (!valor) { toast('Poné el número', true); return; }
   if (esperandoTraza) return;
   S.trazaTipo = tipo; S.trazaValor = valor;
@@ -134,7 +135,7 @@ function trazaCorr(R, T) {
   if (!R.pr.length) return '<section><div class="alerta warn">No existe el correlativo ' + esc(T.valor) + ' en el sistema.</div></section>';
   let h = '';
   for (const p of R.pr) {
-    h += '<section><h2>Correlativo ' + esc(p.corr) + (p.item !== '0' ? ' · ' + esc(p.item) : '') + '</h2><p class="sub" style="margin:0">' + esc(p.den) + ' · ' + fmt2(p.kg) + ' kg · ' + ddmmaa(p.fecha) + (p.ident && p.ident !== p.corr ? ' · identificación ' + esc(p.ident) : '') + '</p></section>';
+    h += '<section><h2>Correlativo ' + esc(p.ident || p.corr) + '</h2><p class="sub" style="margin:0">' + esc(p.den) + ' · ' + fmt2(p.kg) + ' kg · ' + ddmmaa(p.fecha) + ' · etiqueta ' + esc((p.ident || p.corr) + '-' + p.art + '-' + p.kg) + ' · n° interno ' + esc(p.corr + (p.item !== '0' ? '/' + p.item : '')) + '</p></section>';
   }
   /* origen */
   h += '<section><h3 class="dj-h3" style="margin-top:0">1 · De dónde salió</h3>';

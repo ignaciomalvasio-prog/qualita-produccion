@@ -22,8 +22,8 @@ const txt=(await p.innerText('main')).replace(/\n+/g,' | ');
 if(w===1300){console.log('tropa:',txt.slice(0,900));
  await p.click('text=CLIENTE A S.A.');console.log('detalle cliente:',(await p.innerText('.dj-mini')).replace(/\s+/g,' '));}
 await p.screenshot({path:SP+'/p120_tropa_'+w+'.png',fullPage:true});
-await p.check('input[value="correlativo"]');await p.fill('#tz-v','5970414');await p.click('.tz-form button');
-await p.waitForFunction(()=>window.__mock.docs['ddjj-traza'].tipo==='correlativo');await responder(CORR);
+await p.check('input[value="correlativo"]');await p.fill('#tz-v','4891521-271-16.7');await p.click('.tz-form button');
+await p.waitForFunction(()=>window.__mock.docs['ddjj-traza'].tipo==='correlativo'&&window.__mock.docs['ddjj-traza'].valor==='4891521');await responder(CORR);
 if(w===1300)console.log('correlativo:',(await p.innerText('main')).replace(/\n+/g,' | ').slice(0,900));
 await p.screenshot({path:SP+'/p120_corr_'+w+'.png',fullPage:true});
 await p.click('text=261770');await p.waitForFunction(()=>window.__mock.docs['ddjj-traza'].valor==='261770');console.log('clic en tropa → consulta', await p.evaluate(()=>window.__mock.docs['ddjj-traza'].tipo+' '+window.__mock.docs['ddjj-traza'].valor));
