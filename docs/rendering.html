@@ -355,6 +355,52 @@ h1 a{color:inherit;text-decoration:none}
 .h-txt{min-width:0}
 .h-cant{font:800 19px var(--display);color:var(--ink);margin-right:4px;letter-spacing:.01em}
 @media (max-width:560px){ .hoja-corte li{flex-direction:column;gap:2px} .h-cli{flex:0 0 auto;align-self:flex-start} .h-cli.vacio{display:none} }
+/* Pedidos en el celular, más prolijo (pedido de Renzo): días de carga en una fila que se desliza, botones de carga 2×2 y todo más chico. */
+@media screen and (max-width:560px){
+  #view-pedidos .panel.carga{padding:12px}
+  #view-pedidos .panel.carga h2{font-size:19px;margin-bottom:6px}
+  #view-pedidos .carga-dias{flex-wrap:nowrap;overflow-x:auto;gap:5px;margin:0 -12px 2px;padding:0 12px 4px;scrollbar-width:none}
+  #view-pedidos .carga-dias::-webkit-scrollbar{display:none}
+  #view-pedidos .carga-dias>*{flex:0 0 auto;white-space:nowrap}
+  #view-pedidos .carga-dias .chip{min-height:32px;padding:4px 10px;font-size:13px}
+  #view-pedidos .carga>.acciones{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  #view-pedidos .carga>.acciones>.btn{min-height:40px;padding:6px 8px;font-size:14px;justify-content:center;text-align:center;width:100%}
+  #view-pedidos .carga>.acciones>.guardado:empty,#view-pedidos .carga>.acciones>.pega-tip{display:none}
+  #view-pedidos .nav-ped{gap:5px}
+  #view-pedidos .nav-ped .tit{font-size:19px}
+  #view-pedidos .nav-ped .btn{min-height:32px;padding:4px 10px;font-size:13px}
+  #view-pedidos .nav-ped .btn.step{width:36px;padding:0;font-size:18px}
+  #view-pedidos .nav-ped input[type=date]{min-height:32px;padding:3px 8px;font-size:14px}
+  #view-pedidos .pd-busca{flex-wrap:nowrap;gap:6px;margin:6px 0}
+  #view-pedidos .pd-busca input{flex:1 1 0;min-height:36px;padding:5px 9px}
+  #view-pedidos .otros-dias{flex-wrap:nowrap;overflow-x:auto;gap:5px;margin-bottom:8px;scrollbar-width:none}
+  #view-pedidos .otros-dias::-webkit-scrollbar{display:none}
+  #view-pedidos .otros-dias>*{flex:0 0 auto;white-space:nowrap}
+  #view-pedidos .otros-dias .btn{min-height:30px;padding:3px 9px;font-size:13px}
+  #view-pedidos .arr-tip{font-size:11.5px}
+}
+/* Medias (día) en el celular, más prolija (pedido de Renzo): botones chicos, días y planilla más compactos. */
+.m-corto{display:none}
+.semtabs i{font-style:normal}
+@media screen and (max-width:560px){
+  #view-medias .m-largo{display:none}
+  #view-medias .m-corto{display:inline}
+  #view-medias .nav{gap:5px;margin-bottom:8px}
+  #view-medias .nav .tit{font-size:20px}
+  #view-medias .nav .btn{min-height:32px;padding:4px 10px;font-size:13px}
+  #view-medias .nav .btn.step{width:36px;padding:0;font-size:18px}
+  #view-medias .nav input[type=date]{min-height:32px;padding:3px 8px;font-size:14px}
+  #view-medias .semtabs{gap:4px;margin-bottom:8px}
+  #view-medias .semtabs .btn{padding:5px 2px;gap:0;min-height:0}
+  #view-medias .semtabs .btn b{font-size:13px}
+  #view-medias .semtabs .btn span{font-size:13px;font-weight:600}
+  #view-medias .panel{padding:12px}
+  #view-medias .panel h2{font-size:19px;margin-bottom:6px}
+  #view-medias .cl-dia th,#view-medias .cl-dia td{font-size:15.5px;padding:7px 4px}
+  #view-medias .cl-dia thead th{font-size:11px}
+  #view-medias .cl-dia tfoot th,#view-medias .cl-dia tfoot td{font-size:16px}
+  #view-medias .cl-dia .small{font-size:11.5px}
+}
 /* Producción en el celular, más compacta (pedido de Renzo): botones chicos, cliente y pedido en el mismo renglón. */
 @media screen and (max-width:560px){
   #view-produccion .nav{gap:5px}

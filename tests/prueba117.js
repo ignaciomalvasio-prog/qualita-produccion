@@ -1,0 +1,28 @@
+// Celular (400 px): Medias (día) y Pedidos más prolijos — botones chicos, sin desborde, textos cortos.
+const {chromium}=require('playwright');const SP=process.argv[2];
+const L='2026-10-26';const dia=(cl)=>({propios:600,usuarios:0,clientes:cl});
+const sem={id:L,desde:L,dias:[dia([{cliente:'DON PEDRO',cant:150}]),dia([{cliente:'JMC',cant:30},{cliente:'COLAZO',cant:5,nota:'LIVIANAS'},{cliente:'DIGAR',cant:125}]),dia([{cliente:'MONTE',cant:3,nota:'NO GORDAS X FAVOR'}]),dia([]),dia([])]};
+const ped=(id,cli,f)=>({id,cliente:cli,entrega:f,items:[{corte:'PECHO',cant:20,unidad:'kg'}]});
+const data={faena:{[L]:sem},produccion:{},privado:{},config:{general:{}},pedidos:{a:ped('a','JMC','2026-10-28'),b:ped('b','DIGAR','2026-10-29'),c:ped('c','COLAZO','2026-10-30')}};
+(async()=>{const b=await chromium.launch();const errs=[];
+ const p=await b.newPage({viewport:{width:400,height:860},deviceScaleFactor:2});p.on('pageerror',e=>errs.push(e.message));
+ await p.clock.install({time:new Date('2026-10-27T20:00:00-03:00')});
+ await p.addInitScript(d=>{window.__mock={data:JSON.parse(JSON.stringify(d)),user:{email:'yo@x.com'},editores:['yo@x.com'],ia:{}}},data);
+ await p.goto('http://127.0.0.1:8765/index.html#medias');await p.clock.runFor(1500);
+ const m=p.locator('[data-act="m-dia"]');if(await m.count())await m.click();await p.waitForTimeout(200);
+ await p.click('[data-act="fm-ir"][data-f="2026-10-28"]');await p.waitForTimeout(200);
+ console.log('medias botones:',(await p.locator('#view-medias .nav .btn:visible').allInnerTexts()).join(' | '));
+ console.log('medias días:',(await p.locator('#view-medias .semtabs .btn').allInnerTexts()).map(x=>x.replace(/\n/g,' ')).join(' | '));
+ console.log('medias desborde:',await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth));
+ await p.screenshot({path:SP+'/m117-medias.png'});
+ await p.click('[data-act="tab"][data-tab="pedidos"], .tabs [data-tab="pedidos"]').catch(async()=>{await p.goto('http://127.0.0.1:8765/index.html#pedidos');await p.clock.runFor(1500);});
+ await p.waitForTimeout(300);
+ const g=await p.evaluate(()=>{const a=[...document.querySelectorAll('#view-pedidos .carga>.acciones>.btn')].map(x=>x.getBoundingClientRect());return a.map(r=>Math.round(r.top)+':'+Math.round(r.left)).join(' ');});
+ console.log('pedidos botones de carga (arriba:izq):',g);
+ console.log('pedidos desborde:',await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth));
+ await p.screenshot({path:SP+'/m117-pedidos.png'});
+ const d=await b.newPage({viewport:{width:1100,height:800}});await d.clock.install({time:new Date('2026-10-27T20:00:00-03:00')});
+ await d.addInitScript(x=>{window.__mock={data:JSON.parse(JSON.stringify(x)),user:{email:'yo@x.com'},editores:['yo@x.com']}},data);
+ await d.goto('http://127.0.0.1:8765/index.html#medias');await d.clock.runFor(1500);const m2=d.locator('[data-act="m-dia"]');if(await m2.count())await m2.click();await d.waitForTimeout(200);
+ console.log('compu medias botones:',(await d.locator('#view-medias .nav .btn:visible').allInnerTexts()).join(' | '));
+ console.log('errores:',errs.join('|')||'ninguno');await b.close();})();

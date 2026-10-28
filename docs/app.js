@@ -176,13 +176,13 @@
     var f = S.fm, x = diaFaena(f), cl = x ? conMedias(x.d) : [];
     var h = '<div class="nav"><button class="btn step" data-act="fm" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + fechaTit(f) + '</span><button class="btn step" data-act="fm" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="m-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">'
-      + (cl.length ? '<button class="btn" data-act="imprimir">Imprimir</button><button class="btn wa" data-act="m-pdf" data-f="' + esc(f) + '">PDF por WhatsApp</button>' : '')
+      + (cl.length ? '<button class="btn" data-act="imprimir">Imprimir</button><button class="btn wa" data-act="m-pdf" data-f="' + esc(f) + '">PDF<span class="m-largo"> por WhatsApp</span></button>' : '')
       + (S.editor && !S.solo && cl.length ? '<button class="btn' + (S.mdEdit ? ' pri' : '') + '" data-act="md-editar">' + (S.mdEdit ? 'Listo' : 'Editar') + '</button>' : '')
-      + (S.editor && !S.solo ? '<button class="btn" data-act="m-semana">Volver a la planilla de la semana</button><button class="btn" data-act="link-medias">Copiar link para compartir</button>' : '') + '</div>';
+      + (S.editor && !S.solo ? '<button class="btn" data-act="m-semana"><span class="m-largo">Volver a la planilla de la semana</span><span class="m-corto">Semana</span></button><button class="btn" data-act="link-medias"><span class="m-largo">Copiar link para compartir</span><span class="m-corto">Link</span></button>' : '') + '</div>';
     var lu = lunesDe(f);
     h += '<div class="semtabs" role="group" aria-label="Días de la semana">' + [0, 1, 2, 3, 4].map(function (k) {
       var fk = mas(lu, k), xk = diaFaena(fk), tk = xk ? conMedias(xk.d).reduce(function (t, r) { return t + (+r.cant || 0); }, 0) : 0;
-      return '<button class="btn" data-act="fm-ir" data-f="' + fk + '" aria-pressed="' + (fk === f) + '"><b>' + diaDe(fk).slice(0, 3) + ' ' + fecha(fk).getDate() + '</b><span>' + (tk ? animales(tk) : 'sin ventas') + '</span></button>';
+      return '<button class="btn" data-act="fm-ir" data-f="' + fk + '" aria-pressed="' + (fk === f) + '"><b>' + diaDe(fk).slice(0, 3) + ' ' + fecha(fk).getDate() + '</b><span>' + (tk ? n(tk) + '<i class="m-largo">' + (tk === 1 ? ' animal' : ' animales') + '</i>' : '<i class="m-largo">sin ventas</i><i class="m-corto">—</i>') + '</span></button>';
     }).join('') + '</div>';
     h += '<div class="panel"><h2>Animales para clientes</h2>';
     if (!cl.length) {
@@ -2644,8 +2644,8 @@
       + '<button class="btn step" data-act="pd" data-d="1" aria-label="Día siguiente">›</button><input type="date" id="pd-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">'
       + (f !== habilSiguiente(hy) ? '<button class="btn" data-act="pd-ir" data-f="' + habilSiguiente(hy) + '">Volver a mañana</button>' : '')
       + (lista.length ? botonBorrar('ped-borrar-todos', f, 'Eliminar todos los pedidos') : '') + '</div>'
-      + '<div class="pd-busca"><input type="search" id="pd-buscar" value="' + esc(S.pdBuscar || '') + '" placeholder="Buscar cliente o N° de cuenta (en todos los días)" aria-label="Buscar un cliente en los pedidos" autocomplete="off">'
-      + '<input type="search" id="pd-cam-buscar" value="' + esc(S.camBuscar || '') + '" placeholder="Buscar camión (con clientes cargados)" aria-label="Buscar un camión en los pedidos" autocomplete="off">'
+      + '<div class="pd-busca"><input type="search" id="pd-buscar" value="' + esc(S.pdBuscar || '') + '" placeholder="Buscar cliente o cuenta" aria-label="Buscar un cliente en los pedidos (en todos los días)" autocomplete="off">'
+      + '<input type="search" id="pd-cam-buscar" value="' + esc(S.camBuscar || '') + '" placeholder="Buscar camión" aria-label="Buscar un camión en los pedidos" autocomplete="off">'
       + (S.pdBuscar || S.camBuscar ? '<button class="btn sm" data-act="busq-limpiar">Borrar búsqueda</button>' : '') + '</div>';
     if (String(S.pdBuscar || '').trim()) { h += buscarPedidosHTML(S.pdBuscar) + '</section>'; }
     else if (String(S.camBuscar || '').trim()) { h += buscarCamionesHTML(S.camBuscar) + '</section>'; }
