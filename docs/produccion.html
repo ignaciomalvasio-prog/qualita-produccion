@@ -111,20 +111,6 @@ html,body{overflow-x:clip}
 @media (min-width:901px){ #view-logistica .nav.armada{grid-template-columns:auto auto minmax(0,1fr);gap:6px 12px} }
 @media (max-width:900px){ .nav.armada{grid-template-columns:minmax(0,1fr)} .nav-dia,.nav-acc{justify-self:start;justify-content:flex-start} }
 @media print{ .nav.armada{display:flex} .nav-dia,.nav-acc{display:none} }
-/* Compu (pedido de Renzo): ‹ DÍA › juntos a la izquierda, sin la fecha repetida (tocando el día se abre el calendario); los botones a la derecha. */
-@media screen and (min-width:561px){
-  .nav.armada,#view-logistica .nav.armada{grid-template-columns:auto auto auto minmax(0,1fr);gap:8px 8px}
-  .nav.armada>.nav-dia{display:contents}
-  .nav.armada>.nav-dia>.step:first-child{grid-column:1;grid-row:1}
-  .nav.armada>.tit{grid-column:2;grid-row:1;cursor:pointer;padding:0 4px;white-space:nowrap}
-  .nav.armada>.tit::after{content:' ▾';font-size:.6em;opacity:.5}
-  .nav.armada>.nav-dia>.step:nth-child(2){grid-column:3;grid-row:1}
-  .nav.armada>.nav-dia>input[type=date]{grid-column:2;grid-row:1;width:1px;height:1px;opacity:0;pointer-events:none;justify-self:start;align-self:end;padding:0;border:0;min-height:0}
-  .nav.armada>.nav-acc{grid-column:4;grid-row:1;justify-self:end;justify-content:flex-end}
-}
-@media screen and (min-width:561px) and (max-width:900px){
-  .nav.armada>.nav-acc,#view-logistica .nav.armada>.nav-acc{grid-column:1 / -1;grid-row:2;justify-self:start;justify-content:flex-start}
-}
 /* Celular (pedido de Renzo): la fecha no se repite. Arriba ‹ DÍA › en un renglón; tocando el día se abre el calendario
    (el campo de fecha queda invisible encima del título). Abajo los botones. */
 @media screen and (max-width:560px){

@@ -3403,9 +3403,6 @@
   document.querySelector('.top').addEventListener('click', function (e) { var b = e.target.closest('[data-tab]'); if (!b) return; e.preventDefault(); if (b.dataset.tab === 'inicio') alInicio(); if (S.ep) { asentarEdicion(); S.ep = null; } S.ec = null; S.msg.fotos = ''; S.msg.log = ''; S.pegar = false; if (!S.leyendo) { S.pegarTxt = ''; S.pegarCli = ''; S.pegarDia = ''; } irA(b.dataset.tab); });
 
   document.addEventListener('click', function (e) {
-    // En la compu, tocar el día de arriba (‹ DÍA ›) abre el calendario; en el celular ya lo abre el campo invisible encima.
-    var tt = e.target.closest('.nav.armada > .tit');
-    if (tt && window.innerWidth > 560) { var di = tt.parentNode.querySelector('.nav-dia input[type=date]'); if (di) { try { di.showPicker(); } catch (er) { di.focus(); } } return; }
     var b = e.target.closest('[data-act]'); if (!b) return;
     var a = b.dataset.act, D = b.dataset, o, c;
     if (S._c2 && S._c2 !== a + (D.i == null ? '' : D.i)) S._c2 = null;
