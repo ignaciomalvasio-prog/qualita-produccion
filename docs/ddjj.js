@@ -16,7 +16,7 @@ const EQ_DEF = {
     { n: 'Bola de lomo', arts: [327] },
     { n: 'Bondiola', arts: [101, 109, 30105], cant: 'medias' },
     { n: 'Cabeza', arts: [431, 705], cant: 'piezas', dest: 'COSTA DE MARFIL' },
-    { n: 'Carre con hueso', arts: [271, 281, 307, 308, 30276], cant: 'medias' },
+    { n: 'Carre con hueso', arts: [271, 281, 307, 308, 30276], cant: 'resto', menos: ['Cinta de lomo', 'Costeleta', 'Carre,pecho y matambre en juego'] },
     { n: 'Carre,pecho y matambre en juego', arts: [203], cant: 'piezas' },
     { n: 'Churrasquito', arts: [241, 243, 245, 248, 30246] },
     { n: 'Cinta de lomo', arts: [289, 292, 297], cant: 'piezas' },
@@ -27,14 +27,14 @@ const EQ_DEF = {
     { n: 'Garrón', arts: [401, 404] },
     { n: 'Jamón con hueso', arts: [315, 316, 317, 318], cant: 'piezas' },
     { n: 'Jamón sin hueso', arts: [321, 326, 342, 343, 344, 346, 357], cant: 'est', kgu: 5.5 },
-    { n: 'Matambrito', arts: [231, 240, 30236], cant: 'medias' },
+    { n: 'Matambrito', arts: [231, 240, 30236], cant: 'resto', menos: ['Carre,pecho y matambre en juego'] },
     { n: 'Nalga', arts: [319] },
     { n: 'Oreja', arts: [611] },
     { n: 'Paleta con hueso', arts: [131, 132, 136, 137], cant: 'piezas' },
     { n: 'Paleta sin hueso', arts: [134, 139, 141, 147, 159, 377], cant: 'est', kgu: 4.2 },
     { n: 'Patas y manos', arts: [406, 626] },
     { n: 'Peceto', arts: [324] },
-    { n: 'Pechito con manta', arts: [211, 215, 221, 305, 30216], cant: 'medias' },
+    { n: 'Pechito con manta', arts: [211, 215, 221, 305, 30216], cant: 'resto', menos: ['Carre,pecho y matambre en juego'] },
     { n: 'Recorte de carne', arts: [148, 182, 183, 359, 361, 362, 365, 369, 371, 374] },
     { n: 'Recorte de grasa', arts: [156, 336, 479, 481, 482, 484] },
     { n: 'Solomillo', arts: [285, 298, 30287] },
@@ -48,6 +48,8 @@ const EQ_DEF = {
   contExp: [8],
   /* cuero que va a rendering: se informa en la observación */
   rendering: [417],
+  enteras: [22],    // medias que salen enteras del desposte (1/2 res sin jamón y sin paleta): se descuentan del ingreso
+  eqVer: 2,
   restar: true,      // a cada renglón se le resta lo que reingresó al desposte de esos mismos artículos (reproceso)
   merma: 0.98,       // el total de kg de ingreso se declara con 2 % de merma
   ajuste: { arriba: 0, izq: 0 }   // corrimiento de la impresión, en mm
@@ -83,6 +85,7 @@ function estadoArt(art) {
   if (lineaDe(art)) return 'linea';
   if ((eq().ignorar || []).includes(art)) return 'ignorar';
   if ((eq().rendering || []).includes(art)) return 'rendering';
+  if ((eq().enteras || []).includes(art)) return 'ignorar';
   return 'nuevo';
 }
 
@@ -98,6 +101,7 @@ function destino(art, f) {
 function calcular(f) {
   const d = (S.sis && S.sis.dias[f]) || { tr: [], in: [], re: [] };
   const medias = d.tr.reduce((a, t) => a + t.medias, 0);
+  const enteras0 = d.re.filter(r => (eq().enteras || []).includes(r.art)).reduce((a, r) => a + r.uni, 0);
   const prod = {};
   const lineas = eq().lineas.slice();
   for (const v of Object.values(diaDoc(f).mover || {})) if (v.startsWith('L:') && !lineas.some(l => l.n === v.slice(2))) lineas.push({ n: v.slice(2), arts: [] });
@@ -111,19 +115,29 @@ function calcular(f) {
     const ce = eq().contExp || [];
     const kgExp = r2(re.filter(r => ce.includes(r.cont)).reduce((a, r) => a + r.kg, 0)), kgCons = r2(kgs - kgExp);
     let cant = null;
-    if (l.cant === 'medias') cant = medias;
+    if (l.cant === 'medias' || l.cant === 'resto') cant = medias - enteras0;
     else if (l.cant === 'piezas') cant = re.reduce((a, r) => a + (r.pz || r.uni), 0);
     else if (l.cant === 'unid') cant = re.reduce((a, r) => a + r.uni, 0);
     else if (l.cant === 'est' && l.kgu) cant = Math.round(kgs / l.kgu / 10) * 10;
     prod[l.n] = { n: l.n, cant, exp: kgExp || null, cons: kgExp && !kgCons ? null : kgCons, dest: (kgExp && l.dest) || 'CONSUMO', re, ing, est: l.cant === 'est' };
   }
-  const ingreso = d.tr.slice().sort((a, b) => String(a.tropa).localeCompare(String(b.tropa))).map(t => ({
-    faena: t.faena, tropa: t.tropa, cab: t.cab, medias: t.medias,
-    kg: t.medias ? t.medias * Math.round(t.kg / t.medias) : 0, obs: obsAnterior(t.tropa, f) || 'Consumo'
+  /* una tropa faenada en dos días viene en dos renglones: los dos llevan FAENA PARCIAL */
+  const veces = {}; d.tr.forEach(t => { veces[t.tropa] = (veces[t.tropa] || 0) + 1; });
+  const ingreso = d.tr.slice().sort((a, b) => String(a.tropa).localeCompare(String(b.tropa)) || String(a.faena).localeCompare(String(b.faena))).map(t => ({
+    faena: t.faena, tropa: t.tropa, cab: t.cab, medias: t.medias, prom: t.medias ? Math.round(t.kg / t.medias) : 0,
+    kg: t.medias ? t.medias * Math.round(t.kg / t.medias) : 0, obs: veces[t.tropa] > 1 ? 'FAENA PARCIAL' : (obsAnterior(t.tropa, f) || 'Consumo')
   }));
+  /* medias que salieron enteras (1/2 res sin jamón y sin paleta): se descuentan de la tropa con más medias */
+  const enteras = d.re.filter(r => (eq().enteras || []).includes(r.art)).reduce((a, r) => a + r.uni, 0);
+  let descEn = null;
+  if (enteras && ingreso.length) {
+    const mx = ingreso.reduce((a, r) => (r.medias > a.medias ? r : a), ingreso[0]);
+    mx.medias = Math.max(mx.medias - enteras, 0); mx.kg = mx.medias * mx.prom; descEn = mx.tropa;
+  }
+  ingreso.forEach(r => { delete r.prom; });
   const rend = d.re.filter(r => destino(r.art, f) === '#R');
   const nuevos = d.re.filter(r => destino(r.art, f) === null);
-  return { medias, prod, ingreso, rendKg: r2(rend.reduce((a, r) => a + r.kg, 0)), rend, nuevos, hay: d.tr.length + d.re.length > 0, d };
+  return { medias, enteras, descEn, prod, ingreso, rendKg: r2(rend.reduce((a, r) => a + r.kg, 0)), rend, nuevos, hay: d.tr.length + d.re.length > 0, d };
 }
 
 /* Si a una tropa se le puso otra observación un día anterior (ej. "FAENA PARCIAL"), se repite */
@@ -147,6 +161,15 @@ function planilla(f) {
   }
   filas.sort((a, b) => a.n.localeCompare(b.n, 'es'));
   const ingreso = x.ing ? x.ing : c.ingreso;
+  /* cantidades que salen de las medias: "una por media" = las medias del ingreso; "el resto" = las medias menos los otros cortes
+     de esa parte (carré + cinta + costeleta + parrillero = medias; el parrillero también descuenta de pechito y matambrito) */
+  const M = ingreso.reduce((a, r) => a + (Number(r.medias) || 0), 0);
+  const cantFinal = n => { const r = filas.find(z => z.n === n); return r ? (Number(r.cant) || 0) : 0; };
+  for (const r of filas) {
+    const l = eq().lineas.find(z => z.n === r.n); if (!l || r.ov.cant !== undefined) continue;
+    if (l.cant === 'medias') r.cant = r.sis.cant = M;
+    else if (l.cant === 'resto') r.cant = r.sis.cant = Math.max(M - (l.menos || []).reduce((a, n) => a + cantFinal(n), 0), 0);
+  }
   const tot = {
     cant: filas.reduce((a, r) => a + (Number(r.cant) || 0), 0),
     exp: r2(filas.reduce((a, r) => a + (Number(r.exp) || 0), 0)),
@@ -183,6 +206,13 @@ async function cargar(forzar) {
     S.sis = parseDJ(txt); S.hora = S.sis.hora;
     S.anual = anual ? parseAnual(anual) : null; S.muertos = mu.d || {};
     S.eq = e.d && e.d.lineas ? e.d : JSON.parse(JSON.stringify(EQ_DEF));
+    if ((S.eq.eqVer || 1) < 2) {   // pedido de Sabi (28/10): medias enteras (art. 22) y cantidades que suman las medias
+      S.eq.enteras = S.eq.enteras || [22]; S.eq.eqVer = 2;
+      const L = n => S.eq.lineas.find(l => l.n === n);
+      if (L('Carre con hueso')) Object.assign(L('Carre con hueso'), { cant: 'resto', menos: ['Cinta de lomo', 'Costeleta', 'Carre,pecho y matambre en juego'] });
+      ['Matambrito', 'Pechito con manta'].forEach(n => { if (L(n)) Object.assign(L(n), { cant: 'resto', menos: ['Carre,pecho y matambre en juego'] }); });
+      S.eq.ignorar = (S.eq.ignorar || []).filter(a => !S.eq.enteras.includes(a));
+    }
     if (!S.eq.contExp) {   // equivalencias guardadas antes de que la exportación se tomara por contrato
       S.eq.contExp = [8]; S.eq.ignorar = (S.eq.ignorar || []).filter(a => a !== 431);
       const cab = S.eq.lineas.find(l => l.n === 'Cabeza'); if (cab && !cab.arts.includes(431)) cab.arts.unshift(431);
@@ -222,6 +252,28 @@ async function cargarPublico() {
 function cabecera() {
   $('st').innerHTML = (S.hora ? '<span class="dot"></span>Sistema al ' + esc(ddmm(S.hora.slice(0, 10)) + ' ' + S.hora.slice(11)) : '<span class="dot off"></span>Sin datos del sistema para este mes') +
     (window.FAENA_PUB ? '' : '<br>' + esc(quien()) + ' · <a href="#" onclick="C3API.salir();return false">Salir</a>');
+}
+/* "Traer datos nuevos del sistema": deja un pedido en c3docs/ddjj-pedido; la notebook de Igna lo revisa cada 5 minutos
+   (dj_pedido.ps1, de 6:30 a 21:30), lee el sistema, sube los datos y marca el pedido como hecho. Acá se espera y se recarga sola. */
+let esperandoPedido = null;
+async function pedirActualizacion() {
+  if (window.FAENA_PUB || window.SOLO_FAENA) { cargar(true); return; }
+  if (esperandoPedido) { toast('Ya está pedido: en unos minutos se actualiza solo.'); return; }
+  const pedido = new Date().toISOString();
+  try { await cambiarDoc('ddjj-pedido', d => { d.pedido = pedido; d.por = quien(); }, 'Pide datos nuevos del sistema'); }
+  catch (e) { toast(e.message, true); return; }
+  const btn = $('btn-act'); if (btn) { btn.disabled = true; btn.textContent = '⏳ Pidiendo datos al sistema…'; }
+  toast('Listo, se pidieron los datos. Tarda hasta 5 minutos (la notebook de Igna tiene que estar prendida).');
+  const inicio = Date.now();
+  esperandoPedido = setInterval(async () => {
+    let d = {}; try { d = (await leerDoc('ddjj-pedido')).d || {}; } catch (e) {}
+    const listo = d.hecho && d.hecho >= pedido, vencido = Date.now() - inicio > 8 * 60000;
+    if (!listo && !vencido) return;
+    clearInterval(esperandoPedido); esperandoPedido = null;
+    if (btn) { btn.disabled = false; btn.textContent = '⟳ Traer datos nuevos'; }
+    if (listo) { await cargar(false); toast('Datos actualizados del sistema'); }
+    else toast('La notebook no respondió (puede estar apagada). Los datos se actualizan solos a las 7, 11, 15 y 19 h.', true);
+  }, 20000);
 }
 function cambiarMes(m) { if (!m) return; S.mes = m; S.fecha = ''; cargar(false); }
 function moverMes(n) { cambiarMes(n < 0 ? mesAnterior(S.mes) : mesSiguiente(S.mes)); }
@@ -287,7 +339,8 @@ function renderDia() {
 
   /* ---- ingreso ---- */
   h += '<section><h2>Ingreso</h2><p class="sub">Tropas que entraron al desposte este día. Los kilos son medias × el peso promedio por media (redondeado), como en la planilla. El total se declara con ' +
-    Math.round((1 - (eq().merma || 1)) * 100) + ' % de merma.' + (P.ingEditado ? ' <b>Esta parte está corregida a mano.</b> <a href="#" onclick="ingSistema();return false">Volver a lo del sistema</a>' : '') + '</p>';
+    Math.round((1 - (eq().merma || 1)) * 100) + ' % de merma.' + (P.ingEditado ? ' <b>Esta parte está corregida a mano.</b> <a href="#" onclick="ingSistema();return false">Volver a lo del sistema</a>' : '') + '</p>' +
+    (P.c.enteras && !P.ingEditado ? '<div class="alerta warn">Se descontaron <b>' + fmt0(P.c.enteras) + ' medias</b> que salieron enteras como 1/2 res sin jamón y sin paleta, de la tropa ' + esc(P.c.descEn) + '. Si iban de otra tropa, corregilo tocando las medias.</div>' : '');
   h += '<div class="tw"><table class="planilla dj-tab"><thead><tr><th>Fecha de faena</th><th>Nº de tropa</th><th class="num">Total de tropa</th><th class="num">Medias reses</th><th class="num">Kg de ingreso</th><th>Observaciones</th><th></th></tr></thead><tbody>';
   P.ingreso.forEach((t, i) => {
     h += '<tr>' + celdaIng(i, 'faena', ddmmaaaa(t.faena)) + celdaIng(i, 'tropa', esc(t.tropa)) + celdaIng(i, 'cab', fmt0(t.cab), 1) + celdaIng(i, 'medias', fmt0(t.medias), 1) +
@@ -453,7 +506,7 @@ function asignar(art, v) {
   }, 'artículo ' + art + ' → ' + (v === 'I' ? 'no va' : v === 'R' ? 'rendering' : v.slice(2)));
 }
 
-const CANT_TXT = { '': '—', medias: 'Una por media res', piezas: 'Piezas del sistema', unid: 'Unidades del sistema', est: 'Estimada por kg' };
+const CANT_TXT = { '': '—', medias: 'Una por media res', resto: 'Medias menos otros cortes', piezas: 'Piezas del sistema', unid: 'Unidades del sistema', est: 'Estimada por kg' };
 function renderEquiv() {
   const E = eq();
   /* nombres de artículos vistos en el mes, para mostrar al lado del código */
