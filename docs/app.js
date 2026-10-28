@@ -2644,7 +2644,7 @@
       + '<button class="btn step" data-act="pd" data-d="1" aria-label="Día siguiente">›</button><input type="date" id="pd-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">'
       + (f !== habilSiguiente(hy) ? '<button class="btn" data-act="pd-ir" data-f="' + habilSiguiente(hy) + '">Volver a mañana</button>' : '')
       + (lista.length ? botonBorrar('ped-borrar-todos', f, 'Eliminar todos los pedidos') : '') + '</div>'
-      + '<div class="pd-busca"><input type="search" id="pd-buscar" value="' + esc(S.pdBuscar || '') + '" placeholder="Buscar cliente o cuenta" aria-label="Buscar un cliente en los pedidos (en todos los días)" autocomplete="off">'
+      + '<div class="pd-busca"><input type="search" id="pd-buscar" value="' + esc(S.pdBuscar || '') + '" placeholder="Buscar cliente" aria-label="Buscar un cliente en los pedidos (en todos los días)" autocomplete="off">'
       + '<input type="search" id="pd-cam-buscar" value="' + esc(S.camBuscar || '') + '" placeholder="Buscar camión" aria-label="Buscar un camión en los pedidos" autocomplete="off">'
       + (S.pdBuscar || S.camBuscar ? '<button class="btn sm" data-act="busq-limpiar">Borrar búsqueda</button>' : '') + '</div>';
     if (String(S.pdBuscar || '').trim()) { h += buscarPedidosHTML(S.pdBuscar) + '</section>'; }
@@ -2789,8 +2789,8 @@
       + (peds.length ? '<button class="btn" data-act="resumen" aria-pressed="' + !!S.resumen + '">' + (S.resumen ? 'Ver por camión' : 'Resumen del día') + '</button><button class="btn" data-act="imprimir">' + (S.resumen ? 'Imprimir resumen' : 'Imprimir') + '</button>' + (!S.resumen && cams.length > 1 ? '<button class="btn" data-act="imprimir-camiones" title="Todo el día, cada camión en su hoja">Imprimir x camión</button>' : '') : '')
       + (S.editor && cams.filter(function (c) { return c.hora; }).length > 1 ? '<button class="btn" data-act="cam-por-hora" title="Ordenar los camiones por horario">Ordenar x hora</button>' : '')
       + (S.editor ? '<button class="btn" data-act="cam-nuevo" title="Camión para este día">+ Camión</button><button class="btn" data-act="link-log" title="Copiar link para compartir">Copiar link</button><span class="guardado" id="g-log"></span>' : '') + '</div>';
-    h += '<div class="pd-busca"><input type="search" id="lg-buscar" value="' + esc(S.lgBuscar || '') + '" placeholder="Buscar cliente o N° de cuenta (en todos los días)" aria-label="Buscar un cliente en Logística" autocomplete="off">'
-      + '<input type="search" id="lg-cam-buscar" value="' + esc(S.lgCamBuscar || '') + '" placeholder="Buscar camión (con clientes cargados)" aria-label="Buscar un camión en Logística" autocomplete="off">'
+    h += '<div class="pd-busca"><input type="search" id="lg-buscar" value="' + esc(S.lgBuscar || '') + '" placeholder="Buscar cliente" aria-label="Buscar un cliente en Logística (en todos los días)" autocomplete="off">'
+      + '<input type="search" id="lg-cam-buscar" value="' + esc(S.lgCamBuscar || '') + '" placeholder="Buscar camión" aria-label="Buscar un camión en Logística" autocomplete="off">'
       + (S.lgBuscar || S.lgCamBuscar ? '<button class="btn sm" data-act="lbusq-limpiar">Borrar búsqueda</button>' : '') + '</div>';
     if (String(S.lgBuscar || '').trim() || String(S.lgCamBuscar || '').trim()) { el.innerHTML = h + buscarLogHTML(String(S.lgBuscar || '').trim() ? S.lgBuscar : S.lgCamBuscar, !String(S.lgBuscar || '').trim()); return; }
     if (!peds.length && !cams.length) {

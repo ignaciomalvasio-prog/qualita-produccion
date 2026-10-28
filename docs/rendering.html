@@ -111,6 +111,21 @@ html,body{overflow-x:clip}
 @media (min-width:901px){ #view-logistica .nav.armada{grid-template-columns:auto auto minmax(0,1fr);gap:6px 12px} }
 @media (max-width:900px){ .nav.armada{grid-template-columns:minmax(0,1fr)} .nav-dia,.nav-acc{justify-self:start;justify-content:flex-start} }
 @media print{ .nav.armada{display:flex} .nav-dia,.nav-acc{display:none} }
+/* Celular (pedido de Renzo): la fecha no se repite. Arriba ‹ DÍA › en un renglón; tocando el día se abre el calendario
+   (el campo de fecha queda invisible encima del título). Abajo los botones. */
+@media screen and (max-width:560px){
+  .nav.armada{grid-template-columns:40px minmax(0,1fr) 40px;gap:8px 6px}
+  .nav.armada>.nav-dia{display:contents}
+  .nav.armada>.nav-dia>.step:first-child{grid-column:1;grid-row:1}
+  .nav.armada>.nav-dia>.step:nth-child(2){grid-column:3;grid-row:1}
+  .nav.armada .nav-dia>.btn.step{width:40px!important;height:40px;min-height:40px;padding:0;font-size:20px}
+  .nav.armada>.tit{grid-column:2;grid-row:1;justify-self:stretch;text-align:center;font-size:19px!important;line-height:1.15}
+  .nav.armada>.tit::after{content:' ▾';font-size:.65em;opacity:.55}
+  .nav.armada>.nav-dia>input[type=date]{grid-column:2;grid-row:1;align-self:stretch;width:100%;height:auto;min-height:0;opacity:0;z-index:2;cursor:pointer;padding:0;border:0;font-size:16px!important}
+  .nav.armada>.nav-acc{grid-column:1 / -1;grid-row:2;justify-self:stretch}
+  #view-logistica .pd-busca{flex-wrap:nowrap}
+  #view-logistica .pd-busca input{flex:1 1 0;font-size:16px}
+}
 .tit-dia{display:inline-block;padding:4px 12px 3px;border-radius:6px;color:#fff;line-height:1.1}
 .tit-dia.pasado{background:#c0392b;box-shadow:0 2px 0 #8e2a1f}.tit-dia.hoy{background:#1f8a43;box-shadow:0 2px 0 #166532}
 @media print{ .tit-dia{background:none!important;color:#000!important;box-shadow:none!important;padding:0} }
