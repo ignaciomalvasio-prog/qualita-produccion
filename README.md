@@ -254,3 +254,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Compu: arriba de cada pantalla ‹ DÍA › juntos a la izquierda (sin la fecha repetida; tocando el día se abre el calendario) y los botones a la derecha.
 - Imprimir en la compu: un celular nunca cuenta como "la compu que imprime" (si quedaba tildado en el celu, escondía el botón); en el celu ya no aparece esa casilla.
 - Compu: la barra de arriba vuelve a como estaba (día, flechas y fecha); el cambio de ‹ DÍA › queda solo en el celular.
+- Compu: arriba, el día a la izquierda, ‹ fecha › centrado en el medio de la barra y los botones a la derecha (también en Logística).
