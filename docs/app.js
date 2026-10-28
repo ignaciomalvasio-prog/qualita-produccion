@@ -2719,6 +2719,7 @@
       + '<div class="imp-cfg">' + (esCelu() ? '' : '<label class="chk"><input type="checkbox" data-act="imp-esta"' + (esImpresora() ? ' checked' : '') + '> <b>Esta compu imprime lo que mande desde el celular</b></label>')
       + (esImpresora() ? ' <label class="campo" style="display:inline-flex;max-width:260px"><span>Nombre de esta compu</span><input type="text" id="imp-nombre" value="' + esc(nombreImpresora()) + '"></label>' : '')
       + '<p class="small"><b>Estado:</b> ' + impEstadoTxt() + '</p>'
+      + '<p class="small"><b>PIN de esta compu:</b> ' + (pinGuardado() ? 'puesto. La app se bloquea al abrirla y después de ' + PIN_MIN + ' min sin uso. <button class="btn sm" data-act="pin-bloquear">Bloquear ahora</button> <button class="btn sm lnk" data-act="pin-sacar">Sacar el PIN</button>' : 'sin PIN. <label class="campo" style="display:inline-flex;max-width:200px"><span>Nuevo PIN (4 a 8 números)</span><input type="password" inputmode="numeric" id="pin-nuevo" maxlength="8" autocomplete="new-password"></label> <button class="btn sm" data-act="pin-poner">Poner PIN</button>') + '</p>'
       + '<p class="small muted">Marcalo en la compu que tiene la impresora y dejá la app abierta. En el celular aparece "Imprimir en la compu" al lado de Imprimir. Para que salga sin el cartel de imprimir, abrí Chrome en esa compu con la opción --kiosk-printing.</p></div><div class="campos">'
       + '<label class="campo"><span>Clave de IA (Anthropic)</span><input type="password" id="cfg-clave" autocomplete="off" placeholder="' + (S.ia && S.ia.clave ? 'Cargada. Escribí otra para cambiarla.' : 'sk-ant-…') + '"></label>'
       + '<label class="campo"><span>Desposte habitual (medias por día)</span><input type="number" inputmode="numeric" id="cfg-desposte" value="' + esc(S.config.desposteHabitual || 750) + '"></label>'
@@ -3331,6 +3332,33 @@
   /* Imprimir desde el celular en la compu (pedido de Renzo): una compu marcada como "impresora" (en Configuración) avisa
      cada 2 minutos que está prendida (privado/impresora). El celular manda en privado/imprimir qué pantalla imprimir
      (pestaña y fecha); la compu la abre y aprieta su propio "Imprimir". Con Chrome abierto con --kiosk-printing sale directo. */
+  /* PIN de esta compu (pedido de Renzo): para que otro que se siente en la compu no use la app con su cuenta.
+     El PIN queda solo en esta compu (localStorage, cifrado). La app se bloquea al abrirla y después de 10 min sin uso;
+     lo que manda el celular a imprimir sigue saliendo igual. Si se olvida el PIN: "Salir" y volver a entrar con la cuenta lo borra. */
+  var PIN_MIN = 10;
+  function pinGuardado() { try { return localStorage.getItem('qualita-pin') || ''; } catch (e) { return ''; } }
+  function pinHash(pin) {
+    var t = 'qualita|' + String(pin);
+    if (window.crypto && crypto.subtle && window.TextEncoder) return crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)).then(function (b) { return Array.prototype.map.call(new Uint8Array(b), function (x) { return ('0' + x.toString(16)).slice(-2); }).join(''); });
+    return Promise.resolve(t);
+  }
+  var pinUso = Date.now();
+  function bloquear() {
+    if (!pinGuardado() || !S.editor || document.getElementById('pin-lock')) return;
+    var v = document.createElement('div'); v.id = 'pin-lock'; v.className = 'pin-lock'; v.setAttribute('role', 'dialog'); v.setAttribute('aria-label', 'App bloqueada');
+    v.innerHTML = '<div class="pin-caja"><b>App bloqueada</b><p class="small muted">Ingresá tu PIN para usarla.</p><input type="password" inputmode="numeric" id="pin-in" autocomplete="off" maxlength="8" aria-label="PIN"><p class="pin-err small" id="pin-err"></p>'
+      + '<div class="acciones"><button class="btn pri" data-act="pin-ok">Entrar</button></div><p class="small muted">Lo que mandes a imprimir desde el celular sale igual. ¿Te olvidaste el PIN? <button class="btn sm lnk" data-act="pin-olvide">Salir y entrar con tu cuenta</button></p></div>';
+    document.body.appendChild(v); setTimeout(function () { var i = $('pin-in'); if (i) i.focus(); }, 50);
+  }
+  function probarPin() {
+    var i = $('pin-in'); if (!i) return;
+    pinHash(i.value).then(function (h) {
+      if (h === pinGuardado()) { var v = $('pin-lock'); if (v) v.remove(); pinUso = Date.now(); }
+      else { i.value = ''; var er = $('pin-err'); if (er) er.textContent = 'PIN incorrecto.'; i.focus(); }
+    });
+  }
+  ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(function (ev) { document.addEventListener(ev, function () { if (!document.getElementById('pin-lock')) pinUso = Date.now(); }, { passive: true, capture: true }); });
+  setInterval(function () { if (pinGuardado() && Date.now() - pinUso > PIN_MIN * 60000) bloquear(); }, 20000);
   var IMP_KEYS = ['tab', 'mv', 'fm', 'sem', 'dia', 'fl', 'resumen', 'fecha', 'pv', 'fr'];
   // Un celular o tablet nunca es "la compu que imprime" (si quedó tildado ahí, el celular escondía el botón de mandar a imprimir).
   function esCelu() { try { return matchMedia('(pointer:coarse)').matches && !matchMedia('(any-pointer:fine)').matches; } catch (e) { return false; } }
@@ -3557,7 +3585,12 @@
       setTimeout(function () { window.print(); }, 80);
     }
     else if (a === 'ingresar') { if (window.Acceso && store.entrarMail) window.Acceso.abrir(store); else store.signIn().catch(function () {}); }
-    else if (a === 'salir') store.signOut();
+    else if (a === 'salir') { try { localStorage.removeItem('qualita-pin'); } catch (er) {} store.signOut(); }
+    else if (a === 'pin-ok') probarPin();
+    else if (a === 'pin-olvide') { try { localStorage.removeItem('qualita-pin'); } catch (er) {} var vl = $('pin-lock'); if (vl) vl.remove(); store.signOut(); }
+    else if (a === 'pin-bloquear') bloquear();
+    else if (a === 'pin-sacar') { try { localStorage.removeItem('qualita-pin'); } catch (er) {} avisar('PIN sacado: esta compu ya no se bloquea.', 4000); render(); }
+    else if (a === 'pin-poner') { var pn = String(($('pin-nuevo') || {}).value || '').trim(); if (!/^\d{4,8}$/.test(pn)) { avisar('!El PIN tiene que ser de 4 a 8 números.', 5000); return; } pinHash(pn).then(function (h) { try { localStorage.setItem('qualita-pin', h); } catch (er) {} pinUso = Date.now(); avisar('PIN puesto. La app se bloquea al abrirla y después de ' + PIN_MIN + ' min sin uso.', 6000); render(); }); }
     else if (a === 'wa-pdf') { compartirPDF(b.closest('.hoja'), b, true); }
     else if (a === 'copiar') {
       var ta = $('txt-' + (D.t || 'orden')), msg = $('copiado-' + (D.t || 'orden')); ta.hidden = false;
@@ -3793,6 +3826,13 @@
     }
   });
 
+  // Con la app bloqueada, el teclado solo sirve para el PIN.
+  document.addEventListener('keydown', function (e) {
+    var lk = document.getElementById('pin-lock');
+    if (lk && !lk.contains(e.target)) { e.preventDefault(); e.stopPropagation(); var pi = $('pin-in'); if (pi) pi.focus(); return; }
+    if (e.key === 'Enter' && e.target && e.target.id === 'pin-in') { e.preventDefault(); probarPin(); }
+    if (e.key === 'Enter' && e.target && e.target.id === 'pin-nuevo') { e.preventDefault(); var bp = document.querySelector('[data-act="pin-poner"]'); if (bp) bp.click(); }
+  }, true);
   document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target && e.target.classList && e.target.classList.contains('cam-in')) { e.preventDefault(); e.target.blur(); } });
   document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey && e.target && e.target.dataset && e.target.dataset.notaPed) { e.preventDefault(); e.target.blur(); } });
   document.addEventListener('focusout', function (e) {
@@ -4393,7 +4433,7 @@
         render();
       });
       (store.renovar ? store.renovar() : Promise.resolve()).then(null, function () {}).then(function () { return store.esEditor(u.email); }).then(function (ok) {
-        S.editor = ok; S.editorVisto = true; latirImpresora();
+        S.editor = ok; S.editorVisto = true; latirImpresora(); if (ok && pinGuardado()) bloquear();
         if (ok && S.volver && S.tab === 'inicio') { S.tab = S.volver; S.volver = null; }
         if (ok) {
           if (S.fuente === 'respaldo' || vacia) traer();

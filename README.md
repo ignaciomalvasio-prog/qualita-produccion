@@ -258,3 +258,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Logística › Resumen: "☎ Teléfonos de choferes" para cargar el celular de cada chofer (privado/choferes, no sale en el link público). El botón WhatsApp de su camión pasa a decir "WhatsApp a NOMBRE" y abre directo su chat con el mensaje escrito (en la compu, la app de WhatsApp; en el celu, wa.me).
 - Medias (día): título grande "FAENA" arriba de Animales para clientes (también en el PDF).
 - Teléfonos de choferes: el mismo chofer aunque el camión se escriba distinto (MAXIMO, MAXIMO 1, MAXIMO (PRIMER VIAJE), MAXIMO 2DO VIAJE).
+- PIN de esta compu (Pedidos › Configuración): con PIN puesto la app se bloquea al abrirla y después de 10 min sin uso, y pide el PIN para usarla. Queda solo en esa compu (cifrado). Lo que llega del celular para imprimir sale igual. Si se olvida: Salir y volver a entrar con la cuenta lo borra.
