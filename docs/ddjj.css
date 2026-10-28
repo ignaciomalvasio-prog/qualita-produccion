@@ -105,3 +105,12 @@ body.vista .hoja::before{content:"Encabezado del formulario";position:absolute;l
 .dj-campos label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
 section .chart{max-width:900px;margin:6px 0 4px}
 @media (max-width:600px){.dj-campos{grid-template-columns:1fr}}
+
+/* resumen mensual de menudencias y rendering (SENASA) */
+.hm{padding:70pt 70pt 0 85pt;font-family:Arial,"Liberation Sans",sans-serif;color:#000;box-sizing:border-box}
+.hm-tab{width:100%;border-collapse:collapse;margin-top:18pt;font-size:10pt}
+.hm-tab td{border:.8pt solid #000;padding:3pt 6pt;text-align:right;background:#fff!important}
+.hm-tab td.n,.hm-tab tr.th td:first-child{text-align:left}
+.hm-tab tr.th td,.hm-tab tr.tt td{font-weight:bold}
+.hm-tab td:last-child{width:110pt}
+body.vista-m .hoja::before{display:none}

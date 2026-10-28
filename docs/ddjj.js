@@ -1,7 +1,7 @@
 /* DDJJ de producción de desposte (link /ddjj) · la usa S. Saavedra
    - Los datos del desposte de cerdo (tipo de ciclo 2) los sube la notebook de Igna (C:\InformeQualita\ddjj\dj_sync.ps1)
      a c3sis/dj-AAAA-MM, con renglones:
-       TR|fecha|tropa|cabezas|faena|medias|kg   IN|fecha|art|nombre|uni|kg   RE|fecha|art|nombre|contrato|uni|piezas|kg   CO|contrato|nombre|país
+       TR|fecha|tropa|cabezas|faena|medias|kg   ME|fecha|tipo ciclo|art|nombre|uni|kg (pestaña Menudencias y rendering, ddjj-men.js)   IN|fecha|art|nombre|uni|kg   RE|fecha|art|nombre|contrato|uni|piezas|kg   CO|contrato|nombre|país
    - c3docs/ddjj-equiv: qué artículos del sistema van en cada renglón de la planilla (se edita en la pestaña Equivalencias).
    - c3docs/ddjj-AAAA-MM: lo corregido a mano, por día. Lo del sistema nunca se pisa: cada corrección guarda el valor nuevo
      y la pantalla muestra al lado lo que dice el sistema.
@@ -61,7 +61,7 @@ const mesHoy = () => hoyIso().slice(0, 7);
 
 /* ---------- lectura de lo que subió la notebook ---------- */
 function parseDJ(txt) {
-  const o = { hora: '', dias: {}, co: {}, c3: {} };
+  const o = { hora: '', dias: {}, co: {}, c3: {}, me: [] };
   const d3 = f => o.c3[f] || (o.c3[f] = { re: [], in: [] });
   const dia = f => o.dias[f] || (o.dias[f] = { tr: [], in: [], re: [], en: [] });
   for (const l of String(txt || '').split(/\r?\n/)) {
@@ -73,6 +73,7 @@ function parseDJ(txt) {
     else if (t === 'C3') d3(p[1]).re.push({ art: +p[2], den: (p[3] || '').trim(), uni: num(p[4]), kg: num(p[5]) });
     else if (t === 'C3I') d3(p[1]).in.push({ art: +p[2], den: (p[3] || '').trim(), uni: num(p[4]), kg: num(p[5]) });
     else if (t === 'EN') { const x = dia(p[1]); (x.en = x.en || []).push({ art: +p[2], tropa: String(p[3] || '').trim(), uni: num(p[4]) }); }
+    else if (t === 'ME') o.me.push({ f: p[1], ticd: +p[2], art: +p[3], den: (p[4] || '').trim(), uni: num(p[5]), kg: num(p[6]) });
     else if (t === 'CO') o.co[p[1]] = { den: (p[2] || '').trim(), pais: (p[3] || '').trim() };
   }
   return o;
@@ -293,6 +294,7 @@ function render() {
   if (S.tab === 'c3') return renderC3();
   if (S.tab === 'rend') return renderRend();
   if (S.tab === 'faena') return renderFaena();
+  if (S.tab === 'men') return renderMen();
   renderDia();
 }
 
