@@ -185,8 +185,6 @@ function renderInicio() {
 function alertas(vd, cj) {
   const out = [], hoy = hoyIso();
   const lista = fs => fs.map(ddmm).join(', ');
-  const sinParte = fechasCon('prod').filter(f => !S.mp.some(m => m.f === f));
-  if (sinParte.length) out.push('<div class="alerta warn">⚠ <div>Hay producción cargada pero <b>sin la carne ingresada por sistema en CIII</b>: ' + lista(sinParte) + '. La carne recibida sale de los remitos 1→3, pero en el sistema falta cargar la carne usada.</div></div>');
   const sinCaja = diasDelMes(M).filter(f => f < hoy && vd[f] && vd[f].total > 0 && !(cj[f] && cj[f].cargado));
   if (sinCaja.length) out.push('<div class="alerta warn">⚠ <div><b>Caja del local sin cargar</b>: ' + lista(sinCaja) + '. <a href="#" onclick="irA(\'caja\');return false">Ir a la caja</a></div></div>');
   const zeta = diasDelMes(M).filter(f => cj[f] && cj[f].zeta != null && vd[f] && Math.abs(cj[f].zeta - vd[f].total) > 1);
@@ -401,31 +399,29 @@ function renderC3() {
   const hoy = hoyIso();
   let h = cabecera('Ciclo III · Producción y carne recibida', 'Producción del parte del sistema y carne de los remitos 1→3. Clic en cualquier número para corregirlo o cargarlo.',
     '<button onclick="agregarDato(\'prod\')">＋ Producción a mano</button><button onclick="agregarDato(\'mp\')">＋ Carne a mano</button>');
-  let th = '<tr><th rowspan="2">Día</th><th class="gh sep" colspan="' + (grupos.length + 3) + '">Producción (kg)</th><th class="gh sep" colspan="' + (carnes.length + 1) + '">Carne recibida del frigorífico (kg)</th><th class="gh sep" colspan="2">Control</th></tr><tr>';
+  let th = '<tr><th rowspan="2">Día</th><th class="gh sep" colspan="' + (grupos.length + 3) + '">Producción (kg)</th><th class="gh sep" colspan="' + (carnes.length + 1) + '">Carne recibida del frigorífico (kg)</th><th class="gh sep">Control</th></tr><tr>';
   grupos.forEach((g, i) => th += '<th class="num' + (i ? '' : ' sep') + '">' + g.n + '</th>');
   th += '<th class="num">Total día</th><th class="num">Promedio</th><th class="num">Días</th>';
   carnes.forEach((c, i) => th += '<th class="num' + (i ? '' : ' sep') + '">' + esc(lindo(c.den)) + '<br><small class="muted">' + esc(c.art) + '</small></th>');
-  th += '<th class="num' + (carnes.length ? '' : ' sep') + '">Total carne</th><th class="sep">Carne ingresada por sistema en CIII</th><th>Remitos</th></tr>';
+  th += '<th class="num' + (carnes.length ? '' : ' sep') + '">Total carne</th><th class="sep">Remitos</th></tr>';
   let tb = '', acum = 0, nd = 0;
   for (const f of dias) {
     const tp = totDia('prod', f), tc = totDia('mp', f);
     if (tp > 0) { acum += tp; nd++; }
-    const enParte = S.mp.filter(m => m.f === f).reduce((s, m) => s + m.kg, 0);
     const nros = [...new Set(celdas('mp', f).flatMap(c => c.nros))];
     tb += '<tr class="' + (diaSem(f) === 0 ? 'dom' : '') + (f === hoy ? ' hoy' : '') + '"><td><b>' + diaCorto(f) + '</b></td>';
     grupos.forEach((g, i) => tb += tdGrupo('prod', f, g.id, i ? '' : 'sep'));
     tb += '<td class="num" data-v="' + r2(tp) + '"><b>' + kg(tp) + '</b></td><td class="num muted" data-v="' + (nd ? r2(acum / nd) : '') + '">' + (tp > 0 ? kg(acum / nd) : '') + '</td><td class="num muted" data-v="' + (tp > 0 ? nd : '') + '">' + (tp > 0 ? nd : '') + '</td>';
     carnes.forEach((c, i) => tb += td('mp', f, c.art, c.den, i ? '' : 'sep'));
     tb += '<td class="num' + (carnes.length ? '' : ' sep') + '" data-v="' + r2(tc) + '"><b>' + kg(tc) + '</b></td>';
-    tb += tp > 0 && !enParte && !AJ['parte|' + f] ? '<td class="sep ed" data-ov="parte|' + f + '" data-sis="0" data-tit="Carne ingresada por sistema en CIII ' + ddmm(f) + '"><span class="chip sm warn">falta cargar</span></td>' : tdv('parte|' + f, enParte, kg, 'Carne ingresada por sistema en CIII ' + ddmm(f), 'sep muted');
-    tb += '<td class="muted" style="font-size:12.5px">' + esc(nros.join(' / ')) + '</td></tr>';
+    tb += '<td class="sep muted" style="font-size:12.5px">' + esc(nros.join(' / ')) + '</td></tr>';
   }
   const tp = totMes('prod'), tc = totMes('mp');
   let tt = '<tr class="tot"><td>Total</td>';
   grupos.forEach((g, i) => tt += '<td class="num' + (i ? '' : ' sep') + '" data-v="' + r2(totMes('prod', c => grupoDe(c.art, c.den) === g.id)) + '">' + kg(totMes('prod', c => grupoDe(c.art, c.den) === g.id)) + '</td>');
   tt += '<td class="num" data-v="' + r2(tp) + '">' + kg(tp) + '</td><td class="num">' + (nd ? kg(tp / nd) : '') + '</td><td class="num">' + (nd || '') + '</td>';
   carnes.forEach((c, i) => tt += '<td class="num' + (i ? '' : ' sep') + '" data-v="' + r2(c.kg) + '">' + kg(c.kg) + '</td>');
-  tt += '<td class="num' + (carnes.length ? '' : ' sep') + '" data-v="' + r2(tc) + '">' + kg(tc) + '</td><td class="sep">' + (tc ? 'Rendimiento del mes: ' + pct(tp / tc) : '') + '</td><td></td></tr>';
+  tt += '<td class="num' + (carnes.length ? '' : ' sep') + '" data-v="' + r2(tc) + '">' + kg(tc) + '</td><td class="sep">' + (tc ? 'Rendimiento del mes: ' + pct(tp / tc) : '') + '</td></tr>';
   h += '<section><div class="tw"><table class="planilla xl" data-hoja="Produccion-Carne"><thead>' + th + '</thead><tbody>' + tb + tt + '</tbody></table></div>' +
     '<p class="nota">Amarillo = escrito a mano (el punto naranja); debajo dice lo que marca el sistema en la última lectura, en rojo si el sistema cambió después. Verde = cargado a mano, no está en el sistema.</p></section>';
 

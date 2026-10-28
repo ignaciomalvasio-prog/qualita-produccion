@@ -242,3 +242,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Imprimir en la compu: el botón se ve aunque la compu esté sin la app abierta (dice "apagada" y avisa al tocarlo).
 - Celular más prolijo en Medias (día) y Pedidos: botones chicos y cortos (PDF, Semana, Link), días con solo el número de animales, días de carga y "otros días" en una fila que se desliza, botones de carga de a dos y buscadores uno al lado del otro.
 - Celular: arriba de cada pantalla (Logística, Pedidos, Medias, Producción) va ‹ DÍA › en un solo renglón, sin la fecha repetida; tocando el día se abre el calendario. Buscadores con textos cortos y uno al lado del otro también en Logística.
+- Centro de control › Producción: se sacó la columna "Carne ingresada por sistema en CIII" (y su aviso en Inicio); la carne sale solo de los remitos internos 1→3.
