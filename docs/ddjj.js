@@ -295,6 +295,7 @@ function render() {
   if (S.tab === 'rend') return renderRend();
   if (S.tab === 'faena') return renderFaena();
   if (S.tab === 'men') return renderMen();
+  if (S.tab === 'traza') return renderTraza();
   renderDia();
 }
 

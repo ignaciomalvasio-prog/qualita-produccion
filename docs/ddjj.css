@@ -117,3 +117,11 @@ body.vista-m .hoja::before{display:none}
 .dj-tab tr.dj-off td{color:var(--muted);text-decoration:line-through}
 .dj-tab tr.dj-off td .dj-chk{text-decoration:none}
 .dj-chk{width:auto;margin:0 4px 0 0;vertical-align:middle;cursor:pointer}
+
+/* trazabilidad */
+.tz-form{margin-top:10px;align-items:center;gap:10px;flex-wrap:wrap}
+.tz-form #tz-v{width:180px;font-size:17px}
+.tz-tipo{display:flex;gap:14px}
+.tz-tipo label{display:flex;align-items:center;gap:5px;font-size:15px;cursor:pointer}
+.tz-tipo input{width:auto;margin:0}
+.tz-dest{margin:4px 0 8px 18px;line-height:1.7}
