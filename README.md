@@ -259,3 +259,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Medias (día): título grande "FAENA" arriba de Animales para clientes (también en el PDF).
 - Teléfonos de choferes: el mismo chofer aunque el camión se escriba distinto (MAXIMO, MAXIMO 1, MAXIMO (PRIMER VIAJE), MAXIMO 2DO VIAJE).
 - PIN de esta compu (Pedidos › Configuración): con PIN puesto la app se bloquea al abrirla y después de 10 min sin uso, y pide el PIN para usarla. Queda solo en esa compu (cifrado). Lo que llega del celular para imprimir sale igual. Si se olvida: Salir y volver a entrar con la cuenta lo borra.
+- Cámara: la fila "DESPOSTE DÍA SIGUIENTE" pasa a "DESPOSTE DEL DÍA" (en cada columna, el desposte de ese mismo día; se guarda igual que antes, así el Google Sheet no cambia) y abajo se ven las 3 semanas siguientes, también editables.

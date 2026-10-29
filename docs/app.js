@@ -2892,6 +2892,7 @@
      el desposte del día siguiente (medias), y de ahí el remanente, lo disponible, las medias en cámara y el lugar libre.
      Se guarda por semana en /camara/{lunes} (solo lo que se cargó o corrigió); lo que falta sale de Medias y Producción.
      Remanente(d) = disponible del día hábil anterior − desposte de ese día (o el que se haya escrito a mano). */
+  var CAM_SEM_MAS = 3;   // semanas que se ven debajo de la elegida
   var CAM_CAMPOS = ['propios', 'usuario', 'venta', 'despSig', 'rem'];
   // Por decisión de Renzo, los datos van en privado/camara-* (los editores pueden leer esa sección; la app no los muestra).
   // La pestaña la ve solo la cuenta cuya huella SHA-256 del mail figura acá (así el mail no queda escrito en el código público).
@@ -2940,7 +2941,7 @@
       o.camara = o.faena * 2 + o.rem;
       o.libre = camCap() - o.camara;
       if (o.src.propios || o.src.venta || camNum(g.despSig) != null || remM != null || fj) ultimo = f;
-      if (prev) prev.sig = o;
+      if (prev) { prev.sig = o; o.prevF = prev.f; }
       r[f] = o; prev = o;
     });
     // "Desposte del día siguiente" que se muestra en cada día.
@@ -2972,7 +2973,7 @@
     if (!S.camaraOk) { el.innerHTML = '<div class="panel"><p class="state">Esta sección es privada.</p></div>'; return; }
     if (!S.editor) { el.innerHTML = !S.editorVisto ? '<div class="panel"><p class="state">Cargando tus datos…</p></div>' : '<div class="panel"><p class="state">Todavía no se cargaron tus datos de Cámara (no se pudo confirmar tu permiso, puede ser la señal).</p><div class="acciones"><button class="btn pri" data-act="recargar">Volver a cargar</button></div></div>'; return; }
     if (!S.camLun) S.camLun = lunesDe(camDiaRef());
-    var L = S.camLun, dias = [0, 1, 2, 3, 4].map(function (i) { return mas(L, i); }), c = camCalc(mas(L, 7)), ult = c.ultimo, hy = hoy();
+    var L = S.camLun, c = camCalc(mas(L, 7 * (CAM_SEM_MAS + 1))), ult = c.ultimo, hy = hoy();
     var vacio = false;
     var h = '<div class="cam-top"><span class="cam-escudo" aria-hidden="true"></span><div><p class="cam-sup">Semana de faena y desposte · <span class="cam-priv">🔒 Privado, solo con tu cuenta</span></p>'
       + '<h2 class="cam-tit">' + esc(etiquetaSemana(L).toUpperCase()) + '</h2></div>'
@@ -2983,7 +2984,11 @@
     if (S.camLink) { var dl = camDesdeLink(S.camLink); S.camLink = null; if (dl && dl.length) { S.camPrev = dl; S.camPegar = true; S.camDeLink = true; } }
     h += camSheetHTML();
     if (S.camPegar || vacio) h += camPegarHTML(vacio);
-    if (!vacio) {
+    /* Una tabla por semana: la elegida y las CAM_SEM_MAS siguientes (pedido de Renzo, para ver dos o tres semanas adelante).
+       DESPOSTE muestra el desposte de ESE día (antes era "del día siguiente", como en la planilla); se guarda igual que antes
+       (en el día hábil anterior, como "desposte del día siguiente"), así la sincronización con el Google Sheet no cambia. */
+    var tablaSem = function (L2, conTit) {
+      var dias = [0, 1, 2, 3, 4].map(function (i) { return mas(L2, i); });
       var fila = function (lab, cls, celda, tot) {
         return '<tr class="' + cls + '"><th scope="row">' + lab + '</th>' + dias.map(function (f) { var o = c.dias[f], ver = o && (!ult || f <= ult || o.src.propios === 'dato'); return '<td class="' + (f === hy ? 'hoy' : '') + (CAM_FERIADOS[f] ? ' fer' : '') + '">' + (o ? celda(o, ver) : '') + '</td>'; }).join('') + '<td class="tot">' + (tot || '') + '</td></tr>';
       };
@@ -2991,23 +2996,31 @@
       var nd = dias.filter(function (f) { var o = c.dias[f]; return o && o.faena > 0; }).length || 1;
       var calc = function (k, bold) { return function (o, ver) { return ver ? '<span class="cam-v' + (bold ? ' b' : '') + '">' + n(o[k]) + '</span>' : ''; }; };
       var ed = function (k) { return function (o) { return camCelda(o.f, k, o[k], o.src[k]); }; };
-      h += '<div class="cam-tabla"><table><thead><tr><th></th>' + dias.map(function (f) { return '<th class="' + (f === hy ? 'hoy' : '') + (CAM_FERIADOS[f] ? ' feriado' : CAM_NOLAB[f] ? ' nolab' : '') + '">' + esc(diaDe(f)) + ' ' + fecha(f).getDate() + (f === hy ? ' · HOY' : '') + (CAM_FERIADOS[f] ? '<small>FERIADO · ' + esc(CAM_FERIADOS[f]) + '</small>' : CAM_NOLAB[f] ? '<small>' + esc(CAM_NOLAB[f].toUpperCase()) + '</small>' : '') + '</th>'; }).join('') + '<th>Total</th></tr></thead><tbody>'
+      var desp = function (o) { return o.prevF ? camCelda(o.prevF, 'despSig', o.desp, o.srcDesp, ' data-dia="' + o.f + '"') : '<span class="cam-v">' + n(o.desp) + '</span>'; };
+      return (conTit ? '<h3 class="cam-sem-tit">' + esc(etiquetaSemana(L2).toUpperCase()) + '</h3>' : '')
+        + '<div class="cam-tabla"><table><thead><tr><th></th>' + dias.map(function (f) { return '<th class="' + (f === hy ? 'hoy' : '') + (CAM_FERIADOS[f] ? ' feriado' : CAM_NOLAB[f] ? ' nolab' : '') + '">' + esc(diaDe(f)) + ' ' + fecha(f).getDate() + (f === hy ? ' · HOY' : '') + (CAM_FERIADOS[f] ? '<small>FERIADO · ' + esc(CAM_FERIADOS[f]) + '</small>' : CAM_NOLAB[f] ? '<small>' + esc(CAM_NOLAB[f].toUpperCase()) + '</small>' : '') + '</th>'; }).join('') + '<th>Total</th></tr></thead><tbody>'
         + fila('PROPIOS', 'c-verde', ed('propios'), n(sum('propios')))
         + fila('USUARIO', 'c-naranja', ed('usuario'), n(sum('usuario')))
         + fila('FAENA', 'c-celeste b', calc('faena', true), n(sum('faena')) + ' <small>(' + n(Math.round(sum('faena') / nd)) + ' x día)</small>')
         + fila('VENTA (animales)', 'c-verde', ed('venta'), n(sum('venta')))
         + fila('MEDIAS A DESPOSTE', '', calc('aDesposte'), n(sum('aDesposte')))
-        + fila('DESPOSTE DÍA SIGUIENTE', 'c-celeste', function (o) { var s2 = o.sig; return camCelda(o.f, 'despSig', o.despSig, o.src.despSig) + '<small class="cam-dsig">' + (s2 ? esc(diaDe(s2.f).toLowerCase()) : '') + '</small>'; }, n(sum('despSig')))
-        + fila('REMANENTE', 'b', function (o, ver) { return ver ? camCelda(o.f, 'rem', o.rem, o.src.rem) + (o.src.rem === 'dato' ? '<small class="cam-dsig">a mano</small>' : '') : ''; }, (function () { var v = c.dias[mas(L, 7)]; return v && (!ult || v.f <= ult) ? '→ ' + n(v.rem) + ' el lunes' : ''; })())
+        + fila('DESPOSTE DEL DÍA', 'c-celeste', desp, n(sum('desp')))
+        + fila('REMANENTE', 'b', function (o, ver) { return ver ? camCelda(o.f, 'rem', o.rem, o.src.rem) + (o.src.rem === 'dato' ? '<small class="cam-dsig">a mano</small>' : '') : ''; }, (function () { var v = c.dias[mas(L2, 7)]; return v && (!ult || v.f <= ult) ? '→ ' + n(v.rem) + ' el lunes' : ''; })())
         + fila('DISPONIBLE', '', calc('disp'), '')
         + fila('MEDIAS EN CÁMARA', 'c-azul b', calc('camara', true), (function () { var m = dias.map(function (f) { return c.dias[f] && (!ult || f <= ult) ? c.dias[f].camara : -1e9; }); var mx = Math.max.apply(null, m); return mx > -1e9 ? 'máx. ' + n(mx) : ''; })())
         + fila('LUGAR LIBRE (de ' + n(camCap()) + ')', 'b', function (o, ver) { return ver ? '<span class="cam-v b' + (o.libre < 0 ? ' neg' : '') + '">' + n(o.libre) + '</span>' : ''; }, (function () { var m = dias.filter(function (f) { return c.dias[f] && (!ult || f <= ult); }).map(function (f) { return c.dias[f].libre; }); return m.length ? 'mín. ' + n(Math.min.apply(null, m)) : ''; })())
         + '</tbody></table></div>';
+    };
+    if (!vacio) {
+      h += tablaSem(L, false);
       var nota = ((S.cam || {})[L] || {}).nota || '';
       h += '<label class="campo cam-nota"><span>Nota de la semana</span><input id="cam-nota-sem" value="' + esc(nota) + '" placeholder="Ej.: si carga Recreo faenamos"></label>';
       h += '<div class="cam-ley"><span class="l-dato">Cargado o corregido</span><span class="l-auto">Sale solo de Medias / Producción</span><span class="l-calc">Calculado</span>'
         + '<span class="cam-cap">Capacidad de cámara: <input id="cam-cap" inputmode="numeric" value="' + esc(String(camCap())) + '" aria-label="Capacidad de cámara en medias"> medias</span></div>'
         + '<p class="small muted cam-tip">Hasta fin de año ya viene cargado de base: faena 680 por día (viernes 520 + 160 de usuario), la venta y el desposte habituales, y los feriados en rojo sin faena ni desposte. Tocá cualquier número de propios, usuario, venta, desposte o remanente para cambiarlo; todo lo demás se recalcula solo.</p>';
+      h += '<div class="cam-mas"><p class="cam-sup">Semanas siguientes</p>';
+      for (var sk = 1; sk <= CAM_SEM_MAS; sk++) h += tablaSem(mas(L, 7 * sk), true);
+      h += '</div>';
     }
     el.innerHTML = h;
     camTraer();
