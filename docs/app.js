@@ -2993,7 +2993,7 @@
     var vacio = false;
     var h = '<div class="cam-top"><span class="cam-escudo" aria-hidden="true"></span><div><p class="cam-sup">Semana de faena y desposte · <span class="cam-priv">🔒 Privado, solo con tu cuenta</span></p>'
       + '<h2 class="cam-tit">' + esc(etiquetaSemana(L).toUpperCase()) + '</h2></div>'
-      + '<span class="cam-acc"><button class="btn step" data-act="cam-sem" data-d="-7" aria-label="Semana anterior">‹</button>'
+      + '<span class="cam-acc"><span class="cam-undo"><button class="btn" data-act="cam-deshacer" title="Deshacer el último cambio (Ctrl+Z)" aria-label="Deshacer"' + (camHist.atras.length ? '' : ' disabled') + '>↶</button><button class="btn" data-act="cam-rehacer" title="Rehacer (Ctrl+Y)" aria-label="Rehacer"' + (camHist.adelante.length ? '' : ' disabled') + '>↷</button></span><button class="btn step" data-act="cam-sem" data-d="-7" aria-label="Semana anterior">‹</button>'
       + (L !== lunesDe(camDiaRef()) ? '<button class="btn" data-act="cam-hoy">Esta semana</button>' : '')
       + '<button class="btn step" data-act="cam-sem" data-d="7" aria-label="Semana siguiente">›</button>'
       + (camSheet() ? '' : '<button class="btn" data-act="cam-sheet">Conectar Google Sheet</button>') + '<button class="btn" data-act="cam-pegar">' + (S.camPegar ? 'Cerrar' : 'Pegar desde la planilla') + '</button><button class="btn" data-act="imprimir">Imprimir</button></span></div>';
@@ -3117,10 +3117,21 @@
     });
     return Promise.all(t).then(function (r) { camMandar(camSheet() ? sem.map(function (w) { return w.lunes; }) : []); return r; });
   }
-  function camGuardarCelda(f, k, txt) {
+  /* Deshacer / Rehacer en Cámara (pedido de Renzo, como las flechitas del Excel): cada número que se cambia queda anotado
+     con lo que tenía antes (o vacío, si salía solo), y se puede volver atrás o adelante, de a uno. */
+  var camHist = { atras: [], adelante: [] };
+  function camDeshacer(rehacer) {
+    var de = rehacer ? camHist.adelante : camHist.atras, a = rehacer ? camHist.atras : camHist.adelante, x = de.pop();
+    if (!x) return;
+    var antes = camCrudo(x.f, x.k);
+    camGuardarCelda(x.f, x.k, x.v == null ? '' : String(x.v), true).then(function () { a.push({ f: x.f, k: x.k, v: antes }); renderCamara(); avisar((rehacer ? 'Rehecho' : 'Deshecho') + ': ' + diaCorto(x.f).toLowerCase() + '.', 2500); }, function () { de.push(x); avisar('!No se pudo guardar. Revisá la conexión.', 6000); });
+  }
+  function camCrudo(f, k) { var g = camGuardado(f); return g[k] == null ? null : g[k]; }
+  function camGuardarCelda(f, k, txt, sinHist) {
     var L = lunesDe(f), i = Math.round((fecha(f) - fecha(L)) / 864e5), doc = clone((S.cam || {})[L] || { dias: [] }); delete doc.id;
     doc.dias = doc.dias || []; while (doc.dias.length < 5) doc.dias.push({});
     var v = String(txt || '').trim() === '' ? null : numero(String(txt).replace(/\s/g, '').replace(/,(\d+)$/, '.$1'));
+    if (!sinHist) { var viejo = doc.dias[i][k] == null ? null : doc.dias[i][k], nv = v == null || isNaN(v) ? null : v; if (viejo !== nv) { camHist.atras.push({ f: f, k: k, v: viejo }); if (camHist.atras.length > 100) camHist.atras.shift(); camHist.adelante = []; } }
     if (v == null || isNaN(v)) delete doc.dias[i][k]; else doc.dias[i][k] = v;
     S.cam = S.cam || {}; var nuevo = clone(doc); nuevo.id = L; S.cam[L] = nuevo;
     return store.set('privado', 'camara-' + L, doc).then(function (r) { camMandar(camSheet() ? [L] : []); return r; });
@@ -3576,6 +3587,7 @@
     else if (a === 'imp-esta') { var on = !esImpresora(); try { localStorage.setItem('qualita-imprime', on ? '1' : '0'); } catch (e) {} latirImpresora(); if (!on) store.set('privado', 'impresora', { nombre: '', visto: 0 }).then(null, function () {}); render(); }
     else if (a === 'md-editar') { S.mdEdit = !S.mdEdit; render(); }
     else if (a === 'res-saludos') { S.resSaludos = !S.resSaludos; render(); }
+    else if (a === 'cam-deshacer' || a === 'cam-rehacer') camDeshacer(a === 'cam-rehacer');
     else if (a === 'res-tels') { S.resTels = !S.resTels; render(); }
     else if (a === 'res-sel-nada') { var fn0 = D.f; Object.keys(S.resSel || {}).forEach(function (k) { if (k.indexOf(fn0 + '|') === 0) delete S.resSel[k]; }); render(); }
     else if (a === 'imprimir-camiones') {
@@ -3860,6 +3872,15 @@
   });
 
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && S.menuAb) cerrarMenus(); });
+  // Ctrl+Z / Ctrl+Y en Cámara (cuando no se está escribiendo en una casilla, que tiene su propio deshacer).
+  document.addEventListener('keydown', function (e) {
+    if (S.tab !== 'camara' || !(e.ctrlKey || e.metaKey) || document.getElementById('pin-lock')) return;
+    var t = e.target, escribiendo = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') && t.value !== t.defaultValue;
+    if (escribiendo) return;
+    var kk = String(e.key || '').toLowerCase();
+    if (kk === 'z' && !e.shiftKey) { e.preventDefault(); if (t && t.blur) t.blur(); camDeshacer(false); }
+    else if (kk === 'y' || (kk === 'z' && e.shiftKey)) { e.preventDefault(); if (t && t.blur) t.blur(); camDeshacer(true); }
+  });
   // Con la app bloqueada, el teclado solo sirve para el PIN.
   document.addEventListener('keydown', function (e) {
     var lk = document.getElementById('pin-lock');
