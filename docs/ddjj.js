@@ -123,12 +123,19 @@ function calcular(f) {
     else if (l.cant === 'est' && l.kgu) cant = Math.round(kgs / l.kgu / 10) * 10;
     prod[l.n] = { n: l.n, cant, exp: kgExp || null, cons: kgExp && !kgCons ? null : kgCons, dest: (kgExp && l.dest) || 'CONSUMO', re, ing, est: l.cant === 'est' };
   }
-  /* una tropa faenada en dos días viene en dos renglones: los dos llevan FAENA PARCIAL */
+  /* una tropa faenada en dos días viene en dos renglones: los dos llevan FAENA PARCIAL.
+     Si la tropa tuvo muertos (corral o viaje, del sistema o cargados a mano), el total de tropa son las cabezas faenadas
+     (cabezas recibidas − muertos) y también va FAENA PARCIAL (pedido de Sabi, 29/10, tropa 261799: 160 − 1 = 159). */
   const veces = {}; d.tr.forEach(t => { veces[t.tropa] = (veces[t.tropa] || 0) + 1; });
-  const ingreso = d.tr.slice().sort((a, b) => String(a.tropa).localeCompare(String(b.tropa)) || String(a.faena).localeCompare(String(b.faena))).map(t => ({
-    faena: t.faena, tropa: t.tropa, cab: t.cab, medias: t.medias, prom: t.medias ? Math.round(t.kg / t.medias) : 0,
-    kg: t.medias ? t.medias * Math.round(t.kg / t.medias) : 0, obs: veces[t.tropa] > 1 ? 'FAENA PARCIAL' : (obsAnterior(t.tropa, f) || 'Consumo')
-  }));
+  const muertosDe = muertosPorTropa();
+  const ingreso = d.tr.slice().sort((a, b) => String(a.tropa).localeCompare(String(b.tropa)) || String(a.faena).localeCompare(String(b.faena))).map(t => {
+    const mu = muertosDe[String(t.tropa)] || 0;
+    return {
+      faena: t.faena, tropa: t.tropa, cab: mu && t.cab ? Math.max(0, t.cab - mu) : t.cab, medias: t.medias, prom: t.medias ? Math.round(t.kg / t.medias) : 0,
+      kg: t.medias ? t.medias * Math.round(t.kg / t.medias) : 0, obs: veces[t.tropa] > 1 || mu ? 'FAENA PARCIAL' : (obsAnterior(t.tropa, f) || 'Consumo'),
+      muertos: mu
+    };
+  });
   /* medias que salieron enteras (1/2 res sin jamón y sin paleta): se descuentan de su tropa (el sistema la guarda en el desposte);
      si no se sabe la tropa, de la faenada más tarde (como hace Sabi) */
   const enteras = d.re.filter(r => (eq().enteras || []).includes(r.art)).reduce((a, r) => a + r.uni, 0);
@@ -147,6 +154,15 @@ function calcular(f) {
   const rend = d.re.filter(r => destino(r.art, f) === '#R');
   const nuevos = d.re.filter(r => destino(r.art, f) === null);
   return { medias, enteras, descEn, prod, ingreso, rendKg: r2(rend.reduce((a, r) => a + r.kg, 0)), rend, nuevos, hay: d.tr.length + d.re.length > 0, d };
+}
+
+/* Muertos por número de tropa: los del sistema (dj-anual, MU) más los cargados a mano en Faena y mortalidad */
+function muertosPorTropa() {
+  const o = {};
+  const sum = m => { const k = String(m.tropa || '').trim(); if (k) o[k] = (o[k] || 0) + (Number(m.cab) || 0); };
+  ((S.anual && S.anual.mu) || []).forEach(sum);
+  ((S.muertos && S.muertos.lista) || []).forEach(sum);
+  return o;
 }
 
 /* Si a una tropa se le puso otra observación un día anterior (ej. "FAENA PARCIAL"), se repite */
@@ -351,7 +367,8 @@ function renderDia() {
   /* ---- ingreso ---- */
   h += '<section><h2>Ingreso</h2><p class="sub">Tropas que entraron al desposte este día. Los kilos son medias × el peso promedio por media (redondeado), como en la planilla. El total se declara con ' +
     Math.round((1 - (eq().merma || 1)) * 100) + ' % de merma.' + (P.ingEditado ? ' <b>Esta parte está corregida a mano.</b> <a href="#" onclick="ingSistema();return false">Volver a lo del sistema</a>' : '') + '</p>' +
-    (P.c.enteras && !P.ingEditado ? '<div class="alerta warn">Se descontaron <b>' + fmt0(P.c.enteras) + ' medias</b> que salieron enteras como 1/2 res sin jamón y sin paleta, de la tropa ' + esc(P.c.descEn.join(', ')) + '. Si iban de otra tropa, corregilo tocando las medias.</div>' : '');
+    (P.c.enteras && !P.ingEditado ? '<div class="alerta warn">Se descontaron <b>' + fmt0(P.c.enteras) + ' medias</b> que salieron enteras como 1/2 res sin jamón y sin paleta, de la tropa ' + esc(P.c.descEn.join(', ')) + '. Si iban de otra tropa, corregilo tocando las medias.</div>' : '') +
+    (!P.ingEditado && P.ingreso.some(t => t.muertos) ? '<div class="alerta warn">Tropas con muertos (Faena y mortalidad): ' + P.ingreso.filter(t => t.muertos).map(t => '<b>' + esc(t.tropa) + '</b> ' + fmt0(t.cab + t.muertos) + ' − ' + fmt0(t.muertos) + ' = ' + fmt0(t.cab) + ' faenados').join(' · ') + '. El total de tropa va con las faenadas y como FAENA PARCIAL.</div>' : '');
   h += '<div class="tw"><table class="planilla dj-tab"><thead><tr><th>Fecha de faena</th><th>Nº de tropa</th><th class="num">Total de tropa</th><th class="num">Medias reses</th><th class="num">Kg de ingreso</th><th>Observaciones</th><th></th></tr></thead><tbody>';
   P.ingreso.forEach((t, i) => {
     h += '<tr>' + celdaIng(i, 'faena', ddmmaaaa(t.faena)) + celdaIng(i, 'tropa', esc(t.tropa)) + celdaIng(i, 'cab', fmt0(t.cab), 1) + celdaIng(i, 'medias', fmt0(t.medias), 1) +
