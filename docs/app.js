@@ -3024,13 +3024,13 @@
         + '<div class="cam-tabla"><table><thead><tr><th></th>' + dias.map(function (f) { return '<th class="' + (f === hy ? 'hoy' : '') + (CAM_FERIADOS[f] ? ' feriado' : CAM_NOLAB[f] ? ' nolab' : '') + '">' + esc(diaDe(f)) + ' ' + fecha(f).getDate() + (f === hy ? ' · HOY' : '') + (CAM_FERIADOS[f] ? '<small>FERIADO · ' + esc(CAM_FERIADOS[f]) + '</small>' : CAM_NOLAB[f] ? '<small>' + esc(CAM_NOLAB[f].toUpperCase()) + '</small>' : '') + '</th>'; }).join('') + '<th>Total</th></tr></thead><tbody>'
         + fila('PROPIOS', 'c-verde', ed('propios'), n(sum('propios')))
         + fila('USUARIO', 'c-naranja', ed('usuario'), n(sum('usuario')))
-        + fila('FAENA', 'c-celeste b', calc('faena', true), n(sum('faena')) + ' <small>(' + n(Math.round(sum('faena') / nd)) + ' x día)</small>')
-        + fila('VENTA (animales)', 'c-verde sep', ed('venta'), n(sum('venta')))
+        + fila('FAENA', 'c-celeste b marca', calc('faena', true), n(sum('faena')) + ' <small>(' + n(Math.round(sum('faena') / nd)) + ' x día)</small>')
+        + fila('VENTA (animales)', 'c-verde sep marca', ed('venta'), n(sum('venta')))
         + fila('MEDIAS A DESPOSTE', '', calc('aDesposte'), n(sum('aDesposte')))
-        + fila('DESPOSTE DEL DÍA', 'c-celeste', desp, n(sum('desp')))
-        + fila('REMANENTE', 'b', function (o, ver) { return ver ? camCelda(o.f, 'rem', o.rem, o.src.rem) + (o.src.rem === 'dato' ? '<small class="cam-dsig">a mano</small>' : '') : ''; }, (function () { var v = c.dias[mas(L2, 7)]; return v && (!ult || v.f <= ult) ? '→ ' + n(v.rem) + ' el lunes' : ''; })())
-        + fila('DISPONIBLE', '', calc('disp'), '')
-        + fila('MEDIAS EN CÁMARA', 'c-azul b sep', calc('camara', true), (function () { var m = dias.map(function (f) { return c.dias[f] && (!ult || f <= ult) ? c.dias[f].camara : -1e9; }); var mx = Math.max.apply(null, m); return mx > -1e9 ? 'máx. ' + n(mx) : ''; })())
+        + fila('DESPOSTE DEL DÍA', 'c-celeste marca', desp, n(sum('desp')))
+        + fila('REMANENTE', 'b marca', function (o, ver) { return ver ? camCelda(o.f, 'rem', o.rem, o.src.rem) + (o.src.rem === 'dato' ? '<small class="cam-dsig">a mano</small>' : '') : ''; }, (function () { var v = c.dias[mas(L2, 7)]; return v && (!ult || v.f <= ult) ? '→ ' + n(v.rem) + ' el lunes' : ''; })())
+        + fila('DISPONIBLE', 'marca', calc('disp', true), '')
+        + fila('MEDIAS EN CÁMARA', 'c-azul b sep marca', calc('camara', true), (function () { var m = dias.map(function (f) { return c.dias[f] && (!ult || f <= ult) ? c.dias[f].camara : -1e9; }); var mx = Math.max.apply(null, m); return mx > -1e9 ? 'máx. ' + n(mx) : ''; })())
         + fila('LUGAR LIBRE (de ' + n(camCap()) + ')', 'b', function (o, ver) { return ver ? '<span class="cam-v b' + (o.libre < 0 ? ' neg' : o.libre < 200 ? ' bajo' : '') + '">' + n(o.libre) + '</span>' : ''; }, (function () { var m = dias.filter(function (f) { return c.dias[f] && (!ult || f <= ult); }).map(function (f) { return c.dias[f].libre; }); return m.length ? 'mín. ' + n(Math.min.apply(null, m)) : ''; })())
         + '</tbody></table></div>';
     };

@@ -301,6 +301,11 @@ table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
 .cam-in.auto{color:#4d6a76;font-style:italic;font-weight:400}.cam-in.habitual{color:#8a99a0;font-style:italic;font-weight:400}.cam-in.calc{font-weight:800}
 .cam-tabla tr.b .cam-in{font-weight:800}
 .cam-dsig{display:block;font-size:11px;color:#4d6a76;font-weight:400}
+/* Filas remarcadas (pedido de Renzo): faena, venta, desposte del día, remanente, disponible y medias en cámara. */
+.cam-tabla tbody tr.marca>*{background:#e6f0f7!important;font-weight:800;font-size:16px}
+.cam-tabla tbody tr.marca th{color:#0b2a3a;font-size:14px;box-shadow:inset 5px 0 0 #17364a}
+.cam-tabla tbody tr.marca .cam-in,.cam-tabla tbody tr.marca .cam-v{font-weight:800;font-size:16px;color:#0b2a3a}
+.cam-tabla tbody tr.marca td.tot{background:#d7e6f1!important}
 .cam-ley{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin-top:10px;font-size:12px;color:var(--muted)}
 .cam-ley>span:not(.cam-cap)::before{content:"";display:inline-block;width:22px;height:0;margin-right:5px;vertical-align:3px;border-bottom:1.5px dashed #2c7a97}
 .cam-ley .l-auto::before{border-bottom-color:#8a99a0!important}.cam-ley .l-calc::before{border-bottom:0!important;width:0!important;margin:0!important}

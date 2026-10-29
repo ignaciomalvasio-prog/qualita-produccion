@@ -281,3 +281,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Cámara: la fila de desposte queda exactamente como antes (DESPOSTE DÍA SIGUIENTE, sin el resaltado violeta ni el "para el").
 - Cámara: vuelve "DESPOSTE DEL DÍA" (en cada columna, el desposte de ese mismo día), como pidió Renzo con la captura.
 - Pedidos: botón "✕ Sacar" al lado del camión de cada cliente, para sacarlo del camión con un toque (queda en "Sin camión").
+- Cámara: filas remarcadas (fondo celeste, raya a la izquierda y negrita): faena, venta, desposte del día, remanente, disponible y medias en cámara.
