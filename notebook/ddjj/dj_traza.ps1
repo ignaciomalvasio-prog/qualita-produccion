@@ -6,7 +6,7 @@
 #  qué tropas entraron a ese desposte (y al anterior si es un reproceso), y a dónde fue la caja.
 #  Lo llama dj_pedido.ps1 cuando alguien consulta desde la web (c3docs/ddjj-traza). Prueba: dj_traza.ps1 -Tipo tropa -Valor 261791 -Probar
 #  Renglones:
-#    TT|tropa|nroint|fecha ingreso|cabezas|productor|localidad|patente     TM|fecha faena|medias|kg
+#    TT|tropa|nroint|fecha ingreso|cabezas|productor|localidad|patente     TM|fecha faena|medias (cabezas del romaneo × 2)|kg de faena
 #    DP|desposte|fecha|tipo ciclo|medias de la tropa|total entradas|kg entrada    DT|desposte|otra tropa|medias
 #    RP|desposte origen|desposte que reprocesó|fecha|tipo ciclo|cajas|kg
 #    SR|desposte|cajas|kg|vendidas|reprocesadas|pasadas a otra sección
@@ -61,8 +61,8 @@ SELECT 'TT|'||t.tro_numero||'|'||t.tro_nroint||'|'||TO_CHAR(t.tro_fecha,'YYYY-MM
     if ($NI -eq '-1') { return $out }
     $M = "SELECT 0 src, p.pro_numero, p.pro_item FROM productos p WHERE p.tro_nroint IN ($NI) AND p.art_codigo IN (18,19)"
     $b = Invoke-Sql (@"
-SELECT 'TM|'||TO_CHAR(TRUNC(p.pro_fecha),'YYYY-MM-DD')||'|'||COUNT(*)||'|'||TO_CHAR(ROUND(SUM(p.pro_kilos),2))
-  FROM productos p WHERE p.tro_nroint IN ($NI) AND p.art_codigo IN (18,19) GROUP BY TRUNC(p.pro_fecha);
+SELECT 'TM|'||TO_CHAR(TRUNC(p.pro_fecha),'YYYY-MM-DD')||'|'||(COUNT(*)*2)||'|'||TO_CHAR(ROUND(SUM(r.rom_kilos),2))
+  FROM romaneos r JOIN productos p ON p.pro_numero=r.pro_numero AND p.pro_item=r.pro_item WHERE p.tro_nroint IN ($NI) GROUP BY TRUNC(p.pro_fecha);
 SELECT DISTINCT 'D1|'||i.desp_numero FROM desposteing i JOIN productos p ON p.pro_numero=i.pro_numero AND p.pro_item=i.pro_item WHERE p.tro_nroint IN ($NI);
 "@ + (& $ventas $M))
     $out += $b; $D1 = EnLista (Lista $b 'D1' 1)
