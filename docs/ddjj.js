@@ -411,20 +411,43 @@ function detalle(r) {
   h += '</table>';
   return h;
 }
+/* renglones agregados a mano este día ("Otro (escribir el nombre)") que todavía no son renglones fijos de Equivalencias */
+function agregadosDia() { return Object.keys(diaDoc(S.fecha).prod || {}).filter(n => !diaDoc(S.fecha).prod[n].quitar && !eq().lineas.some(l => l.n === n)); }
+function optAgregados(excepto) {
+  const a = agregadosDia().filter(n => n !== excepto);
+  return a.length ? '<optgroup label="Agregados en este día">' + a.map(n => '<option value="N:' + esc(n) + '">' + esc(n) + '</option>').join('') + '</optgroup>' : '';
+}
 function selectLinea(art) {
   return '<select onchange="asignar(' + art + ',this.value)"><option value="">Elegir…</option><optgroup label="Renglón de la planilla">' +
-    eq().lineas.map(l => '<option value="L:' + esc(l.n) + '">' + esc(l.n) + '</option>').join('') + '</optgroup>' +
+    eq().lineas.map(l => '<option value="L:' + esc(l.n) + '">' + esc(l.n) + '</option>').join('') + '</optgroup>' + optAgregados() +
     '<option value="I">No va en la declaración</option><option value="R">Cuero a rendering (va en la observación)</option></select>';
+}
+/* mandar un artículo a un renglón agregado a mano: solo este día, o para siempre (pasa a ser un renglón fijo de Equivalencias).
+   Lo cargado a mano en ese renglón (cantidad y kilos) se reemplaza por lo del sistema; el destino se mantiene. */
+function asignarAgregado(art, n) {
+  const limpiar = x => { const o = (x.prod || {})[n]; if (!o) return; delete o.cant; delete o.exp; delete o.cons; if (!o.dest || o.dest === 'CONSUMO') delete x.prod[n]; };
+  $('dlg-h').textContent = 'Mandar el artículo ' + art + ' a ' + n;
+  $('dlg-b').innerHTML = '<p class="sub">¿Solo para el ' + esc(fechaLarga(S.fecha)) + ', o para siempre? "Siempre" deja <b>' + esc(n) + '</b> como renglón fijo (se ve en Equivalencias) y el artículo va ahí todos los días.</p>' +
+    '<p class="sub">Los números que hayas escrito a mano en ese renglón se reemplazan por los del sistema.</p>';
+  $('dlg-f').innerHTML = '<button onclick="cerrarDlg();render()">Cancelar</button><button id="mv-dia">Solo este día</button><button class="primary" id="mv-siempre">Siempre</button>';
+  $('mv-dia').onclick = () => { cerrarDlg(); cambiarDia(x => { x.mover = x.mover || {}; x.mover[art] = 'L:' + n; limpiar(x); }, 'artículo ' + art + ' al renglón agregado ' + n + ' (solo este día)'); };
+  $('mv-siempre').onclick = async () => {
+    cerrarDlg();
+    await cambiarEq(d => { sacarArt(d, art); const l = d.lineas.find(z => z.n === n); if (l) l.arts.push(art); else d.lineas.push({ n, arts: [art] }); }, 'artículo ' + art + ' → renglón nuevo ' + n);
+    cambiarDia(x => { limpiar(x); }, 'renglón ' + n + ' pasa a salir del sistema');
+  };
+  $('dlg').showModal();
 }
 
 /* "Mandarlo a": pasar un artículo del sistema a otro renglón (solo ese día o siempre) */
 function selectMover(art, actual) {
   return '<select class="dj-mover" onchange="moverArt(' + art + ',this.value,\'' + jsq(actual) + '\')"><option value="">' + esc(actual) + ' (está acá)</option>' +
-    eq().lineas.filter(l => l.n !== actual).map(l => '<option value="L:' + esc(l.n) + '">' + esc(l.n) + '</option>').join('') +
+    eq().lineas.filter(l => l.n !== actual).map(l => '<option value="L:' + esc(l.n) + '">' + esc(l.n) + '</option>').join('') + optAgregados(actual) +
     '<option value="I">No va en la declaración</option><option value="R">Cuero a rendering</option></select>';
 }
 function moverArt(art, v, actual) {
   if (!v) return;
+  if (v.startsWith('N:')) return asignarAgregado(art, v.slice(2));
   const nom = v === 'I' ? 'que no vaya en la declaración' : v === 'R' ? 'cuero a rendering' : v.slice(2);
   $('dlg-h').textContent = 'Mandar el artículo ' + art + ' a ' + nom;
   $('dlg-b').innerHTML = '<p class="sub">¿Solo para el ' + esc(fechaLarga(S.fecha)) + ', o para siempre (todos los días)?</p>';
@@ -529,6 +552,7 @@ function sacarArt(d, art) {
 }
 function asignar(art, v) {
   if (!v) return;
+  if (v.startsWith('N:')) return asignarAgregado(art, v.slice(2));
   cambiarEq(d => {
     sacarArt(d, art);
     if (v === 'I') d.ignorar.push(art);
