@@ -11,6 +11,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "C:\InformeQualita\ddjj\dj_s
 if errorlevel 1 ( echo. & pause & exit /b 1 )
 powershell -NoProfile -ExecutionPolicy Bypass -File "C:\InformeQualita\ddjj\instalar_dj_sync.ps1"
 powershell -NoProfile -ExecutionPolicy Bypass -File "C:\InformeQualita\ddjj\instalar_dj_pedido.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "C:\InformeQualita\ddjj\instalar_dj_excel.ps1"
 echo.
 echo  Listo. Avisale a Igna para que desactive las tareas en su notebook.
 pause

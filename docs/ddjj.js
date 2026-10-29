@@ -247,9 +247,12 @@ async function cargar(forzar) {
     if (!S.fecha || S.fecha.slice(0, 7) !== S.mes || !S.sis.dias[S.fecha]) S.fecha = proximoSinHacer(dias) || dias[dias.length - 1] || '';
     if (forzar) toast('Datos actualizados');
   } catch (err) {
-    $('main').innerHTML = '<section><div class="alerta bad">No se pudieron leer los datos: ' + esc(err.message || err) + '</div></section>'; return;
+    $('main').innerHTML = '<section><div class="alerta bad">No se pudieron leer los datos: ' + esc(err.message || err) + '</div></section>';
+    if (window.__auto) { window.__auto.hecho = true; document.title = 'AUTO-ERROR'; }
+    return;
   }
   cabecera(); render();
+  if (window.__auto) correrAuto();
 }
 /* el último día anterior a hoy que no se imprimió (normalmente el de ayer: hoy todavía se está despostando) */
 function proximoSinHacer(dias) {
@@ -588,6 +591,28 @@ const d0n = i => eq().lineas[i] ? eq().lineas[i].n : '';
 /* ---------- impresión ---------- */
 /* Excel de la DDJJ de desposte: lo mismo que la hoja impresa (ingreso + producción, con lo corregido a mano).
    Del día: una hoja; del mes: una hoja por cada día con desposte. */
+/* Descarga el Excel; en el modo automático de la PC (window.__auto, dj_excel_diario.ps1) lo deja para que lo guarde el programa */
+function guardarXlsx(wb, nombre) {
+  if (window.__auto) { (window.__autoOut = window.__autoOut || []).push({ nombre, b64: XLSX.write(wb, { type: 'base64', bookType: 'xlsx' }) }); return; }
+  XLSX.writeFile(wb, nombre);
+}
+/* Modo automático (lo usa dj_excel_diario.ps1 todos los días con Edge sin ventana y los datos en window.__mock):
+   __auto = { hasta: 'AAAA-MM-DD', tener: [días que ya tienen archivo] } → Excel de cada día con desposte hasta "hasta" que falte,
+   el último siempre de nuevo (con lo corregido), y el Rendimiento del mes. Deja el resultado en <pre id="auto-out"> (JSON). */
+function correrAuto(espera) {
+  const A = window.__auto; if (!A || A.hecho) return;
+  if (!window.XLSX && (espera || 0) < 60) { setTimeout(() => correrAuto((espera || 0) + 1), 500); return; }   // la librería de Excel se carga aparte
+  A.hecho = true;
+  const fin = (o, err) => { const pre = document.createElement('pre'); pre.id = 'auto-out'; pre.textContent = JSON.stringify(err ? { error: err } : o); document.body.appendChild(pre); document.title = err ? 'AUTO-ERROR' : 'AUTO-OK'; };
+  try {
+    if (!window.XLSX) return fin(null, 'No se pudo cargar la librería de Excel (internet)');
+    const dias = Object.keys(S.sis.dias).sort().filter(f => f <= A.hasta && calcular(f).hay), tener = A.tener || [];
+    const hacer = dias.filter((f, i) => i === dias.length - 1 || !tener.includes(f));
+    for (const f of hacer) { S.fecha = f; excelDJ(false); }
+    if (dias.length && typeof excelRend === 'function') excelRend();
+    fin({ dias: hacer, archivos: window.__autoOut || [] });
+  } catch (e) { fin(null, String(e && e.message || e)); }
+}
 function filasDJ(f) {
   const P = planilla(f), n = v => (v == null || v === '' || isNaN(v)) ? '' : Number(v);
   const filas = [['DDJJ de producción de desposte · ' + ddmmaaaa(f)], [], ['INGRESO'],
@@ -610,7 +635,7 @@ function excelDJ(mes) {
     ws['!cols'] = [{ wch: 30 }, { wch: 18 }, { wch: 22 }, { wch: 22 }, { wch: 24 }, { wch: 40 }];
     XLSX.utils.book_append_sheet(wb, ws, ddmm(f).replace('/', '-'));
   }
-  XLSX.writeFile(wb, mes ? 'DDJJ desposte ' + nombreMes(S.mes) + '.xlsx' : 'DDJJ desposte ' + ddmmaaaa(S.fecha).replace(/\//g, '-') + '.xlsx');
+  guardarXlsx(wb, mes ? 'DDJJ desposte ' + nombreMes(S.mes) + '.xlsx' : 'DDJJ desposte ' + ddmmaaaa(S.fecha).replace(/\//g, '-') + '.xlsx');
 }
 
 /* Las medidas (en puntos, hoja A4 de 595 × 842) son las de la planilla de Excel impresa: el formulario
@@ -668,6 +693,7 @@ C3API.listo.then(() => {
     const st = document.querySelector('header .brand .s'); if (st) st.textContent = 'Faena y mortalidad';
     const mes = document.querySelector('header .mes'); if (mes) mes.title = 'El año se toma del mes elegido';
   }
+  if (window.__auto && /^\d{4}-\d{2}-\d{2}$/.test(window.__auto.hasta || '')) S.mes = window.__auto.hasta.slice(0, 7);
   const q = new URLSearchParams(location.search).get('f');
   if (q && /^\d{4}-\d{2}-\d{2}$/.test(q)) { S.mes = q.slice(0, 7); S.fecha = q; S.tab = 'dia'; }
   const q3 = new URLSearchParams(location.search).get('c3');

@@ -208,5 +208,5 @@ function excelRend() {
   }
   const ws = XLSX.utils.aoa_to_sheet(filas, { cellDates: true }), wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'RENDIMIENTO');
-  XLSX.writeFile(wb, 'Rendimiento desposte ' + S.mes + '.xlsx');
+  guardarXlsx(wb, 'Rendimiento desposte ' + S.mes + '.xlsx');
 }

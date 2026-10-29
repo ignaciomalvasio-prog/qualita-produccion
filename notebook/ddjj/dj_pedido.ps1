@@ -33,6 +33,11 @@ try {
   if ((Test-Path (Join-Path $Base 'actualizar.ps1')) -and -not (Test-Path (Join-Path $Base 'NO_ACTUALIZAR.txt'))) {   # baja de GitHub la última versión de estos programas (una vez por hora)
     try { & (Join-Path $Base 'actualizar.ps1') } catch { LogL ('No se pudo actualizar: ' + $_.Exception.Message) }
   }
+  # Excel diario en el Escritorio (pedido de Sabi 29/10): si la tarea todavía no está en esta PC, se instala sola una vez
+  if ((Test-Path (Join-Path $Base 'instalar_dj_excel.ps1')) -and -not (Test-Path (Join-Path $Base 'NO_EXCEL_DIARIO.txt')) -and
+      -not (Get-ScheduledTask -TaskName 'DDJJ Excel diario' -ErrorAction SilentlyContinue)) {
+    try { & (Join-Path $Base 'instalar_dj_excel.ps1') | Out-Null; LogL 'Instalada la tarea "DDJJ Excel diario" (7:20, Escritorio\DDJJ)' } catch { LogL ('No se pudo instalar el Excel diario: ' + $_.Exception.Message) }
+  }
   $auth = Invoke-RestMethod -Method Post -Uri "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=$ApiKey" -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes((@{ email = $SyncMail.Trim(); password = $SyncPass; returnSecureToken = $true } | ConvertTo-Json)))
   $script:Hdr = @{ Authorization = "Bearer $($auth.idToken)" }
 

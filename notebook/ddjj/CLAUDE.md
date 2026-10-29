@@ -15,6 +15,7 @@ Estos programas están en el mismo repositorio, carpeta `notebook/ddjj/`, y en l
 - `dj_traza.ps1`: trazabilidad por tropa o por correlativo (el primer número de la etiqueta `correlativo-artículo-kilos` = `PRODUCTOS.pro_identif`). Por pasos, con listas ya resueltas: 1-2 s. Prueba: `dj_traza.ps1 -Tipo tropa -Valor 261791 -Probar`.
 - `instalar_dj_sync.ps1` (tarea "DDJJ desposte a la web", 7, 11, 15 y 19 h) e `instalar_dj_pedido.ps1`. Usan `oculto.vbs` para que no se vean ventanas.
 - `armar_paquete.bat/.ps1`: arma `C:\InformeQualita\Paquete Centro de desposte.zip` (programas + `config_local.ps1` con las claves) para instalar en otra PC con `INSTALAR en esta PC.bat`. `desactivar_en_esta_pc.bat` apaga las dos tareas en la PC vieja.
+- `dj_excel_diario.ps1` (tarea "DDJJ Excel diario", 7:20; la instala sola `dj_pedido.ps1` con `instalar_dj_excel.ps1` si falta y no está `NO_EXCEL_DIARIO.txt`): guarda en `Escritorio\DDJJ\AAAA-MM Mes\` el Excel de la DDJJ de desposte de cada día hasta ayer que falte (el último siempre de nuevo) y el del Rendimiento del mes. No calcula nada: lee de la web `c3sis` + `c3docs`, arma una copia de `/ddjj` con los datos en `window.__mock` y el pedido en `window.__auto` (`correrAuto()` en `docs/ddjj.js`), la abre con Edge (o Chrome) `--headless --dump-dom` y guarda lo que la página deja en `<pre id="auto-out">`. A mano: `dj_excel_diario.ps1 -Hasta 2026-10-28`. Log: `dj_excel_log.txt`.
 - `habilitar_usuario.ps1 -Mail x -Nombre y -Rol ddjj|faena`: da acceso a la web (c3usuarios).
 
 ## De dónde sale cada dato

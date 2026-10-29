@@ -2,6 +2,8 @@ dj_comun.ps1
 dj_sync.ps1
 dj_pedido.ps1
 dj_traza.ps1
+dj_excel_diario.ps1
+instalar_dj_excel.ps1
 actualizar.ps1
 habilitar_usuario.ps1
 instalar_dj_sync.ps1
