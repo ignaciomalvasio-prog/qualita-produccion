@@ -121,6 +121,7 @@ function calcular(f) {
     else if (l.cant === 'piezas') cant = re.reduce((a, r) => a + (r.pz || r.uni), 0);
     else if (l.cant === 'unid') cant = re.reduce((a, r) => a + r.uni, 0);
     else if (l.cant === 'est' && l.kgu) cant = Math.round(kgs / l.kgu / 10) * 10;
+    else if (!l.cant && esPanceta(l.n)) cant = re.reduce((a, r) => a + r.uni, 0);   // panceta sin regla de cantidad: unidades del sistema
     prod[l.n] = { n: l.n, cant, exp: kgExp || null, cons: kgExp && !kgCons ? null : kgCons, dest: (kgExp && l.dest) || 'CONSUMO', re, ing, est: l.cant === 'est' };
   }
   /* una tropa faenada en dos días viene en dos renglones: los dos llevan FAENA PARCIAL.
@@ -173,6 +174,15 @@ function obsAnterior(tropa, f) {
   return '';
 }
 
+/* Pechito con manta + panceta + "Carre, pecho y matambre en juego" = medias, y lo mismo con el matambrito (pedido de Sabi 29/10):
+   al pechito y al matambrito también se les descuenta la cantidad de los renglones de panceta (fijos o agregados a mano ese día) */
+const esPanceta = n => /^panceta/i.test(String(n || '').trim());
+function menosDe(l, filas) {
+  const m = (l.menos || []).slice();
+  if (l.n === 'Pechito con manta' || l.n === 'Matambrito') filas.forEach(r => { if (esPanceta(r.n) && !m.includes(r.n)) m.push(r.n); });
+  return m;
+}
+
 /* La planilla final: lo del sistema + lo corregido */
 function planilla(f) {
   const c = calcular(f), x = diaDoc(f), ov = x.prod || {};
@@ -193,7 +203,7 @@ function planilla(f) {
   for (const r of filas) {
     const l = eq().lineas.find(z => z.n === r.n); if (!l || r.ov.cant !== undefined) continue;
     if (l.cant === 'medias') r.cant = r.sis.cant = M;
-    else if (l.cant === 'resto') r.cant = r.sis.cant = Math.max(M - (l.menos || []).reduce((a, n) => a + cantFinal(n), 0), 0);
+    else if (l.cant === 'resto') r.cant = r.sis.cant = Math.max(M - menosDe(l, filas).reduce((a, n) => a + cantFinal(n), 0), 0);
   }
   const tot = {
     cant: filas.reduce((a, r) => a + (Number(r.cant) || 0), 0),
