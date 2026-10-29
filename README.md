@@ -263,3 +263,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Logística más compacta: un solo "Imprimir" con ▾ (cada camión en su hoja, en la compu); en cada camión un botón ⋯ (subir/bajar el camión, imprimir, editar, borrar) en vez del ORDEN y los tres botones; en cada cliente un ⋯ (subir/bajar, editar, sacar). En la compu ya no se muestra "Imprimir en la compu · apagada".
 - Los que todavía no tienen camión se pueden compartir: en Pedidos, el grupo "Sin camión" tiene WhatsApp y PDF; en el Resumen del día el recuadro "Sin camión" se puede tildar y mandar (solo o junto con camiones).
 - Arreglo: el bloqueo con PIN tapaba solo en el celular; ahora tapa toda la pantalla también en la compu.
+- Cambio: los que no tienen camión ya no se mandan por WhatsApp (se sacaron esos botones); en cambio se ven en el link público de Logística, solo para mirar, en el recuadro "Sin camión".

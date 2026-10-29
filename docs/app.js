@@ -2607,7 +2607,7 @@
       h += bloque(tit, c.hora, peds.filter(function (p) { return p.camion === c.id; }), c.nota, c.id);
     });
     var sueltos = peds.filter(function (p) { return !p.camion; });
-    if (sueltos.length) h += bloque('Sin camión', '', sueltos, '', '_sin');
+    if (sueltos.length) h += bloque('Sin camión', '', sueltos, '');
     return h + '</div></div>';
   }
   // Cuándo se cargó un pedido (para mostrar arriba los últimos): el campo "alta" o, en los viejos, la hora que va en su id.
@@ -2619,7 +2619,7 @@
     if (!cams.length) return '<div class="peds">' + ultimosArriba(lista).map(function (p) { return pedidoHTML(p, m); }).join('') + '</div>';
     var grupo = function (tit, extra, l, cls, camId, tot) { return '<div class="grupo-cam' + (cls ? ' ' + cls : '') + '" data-gcam="' + esc(camId || '') + '"><h3 class="grupo-tit">' + tit + ' <span class="small muted">' + esc(extra) + '</span>' + (tot || '') + '</h3><div class="peds">' + l.map(function (p) { return pedidoHTML(p, m, true); }).join('') + '</div></div>'; };
     var h = '', sin = ultimosArriba(lista.filter(function (p) { return !(p.camion && hay[p.camion]); }));
-    if (sin.length) h += grupo('Sin camión', resumenLog(sin), sin, 'sin-cam', '', S.editor && !S.solo ? '<span class="g-comp"><button class="btn sm wa" data-act="res-wa" data-f="' + esc(f) + '" data-cual="_sin" title="Mandar por WhatsApp la lista de los que todavía no tienen camión">WhatsApp</button><button class="btn sm wa" data-act="res-pdf" data-f="' + esc(f) + '" data-cual="_sin">PDF</button></span>' : '');
+    if (sin.length) h += grupo('Sin camión', resumenLog(sin), sin, 'sin-cam', '');
     cams.forEach(function (c) {
       var o = c.orden || [], l = lista.filter(function (p) { return p.camion === c.id; }).sort(function (a, b) { var i = o.indexOf(a.id), j = o.indexOf(b.id); return (i < 0 ? 1e6 : i) - (j < 0 ? 1e6 : j); });
       var kgT = 0, faltaT = false; l.forEach(function (p) { var k = kgPedido(p); kgT += k.kg; if (k.falta) faltaT = true; });
@@ -2852,8 +2852,7 @@
     if (cargando(el, S.prod || S.faena)) return;
     if (!S.fl) S.fl = fmInicial();
     var f = S.fl, lg = logDe(f), peds = (lg && lg.pedidos) || [], cams = (lg && lg.camiones) || [];
-    // Quien mira (sin cuenta, o por el link de Logística) ve solo los pedidos que ya tienen camión.
-    if (!S.editor) peds = peds.filter(function (p) { return p.camion; });
+    // Quien mira por el link ve todo, también los que todavía no tienen camión (pedido de Renzo, para ir adelantando); solo lee.
     var h = '<div class="nav"><button class="btn step" data-act="fl" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + fechaTit(f) + '</span><button class="btn step" data-act="fl" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="l-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">'
       + (peds.length ? '<button class="btn" data-act="resumen" aria-pressed="' + !!S.resumen + '">' + (S.resumen ? 'Ver por camión' : 'Resumen del día') + '</button><span class="imp-grupo"><button class="btn" data-act="imprimir">' + (S.resumen ? 'Imprimir resumen' : 'Imprimir') + '</button>' + ((!S.resumen && cams.length > 1) || impEstado() ? menuHTML('log-imp', '▾', (!S.resumen && cams.length > 1 ? '<button class="btn sm" data-act="imprimir-camiones">Cada camión en su hoja</button>' : '') + (impEstado() ? '<button class="btn sm" data-act="imprimir-remoto">🖨 En la compu' + (S.impresora && S.impresora.nombre ? ' (' + esc(S.impresora.nombre) + ')' : '') + (impEstado() === 'off' ? ' · apagada' : '') + '</button>' : ''), 'Más formas de imprimir') : '') + '</span>' : '')
