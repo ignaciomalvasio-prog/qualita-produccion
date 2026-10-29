@@ -1834,6 +1834,10 @@
     return store.set('faena', lunes, sl).then(function () { tocar(); return { lunes: lunes, dias: nd, clientes: nc }; });
   }
   function precioNum(v) { if (v === 0) return 0; var t = String(v == null ? '' : v).trim(); if (!t) return ''; var x = numero(t.replace(/[$\s]/g, '')); return x > 0 ? x : ''; }
+  /* Pedidos vacíos (pedido de Renzo): sin medias y sin ningún corte con cantidad (vacío o todo en 0) no se toman:
+     no se guardan, no se muestran y no van a Logística ni a Producción. */
+  function corteVacio(c) { var t = String((c && c.texto) || '').trim(); if (!t) return true; var ns = t.match(/\d+(?:[.,]\d+)?/g); return !!ns && ns.every(function (x) { return +x.replace(',', '.') === 0; }) && !/½/.test(t); }
+  function pedidoVacio2(p) { return !(+p.medias > 0) && !(p.cortes || []).some(function (c) { return !corteVacio(c); }); }
   function guardarPropuesta(q, auto) {
     var previo = q.editaId ? pedidoDe(q.editaId) : null, entrega = q.entrega || '';
     var p = { cliente: String(q.cliente || '').toUpperCase().trim(), entrega: entrega, medias: +q.medias || 0, peso: q.peso || '', frio: frioDe(q.frio), cuenta: String(q.cuenta || '').trim(), nota: q.nota || '', origen: q.origen || 'manual',
@@ -1846,6 +1850,7 @@
     var vd = q.vendedor || (previo && previo.vendedor); if (vd) { p.vendedor = vd; p.vendedorNombre = q.vendedorNombre || (previo && previo.vendedorNombre) || ''; }
     if (!p.cliente) return Promise.reject(new Error('Falta el cliente.'));
     if (!p.entrega) return Promise.reject(new Error('Falta la fecha de entrega.'));
+    if (pedidoVacio2(p)) return Promise.reject(new Error('El pedido está vacío: no tiene medias ni cortes con cantidad. Cargale algo o tocá ' + (previo ? 'Cancelar y después Quitar' : 'Descartar') + '.'));
     if (!auto) { asentarEdicion(); S.em = null; S.ep = null; }
     var id = previo ? previo.id : q.nuevoId || 'p' + uid(), doc = clone(p), antes = previo ? clone(previo) : null; p.id = id;
     S.pedidos = poner(S.pedidos, id, doc);
@@ -3697,6 +3702,8 @@
     else if (a === 'q-descartar-todos') { if (!confirma('q-descartar-todos')) { renderPedidos(); return; } S.prop = S.prop.filter(function (x) { return x.editaId; }); S.msg.fotos = ''; renderPedidos(); }
     else if (a === 'q-descartar') { S.prop.splice(+D.q, 1); renderPedidos(); }
     else if (a === 'q-guardar' || a === 'q-todos') {
+      // "Guardar todos": los que quedaron vacíos (sin medias ni cantidades) se descartan solos.
+      if (a === 'q-todos') { var nv = S.prop.length; S.prop = S.prop.filter(function (x) { return x.editaId || !pedidoVacio2(x); }); if (S.prop.length < nv) avisar('Descarté ' + (nv - S.prop.length) + (nv - S.prop.length === 1 ? ' pedido vacío' : ' pedidos vacíos') + ' (sin medias ni cantidades).', 5000); }
       var cuales = a === 'q-todos' ? S.prop.filter(function (x) { return !x.editaId; }) : [S.prop[+D.q]];
       S.msg.fotos = 'Guardando…'; pintarMsg('fotos');
       guardarVarios(cuales, false).then(function () { S.msg.fotos = S.prop.some(function (x) { return x.error; }) ? '!Quedaron pedidos sin guardar: revisalos.' : 'Guardado.'; renderPedidos(); });
@@ -4494,7 +4501,7 @@
           if (S.fuente === 'respaldo' || vacia) traer();
           if (!suscripto) {
             suscripto = true;
-            store.sub('pedidos', function (l) { S.pedidos = ordenar(l); conciliarLog(); renderDatos(); conciliarMedias(); migrarPecho(); });
+            store.sub('pedidos', function (l) { S.pedidos = ordenar(l.filter(function (x) { return !pedidoVacio2(x); })); conciliarLog(); renderDatos(); conciliarMedias(); migrarPecho(); });
             store.sub('ventas', function (l) { var antes = ventasPendientes(true).length; S.ventas = l; if (antes !== ventasPendientes(true).length && (S.tab === 'pedidos' || S.tab === 'inicio')) renderDatos(); });
             store.sub('privado', function (l) {
               var fl = {}, antesF = JSON.stringify(S.fletes || {});

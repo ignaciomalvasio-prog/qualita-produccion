@@ -15,7 +15,7 @@ await p.clock.install({time:new Date('2026-10-21T17:00:00-03:00')});
 await p.addInitScript(d=>{window.print=()=>{};window.__mock={data:JSON.parse(JSON.stringify(d)),user:{email:'yo@x.com'},editores:['yo@x.com']}},data);
 await p.goto('http://127.0.0.1:8765/index.html#logistica');await p.clock.runFor(1500);await p.waitForSelector('#view-logistica .nav');
 await p.fill('#l-fecha',F);await p.locator('#l-fecha').dispatchEvent('change');await p.waitForSelector('.log-ped',{timeout:8000});
-await p.waitForTimeout(500);await p.evaluate(c=>document.querySelector(c?'[data-act="cam-imprimir"][data-id="'+c+'"]':'#view-logistica .nav [data-act="imprimir"]').click(),cam);
+await p.waitForTimeout(500);await p.evaluate(c=>{if(c)document.querySelector('[data-act="menu"][data-k="cam-'+c+'"]').click();document.querySelector(c?'[data-act="cam-imprimir"][data-id="'+c+'"]':'#view-logistica .nav [data-act="imprimir"]').click();},cam);
 await p.waitForFunction(()=>window.__mock.zoomImpresion,null,{timeout:20000});const zi=await p.evaluate(()=>window.__mock.zoomImpresion);
 await p.pdf({path:SP+'/log-'+nom+'.pdf',preferCSSPageSize:true,printBackground:true});
 await p.evaluate(()=>{document.getElementById('hoja-impresion').textContent='@page{size:A4 portrait;margin:10mm}';});await p.pdf({path:SP+'/log-'+nom+'-sin.pdf',preferCSSPageSize:true});
