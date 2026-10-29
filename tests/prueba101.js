@@ -9,7 +9,7 @@ const data={faena:{},produccion:{},privado:{},config:{general:{},['log-'+F]:{fec
  await p.addInitScript(d=>{window.print=()=>{window.__impreso=(window.__impreso||0)+1;};window.__mock={data:JSON.parse(JSON.stringify(d)),user:{email:'yo@x.com'},editores:['yo@x.com']}},data);
  await p.goto('http://127.0.0.1:8765/index.html#logistica');await p.clock.runFor(1500);
  await p.fill('#l-fecha',F);await p.locator('#l-fecha').dispatchEvent('change');await p.waitForTimeout(300);
- console.log('botón:',await p.locator('[data-act="imprimir-camiones"]').innerText());
+ await p.click('[data-act="menu"][data-k="log-imp"]');console.log('botón:',await p.locator('[data-act="imprimir-camiones"]').innerText());
  await p.click('[data-act="imprimir-camiones"]');await p.clock.runFor(200);await p.waitForTimeout(100);
  console.log('llamó a imprimir:',await p.evaluate(()=>window.__impreso||0),'· modo por camión:',await p.evaluate(()=>document.getElementById('view-logistica').classList.contains('por-camion')));
  await p.emulateMedia({media:'print'});await p.pdf({path:SP+'/por-camion.pdf',format:'A4',preferCSSPageSize:true});

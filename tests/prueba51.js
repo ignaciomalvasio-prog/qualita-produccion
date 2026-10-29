@@ -11,10 +11,10 @@ if(!(await p.locator('.pos-sel').count())){await p.fill('#l-fecha','2026-10-14')
 const orden=async()=>(await p.locator('section.cam:not(.suelto)').evaluateAll(cs=>cs.map(c=>c.querySelector('h2').innerText+': '+[...c.querySelectorAll('.log-ped strong')].map(x=>x.innerText).join(',')))).join(' | ');
 console.log('=== ancho',w,'al abrir:',await orden());
 await p.click('[data-act="cam-por-hora"]');await p.clock.runFor(800);console.log('ordenar por horario:',await orden());
-await p.locator('section.cam',{hasText:'Sin hora'}).locator('[data-act="camion-subir"]').click();await p.clock.runFor(800);console.log('flecha ↑ a Sin hora:',await orden());
+await p.locator('section.cam',{hasText:'Sin hora'}).locator('header [data-act="menu"]').click();await p.locator('section.cam',{hasText:'Sin hora'}).locator('[data-act="camion-subir"]').click();await p.clock.runFor(800);console.log('flecha ↑ a Sin hora:',await orden());
 await p.locator('select[data-pos-ped="h"]').selectOption('0');await p.clock.runFor(800);console.log('HACHE al 1:',await orden());
-await p.locator('[data-act="cam-bajar"][data-id="h"]').click();await p.clock.runFor(800);console.log('HACHE ↓:',await orden());
-await p.locator('section.cam',{hasText:'Moreira'}).locator('[data-act="cam-editar"]').first().click();await p.fill('#cam-e-hora','01:00');await p.locator('#cam-e-hora').dispatchEvent('input');await p.click('[data-act="cam-guardar"]');await p.clock.runFor(800);
+await p.locator('[data-act="menu"][data-k="lp-h"]').click();await p.locator('[data-act="cam-bajar"][data-id="h"]').click();await p.clock.runFor(800);console.log('HACHE ↓:',await orden());
+await p.locator('section.cam',{hasText:'Moreira'}).locator('header [data-act="menu"]').first().click();await p.locator('section.cam',{hasText:'Moreira'}).locator('[data-act="cam-editar"]').first().click();await p.fill('#cam-e-hora','01:00');await p.locator('#cam-e-hora').dispatchEvent('input');await p.click('[data-act="cam-guardar"]');await p.clock.runFor(800);
 console.log('Moreira a la 01:00 →',await orden());
 if(w===400)await p.screenshot({path:SP+'/flechas400.png',fullPage:true});else await p.screenshot({path:SP+'/flechas1100.png'});
 console.log('desborde:',await p.evaluate(()=>document.documentElement.scrollWidth-innerWidth),'errores:',errs.join('|')||'ninguno');await p.close();}

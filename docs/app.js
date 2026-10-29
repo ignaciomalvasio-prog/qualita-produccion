@@ -931,6 +931,12 @@
   /* ---------- borrar, con confirmación en dos toques ---------- */
   function seguro(k) { return window.confirm('¿Seguro que querés borrar ' + (k === 1 ? 'este pedido' : 'estos ' + k + ' pedidos') + '?\n\nSi fue un error, después lo podés recuperar con "Deshacer" o en "Borrados recientes".'); }
   function confirma(k) { if (S._c2 === k) { S._c2 = null; return true; } S._c2 = k; return false; }
+  // Menú chico (⋯ o ▾) para juntar botones que se usan poco (pedido de Renzo: Logística más compacta).
+  function menuHTML(k, label, items, titulo) {
+    var ab = S.menuAb === k;
+    return '<span class="mas-menu"><button class="btn sm mas-btn" data-act="menu" data-k="' + esc(k) + '" aria-expanded="' + ab + '" aria-haspopup="true" title="' + esc(titulo || 'Más opciones') + '" aria-label="' + esc(titulo || 'Más opciones') + '">' + label + '</button>' + (ab ? '<span class="menu-pop" role="menu">' + items + '</span>' : '') + '</span>';
+  }
+  function cerrarMenus() { S.menuAb = null; document.querySelectorAll('.menu-pop').forEach(function (x) { x.remove(); }); document.querySelectorAll('.mas-btn[aria-expanded="true"]').forEach(function (x) { x.setAttribute('aria-expanded', 'false'); }); }
   function botonBorrar(act, i, texto, cls) {
     var k = act + (i == null ? '' : i);
     return '<button class="btn ' + (cls || 'sm') + ' rojo" data-act="' + act + '"' + (i == null ? '' : ' data-i="' + i + '"') + '>' + (S._c2 === k ? 'Tocá de nuevo para confirmar' : texto) + '</button>';
@@ -2782,10 +2788,10 @@
       + '<strong>' + esc(p.cliente || 'Sin cliente') + '</strong>' + ctaHTML(p.cuenta) + frioBadge(frioPed(p))
       + '<span class="small muted">' + esc(kgTxt({ kg: +p.kg || 0, falta: p.kgFalta, manual: p.kgManual })) + '</span>';
     var ke = -1; if (S.editor) (S.prop || []).forEach(function (x, i) { if (x.editaId === p.id) ke = i; });
-    if (S.editor) h += '<span class="log-acc">' + (cam && total > 1 ? '<span class="pos-ctl"><button class="btn sm ord" data-act="cam-subir" data-id="' + id + '" data-cam="' + esc(cam.id) + '"' + (pos === 0 ? ' disabled' : '') + ' aria-label="Subir un lugar">↑</button><button class="btn sm ord" data-act="cam-bajar" data-id="' + id + '" data-cam="' + esc(cam.id) + '"' + (pos === total - 1 ? ' disabled' : '') + ' aria-label="Bajar un lugar">↓</button></span>' : '')
-      + (ke < 0 && pedidoDe(p.id) ? '<button class="btn sm" data-act="log-editar" data-id="' + id + '">Editar</button>' : '') + (cam
-      ? '<button class="btn sm" data-act="cam-quitar-ped" data-id="' + id + '">Sacar</button>'
-      : opcionesCamion(p, cams)) + '</span>';
+    if (S.editor) h += '<span class="log-acc">' + (cam
+      ? menuHTML('lp-' + p.id, '⋯', (total > 1 ? '<button class="btn sm" data-act="cam-subir" data-id="' + id + '" data-cam="' + esc(cam.id) + '"' + (pos === 0 ? ' disabled' : '') + '>↑ Subir un lugar</button><button class="btn sm" data-act="cam-bajar" data-id="' + id + '" data-cam="' + esc(cam.id) + '"' + (pos === total - 1 ? ' disabled' : '') + '>↓ Bajar un lugar</button>' : '')
+        + (ke < 0 && pedidoDe(p.id) ? '<button class="btn sm" data-act="log-editar" data-id="' + id + '">Editar pedido</button>' : '') + '<button class="btn sm" data-act="cam-quitar-ped" data-id="' + id + '">Sacar del camión</button>', 'Opciones de ' + (p.cliente || 'este pedido'))
+      : (ke < 0 && pedidoDe(p.id) ? '<button class="btn sm" data-act="log-editar" data-id="' + id + '">Editar</button>' : '') + opcionesCamion(p, cams)) + '</span>';
     h += '</div>';
     // Editar el pedido ahí mismo, sin ir a Pedidos.
     if (ke >= 0) return h + '<div class="log-edit">' + propHTML(S.prop[ke], ke) + '</div></div></div>';
@@ -2842,7 +2848,7 @@
     if (!S.editor) peds = peds.filter(function (p) { return p.camion; });
     var h = '<div class="nav"><button class="btn step" data-act="fl" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + fechaTit(f) + '</span><button class="btn step" data-act="fl" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="l-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">'
-      + (peds.length ? '<button class="btn" data-act="resumen" aria-pressed="' + !!S.resumen + '">' + (S.resumen ? 'Ver por camión' : 'Resumen del día') + '</button><button class="btn" data-act="imprimir">' + (S.resumen ? 'Imprimir resumen' : 'Imprimir') + '</button>' + (!S.resumen && cams.length > 1 ? '<button class="btn" data-act="imprimir-camiones" title="Todo el día, cada camión en su hoja">Imprimir x camión</button>' : '') : '')
+      + (peds.length ? '<button class="btn" data-act="resumen" aria-pressed="' + !!S.resumen + '">' + (S.resumen ? 'Ver por camión' : 'Resumen del día') + '</button><span class="imp-grupo"><button class="btn" data-act="imprimir">' + (S.resumen ? 'Imprimir resumen' : 'Imprimir') + '</button>' + ((!S.resumen && cams.length > 1) || impEstado() ? menuHTML('log-imp', '▾', (!S.resumen && cams.length > 1 ? '<button class="btn sm" data-act="imprimir-camiones">Cada camión en su hoja</button>' : '') + (impEstado() ? '<button class="btn sm" data-act="imprimir-remoto">🖨 En la compu' + (S.impresora && S.impresora.nombre ? ' (' + esc(S.impresora.nombre) + ')' : '') + (impEstado() === 'off' ? ' · apagada' : '') + '</button>' : ''), 'Más formas de imprimir') : '') + '</span>' : '')
       + (S.editor && cams.filter(function (c) { return c.hora; }).length > 1 ? '<button class="btn" data-act="cam-por-hora" title="Ordenar los camiones por horario">Ordenar x hora</button>' : '')
       + (S.editor ? '<button class="btn" data-act="cam-nuevo" title="Camión para este día">+ Camión</button><button class="btn" data-act="link-log" title="Copiar link para compartir">Copiar link</button><span class="guardado" id="g-log"></span>' : '') + '</div>';
     h += '<div class="pd-busca"><input type="search" id="lg-buscar" value="' + esc(S.lgBuscar || '') + '" placeholder="Buscar cliente" aria-label="Buscar un cliente en Logística (en todos los días)" autocomplete="off">'
@@ -2862,11 +2868,11 @@
     cams.forEach(function (cam, k) {
       var suyos = peds.filter(function (p) { return p.camion === cam.id; }), ed = S.ec === cam.id;
       var car = cargaDe(peds, cam.id), ct = capTxt(cam, car), pasa = +cam.kg > 0 && car > +cam.kg;
-      h += '<section class="cam' + (pasa ? ' pasa' : '') + '" data-cam="' + esc(cam.id) + '"><header class="cam-cab">' + (S.editor && cams.length > 1 && !ed ? '<label class="cam-ord"><span>Orden</span>' + posSelHTML('data-pos-cam="' + esc(cam.id) + '"', k, cams.length, 'Orden del camión ' + nomCam(cam), { act: 'camion', attr: 'data-id="' + esc(cam.id) + '"' }) + '</label>' : '')
+      h += '<section class="cam' + (pasa ? ' pasa' : '') + '" data-cam="' + esc(cam.id) + '"><header class="cam-cab">'
         + '<h2>' + esc(nomCam(cam)) + '</h2>' + (cam.hora ? '<span class="cam-hora">' + esc(cam.hora) + ' hs</span>' : '')
         + (cam.nota && !ed ? '<span class="cam-nota">' + esc(cam.nota) + '</span>' : '')
-        + (!ed ? '<span class="log-acc"><button class="btn sm" data-act="cam-imprimir" data-id="' + esc(cam.id) + '">Imprimir</button>'
-          + (S.editor ? '<button class="btn sm" data-act="cam-editar" data-id="' + esc(cam.id) + '">Editar</button>' + botonBorrar('cam-borrar', cam.id, 'Borrar camión') : '') + '</span>' : '') + '</header>';
+        + (!ed ? '<span class="log-acc">' + menuHTML('cam-' + cam.id, '⋯', (S.editor && cams.length > 1 ? '<button class="btn sm" data-act="camion-subir" data-id="' + esc(cam.id) + '"' + (k === 0 ? ' disabled' : '') + '>↑ Subir el camión</button><button class="btn sm" data-act="camion-bajar" data-id="' + esc(cam.id) + '"' + (k === cams.length - 1 ? ' disabled' : '') + '>↓ Bajar el camión</button>' : '') + '<button class="btn sm" data-act="cam-imprimir" data-id="' + esc(cam.id) + '">Imprimir este camión</button>'
+          + (S.editor ? '<button class="btn sm" data-act="cam-editar" data-id="' + esc(cam.id) + '">Editar camión</button>' + botonBorrar('cam-borrar', cam.id, 'Borrar camión') : ''), 'Opciones del camión ' + nomCam(cam)) + '</span>' : '') + '</header>';
       var tMed = 0, tCaj = 0;
       suyos.forEach(function (p) { tMed += +p.medias || 0; (p.cortes || []).forEach(function (c) { var mc = String(c.texto || '').match(/^\s*([\d.,½]+)\s*(?:CAJAS?|CJS?)\b/i); if (mc) tCaj += numero(mc[1].replace('½', '.5')); }); });
       h += '<div class="cam-datos"><div class="cam-res"><b>' + suyos.length + '</b><span>' + (suyos.length === 1 ? 'pedido' : 'pedidos') + '</span></div>'
@@ -3439,6 +3445,8 @@
     nav.classList.add('armada');
     var bi = acc.querySelector('[data-act="imprimir"]');
     var est = impEstado();
+    if (nav.closest('#view-logistica')) est = '';   // en Logística va adentro del menú ▾ de Imprimir
+    if (est === 'off' && !esCelu()) est = '';         // en la compu no ocupa lugar si la impresora está apagada
     if (bi && est) { var br = document.createElement('button'); br.className = 'btn imp-remoto' + (est === 'off' ? ' off' : ''); br.dataset.act = 'imprimir-remoto'; br.textContent = '🖨 Imprimir en la compu' + (S.impresora.nombre ? ' (' + S.impresora.nombre + ')' : '') + (est === 'off' ? ' · apagada' : ''); bi.insertAdjacentElement('afterend', br); }
   }
   if (window.MutationObserver) new MutationObserver(function () { document.querySelectorAll('.nav:not(.armada)').forEach(armarNav); }).observe(document.body, { childList: true, subtree: true });
@@ -3474,8 +3482,10 @@
   document.querySelector('.top').addEventListener('click', function (e) { var b = e.target.closest('[data-tab]'); if (!b) return; e.preventDefault(); if (b.dataset.tab === 'inicio') alInicio(); if (S.ep) { asentarEdicion(); S.ep = null; } S.ec = null; S.msg.fotos = ''; S.msg.log = ''; S.pegar = false; if (!S.leyendo) { S.pegarTxt = ''; S.pegarCli = ''; S.pegarDia = ''; } irA(b.dataset.tab); });
 
   document.addEventListener('click', function (e) {
+    if (S.menuAb && !e.target.closest('.mas-btn')) { var keep = e.target.closest('[data-act="cam-borrar"]'); if (!keep || S._c2 === 'cam-borrar' + keep.dataset.i) cerrarMenus(); }
     var b = e.target.closest('[data-act]'); if (!b) return;
     var a = b.dataset.act, D = b.dataset, o, c;
+    if (a === 'menu') { S.menuAb = S.menuAb === D.k ? null : D.k; render(); return; }
     if (S._c2 && S._c2 !== a + (D.i == null ? '' : D.i)) S._c2 = null;
 
     if (a === 'actualizar') { recargar(); return; }
@@ -3839,6 +3849,7 @@
     }
   });
 
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && S.menuAb) cerrarMenus(); });
   // Con la app bloqueada, el teclado solo sirve para el PIN.
   document.addEventListener('keydown', function (e) {
     var lk = document.getElementById('pin-lock');

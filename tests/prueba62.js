@@ -16,7 +16,7 @@ await p.goto('http://127.0.0.1:8765/index.html#logistica');await p.clock.runFor(
 for(let k=0;k<3&&!(await p.locator('.log-ped').count());k++){await p.click('[data-act="fl"][data-d="1"]');await p.waitForTimeout(100);}
 console.log(w,ed?'editor':'público','lugares:',await p.$$eval('.log-num',x=>x.map(e=>e.textContent).join(',')),'· recuadros:',await p.locator('.log-ped').count(),'· cantidades:',await p.$$eval('.lc-cant',x=>x.map(e=>e.innerText.replace(/\s+/g,' ').trim()).join(' | ')));
 await p.screenshot({path:SP+'/logprolijo'+w+(ed?'':'pub')+'.png',fullPage:true});
-if(ed){await p.locator('.log-ped',{hasText:'ACHAVAL'}).locator('[data-act="cam-subir"]').click();await p.clock.runFor(1500);await p.waitForTimeout(200);
+if(ed){await p.locator('.log-ped',{hasText:'ACHAVAL'}).locator('[data-act="menu"]').click();await p.locator('.log-ped',{hasText:'ACHAVAL'}).locator('[data-act="cam-subir"]').click();await p.clock.runFor(1500);await p.waitForTimeout(200);
  console.log(w,'subir ACHAVAL:',await p.$$eval('.cam',c=>c[0]?[...c[0].querySelectorAll('.log-ped')].map(e=>e.querySelector('.log-num').textContent+' '+e.querySelector('strong').textContent).join(', '):''));}
 await p.emulateMedia({media:'print'});await p.screenshot({path:SP+'/logprolijo-print'+w+(ed?'':'pub')+'.png',fullPage:true});
 console.log(w,'desborde',await p.evaluate(()=>document.documentElement.scrollWidth-innerWidth),'· errores',errs.join('|')||'ninguno');}

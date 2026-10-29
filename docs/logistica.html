@@ -886,6 +886,11 @@ details[open] > summary{margin-bottom:10px}
 @media print{.mf-abrir,.mf-menu,[data-act="mf-set"]{display:none!important}}
 @media print{ #view-logistica.por-camion .cam ~ .cam{break-before:page;page-break-before:always;margin-top:0} #view-logistica.por-camion .cam{break-inside:auto} }
 .btn.wa{background:#25d366;border-color:#1ea952;color:#fff;font-weight:700}
+.mas-menu{position:relative;display:inline-flex}.mas-btn{min-width:34px;font-weight:800;letter-spacing:.05em}
+.menu-pop{position:absolute;right:0;top:calc(100% + 4px);z-index:40;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.16);padding:6px;display:flex;flex-direction:column;gap:4px;min-width:200px}
+.menu-pop .btn{width:100%;justify-content:flex-start;text-align:left;white-space:nowrap}
+.imp-grupo{display:inline-flex;align-items:stretch}.imp-grupo>.btn{border-top-right-radius:0;border-bottom-right-radius:0}.imp-grupo>.mas-menu>.mas-btn{border-top-left-radius:0;border-bottom-left-radius:0;margin-left:-1px;height:100%}
+@media print{ .mas-menu,.menu-pop{display:none!important} }
 @media print{ .res-tels{display:none!important} }
 .res-tels{background:var(--accent-soft);border-radius:8px;padding:10px 12px;margin:0 0 10px}.res-tels-l{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px}.res-tels input{font-size:16px}
 .res-comp{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;margin:0 0 10px}.res-comp .btn.wa{background:#25d366;border-color:#1ea952;color:#fff;font-weight:700}.res-comp .btn.wa[disabled]{opacity:.45}

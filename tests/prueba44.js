@@ -8,9 +8,9 @@ await p.addInitScript(d=>{window.__mock={data:JSON.parse(JSON.stringify(d)),user
 await p.goto('http://127.0.0.1:8765/index.html#logistica');await p.clock.runFor(1500);await p.waitForTimeout(300);if(!(await p.locator('section.cam').count())){await p.fill('#l-fecha','2026-10-09');await p.locator('#l-fecha').dispatchEvent('change');await p.waitForTimeout(200);}await p.waitForSelector('section.cam');
 const cab=async()=> (await p.locator('section.cam:not(.suelto) .cam-cab').allInnerTexts()).map(t=>t.replace(/\s+/g,' ').replace(/Imprimir.*$/,'')).join(' | ');
 console.log('=== ancho',w,'al abrir:',await cab());
-await p.locator('section.cam',{hasText:'Camión 2'}).locator('[data-act="camion-subir"]').click();await p.clock.runFor(800);
+await p.locator('section.cam',{hasText:'Camión 2'}).locator('header [data-act="menu"]').click();await p.locator('section.cam',{hasText:'Camión 2'}).locator('[data-act="camion-subir"]').click();await p.clock.runFor(800);
 console.log('subo Camión 2:',await cab());
-await p.locator('section.cam',{hasText:'Camión 1'}).locator('[data-act="cam-editar"]').first().click();
+await p.locator('section.cam',{hasText:'Camión 1'}).locator('[data-act="menu"]').first().click();await p.locator('section.cam',{hasText:'Camión 1'}).locator('[data-act="cam-editar"]').first().click();
 await p.fill('#cam-e-nombre','CHAVEZ');await p.click('[data-act="cam-guardar"]');await p.clock.runFor(800);
 console.log('renombrado CHAVEZ:',await cab());
 if(w===400)await p.screenshot({path:SP+'/cam400.png',fullPage:true});else await p.screenshot({path:SP+'/cam1100.png'});

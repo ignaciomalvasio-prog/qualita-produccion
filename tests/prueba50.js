@@ -21,7 +21,7 @@ await p.click('#tab-logistica');await p.waitForTimeout(200);if(!(await p.locator
 const orden=async()=>(await p.locator('section.cam:not(.suelto)').evaluateAll(cs=>cs.map(c=>c.querySelector('h2').innerText+': '+[...c.querySelectorAll('.log-ped strong')].map(x=>x.innerText).join(',')))).join(' | ');
 console.log('logística:',await orden());
 await p.locator('select[data-pos-ped="a"]').selectOption('0');await p.clock.runFor(800);console.log('ALFA al 1:',await orden());
-await p.locator('select[data-pos-cam="c2"]').selectOption('0');await p.clock.runFor(800);console.log('Moreira primero:',await orden());
+console.log('sin selector de orden de camión:',!(await p.locator('select[data-pos-cam]').count()));
 if(w===400)await p.screenshot({path:SP+'/pos400.png',fullPage:true});else await p.screenshot({path:SP+'/pos1100.png'});
 await p.emulateMedia({media:'print'});console.log('print: número visible',await p.locator('.log-num-sel .solo-print').first().isVisible(),'select oculto',!(await p.locator('.pos-sel').first().isVisible()));await p.emulateMedia({media:'screen'});
 console.log('desborde:',await p.evaluate(()=>document.documentElement.scrollWidth-innerWidth),'errores:',errs.join('|')||'ninguno');await p.close();}
