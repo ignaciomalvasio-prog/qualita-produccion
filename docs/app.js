@@ -2256,6 +2256,8 @@
     return '<span class="frio-chip cam-chip' + (cam ? ' con' : ' nada') + '" data-act="camp-menu" data-id="' + esc(p.id) + '" role="button" tabindex="0" title="Tocá para ' + (cam ? 'cambiar de camión' : 'sumarlo a un camión') + '">' + (cam ? '🚚 ' + esc(cam) : '<span class="chip-lg">+ Sumar a camión</span><span class="chip-co">+ Camión</span>') + ' ▾</span>';
   }
   // Si el pedido está tildado, el camión que se elige va para todos los tildados de ese día.
+  // Botón directo para sacar del camión (pedido de Renzo), al lado del nombre del camión.
+  function sacarCamHTML(p) { return S.editor && !S.solo && p.camion && nombreCamion(p.entrega, p.camion) ? '<span class="cam-sacar" data-act="camp-sacar" data-id="' + esc(p.id) + '" role="button" tabindex="0" title="Sacar del camión" aria-label="Sacar a ' + esc(p.cliente || '') + ' del camión">✕ Sacar</span>' : ''; }
   function camGrupo(p) {
     if (!S.sel || !S.sel[p.id] || S.selDia !== p.entrega) return [p];
     return tildadosDe(p.entrega).map(pedidoDe);
@@ -2317,7 +2319,7 @@
     var h = '<div class="ped' + (ab ? ' abierto' : '') + (sel ? ' sel' : '') + '" data-ped="' + id + '"><div class="ped-cab">'
       + (mov ? '<button class="ped-mover" data-parr="' + id + '" aria-label="Arrastrar a ' + esc(p.cliente) + ' para cambiar el orden de bajada (o usar las flechas del teclado)" title="Arrastrar para ordenar">⠿</button>' : '')
       + '<label class="chk"><input type="checkbox" data-sel="' + id + '"' + (sel ? ' checked' : '') + ' aria-label="Tildar el pedido de ' + esc(p.cliente) + ' para un camión"></label>'
-      + '<button class="ped-tit" data-act="ped-abrir" data-id="' + id + '" aria-expanded="' + ab + '"><span class="nom">' + esc(p.cliente || 'Sin cliente') + '</span>' + ctaHTML(cuentaPedido(p), true) + '<span class="res">' + res.join(' · ') + ' ' + frioChipHTML(p) + ' ' + camChipHTML(p) + '</span>'
+      + '<button class="ped-tit" data-act="ped-abrir" data-id="' + id + '" aria-expanded="' + ab + '"><span class="nom">' + esc(p.cliente || 'Sin cliente') + '</span>' + ctaHTML(cuentaPedido(p), true) + '<span class="res">' + res.join(' · ') + ' ' + frioChipHTML(p) + ' ' + camChipHTML(p) + sacarCamHTML(p) + '</span>'
       + (cam || (VENDEDORES && p.vendedor) ? '<span class="marcas">' + (VENDEDORES && p.vendedor ? '<span class="badge vend" title="' + esc(p.vendedor) + '">Vendedor: ' + esc(p.vendedorNombre || p.vendedor.split('@')[0]) + '</span>' : '') + (cam && !(S.editor && !S.solo) ? '<span class="badge cam-ped">' + esc(cam) + '</span>' : '') + '</span>' : '') + '<span class="col-kg">' + kgPedHTML(p) + '</span><span class="col-prod">' + prodBadgeHTML(enP, cs.length) + '</span><span class="chev" aria-hidden="true">' + (ab ? '▴' : '▾') + '</span></button></div>';
     if (S.frioMenu === p.id) h += frioMenuHTML(p);
     if (S.camMenu === p.id) h += camMenuHTML(p);
@@ -3813,6 +3815,10 @@
       var vc = D.v || '', fc = pc.entrega, gr = camGrupo(pc), idsC = gr.map(function (x) { return x.id; });
       (vc.charAt(0) === 'f' ? usarDeFlota(fc, vc.slice(2), idsC) : asignarCamion(fc, idsC, vc.slice(2)).then(function () { return { id: vc.slice(2) }; }))
         .then(function (cam) { if (gr.length > 1) S.sel = {}; avisar(gr.length > 1 ? (vc ? avisoCamion(fc, cam.id, gr.length) : gr.length + ' pedidos quedaron sin camión.') : vc ? pc.cliente + ' ' + avisoCamion(fc, cam.id, 1).replace(/^1 pedido en /, 'va en ') : pc.cliente + ' quedó sin camión.', 5000); renderPedidos(); }, function (er) { avisar('!' + ((er && er.message) || 'No se pudo guardar. Revisá la conexión.'), 6000); renderPedidos(); });
+    }
+    else if (a === 'camp-sacar') {
+      e.preventDefault(); e.stopPropagation(); var ps = pedidoDe(D.id); S.camMenu = null; if (!ps) return;
+      asignarCamion(ps.entrega, [ps.id], '').then(function () { avisar(ps.cliente + ' quedó sin camión.', 3000); renderPedidos(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); renderPedidos(); });
     }
     else if (a === 'frio-menu') { S.camMenu = null; e.preventDefault(); e.stopPropagation(); S.frioMenu = S.frioMenu === D.id ? null : D.id; renderPedidos(); }
     else if (a === 'frio-set') {
