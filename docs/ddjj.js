@@ -334,7 +334,7 @@ function renderDia() {
   h += '<section class="dj-top"><div><h2>' + esc(fechaLarga(S.fecha)) + '</h2><p class="sub" style="margin:0">' +
     fmt0(P.tot.medias) + ' medias reses · ' + fmt2(P.tot.cons + P.tot.exp) + ' kg producidos' +
     (x.por ? ' · último cambio: ' + esc(x.por) + ' ' + esc(horaDe(x.ts)) : '') + (x.impreso ? ' · impresa ' + esc(horaDe(x.impreso)) : '') + '</p></div>' +
-    '<div class="row"><button onclick="verImpresion()">👁 Ver cómo sale</button><button class="primary big" onclick="imprimir()">🖨 Imprimir</button></div></section>';
+    '<div class="row"><button onclick="verImpresion()">👁 Ver cómo sale</button><button onclick="excelDJ(false)" title="La planilla de este día (ingreso y producción) en Excel">⬇ Excel del día</button><button onclick="excelDJ(true)" title="Una hoja por cada día con desposte del mes">⬇ Excel del mes</button><button class="primary big" onclick="imprimir()">🖨 Imprimir</button></div></section>';
 
   if (P.c.nuevos.length) {
     h += '<div class="alerta warn"><div><b>Hay artículos nuevos que todavía no están asignados a ningún renglón.</b> Decí a qué renglón van (queda guardado para los próximos días):<table class="dj-nuevos">' +
@@ -586,6 +586,33 @@ function eqAjuste(k, v) { const n = leerNum(v) || 0; cambiarEq(d => { d.ajuste =
 const d0n = i => eq().lineas[i] ? eq().lineas[i].n : '';
 
 /* ---------- impresión ---------- */
+/* Excel de la DDJJ de desposte: lo mismo que la hoja impresa (ingreso + producción, con lo corregido a mano).
+   Del día: una hoja; del mes: una hoja por cada día con desposte. */
+function filasDJ(f) {
+  const P = planilla(f), n = v => (v == null || v === '' || isNaN(v)) ? '' : Number(v);
+  const filas = [['DDJJ de producción de desposte · ' + ddmmaaaa(f)], [], ['INGRESO'],
+    ['Fecha de faena', 'Nº de tropa', 'Total de tropa', 'Medias reses', 'Kg de ingreso', 'Observaciones']];
+  P.ingreso.forEach(t => filas.push([ddmmaaaa(t.faena), String(t.tropa), n(t.cab), n(t.medias), n(t.kg), t.obs || '']));
+  filas.push(['Total', '', '', n(P.tot.medias), n(P.tot.kgDecl), 'Kg con ' + Math.round((1 - (eq().merma || 1)) * 100) + ' % de merma (sin merma: ' + fmt0(P.tot.kg) + ')']);
+  filas.push([], ['PRODUCCIÓN'], ['Nombre del corte', 'Cantidad de cortes', 'Kg producidos exportación', 'Kg producidos consumo', 'Observaciones / destino']);
+  P.filas.forEach(r => filas.push([r.n, r.cant ? n(r.cant) : '', r.exp ? n(r.exp) : '', r.cons || r.exp ? n(r.cons || 0) : '', r.dest || '']));
+  filas.push(['Totales', n(P.tot.cant), n(P.tot.exp), n(P.tot.cons), '']);
+  if (P.obs) filas.push([], ['Observaciones'], [P.obs]);
+  return filas;
+}
+function excelDJ(mes) {
+  if (!window.XLSX) { toast('No se pudo cargar el Excel. Revisá internet.', true); return; }
+  const dias = mes ? Object.keys((S.sis && S.sis.dias) || {}).sort().filter(f => calcular(f).hay) : [S.fecha];
+  if (!dias.length || !dias[0]) { toast('No hay días con desposte.', true); return; }
+  const wb = XLSX.utils.book_new();
+  for (const f of dias) {
+    const ws = XLSX.utils.aoa_to_sheet(filasDJ(f));
+    ws['!cols'] = [{ wch: 30 }, { wch: 18 }, { wch: 22 }, { wch: 22 }, { wch: 24 }, { wch: 40 }];
+    XLSX.utils.book_append_sheet(wb, ws, ddmm(f).replace('/', '-'));
+  }
+  XLSX.writeFile(wb, mes ? 'DDJJ desposte ' + nombreMes(S.mes) + '.xlsx' : 'DDJJ desposte ' + ddmmaaaa(S.fecha).replace(/\//g, '-') + '.xlsx');
+}
+
 /* Las medidas (en puntos, hoja A4 de 595 × 842) son las de la planilla de Excel impresa: el formulario
    ya trae el encabezado arriba, por eso la tabla arranca a media hoja. */
 function hojas(f) {
