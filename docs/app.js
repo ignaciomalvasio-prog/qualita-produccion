@@ -2989,7 +2989,7 @@
   }
   function camCelda(f, k, v, src, extra) {
     var t = src === 'auto' ? 'Sale solo de ' + (k === 'despSig' ? 'Producción' : 'Medias') + ' · tocá para cambiarlo' : src === 'habitual' ? 'Desposte habitual · tocá para cambiarlo' : src === 'dato' && k === 'rem' ? 'Remanente escrito a mano · borralo para que se calcule solo' : 'Tocá para cambiarlo';
-    return '<input class="cam-in ' + (src || '') + '" inputmode="numeric" data-cf="' + k + '" data-f="' + f + '" value="' + (v == null ? '' : esc(n(v))) + '" title="' + esc(t) + '" aria-label="' + esc(k + ' ' + diaCorto(f)) + '"' + (extra || '') + '>';
+    return '<input class="cam-in ' + (src || '') + (v < 0 ? ' neg' : '') + '" inputmode="numeric" data-cf="' + k + '" data-f="' + f + '" value="' + (v == null ? '' : esc(n(v))) + '" title="' + esc(t) + '" aria-label="' + esc(k + ' ' + diaCorto(f)) + '"' + (extra || '') + '>';
   }
   function renderCamara() {
     var el = $('view-camara');
@@ -3017,7 +3017,7 @@
       };
       var sum = function (k) { return dias.reduce(function (t, f) { var o = c.dias[f]; return t + (o && o[k] ? o[k] : 0); }, 0); };
       var nd = dias.filter(function (f) { var o = c.dias[f]; return o && o.faena > 0; }).length || 1;
-      var calc = function (k, bold) { return function (o, ver) { return ver ? '<span class="cam-v' + (bold ? ' b' : '') + '">' + n(o[k]) + '</span>' : ''; }; };
+      var calc = function (k, bold) { return function (o, ver) { return ver ? '<span class="cam-v' + (bold ? ' b' : '') + (o[k] < 0 ? ' neg' : '') + '">' + n(o[k]) + '</span>' : ''; }; };
       var ed = function (k) { return function (o) { return camCelda(o.f, k, o[k], o.src[k]); }; };
       var desp = function (o) { return o.prevF ? camCelda(o.prevF, 'despSig', o.desp, o.srcDesp, ' data-dia="' + o.f + '"') : '<span class="cam-v">' + n(o.desp) + '</span>'; };
       return (conTit ? '<h3 class="cam-sem-tit">' + esc(etiquetaSemana(L2).toUpperCase()) + '</h3>' : '')
@@ -3031,7 +3031,7 @@
         + fila('REMANENTE', 'b marca', function (o, ver) { return ver ? camCelda(o.f, 'rem', o.rem, o.src.rem) + (o.src.rem === 'dato' ? '<small class="cam-dsig">a mano</small>' : '') : ''; }, (function () { var v = c.dias[mas(L2, 7)]; return v && (!ult || v.f <= ult) ? '→ ' + n(v.rem) + ' el lunes' : ''; })())
         + fila('DISPONIBLE', 'marca', calc('disp', true), '')
         + fila('MEDIAS EN CÁMARA', 'c-azul b sep marca', calc('camara', true), (function () { var m = dias.map(function (f) { return c.dias[f] && (!ult || f <= ult) ? c.dias[f].camara : -1e9; }); var mx = Math.max.apply(null, m); return mx > -1e9 ? 'máx. ' + n(mx) : ''; })())
-        + fila('LUGAR LIBRE (de ' + n(camCap()) + ')', 'b', function (o, ver) { return ver ? '<span class="cam-v b' + (o.libre < 0 ? ' neg' : o.libre < 200 ? ' bajo' : '') + '">' + n(o.libre) + '</span>' : ''; }, (function () { var m = dias.filter(function (f) { return c.dias[f] && (!ult || f <= ult); }).map(function (f) { return c.dias[f].libre; }); return m.length ? 'mín. ' + n(Math.min.apply(null, m)) : ''; })())
+        + fila('LUGAR LIBRE (de ' + n(camCap()) + ')', 'b', function (o, ver) { return ver ? '<span class="cam-v b' + (o.libre < 0 ? ' neg' : '') + '">' + n(o.libre) + '</span>' : ''; }, (function () { var m = dias.filter(function (f) { return c.dias[f] && (!ult || f <= ult); }).map(function (f) { return c.dias[f].libre; }); return m.length ? 'mín. ' + n(Math.min.apply(null, m)) : ''; })())
         + '</tbody></table></div>';
     };
     if (!vacio) {
