@@ -2434,6 +2434,13 @@
       if (!l.length) t.push('Sin pedidos');
       if (c.nota) t.push('_' + c.nota + '_');
     });
+    // Los que todavía no tienen camión (pedido de Renzo, para ir adelantando): solo si se eligieron ("_sin").
+    if (ids && ids.indexOf('_sin') >= 0) {
+      var sl = peds.filter(function (p) { return !p.camion; });
+      t.push('', '*SIN CAMIÓN TODAVÍA*');
+      sl.forEach(function (p, i) { t.push((i + 1) + '. ' + (p.cliente || 'Sin cliente') + (+p.medias ? ' ' + n(+p.medias) + '½' : '') + ((p.cortes || []).length ? ' + cortes' : '') + (frioPed(p) === 'CONGELADO' ? ' (congelado)' : '')); });
+      if (!sl.length) t.push('Ninguno');
+    }
     t.push('', waDespedida());
     return t.join('\n');
   }
@@ -2469,7 +2476,7 @@
       var o = c.orden || [], l = peds.filter(function (p) { return p.camion === c.id; }).sort(function (a, b) { var i = o.indexOf(a.id), j = o.indexOf(b.id); return (i < 0 ? 1e6 : i) - (j < 0 ? 1e6 : j); });
       return { tit: '# ' + ((c.num && nomLimpio(c.nombre) ? 'N° ' + c.num + ' · ' : '') + nomCam(c)).toUpperCase(), hora: c.hora || '', peds: l, nota: c.nota || '' };
     });
-    var sueltos = ids ? [] : peds.filter(function (p) { return !p.camion; });
+    var sueltos = ids && ids.indexOf('_sin') < 0 ? [] : peds.filter(function (p) { return !p.camion; });
     if (sueltos.length) bloques.push({ tit: '# Sin camión', hora: '', peds: sueltos, nota: '' });
     return L.PDFDocument.create().then(function (doc) {
       return Promise.all([doc.embedFont(L.StandardFonts.Helvetica), doc.embedFont(L.StandardFonts.HelveticaBold)]).then(function (fs) {
@@ -2578,11 +2585,12 @@
       return '<span class="res-cli">' + t + '</span>';
     };
     var ed = S.editor && !S.solo;
-    var nSel = cams.filter(function (c) { return (S.resSel || {})[f + '|' + c.id]; }).length;   // con camiones tildados se mandan todos juntos en un solo mensaje
+    var nSel = cams.filter(function (c) { return (S.resSel || {})[f + '|' + c.id]; }).length + ((S.resSel || {})[f + '|_sin'] ? 1 : 0);   // con camiones tildados se mandan todos juntos en un solo mensaje
     var bloque = function (tit, hora, lista, nota, id) {
       var nomT = String(tit || '').replace(/^N° [^·]*· /, '');
-      var hh = ed && id ? ' <input type="time" class="res-hora" data-hora="' + esc(id) + '" value="' + esc(hora || '') + '" aria-label="Hora de salida de ' + esc(tit) + '">' + (hora ? '<span class="solo-print">' + esc(hora) + ' hs</span>' : '') : hora ? ' ' + esc(hora) + ' hs' : '';
-      return '<div class="res-cam' + (ed && id ? ' movible' : '') + '"' + (id ? ' data-cam="' + esc(id) + '"' : '') + '><p class="res-tit">' + (ed && id ? '<button class="res-mover" data-arr="' + esc(id) + '" aria-label="Arrastrar para cambiar el orden de ' + esc(tit) + ' (o usar las flechas del teclado)" title="Arrastrar para ordenar">⠿</button>' : '') + (id ? '<label class="res-sel" title="Elegir para compartir"><input type="checkbox" data-res-sel="' + esc(id) + '"' + ((S.resSel || {})[f + '|' + id] ? ' checked' : '') + ' aria-label="Elegir ' + esc(tit) + ' para compartir"></label>' : '') + '<mark># ' + esc(tit) + hh + '</mark>' + (id && !nSel ? '<button class="btn sm wa res-wa-uno" data-act="res-wa" data-f="' + esc(f) + '" data-cual="' + esc(id) + '" title="' + (telChofer(nomT) ? 'Abre el chat de ' + esc(choferKey(nomT)) + ' con el mensaje escrito' : 'Mandar solo este camión por WhatsApp') + '">' + (telChofer(nomT) ? 'WhatsApp a ' + esc(choferKey(nomT)) : 'WhatsApp') + '</button>' : '') + '</p>'
+      var fijo = id === '_sin';   // "Sin camión": se puede tildar y compartir, pero no tiene hora ni se arrastra
+      var hh = ed && id && !fijo ? ' <input type="time" class="res-hora" data-hora="' + esc(id) + '" value="' + esc(hora || '') + '" aria-label="Hora de salida de ' + esc(tit) + '">' + (hora ? '<span class="solo-print">' + esc(hora) + ' hs</span>' : '') : hora ? ' ' + esc(hora) + ' hs' : '';
+      return '<div class="res-cam' + (ed && id && !fijo ? ' movible' : '') + '"' + (id && !fijo ? ' data-cam="' + esc(id) + '"' : '') + '><p class="res-tit">' + (ed && id && !fijo ? '<button class="res-mover" data-arr="' + esc(id) + '" aria-label="Arrastrar para cambiar el orden de ' + esc(tit) + ' (o usar las flechas del teclado)" title="Arrastrar para ordenar">⠿</button>' : '') + (id ? '<label class="res-sel" title="Elegir para compartir"><input type="checkbox" data-res-sel="' + esc(id) + '"' + ((S.resSel || {})[f + '|' + id] ? ' checked' : '') + ' aria-label="Elegir ' + esc(tit) + ' para compartir"></label>' : '') + '<mark># ' + esc(tit) + hh + '</mark>' + (id && !nSel ? '<button class="btn sm wa res-wa-uno" data-act="res-wa" data-f="' + esc(f) + '" data-cual="' + esc(id) + '" title="' + (telChofer(nomT) ? 'Abre el chat de ' + esc(choferKey(nomT)) + ' con el mensaje escrito' : 'Mandar solo este camión por WhatsApp') + '">' + (telChofer(nomT) ? 'WhatsApp a ' + esc(choferKey(nomT)) : 'WhatsApp') + '</button>' : '') + '</p>'
         + '<p class="res-lista">' + (lista.length ? lista.map(cli).join(' – ') : '<span class="muted">Sin pedidos</span>') + '</p>'
         + (nota ? '<p class="res-nota">' + esc(nota) + '</p>' : '') + '</div>';
     };
@@ -2599,7 +2607,7 @@
       h += bloque(tit, c.hora, peds.filter(function (p) { return p.camion === c.id; }), c.nota, c.id);
     });
     var sueltos = peds.filter(function (p) { return !p.camion; });
-    if (sueltos.length) h += bloque('Sin camión', '', sueltos, '');
+    if (sueltos.length) h += bloque('Sin camión', '', sueltos, '', '_sin');
     return h + '</div></div>';
   }
   // Cuándo se cargó un pedido (para mostrar arriba los últimos): el campo "alta" o, en los viejos, la hora que va en su id.
@@ -2611,7 +2619,7 @@
     if (!cams.length) return '<div class="peds">' + ultimosArriba(lista).map(function (p) { return pedidoHTML(p, m); }).join('') + '</div>';
     var grupo = function (tit, extra, l, cls, camId, tot) { return '<div class="grupo-cam' + (cls ? ' ' + cls : '') + '" data-gcam="' + esc(camId || '') + '"><h3 class="grupo-tit">' + tit + ' <span class="small muted">' + esc(extra) + '</span>' + (tot || '') + '</h3><div class="peds">' + l.map(function (p) { return pedidoHTML(p, m, true); }).join('') + '</div></div>'; };
     var h = '', sin = ultimosArriba(lista.filter(function (p) { return !(p.camion && hay[p.camion]); }));
-    if (sin.length) h += grupo('Sin camión', resumenLog(sin), sin, 'sin-cam', '');
+    if (sin.length) h += grupo('Sin camión', resumenLog(sin), sin, 'sin-cam', '', S.editor && !S.solo ? '<span class="g-comp"><button class="btn sm wa" data-act="res-wa" data-f="' + esc(f) + '" data-cual="_sin" title="Mandar por WhatsApp la lista de los que todavía no tienen camión">WhatsApp</button><button class="btn sm wa" data-act="res-pdf" data-f="' + esc(f) + '" data-cual="_sin">PDF</button></span>' : '');
     cams.forEach(function (c) {
       var o = c.orden || [], l = lista.filter(function (p) { return p.camion === c.id; }).sort(function (a, b) { var i = o.indexOf(a.id), j = o.indexOf(b.id); return (i < 0 ? 1e6 : i) - (j < 0 ? 1e6 : j); });
       var kgT = 0, faltaT = false; l.forEach(function (p) { var k = kgPedido(p); kgT += k.kg; if (k.falta) faltaT = true; });
@@ -3540,7 +3548,7 @@
     else if (a === 'ini-dia') { S.pd = D.f; S.abierto = {}; irA('pedidos'); }
     else if (a === 'imprimir' && S.tab === 'logistica' && !S.resumen) { imprimirAjustado(); }
     else if (a === 'res-wa') {
-      var fw = D.f, idsW = D.cual === 'todos' ? null : D.cual !== 'sel' ? [D.cual] : camionesDe(fw).filter(function (c) { return (S.resSel || {})[fw + '|' + c.id]; }).map(function (c) { return c.id; });
+      var fw = D.f, idsW = D.cual === 'todos' ? null : D.cual !== 'sel' ? [D.cual] : camionesDe(fw).filter(function (c) { return (S.resSel || {})[fw + '|' + c.id]; }).map(function (c) { return c.id; }).concat((S.resSel || {})[fw + '|_sin'] ? ['_sin'] : []);
       if (idsW && !idsW.length) return;
       // Teléfono: el del chofer del camión (o de los tildados, si todos son del mismo chofer).
       var camsW = camionesDe(fw).filter(function (c) { return idsW && idsW.indexOf(c.id) >= 0; }), telsW = camsW.map(function (c) { return telChofer(nomCam(c)); });
@@ -3548,9 +3556,9 @@
       compartirWhatsApp(resumenTexto(fw, idsW), telW);
     }
     else if (a === 'res-pdf') {
-      var fp = D.f, idsP = camionesDe(fp).filter(function (c) { return (S.resSel || {})[fp + '|' + c.id]; }).map(function (c) { return c.id; });
+      var fp = D.f, idsP = D.cual ? [D.cual] : camionesDe(fp).filter(function (c) { return (S.resSel || {})[fp + '|' + c.id]; }).map(function (c) { return c.id; }).concat((S.resSel || {})[fp + '|_sin'] ? ['_sin'] : []);
       var xp = String(fp).split('-');
-      compartirPDF(function () { return resumenPDF(fp, idsP.length ? idsP : null); }, b, true, 'Resumen ' + xp[2] + '-' + xp[1] + (idsP.length === 1 ? ' ' + nomCam(camionesDe(fp).filter(function (c) { return c.id === idsP[0]; })[0]) : '') + '.pdf');
+      compartirPDF(function () { return resumenPDF(fp, idsP.length ? idsP : null); }, b, true, 'Resumen ' + xp[2] + '-' + xp[1] + (idsP.length === 1 ? ' ' + (idsP[0] === '_sin' ? 'Sin camión' : nomCam(camionesDe(fp).filter(function (c) { return c.id === idsP[0]; })[0])) : '') + '.pdf');
     }
     else if (a === 'm-pdf') {
       var fm2 = D.f, xm = diaFaena(fm2), clm = xm ? conMedias(xm.d) : [], totm = clm.reduce(function (t, r) { return t + (+r.cant || 0); }, 0), pm = String(fm2).split('-');
