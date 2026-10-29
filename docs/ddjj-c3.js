@@ -81,12 +81,12 @@ function renderC3() {
     S.fecha3 = pend.length ? pend[pend.length - 1] : (dias[dias.length - 1] || '');
   }
   let h = '<div class="dj-wrap"><aside class="dj-dias"><div class="dj-dias-t">Días con producción</div>';
-  if (!dias.length) h += '<p class="muted" style="padding:8px">No hay producción de Ciclo III cargada en ' + esc(nombreMes(S.mes)) + '.</p>';
+  if (!dias.length) h += '<p class="muted" style="padding:8px">No hay producción de chacinados cargada en ' + esc(nombreMes(S.mes)) + '.</p>';
   h += dias.slice().reverse().map(f => '<a href="#" class="dj-dia' + (f === S.fecha3 ? ' on' : '') + '" onclick="irDia3(\'' + f + '\');return false"><b>' + DIAS3[diaSem(f)] + ' ' + ddmm(f) + '</b>' + chipDia3(f) + '</a>').join('');
   h += '</aside><div class="dj-cont">';
   if (!S.fecha3) { $('main').innerHTML = h + '<section><p class="muted">Elegí un día.</p></section></div></div>'; return; }
   const f = S.fecha3, P = planilla3(f), x = P.x;
-  h += '<section class="dj-top"><div><h2>Ciclo III · ' + esc(fechaLarga(f)) + '</h2><p class="sub" style="margin:0">' + fmt2(P.tot) + ' kg producidos · Lote <a href="#" onclick="editarLote();return false"><b>' + esc(P.lote) + '</b></a>' +
+  h += '<section class="dj-top"><div><h2>Chacinados · ' + esc(fechaLarga(f)) + '</h2><p class="sub" style="margin:0">' + fmt2(P.tot) + ' kg producidos · Lote <a href="#" onclick="editarLote();return false"><b>' + esc(P.lote) + '</b></a>' +
     (x.por ? ' · último cambio: ' + esc(x.por) + ' ' + esc(horaDe(x.ts)) : '') + (x.impreso ? ' · impresa ' + esc(horaDe(x.impreso)) : '') + '</p></div>' +
     '<div class="row"><button onclick="verImpresion3()">👁 Ver cómo sale</button><button class="primary big" onclick="imprimir3()">🖨 Imprimir</button></div></section>';
   if (P.c.nuevos.length) {
@@ -107,7 +107,7 @@ function renderC3() {
   h += '<div class="row" style="margin-top:10px"><select id="nueva3"><option value="">+ Agregar un renglón…</option>' +
     eq3().lineas.map(l => l.n).filter(n => !P.filas.some(r => r.n === n)).map(n => '<option>' + esc(n) + '</option>').join('') + '<option value="*">Otro (escribir el nombre)</option></select><button class="small" onclick="agregar3()">Agregar</button>' +
     (quitados.length ? '<span class="muted" style="font-size:13px">Sacados: ' + quitados.map(n => esc(n) + ' <a href="#" onclick="cambiarDia3(x=>{delete x.prod[\'' + jsq(n) + '\']},\'vuelve ' + jsq(n) + '\');return false">volver a poner</a>').join(' · ') + '</span>' : '') + '</div>';
-  if (P.c.d.in.length) h += '<p class="muted" style="font-size:13px;margin-top:12px">Entró a Ciclo III: ' + P.c.d.in.map(r => esc(r.den) + ' ' + fmt2(r.kg) + ' kg').join(' · ') + '</p>';
+  if (P.c.d.in.length) h += '<p class="muted" style="font-size:13px;margin-top:12px">Entró a chacinados: ' + P.c.d.in.map(r => esc(r.den) + ' ' + fmt2(r.kg) + ' kg').join(' · ') + '</p>';
   h += '</section></div></div>';
   $('main').innerHTML = h;
 }
@@ -140,7 +140,7 @@ async function cambiarDia3(fn, desc) {
       d.c3 = d.c3 || {}; const x = d.c3[f] = d.c3[f] || {};
       x.prod = x.prod || {};
       fn(x); x.por = quien(); x.ts = new Date().toISOString();
-    }, 'DDJJ Ciclo III ' + ddmm(f) + ': ' + desc);
+    }, 'DDJJ Chacinados ' + ddmm(f) + ': ' + desc);
     render();
   } catch (e) { toast(e.message, true); }
 }
@@ -183,7 +183,7 @@ function asignar3(art, v) {
     d.c3.ignorar = (d.c3.ignorar || []).filter(a => a !== art);
     if (v === 'I') d.c3.ignorar.push(art);
     else { const l = d.c3.lineas.find(z => z.n === v.slice(2)); if (l) l.arts.push(art); }
-  }, 'Ciclo III artículo ' + art + ' → ' + (v === 'I' ? 'no va' : v.slice(2)));
+  }, 'Chacinados artículo ' + art + ' → ' + (v === 'I' ? 'no va' : v.slice(2)));
 }
 
 /* Equivalencias de Ciclo III (se agregan al final de la pestaña Equivalencias) */
@@ -192,16 +192,16 @@ function equivC3() {
   for (const d of Object.values(S.sis.c3)) d.re.forEach(r => { nom[r.art] = r.den; });
   const autom = n => Object.keys(nom).map(Number).filter(a => !(E.lineas.some(l => (l.arts || []).includes(a))) && !(E.ignorar || []).includes(a) && destino3(a, nom[a], '0000-00-00') === n);
   const chip = (a, extra) => '<span class="dj-art">' + a + (nom[a] ? ' <small>' + esc(nom[a].toLowerCase()) + '</small>' : '') + (extra || '') + '</span>';
-  let h = '<section><h2>Equivalencias de Ciclo III</h2><p class="sub">Qué artículos del sistema van en cada producto de la DDJJ de chacinados. Los que no tienen código asignado se reconocen por el nombre (los marcados "por nombre").</p>';
+  let h = '<section><h2>Equivalencias de chacinados</h2><p class="sub">Qué artículos del sistema van en cada producto de la DDJJ de chacinados. Los que no tienen código asignado se reconocen por el nombre (los marcados "por nombre").</p>';
   h += '<div class="tw"><table class="planilla dj-eq"><thead><tr><th>Producto</th><th>Artículos del sistema</th><th></th></tr></thead><tbody>';
   E.lineas.forEach((l, i) => {
     h += '<tr><td><b>' + esc(l.n) + '</b></td><td>' + (l.arts || []).map(a => chip(a)).join(' ') + autom(l.n).map(a => chip(a, ' <small>(por nombre)</small>')).join(' ') +
-      ' <button class="small" onclick="eqArts3(' + i + ')">Cambiar</button></td><td><button class="small danger" onclick="if(confirm(\'¿Sacar ' + jsq(l.n) + '?\'))cambiarEq(d=>{d.c3=d.c3||JSON.parse(JSON.stringify(C3_DEF));d.c3.lineas.splice(' + i + ',1)},\'Ciclo III saca ' + jsq(l.n) + '\')">✕</button></td></tr>';
+      ' <button class="small" onclick="eqArts3(' + i + ')">Cambiar</button></td><td><button class="small danger" onclick="if(confirm(\'¿Sacar ' + jsq(l.n) + '?\'))cambiarEq(d=>{d.c3=d.c3||JSON.parse(JSON.stringify(C3_DEF));d.c3.lineas.splice(' + i + ',1)},\'Chacinados saca ' + jsq(l.n) + '\')">✕</button></td></tr>';
   });
   h += '<tr><td colspan="3"><button class="small" onclick="eqNueva3()">+ Producto nuevo</button></td></tr></tbody></table></div>';
   h += '<h3 class="dj-h3">No van en la declaración</h3><p>' + ((E.ignorar || []).map(a => chip(a)).join(' ') || '<span class="muted">ninguno</span>') + '</p>';
-  h += '<p><label><input type="checkbox"' + (E.restar ? ' checked' : '') + ' onchange="cambiarEq(d=>{d.c3=d.c3||JSON.parse(JSON.stringify(C3_DEF));d.c3.restar=this.checked},\'Ciclo III restar reproceso \'+this.checked)"> A cada producto restarle lo que de ese mismo producto reingresó (reproceso)</label></p>';
-  h += '<p>Establecimiento N.º Oficial: <input class="w-cp" value="' + esc(E.estab || '') + '" onchange="cambiarEq(d=>{d.c3=d.c3||JSON.parse(JSON.stringify(C3_DEF));d.c3.estab=this.value.trim()},\'Ciclo III establecimiento\')"></p></section>';
+  h += '<p><label><input type="checkbox"' + (E.restar ? ' checked' : '') + ' onchange="cambiarEq(d=>{d.c3=d.c3||JSON.parse(JSON.stringify(C3_DEF));d.c3.restar=this.checked},\'Chacinados restar reproceso \'+this.checked)"> A cada producto restarle lo que de ese mismo producto reingresó (reproceso)</label></p>';
+  h += '<p>Establecimiento N.º Oficial: <input class="w-cp" value="' + esc(E.estab || '') + '" onchange="cambiarEq(d=>{d.c3=d.c3||JSON.parse(JSON.stringify(C3_DEF));d.c3.estab=this.value.trim()},\'Chacinados establecimiento\')"></p></section>';
   return h;
 }
 function eqArts3(i) {
@@ -212,9 +212,9 @@ function eqArts3(i) {
     d.c3.lineas.forEach(z => { z.arts = (z.arts || []).filter(a => !arts.includes(a)); });
     d.c3.ignorar = (d.c3.ignorar || []).filter(a => !arts.includes(a));
     d.c3.lineas[i].arts = arts;
-  }, 'Ciclo III ' + l.n + ' = ' + v), 'txt');
+  }, 'Chacinados ' + l.n + ' = ' + v), 'txt');
 }
-function eqNueva3() { pedir('Producto nuevo', '', 'Nombre como tiene que salir en la planilla.', v => { v = String(v || '').trim().toUpperCase(); if (v) cambiarEq(d => { d.c3 = d.c3 || JSON.parse(JSON.stringify(C3_DEF)); d.c3.lineas.push({ n: v, arts: [] }); }, 'Ciclo III producto nuevo ' + v); }, 'txt'); }
+function eqNueva3() { pedir('Producto nuevo', '', 'Nombre como tiene que salir en la planilla.', v => { v = String(v || '').trim().toUpperCase(); if (v) cambiarEq(d => { d.c3 = d.c3 || JSON.parse(JSON.stringify(C3_DEF)); d.c3.lineas.push({ n: v, arts: [] }); }, 'Chacinados producto nuevo ' + v); }, 'txt'); }
 
 /* ---------- impresión: la hoja completa, igual al Word ---------- */
 function hoja3(f) {
@@ -243,7 +243,7 @@ function imprimir3() {
 function verImpresion3() {
   const w = window.open('', '_blank');
   if (!w) { toast('El navegador bloqueó la ventana. Usá Imprimir directamente.', true); return; }
-  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>DDJJ Ciclo III ' + ddmm(S.fecha3) + '</title><base href="' + location.origin + '/"><link rel="stylesheet" href="' + location.origin + '/ddjj.css"></head><body class="vista">' +
-    '<div class="vista-bar">Así sale impresa la DDJJ de Ciclo III del ' + esc(fechaLarga(S.fecha3)) + '.</div>' + hoja3(S.fecha3) + '</body></html>');
+  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>DDJJ Chacinados ' + ddmm(S.fecha3) + '</title><base href="' + location.origin + '/"><link rel="stylesheet" href="' + location.origin + '/ddjj.css"></head><body class="vista">' +
+    '<div class="vista-bar">Así sale impresa la DDJJ de chacinados del ' + esc(fechaLarga(S.fecha3)) + '.</div>' + hoja3(S.fecha3) + '</body></html>');
   w.document.close();
 }

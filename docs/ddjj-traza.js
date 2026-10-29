@@ -4,7 +4,7 @@
    - Renglones de res: ver el encabezado de C:\InformeQualita\ddjj\dj_traza.ps1. */
 'use strict';
 
-const TICD = { 2: 'Desposte cerdo', 3: 'Menudencias', 4: 'Ciclo III', 5: 'Tipo 5', 6: 'Rendering' };
+const TICD = { 2: 'Desposte cerdo', 3: 'Menudencias', 4: 'Chacinados', 5: 'Tipo 5', 6: 'Rendering' };
 const tipoD = t => TICD[t] || 'Tipo ' + t;
 let esperandoTraza = null;
 
@@ -90,15 +90,17 @@ function trazaTropa(R, T) {
 
   /* despostes */
   const otras = d => R.dt.filter(x => x.desp === d).sort((a, b) => b.medias - a.medias);
-  if (R.dp.length) {
+  /* solo los despostes de cerdo (pedido de Sabi 29/10): rendering, chacinados, tipo 5, etc. no se muestran */
+  const dpC = R.dp.filter(d => d.ticd === 2);
+  if (dpC.length) {
     h += '<section><h3 class="dj-h3" style="margin-top:0">1 · Despostes donde entró</h3><div class="tw"><table class="planilla dj-tab"><thead><tr><th>Desposte</th><th>Fecha</th><th class="num">Medias de esta tropa</th><th>Otras tropas en el mismo desposte</th><th class="num">Cajas</th><th class="num">Vendidas</th><th class="num">Reprocesadas</th></tr></thead><tbody>';
-    for (const d of R.dp.sort((a, b) => a.fecha.localeCompare(b.fecha))) {
+    for (const d of dpC.sort((a, b) => a.fecha.localeCompare(b.fecha))) {
       const s = R.sr[d.desp] || {};
       h += '<tr><td>N° ' + esc(d.desp) + (d.ticd !== 2 ? ' <span class="muted">' + esc(tipoD(d.ticd)) + '</span>' : '') + '</td><td>' + ddmmaa(d.fecha) + '</td><td class="num">' + fmt0(d.mias) + ' de ' + fmt0(d.total) + '</td><td>' +
         (otras(d.desp).map(x => lnkT(x.tropa) + ' <span class="muted">(' + fmt0(x.medias) + ')</span>').join(', ') || '<span class="muted">ninguna</span>') + '</td><td class="num">' + fmt0(s.cajas) + '</td><td class="num">' + fmt0(s.vend) + '</td><td class="num">' + fmt0(s.repr) + '</td></tr>';
     }
     h += '</tbody></table></div>';
-    const rp = R.rp.filter(x => x.orig !== x.desp);
+    const rp = R.rp.filter(x => x.orig !== x.desp && x.ticd === 2);
     if (rp.length) {
       h += '<h3 class="dj-h3">Cajas de esos despostes que se volvieron a procesar</h3><div class="tw"><table class="planilla dj-tab"><thead><tr><th>De</th><th>Pasaron al desposte</th><th>Fecha</th><th class="num">Cajas</th><th class="num">Kg</th></tr></thead><tbody>' +
         rp.sort((a, b) => a.fecha.localeCompare(b.fecha)).map(x => '<tr><td>N° ' + esc(x.orig) + '</td><td>N° ' + esc(x.desp) + ' <span class="muted">' + esc(tipoD(x.ticd)) + '</span></td><td>' + ddmmaa(x.fecha) + '</td><td class="num">' + fmt0(x.cajas) + '</td><td class="num">' + fmt2(x.kg) + '</td></tr>').join('') + '</tbody></table></div>';
@@ -156,7 +158,7 @@ function trazaCorr(R, T) {
   const dest = [];
   R.ve.forEach(v => dest.push('<li>Vendida a <b>' + esc(v.cli) + '</b> el ' + ddmmaa(v.fecha) + ', remito ' + esc(v.rem) + '</li>'));
   R.ri.forEach(x => dest.push('<li>Pasó de ' + esc(x.de.toLowerCase()) + ' a ' + esc(x.a.toLowerCase()) + ' el ' + ddmmaa(x.fecha) + ' (remito interno ' + esc(x.num) + ')</li>'));
-  R.rp.forEach(x => dest.push('<li>Se volvió a procesar en el desposte N° ' + esc(x.desp) + ' del ' + ddmmaa(x.fecha) + ' (' + esc(tipoD(x.ticd)) + ')</li>'));
+  R.rp.filter(x => x.ticd === 2).forEach(x => dest.push('<li>Se volvió a procesar en el desposte N° ' + esc(x.desp) + ' del ' + ddmmaa(x.fecha) + ' (' + esc(tipoD(x.ticd)) + ')</li>'));
   h += dest.length ? '<ul class="tz-dest">' + dest.join('') + '</ul>' : '<p class="muted">Todavía no tiene venta ni movimiento registrado (debería estar en cámara).</p>';
   return h + pie(T, R) + '</section>';
 }
