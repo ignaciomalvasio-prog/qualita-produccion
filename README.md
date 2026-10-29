@@ -265,3 +265,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Arreglo: el bloqueo con PIN tapaba solo en el celular; ahora tapa toda la pantalla también en la compu.
 - Cambio: los que no tienen camión ya no se mandan por WhatsApp (se sacaron esos botones); en cambio se ven en el link público de Logística, solo para mirar, en el recuadro "Sin camión".
 - Pedidos: la nota de cada pedido se escribe ahí mismo, sin tocar Editar (igual que en Logística); "+ Nota" si no tiene. Se guarda sola al salir o con Enter.
+- Programas de la PC del Centro de desposte en `notebook/ddjj/` (antes solo en la notebook de Igna): se actualizan solos desde GitHub; paquete e instalador para pasarlos a la PC de Sabi.

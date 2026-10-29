@@ -1,0 +1,15 @@
+dj_comun.ps1
+dj_sync.ps1
+dj_pedido.ps1
+dj_traza.ps1
+actualizar.ps1
+habilitar_usuario.ps1
+instalar_dj_sync.ps1
+instalar_dj_pedido.ps1
+armar_paquete.ps1
+armar_paquete.bat
+oculto.vbs
+archivos.txt
+CLAUDE.md
+INSTALAR en esta PC.bat
+desactivar_en_esta_pc.bat

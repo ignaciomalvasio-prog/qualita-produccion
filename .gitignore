@@ -1,1 +1,8 @@
 tests/salida/
+# claves y datos de cada PC (nunca al repositorio)
+notebook/**/config_local.ps1
+notebook/**/faena_link_clave.txt
+notebook/**/*_log.txt
+notebook/**/dj_ultimo.txt
+notebook/**/dj_sync_estado.json
+notebook/**/tmp/
