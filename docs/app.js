@@ -2326,7 +2326,10 @@
         : '<button class="btn sm pri" data-act="c-sumar" data-id="' + id + '" data-k="' + esc(c.k) + '">' + 'Sumar a producción' + '</button>') + '</span></p>';
     });
     h += '</div>';
-    if (p.nota) h += '<p class="log-nota">' + esc(p.nota) + '</p>';
+    // La nota se escribe ahí mismo, igual que en Logística (pedido de Renzo): se guarda sola al salir o con Enter.
+    if (S.editor && !S.solo && (p.nota || S.notaAbierta === p.id)) h += '<textarea class="log-nota log-nota-ed" rows="1" data-nota-ped="' + id + '" placeholder="Escribí la nota…" aria-label="Nota de ' + esc(p.cliente) + '">' + esc(p.nota || '') + '</textarea>' + (p.nota ? '<p class="log-nota solo-print">' + esc(p.nota) + '</p>' : '');
+    else if (S.editor && !S.solo) h += '<button class="btn lnk sm log-nota-mas" data-act="nota-abrir" data-id="' + id + '">+ Nota</button>';
+    else if (p.nota) h += '<p class="log-nota">' + esc(p.nota) + '</p>';
     h += '<div class="acciones">' + (cs.length - enP > 1 ? '<button class="btn sm" data-act="c-todos" data-id="' + id + '">Sumar todos a producción</button>' : '')
       + '<button class="btn sm" data-act="ped-editar" data-id="' + id + '">Editar</button><button class="btn sm" data-act="ped-dup" data-id="' + id + '" title="Hace otro pedido igual, para cambiarlo antes de guardar">Duplicar</button><button class="btn sm" data-act="ped-txt" data-id="' + id + '" title="Copia el pedido como texto para pegarlo en WhatsApp o en Pegar texto">Copiar texto</button>' + opcionesDia(p)
       + '<button class="btn sm rojo" data-act="ped-borrar" data-id="' + id + '" data-i="' + id + '">' + (S._c2 === 'ped-borrar' + p.id ? 'Tocá de nuevo para confirmar' : 'Quitar') + '</button></div>';
