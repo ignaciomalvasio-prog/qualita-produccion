@@ -282,12 +282,18 @@ table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
 .cam-tabla th,.cam-tabla td{padding:6px 8px;text-align:center;border-bottom:1px solid #c9dbe3;font-size:15px;color:#16323d}
 .cam-tabla thead th{background:#17364a;color:#fff;font:800 14px var(--body);letter-spacing:.03em;white-space:nowrap}.cam-tabla thead th.hoy{background:#1f8a43}
 .cam-tabla tbody th{text-align:left;font:800 13px var(--body);letter-spacing:.03em;white-space:nowrap;position:sticky;left:0;z-index:1;background:inherit}
-.cam-tabla tr.c-verde>*{background:#e4f4d4}.cam-tabla tr.c-naranja>*{background:#ffefc9}.cam-tabla tr.c-celeste>*{background:#e6f0fa}.cam-tabla tr.c-azul>*{background:#d4e6f6}
+/* Menos colorinche (pedido de Renzo): filas blancas; las que se cargan con su línea punteada, los resultados en gris suave
+   y en negrita, separadores entre grupos y color solo para avisar (lugar libre bajo o pasado). */
+.cam-tabla tr>*{background:#fff}
+.cam-tabla tr.c-celeste.b>*,.cam-tabla tr.c-azul>*{background:#f2f5f7}
+.cam-tabla tbody tr.sep>*{border-top:2px solid #9fb3bf}
+.cam-tabla tbody th{color:#3d5560}.cam-tabla tr.b th,.cam-tabla tr.c-azul th{color:#16323d}
+.cam-tabla .cam-v.bajo{color:#b26a00}.cam-tabla .cam-v.neg{color:#c0392b}
 .cam-tabla tbody tr:not([class*="c-"])>*{background:#fff}
 .cam-tabla thead th small{display:block;font:700 10px var(--body);letter-spacing:.04em;opacity:.95}
 .cam-tabla thead th.feriado{background:#c0392b}.cam-tabla thead th.nolab{background:#e07b39}
 .cam-tabla tbody td.fer{background:#fbe3e0!important;color:#a8281c}.cam-tabla tbody td.fer .cam-in{color:#a8281c}
-.cam-tabla td.hoy{box-shadow:inset 3px 0 0 #1f8a43,inset -3px 0 0 #1f8a43}.cam-tabla td.tot{background:#f1f6f8!important;font-weight:800;white-space:nowrap}.cam-tabla td.tot small{font-weight:400}
+.cam-tabla td.hoy{box-shadow:inset 2px 0 0 #7fb894,inset -2px 0 0 #7fb894}.cam-tabla td.tot{background:#f1f6f8!important;font-weight:800;white-space:nowrap}.cam-tabla td.tot small{font-weight:400}
 .cam-tabla tr.b td{font-weight:800}
 .cam-v.b{font-weight:800}.cam-v.neg{display:inline-block;background:#f8c9c4;color:#a8281c;border-radius:4px;padding:0 6px}
 .cam-in{width:100%;max-width:92px;border:0;border-bottom:1.5px dashed #2c7a97;border-radius:0;background:transparent;text-align:center;font:600 15px var(--body);color:#16323d;padding:2px 0}
