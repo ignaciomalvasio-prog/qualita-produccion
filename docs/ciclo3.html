@@ -495,6 +495,12 @@ h1 a{color:inherit;text-decoration:none}
 .ped-tit .res{color:var(--muted);font-size:15px;flex:1 1 auto}
 .ped-tit .col-kg{flex:0 0 110px;text-align:right;margin-left:auto}
 .ped-tit .col-prod{flex:0 0 34px;display:flex;justify-content:center}
+/* Camión del pedido en su propia columna, justo antes de los kilos, alineado en todos los renglones (pedido de Renzo). */
+.ped-tit .col-cam{flex:0 0 300px;margin-left:auto;display:flex;align-items:center;gap:6px;min-width:0}
+.ped-tit .col-cam+.col-kg{margin-left:0}
+.ped-tit .col-cam .cam-chip{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ped-tit .col-cam .cam-sacar{margin-left:0}
+@media (max-width:900px){ .ped-tit .col-cam{flex:0 0 250px} .ped-tit .col-cam .cam-chip{max-width:175px} }
 .pr-ic{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;font:800 17px/1 var(--body)}
 .pr-ic.si{background:var(--ok);color:#fff}
 .pr-ic.no{background:var(--crit);color:#fff}
@@ -857,6 +863,7 @@ details[open] > summary{margin-bottom:10px}
   .ped-tit .cta{align-self:center}
   .ped-tit .chip-lg{display:none}.ped-tit .chip-co{display:inline}
   .ped-tit .marcas{order:8}
+  .ped-tit .col-cam{order:9;flex:1 1 100%;margin-left:0;gap:4px}.ped-tit .col-cam .cam-chip{max-width:160px}.ped-tit .col-cam .cam-sacar{font-size:11px;padding:0 6px}
   .ped-tit .frio-chip{font-size:11px;padding:1px 6px}
   .ped-tit .kg-ped{font-size:14px;padding:3px 7px}
   .ped-tit .pr-ic{width:24px;height:24px;font-size:14px}

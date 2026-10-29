@@ -284,3 +284,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Cámara: filas remarcadas (fondo celeste, raya a la izquierda y negrita): faena, venta, desposte del día, remanente, disponible y medias en cámara.
 - Cámara: la fila de venta en amarillo.
 - Cámara: todo número negativo en rojo (cualquier fila); el resto normal (se sacó el naranja de lugar libre bajo).
+- Pedidos: el camión de cada cliente (y "✕ Sacar") va en su propia columna justo antes de los kilos, alineado en todos los renglones; en el celular, en un renglón propio abajo del cliente.
