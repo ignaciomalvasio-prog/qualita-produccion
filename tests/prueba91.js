@@ -39,7 +39,7 @@ for(const w of [1100,400]){const p=await b.newPage({viewport:{width:w,height:900
  await p.click('[data-act="cam-guardar-pegado"]');await p.clock.runFor(800);await p.waitForTimeout(300);
  const fila=async lab=>p.evaluate(l=>{const tr=[...document.querySelectorAll('.cam-tabla tbody tr')].find(t=>t.querySelector('th').innerText.startsWith(l));return [...tr.querySelectorAll('td')].slice(0,5).map(td=>{const i=td.querySelector('input');return (i?i.value:td.innerText).split('\n')[0].trim();}).join(' | ');},lab);
  console.log('semana:',await p.locator('.cam-tit').innerText());
- for(const l of ['PROPIOS','VENTA','DESPOSTE DÍA','REMANENTE','MEDIAS EN CÁMARA','LUGAR LIBRE'])console.log('  ',l,':',await fila(l));
+ for(const l of ['PROPIOS','VENTA','DESPOSTE DEL DÍA','REMANENTE','MEDIAS EN CÁMARA','LUGAR LIBRE'])console.log('  ',l,':',await fila(l));
  const esp=T.esp.filter(x=>x.f>='2026-10-19'&&x.f<='2026-10-23');console.log('   esperado remanente:',esp.map(x=>x.rem).join(' | '),'· cámara:',esp.map(x=>x.cam).join(' | '));
  // Corregir la venta del miércoles y ver que el jueves se recalcula.
  const inp=p.locator('.cam-in[data-cf="venta"][data-f="2026-10-21"]');await inp.fill('200');await inp.press('Enter');await p.clock.runFor(500);await p.waitForTimeout(200);

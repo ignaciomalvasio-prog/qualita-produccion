@@ -279,3 +279,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Pedidos vacíos (sin medias y sin ningún corte con cantidad, o todo en 0) no se toman: no se muestran ni van a Logística o Producción, no se pueden guardar (avisa) y "Guardar todos" los descarta solo.
 - Cámara: vuelve "DESPOSTE DÍA SIGUIENTE" como estaba (en cada día, lo que se desposta el día hábil siguiente, con "para el martes", etc.), resaltado en violeta y "Medias a desposte" en otro color, para no confundirlos. Las 3 semanas de abajo siguen.
 - Cámara: la fila de desposte queda exactamente como antes (DESPOSTE DÍA SIGUIENTE, sin el resaltado violeta ni el "para el").
+- Cámara: vuelve "DESPOSTE DEL DÍA" (en cada columna, el desposte de ese mismo día), como pidió Renzo con la captura.
