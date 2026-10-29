@@ -3025,7 +3025,7 @@
         + fila('PROPIOS', 'c-verde', ed('propios'), n(sum('propios')))
         + fila('USUARIO', 'c-naranja', ed('usuario'), n(sum('usuario')))
         + fila('FAENA', 'c-celeste b marca', calc('faena', true), n(sum('faena')) + ' <small>(' + n(Math.round(sum('faena') / nd)) + ' x día)</small>')
-        + fila('VENTA (animales)', 'c-verde sep marca', ed('venta'), n(sum('venta')))
+        + fila('VENTA (animales)', 'c-verde sep marca venta', ed('venta'), n(sum('venta')))
         + fila('MEDIAS A DESPOSTE', '', calc('aDesposte'), n(sum('aDesposte')))
         + fila('DESPOSTE DEL DÍA', 'c-celeste marca', desp, n(sum('desp')))
         + fila('REMANENTE', 'b marca', function (o, ver) { return ver ? camCelda(o.f, 'rem', o.rem, o.src.rem) + (o.src.rem === 'dato' ? '<small class="cam-dsig">a mano</small>' : '') : ''; }, (function () { var v = c.dias[mas(L2, 7)]; return v && (!ult || v.f <= ult) ? '→ ' + n(v.rem) + ' el lunes' : ''; })())
