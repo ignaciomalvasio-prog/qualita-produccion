@@ -38,14 +38,16 @@ function Get-Traza([string]$tipo, [string]$valor) {
   $V = $valor; $out = @()
   $ventas = {
     param([string]$fuente)   # fuente: SELECT src, pro_numero, pro_item
+    # cada caja (pro_numero, pro_item) cuenta una sola vez aunque figure en dos despostes (va al de número menor, donde se produjo primero):
+    # si no, la misma venta salía repetida y se "vendía" más de lo producido (Sabi 30/10, remito R 0011-00044749 en 416192 y 416200)
     return "`r`n" + @"
 SELECT 'VE|'||x.src||'|'||TO_CHAR(rm.rem_fecha,'YYYY-MM-DD')||'|'||rm.rem_letra||' '||LPAD(rm.pue_codigo,4,'0')||'-'||LPAD(rm.rem_numero,8,'0')||'|'||rm.cue_codigo||'|'||$Cli||'|'||rd.art_codigo||'|'||$Den||'|'||COUNT(*)||'|'||TO_CHAR(ROUND(SUM(rd.red_kilos),2))
-  FROM ($fuente) x JOIN remitosdet rd ON rd.pro_numero=x.pro_numero AND rd.pro_item=x.pro_item
+  FROM (SELECT MIN(src) src, pro_numero, pro_item FROM ($fuente) GROUP BY pro_numero, pro_item) x JOIN remitosdet rd ON rd.pro_numero=x.pro_numero AND rd.pro_item=x.pro_item
   JOIN remitos rm ON rm.rem_letra=rd.rem_letra AND rm.pue_codigo=rd.pue_codigo AND rm.rem_numero=rd.rem_numero
   LEFT JOIN cuentas c ON c.cue_codigo=rm.cue_codigo LEFT JOIN articulos a ON a.art_codigo=rd.art_codigo
  GROUP BY x.src, rm.rem_fecha, rm.rem_letra, rm.pue_codigo, rm.rem_numero, rm.cue_codigo, c.cue_denom, rd.art_codigo, a.art_denom;
 SELECT 'RI|'||x.src||'|'||TO_CHAR(ri.reint_fecha,'YYYY-MM-DD')||'|'||ri.reint_numero||'|'||$(Cl 'f1.fri_denom')||'|'||$(Cl 'f2.fri_denom')||'|'||COUNT(*)||'|'||TO_CHAR(ROUND(SUM(d.reintd_kilos),2))
-  FROM ($fuente) x JOIN remitosintdet d ON d.pro_numero=x.pro_numero AND d.pro_item=x.pro_item
+  FROM (SELECT MIN(src) src, pro_numero, pro_item FROM ($fuente) GROUP BY pro_numero, pro_item) x JOIN remitosintdet d ON d.pro_numero=x.pro_numero AND d.pro_item=x.pro_item
   JOIN remitosint ri ON ri.reint_letra=d.reint_letra AND ri.pue_codigo=d.pue_codigo AND ri.reint_numero=d.reint_numero
   LEFT JOIN frigorificos f1 ON f1.fri_codigo=ri.ori_fri_codigo LEFT JOIN frigorificos f2 ON f2.fri_codigo=ri.des_fri_codigo
  GROUP BY x.src, ri.reint_fecha, ri.reint_numero, f1.fri_denom, f2.fri_denom;

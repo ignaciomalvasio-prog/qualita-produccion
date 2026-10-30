@@ -32,6 +32,13 @@ function parseTraza(txt) {
   o.rp.concat(o.dp, o.dr).forEach(d => { if (d.ticd && d.ticd !== 2) otros.add(String(d.desp)); });
   o.ve = o.ve.filter(v => !otros.has(String(v.src)));
   o.ri = o.ri.filter(v => !otros.has(String(v.src)));
+  /* la misma venta en dos despostes (consultas hechas antes del arreglo de dj_traza.ps1): se cuenta una sola vez, en el desposte de número menor */
+  const vistos = new Map();
+  for (const v of o.ve.slice().sort((x, y) => Number(x.src) - Number(y.src))) {
+    const k = [v.fecha, v.rem, v.art, v.cajas, v.kg, v.cue].join('|');
+    if (!vistos.has(k)) vistos.set(k, v);
+  }
+  o.ve = o.ve.filter(v => vistos.get([v.fecha, v.rem, v.art, v.cajas, v.kg, v.cue].join('|')) === v);
   return o;
 }
 
@@ -99,11 +106,11 @@ function trazaTropa(R, T) {
   /* solo los despostes de cerdo (pedido de Sabi 29/10): rendering, chacinados, tipo 5, etc. no se muestran */
   const dpC = R.dp.filter(d => d.ticd === 2);
   if (dpC.length) {
-    h += '<section><h3 class="dj-h3" style="margin-top:0">1 · Despostes donde entró</h3><div class="tw"><table class="planilla dj-tab"><thead><tr><th>Desposte</th><th>Fecha</th><th class="num">Medias de esta tropa</th><th>Otras tropas en el mismo desposte</th><th class="num">Cajas</th><th class="num">Vendidas</th><th class="num">Reprocesadas</th></tr></thead><tbody>';
+    h += '<section><h3 class="dj-h3" style="margin-top:0">1 · Despostes donde entró</h3><div class="tw"><table class="planilla dj-tab"><thead><tr><th>Desposte</th><th>Fecha</th><th class="num">Medias de esta tropa</th><th>Otras tropas en el mismo desposte</th><th class="num">Cajas</th><th class="num">Kg producidos</th><th class="num">Kg vendidos</th><th class="num">Reprocesado (cerdo)</th><th class="num">A rendering u otros</th><th class="num">Pases internos</th><th class="num">En cámara / sin vender</th></tr></thead><tbody>';
     for (const d of dpC.sort((a, b) => a.fecha.localeCompare(b.fecha))) {
       const s = R.sr[d.desp] || {};
       h += '<tr><td>N° ' + esc(d.desp) + (d.ticd !== 2 ? ' <span class="muted">' + esc(tipoD(d.ticd)) + '</span>' : '') + '</td><td>' + ddmmaa(d.fecha) + '</td><td class="num">' + fmt0(d.mias) + ' de ' + fmt0(d.total) + '</td><td>' +
-        (otras(d.desp).map(x => lnkT(x.tropa) + ' <span class="muted">(' + fmt0(x.medias) + ')</span>').join(', ') || '<span class="muted">ninguna</span>') + '</td><td class="num">' + fmt0(s.cajas) + '</td><td class="num">' + fmt0(s.vend) + '</td><td class="num">' + fmt0(s.repr) + '</td></tr>';
+        (otras(d.desp).map(x => lnkT(x.tropa) + ' <span class="muted">(' + fmt0(x.medias) + ')</span>').join(', ') || '<span class="muted">ninguna</span>') + '</td><td class="num">' + fmt0(s.cajas) + '</td>' + balanceDesp(R, d.desp, s) + '</tr>';
     }
     h += '</tbody></table></div>';
     const rp = R.rp.filter(x => x.orig !== x.desp && x.ticd === 2);
@@ -167,6 +174,16 @@ function trazaCorr(R, T) {
   R.rp.filter(x => x.ticd === 2).forEach(x => dest.push('<li>Se volvió a procesar en el desposte N° ' + esc(x.desp) + ' del ' + ddmmaa(x.fecha) + ' (' + esc(tipoD(x.ticd)) + ')</li>'));
   h += dest.length ? '<ul class="tz-dest">' + dest.join('') + '</ul>' : '<p class="muted">Todavía no tiene venta ni movimiento registrado (debería estar en cámara).</p>';
   return h + pie(T, R) + '</section>';
+}
+/* balance en kilos de un desposte (pedido de Sabi 30/10): producido = vendido + reprocesado en cerdo + a rendering u otros + pases internos + en cámara */
+function balanceDesp(R, desp, s) {
+  const k = String(desp), sum = (L, f) => L.filter(f).reduce((a, x) => a + (Number(x.kg) || 0), 0);
+  const prod = Number(s.kg) || 0, vend = sum(R.ve, v => String(v.src) === k);
+  const repC = sum(R.rp, x => String(x.orig) === k && String(x.desp) !== k && x.ticd === 2), repO = sum(R.rp, x => String(x.orig) === k && x.ticd !== 2);
+  const pase = sum(R.ri, x => String(x.src) === k), resto = prod - vend - repC - repO - pase;
+  const kg = v => v ? fmt0(v) : '<span class="muted">—</span>';
+  return '<td class="num"><b>' + kg(prod) + '</b></td><td class="num">' + kg(vend) + '</td><td class="num">' + kg(repC) + '</td><td class="num">' + kg(repO) + '</td><td class="num">' + kg(pase) + '</td>' +
+    '<td class="num">' + (resto < -0.5 ? '<span class="chip sm bad" title="Se vendió o movió más de lo producido: revisar">' + fmt0(resto) + '</span>' : kg(Math.max(0, resto))) + '</td>';
 }
 function tablaTI(l, conDesp) {
   if (!l.length) return '<p class="muted">Sin medias registradas.</p>';

@@ -5,7 +5,7 @@ const RES=['OK|2026-10-29 13:00','TT|261791|x|2026-10-20|160|PRODUCTOR|LOCALIDAD
  'RP|416191|416192|2026-10-23|6|5|100','RP|416191|416184|2026-10-23|2|3|60','RP|416196|416193|2026-10-24|2|4|80',
  'RP|416196|416200|2026-10-24|6|2|40','RP|416191|416194|2026-10-24|4|6|120','RP|416196|416218|2026-10-25|5|1|20','RP|416191|416218|2026-10-25|5|1|20',
  'VE|416192|2026-10-22|R 0011-00044568|900|AGRO INDUSTRIAS BAIRES SA|9001|HARINA DE CARNE Y HUESO PORCINA|1|1200','VE|416200|2026-10-29|R 0011-00044749|900|AGRO INDUSTRIAS BAIRES SA|9001|HARINA DE CARNE Y HUESO PORCINA|4|5570',
- 'VE|416191|2026-10-23|R 0001-00012345|500|CARNICERIA EJEMPLO|101|BONDIOLA|3|60','VE|416184|2026-10-24|R 0001-00012346|501|OTRO CLIENTE|211|PECHITO|2|40'].join('\n');
+ 'VE|416191|2026-10-23|R 0001-00012345|500|CARNICERIA EJEMPLO|101|BONDIOLA|3|60','VE|416196|2026-10-23|R 0001-00012345|500|CARNICERIA EJEMPLO|101|BONDIOLA|3|60','SR|416191|300|8000|3|5|0','VE|416184|2026-10-24|R 0001-00012346|501|OTRO CLIENTE|211|PECHITO|2|40'].join('\n');
 const T={tipo:'tropa',valor:'261791',pedido:'2026-10-29T16:00:00Z',hecho:'2026-10-29T16:00:05Z',res:RES};
 const C={tipo:'corr',valor:'4905612',pedido:'2026-10-29T16:00:00Z',hecho:'2026-10-29T16:00:05Z',
  res:['OK|2026-10-29 13:00','PR|4905612|1|30276|CARRE|17.68|2026-10-22|4905612|261791','DR|416191|2026-10-22|2|0',
@@ -27,6 +27,9 @@ for(const w of [1100,400]){
   ok(/416191/.test(r.txt)&&/416196/.test(r.txt),'los despostes de cerdo siguen');
   ok(!/AGRO INDUSTRIAS/.test(r.txt),'no figura el cliente de la harina de carne (rendering)');
   ok(/CARNICERIA EJEMPLO/.test(r.txt)&&/OTRO CLIENTE/.test(r.txt)&&/2 clientes/.test(r.txt),'sí los clientes de cortes de desposte cerdo');
+  ok(/2 clientes · 5 cajas o piezas · 100 kg/.test(r.txt),'la venta repetida en dos despostes cuenta una sola vez');
+  const fila=(r.txt.split('\n').find(l=>/^N° 416191/.test(l))||'').replace(/\s+/g,' ');console.log('balance 416191:',fila);
+  ok(/8\.000 60 60 240 — 7\.640$/.test(fila),'balance: 8.000 producidos = 60 vendidos + 60 reprocesado + 240 a rendering u otros + 7.640 en cámara');
   r=await ver(C,w);
   ok(/416184/.test(r.txt)&&!/416192/.test(r.txt),'correlativo: "A dónde fue" solo muestra el reproceso en desposte cerdo');
  }
