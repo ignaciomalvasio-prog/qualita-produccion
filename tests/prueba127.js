@@ -11,9 +11,9 @@ await p.addInitScript(d=>{window.__mock={data:d,user:{email:'yo@x.com'},editores
 await p.goto('http://127.0.0.1:8765/index.html#pedidos');await p.clock.runFor(1500);
 await p.fill('#pd-cam-buscar','enrique');await p.locator('#pd-cam-buscar').dispatchEvent('input');await p.clock.runFor(500);await p.waitForTimeout(300);
 console.log(w,'Pedidos:',(await p.locator('#view-pedidos .busq').innerText()).replace(/\s+/g,' '));
-await p.locator('[data-act="busq-cam"][data-f="2026-08-03"]').click();await p.waitForTimeout(200);console.log(w,'Ver el viejo → día:',await p.locator('.nav-ped .tit').innerText());
+await p.locator('[data-act="busq-cam"][data-f="2026-08-03"] .busq-dia').click();await p.waitForTimeout(200);console.log(w,'Ver el viejo → día:',await p.locator('.nav-ped .tit').innerText());
 await p.click('[data-tab="logistica"]:visible');await p.waitForTimeout(200);await p.fill('#lg-cam-buscar','enrique');await p.locator('#lg-cam-buscar').dispatchEvent('input');await p.waitForTimeout(300);
 console.log(w,'Logística:',(await p.locator('#view-logistica .busq').innerText()).replace(/\s+/g,' ').slice(0,200));
-await p.locator('[data-act="lbusq-ver"][data-f="2026-08-03"]').click();await p.waitForTimeout(300);console.log(w,'Logística viejo → camiones:',(await p.locator('#view-logistica section.cam h2').allInnerTexts()).join(','));
+await p.locator('[data-act="lbusq-ver"][data-f="2026-08-03"] .badge').click();await p.waitForTimeout(300);console.log(w,'Logística viejo → camiones:',(await p.locator('#view-logistica section.cam h2').allInnerTexts()).join(','));
 console.log(w,'desborde',await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth));await p.close();}
 console.log('errores:',errs.join('|')||'ninguno');await b.close();})();

@@ -2650,9 +2650,9 @@
     return '<p class="small muted">' + l.length + (l.length === 1 ? ' pedido encontrado' : ' pedidos encontrados') + ':</p><div class="busq">' + l.map(function (p) {
       var cam = nombreCamion(p.entrega, p.camion), res = [];
       if (+p.medias) res.push(n(+p.medias) + ' medias'); if ((p.cortes || []).length) res.push(p.cortes.length + ((p.cortes.length === 1) ? ' corte' : ' cortes'));
-      return '<div class="busq-f"><span class="busq-dia">' + esc(diaCorto(p.entrega)) + '</span><span class="nom">' + esc(p.cliente) + '</span>' + ctaHTML(cuentaPedido(p)) + '<span class="small muted">' + res.join(' · ') + '</span>'
+      return '<div class="busq-f ir" data-act="busq-ver" data-id="' + esc(p.id) + '" role="button" tabindex="0" title="Tocá para ir a ese día"><span class="busq-dia">' + esc(diaCorto(p.entrega)) + '</span><span class="nom">' + esc(p.cliente) + '</span>' + ctaHTML(cuentaPedido(p)) + '<span class="small muted">' + res.join(' · ') + '</span>'
         + (cam ? '<span class="badge cam-ped">' + esc(cam) + '</span>' : '<span class="badge warn">Sin camión</span>')
-        + '<button class="btn sm" data-act="busq-ver" data-id="' + esc(p.id) + '">Ver</button></div>';
+        + '<span class="busq-ir" aria-hidden="true">›</span></div>';
     }).join('') + '</div>';
   }
   // Buscador de camiones: los camiones que ya tienen clientes (desde la semana pasada), por nombre o N°.
@@ -2689,9 +2689,9 @@
     if (!l.length) return '<p class="muted sin">No hay camiones con clientes que se llamen "' + esc(q) + '".</p>' + busqPie();
     return '<p class="small muted">' + l.length + (l.length === 1 ? ' viaje encontrado' : ' viajes encontrados') + ' (del más nuevo al más viejo):</p>' + busqPie() + '<div class="busq">' + l.map(function (x) {
       var kg = x.ps.reduce(function (t, p) { return t + (+p.kg || kgPedido(p).kg || 0); }, 0);
-      return '<div class="busq-f busq-cam"><span class="busq-dia">' + esc(diaCorto(x.f)) + '</span><span class="badge cam-ped">' + esc(nomCam(x.c)) + '</span>' + (x.c.hora ? '<span class="cam-hora">' + esc(x.c.hora) + ' hs</span>' : '')
+      return '<div class="busq-f busq-cam ir" data-act="busq-cam" data-f="' + esc(x.f) + '" data-cam="' + esc(x.c.id) + '" role="button" tabindex="0" title="Tocá para ir a ese día"><span class="busq-dia">' + esc(diaCorto(x.f)) + '</span><span class="badge cam-ped">' + esc(nomCam(x.c)) + '</span>' + (x.c.hora ? '<span class="cam-hora">' + esc(x.c.hora) + ' hs</span>' : '')
         + '<span class="small muted">' + x.ps.length + (x.ps.length === 1 ? ' cliente' : ' clientes') + (kg ? ' · ≈ ' + n(Math.round(kg)) + ' kg' : '') + '</span>'
-        + '<button class="btn sm" data-act="busq-cam" data-f="' + esc(x.f) + '" data-cam="' + esc(x.c.id) + '">Ver</button>'
+        + '<span class="busq-ir" aria-hidden="true">›</span>'
         + '<span class="busq-clis">' + x.ps.map(function (p, i) { return '<span>' + (i + 1) + '. ' + esc(p.cliente) + '</span>'; }).join('') + '</span></div>';
     }).join('') + '</div>';
   }
@@ -2858,17 +2858,17 @@
       var cb = x.c ? '<span class="badge cam-ped">' + esc(nomCam(x.c)) + '</span>' + (x.c.hora ? '<span class="cam-hora">' + esc(x.c.hora) + ' hs</span>' : '') : '<span class="badge warn">Sin camión</span>';
       if (camion) {
         var kg = x.ps.reduce(function (t, p) { return t + (+p.kg || 0); }, 0);
-        return '<div class="busq-f busq-cam"><span class="busq-dia">' + esc(diaCorto(x.f)) + '</span>' + cb
+        return '<div class="busq-f busq-cam ir" data-act="lbusq-ver" data-f="' + esc(x.f) + '" data-cam="' + esc(x.c.id) + '" role="button" tabindex="0" title="Tocá para ir a ese día"><span class="busq-dia">' + esc(diaCorto(x.f)) + '</span>' + cb
           + '<span class="small muted">' + x.ps.length + (x.ps.length === 1 ? ' cliente' : ' clientes') + (kg ? ' · ≈ ' + n(Math.round(kg)) + ' kg' : '') + '</span>'
-          + '<button class="btn sm" data-act="lbusq-ver" data-f="' + esc(x.f) + '" data-cam="' + esc(x.c.id) + '">Ver</button>'
+          + '<span class="busq-ir" aria-hidden="true">›</span>'
           + '<span class="busq-clis">' + x.ps.map(function (p, i) { return '<span>' + (i + 1) + '. ' + esc(p.cliente) + '</span>'; }).join('') + '</span></div>';
       }
       var p = x.p, res = [];
       if (+p.medias) res.push(n(+p.medias) + ' medias'); if ((p.cortes || []).length) res.push(p.cortes.length + (p.cortes.length === 1 ? ' corte' : ' cortes'));
       var lugar = x.c ? (x.c.orden || []).indexOf(p.id) : -1;
-      return '<div class="busq-f"><span class="busq-dia">' + esc(diaCorto(x.f)) + '</span><span class="nom">' + esc(p.cliente) + '</span>' + ctaHTML(p.cuenta) + '<span class="small muted">' + res.join(' · ') + '</span>' + cb
+      return '<div class="busq-f ir" data-act="lbusq-ver" data-f="' + esc(x.f) + '" data-ped="' + esc(p.id) + '" role="button" tabindex="0" title="Tocá para ir a ese día"><span class="busq-dia">' + esc(diaCorto(x.f)) + '</span><span class="nom">' + esc(p.cliente) + '</span>' + ctaHTML(p.cuenta) + '<span class="small muted">' + res.join(' · ') + '</span>' + cb
         + (lugar >= 0 ? '<span class="small muted">lugar ' + (lugar + 1) + '</span>' : '')
-        + '<button class="btn sm" data-act="lbusq-ver" data-f="' + esc(x.f) + '" data-ped="' + esc(p.id) + '">Ver</button></div>';
+        + '<span class="busq-ir" aria-hidden="true">›</span></div>';
     }).join('') + '</div>';
   }
   function renderLogistica() {
@@ -3899,6 +3899,7 @@
   });
 
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && S.menuAb) cerrarMenus(); });
+  document.addEventListener('keydown', function (e) { var t = e.target; if ((e.key === 'Enter' || e.key === ' ') && t && t.classList && t.classList.contains('busq-f') && t.dataset.act) { e.preventDefault(); t.click(); } });
   // Ctrl+Z / Ctrl+Y en Cámara (cuando no se está escribiendo en una casilla, que tiene su propio deshacer).
   document.addEventListener('keydown', function (e) {
     if (S.tab !== 'camara' || !(e.ctrlKey || e.metaKey) || document.getElementById('pin-lock')) return;
