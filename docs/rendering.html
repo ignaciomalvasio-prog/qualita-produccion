@@ -267,6 +267,13 @@ table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
 /* Cámara (privada de Renzo): pestaña y cuadro de Inicio. Detalle en azul y oro. */
 .tab-cam{border:1.5px dashed var(--accent)}
 .tile.t-camara{border:2px solid #17364a}.tile.t-camara .t-cab{background:#17364a}.tile.t-camara.pasa{border-color:#c0392b}.tile.t-camara.pasa .t-cab{background:#a8281c}
+.tu-cli{border:1px solid var(--line,#ddd);border-radius:6px;padding:10px;margin:10px 0}
+.tu-cli-cab{display:flex;gap:6px;margin-bottom:8px}.tu-cli-cab input{flex:1;min-width:0;font-weight:700;text-transform:uppercase;font-size:16px}
+.tu-r{display:grid;grid-template-columns:minmax(0,2fr) 70px 90px 80px minmax(0,2fr) 38px;gap:4px;margin-bottom:6px}
+.tu-r input,.tu-r select{min-width:0;width:100%;font-size:16px}.tu-corte{text-transform:uppercase}
+.tu-tot{font-size:17px;margin:12px 0 0}
+@media (max-width:640px){.tu-r{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 38px;padding-bottom:6px;border-bottom:1px dashed var(--line,#ddd)}.tu-corte{grid-column:1/4}.tu-x{grid-column:4;grid-row:1}.tu-nota{grid-column:1/5}}
+
 .cam-solo{background:#fff3c4!important;color:#6b5200!important;font-size:10px}
 .cam-med{display:block;height:10px;margin:0 16px;background:#d5e8f0;border-radius:6px;overflow:hidden}.cam-med i{display:block;height:100%;background:#4fa3c5}.cam-med.alto i{background:#e0a020}.cam-med.pasa i{background:#c0392b}
 .cam-pct{display:block;margin:4px 16px 0;font-size:12px;color:#4d6a76}
@@ -947,6 +954,7 @@ details[open] > summary{margin-bottom:10px}
       <button class="tab" role="tab" id="tab-rendering" data-tab="rendering" aria-selected="false">Rendering</button>
       <button class="tab" role="tab" id="tab-clientes" data-tab="clientes" aria-selected="false" hidden>Clientes</button>
       <button class="tab tab-cam" role="tab" id="tab-camara" data-tab="camara" aria-selected="false" hidden>Cámara 🔒</button>
+      <button class="tab tab-cam" role="tab" id="tab-tunel" data-tab="tunel" aria-selected="false" hidden>Túnel 🔒</button>
     </nav>
   </header>
   <main>
@@ -959,6 +967,7 @@ details[open] > summary{margin-bottom:10px}
     <section class="view" id="view-rendering" hidden></section>
     <section class="view" id="view-clientes" hidden></section>
     <section class="view" id="view-camara" hidden></section>
+    <section class="view" id="view-tunel" hidden></section>
   </main>
   <footer class="pie small muted"><span id="stamp"></span><span id="sesion" class="acciones"></span></footer>
 </div>

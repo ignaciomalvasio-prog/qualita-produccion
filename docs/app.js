@@ -27,7 +27,7 @@
 
   var SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
   var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-  var TABS = ['inicio', 'pedidos', 'produccion', 'ciclo3', 'logistica', 'medias', 'rendering', 'clientes', 'camara'];
+  var TABS = ['inicio', 'pedidos', 'produccion', 'ciclo3', 'logistica', 'medias', 'rendering', 'clientes', 'camara', 'tunel'];
   // Artículos que solo se eligen a mano (no los usa la IA al leer pedidos): "CORTES", para casos eventuales (pedido de Renzo).
   var CORTES_A_MANO = ['CORTES'];
   var CORTES_BASE = ['JAMON', 'PALETA', 'PECHO', 'PANCETA CON CUERO', 'PANCETA SIN CUERO', 'CARRE SIN SOLOMILLO', 'CARRE CON SOLOMILLO', 'SOLOMILLO', 'CINTA DE LOMO', 'MATAMBRE', 'VACIO', 'BONDIOLA', 'RECORTE', 'GRASA BUENA', 'GRASA MALA', 'CUERO', 'TAPA DE PALETA', 'TAPA DE JAMON', 'TORTUGA', 'GARRON', 'TOCINO', 'CHURRASCO', 'PAPADA', 'HUESITOS', 'UNTO', 'CABEZA', 'OREJAS', 'PULMON', 'HIGADO', 'PATAS Y MANOS', 'LENGUA', 'CHINCHULIN', 'RIÑON', 'RABO', 'MENUDENCIAS', 'EMBUTIDOS', 'CHORIZO', 'MORCILLA', 'SALCHICHA'];
@@ -436,38 +436,6 @@
      planilla de frescos (produccion/AAAA-MM-DD), que se arma desde los pedidos. */
   function esOP(id) { return /^op-/.test(String(id || '')); }
   function esTU(id) { return /^tu-/.test(String(id || '')); }
-  /* Mercadería para túnel (pedido de Renzo): la hoja de "congelar túnel" que hoy escribe a mano. Un texto por día en
-     produccion/tu-AAAA-MM-DD: renglones como "300KG BONDIOLA"; un renglón que termina en ":" es un título (ej. "CARREFOUR:"). */
-  function tuAnterior(f) { return (S.prod || []).filter(function (o) { return esTU(o.id) && o.id.slice(3) < f && String(o.texto || '').trim(); }).sort(function (a, b) { return a.id < b.id ? 1 : -1; })[0] || null; }
-  function tuKg(t) { var k = 0; String(t || '').split('\n').forEach(function (l) { var m = norm(l).match(/^\s*([\d.,]+)\s*(KGS?|KILOS?|K)\b/); if (m) k += numero(m[1]); }); return Math.round(k); }
-  function tuHTML(o, f) {
-    var txt = String((o && o.texto) || '');
-    if (S.tuEd === f) return '<div class="panel"><h3>Mercadería para túnel · ' + esc(tituloDe(f)) + '</h3><p class="small muted">Un renglón por cosa (ej.: 300KG BONDIOLA). Si un renglón termina en ":" queda como título (ej.: CARREFOUR:).</p>'
-      + '<textarea id="tu-txt" rows="14" style="width:100%;text-transform:uppercase;font-size:16px" aria-label="Mercadería para túnel">' + esc(txt) + '</textarea>'
-      + '<div class="acciones"><button class="btn pri" data-act="tu-guardar" data-f="' + esc(f) + '">Guardar</button><button class="btn" data-act="tu-cancelar">Cancelar</button></div></div>';
-    if (!o) {
-      var ant = tuAnterior(f);
-      return '<div class="panel"><p class="state">Todavía no está cargada la mercadería para túnel de este día.</p>' + (S.editor && !S.solo ? '<div class="acciones" style="justify-content:center">' + (ant ? '<button class="btn pri" data-act="tu-copiar" data-f="' + esc(f) + '">Copiar la del ' + esc(diaCorto(ant.id.slice(3)).toLowerCase()) + '</button>' : '') + '<button class="btn' + (ant ? '' : ' pri') + '" data-act="tu-editar" data-f="' + esc(f) + '">Escribir</button></div>' : '') + '</div>';
-    }
-    var bloques = [], cur = null;
-    txt.split('\n').map(function (l) { return l.replace(/\s+/g, ' ').trim(); }).filter(Boolean).forEach(function (l) {
-      if (/:$/.test(l)) { cur = { tit: l.replace(/:$/, ''), ls: [] }; bloques.push(cur); }
-      else { if (!cur) { cur = { tit: '', ls: [] }; bloques.push(cur); } cur.ls.push(l); }
-    });
-    var kg = tuKg(txt);
-    return '<div class="panel hoja op-hoja tu-hoja"><header class="hoja-cab"><div><p class="hoja-sup">Mercadería para túnel</p><h2>CONGELAR TÚNEL · ' + esc(tituloDe(f)) + '</h2></div>'
-      + (kg ? '<div class="hoja-dato"><b>' + n(kg) + '</b><span>kg</span></div>' : '') + '</header>'
-      + '<div class="acciones hoja-acc">' + (S.editor && !S.solo ? '<button class="btn pri" data-act="tu-editar" data-f="' + esc(f) + '">Editar</button>' : '') + '<button class="btn wa" data-act="wa-pdf">PDF por WhatsApp</button></div>'
-      + '<div class="op-lista">' + bloques.map(function (b) {
-        return '<div class="op-c">' + (b.tit ? '<p><u class="op-corte">' + esc(b.tit) + '</u>:' + (b.ls.length ? ' ' + opLineaHTML(b.ls[0]) : '') + '</p>' + b.ls.slice(1).map(function (l) { return '<p class="op-sig">' + opLineaHTML(l) + '</p>'; }).join('')
-          : b.ls.map(function (l) { return '<p>' + opLineaHTML(l) + '</p>'; }).join('')) + '</div>';
-      }).join('') + '</div></div>';
-  }
-  function tuGuardar(f, txt) {
-    var d = { fecha: f, linea: 'tunel', texto: String(txt || '').toUpperCase().replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim(), cortes: [], actualizado: ahoraTxt(), por: S.user ? S.user.email : '' };
-    if (!d.texto) { S.prod = (S.prod || []).filter(function (x) { return x.id !== 'tu-' + f; }); return store.del('produccion', 'tu-' + f); }
-    var x = clone(d); x.id = 'tu-' + f; S.prod = poner(S.prod, 'tu-' + f, x); return store.set('produccion', 'tu-' + f, d);
-  }
   var OP_BASE = ['JAMON: RESTO: RECORTE DE JAMON CON GRASA 3º (COD 359) FRESCO EN BINES “ARGENCARNES”',
     'PALETA: RESTO: PALETA SIN HUESO SIN CUERO SIN GRASA SIN GARRON CAJAS A CONGELAR (COD 377)',
     'PECHO: CONGELAR EN CAJAS “CARREFOUR” (COD 30216)', 'CARRE: CAJAS A CONGELAR “CARREFOUR” (COD 30276)',
@@ -795,7 +763,7 @@
   function compartirPDF(hoja, btn, wa, nombre0) {
     if (!hoja || (btn && btn.disabled)) return;
     var dia = S.fecha || '';
-    var nombre = nombre0 || (hoja.classList.contains('tu-hoja') ? 'Tunel' : hoja.classList.contains('op-hoja') ? 'Orden de produccion' : hoja.classList.contains('hoja-c3') ? 'Embutidos' : hoja.classList.contains('hoja-faena') ? 'Faena' : 'Planilla de frescos') + ' ' + dia.slice(8, 10) + '-' + dia.slice(5, 7) + '.pdf';
+    var nombre = nombre0 || (hoja.classList.contains('op-hoja') ? 'Orden de produccion' : hoja.classList.contains('hoja-c3') ? 'Embutidos' : hoja.classList.contains('hoja-faena') ? 'Faena' : 'Planilla de frescos') + ' ' + dia.slice(8, 10) + '-' + dia.slice(5, 7) + '.pdf';
     var txt0 = btn ? btn.textContent : ''; if (btn) { btn.disabled = true; btn.textContent = 'Armando el PDF…'; }
     var fin = function (m) { if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = txt0; } if (m) avisar(m, m.charAt(0) === '!' ? 7000 : 4000); };
     cargarScript('lib/pdf-lib.min.js').then(function () { return typeof hoja === 'function' ? hoja() : armarPDF(hoja); }).then(function (bytes) {
@@ -871,13 +839,12 @@
     var pv = solo3 ? 'frescos' : (S.pv || (op ? 'op' : 'frescos')); if (edit) pv = esOP(S.ep.fecha) ? 'op' : 'frescos';
     var h = '<div class="nav"><button class="btn step" data-act="fecha" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + fechaTit(f) + '</span><button class="btn step" data-act="fecha" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="p-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">';
-    if (pv === 'tunel' ? prodDe('tu-' + f) && S.tuEd !== f : pv === 'op' ? op : (o || o3)) h += '<button class="btn" data-act="imprimir">Imprimir</button>';
+    if (pv === 'op' ? op : (o || o3)) h += '<button class="btn" data-act="imprimir">Imprimir</button>';
     if (edit) h += '<button class="btn pri" data-act="p-editar">Listo</button>';
     if (S.editor) h += '<button class="btn" data-act="link-prod">Copiar link para compartir</button><span class="guardado" id="g-prod"></span>';
     h += '</div>';
-    if (!solo3) h += '<div class="pv-tabs" role="tablist" aria-label="Qué planilla ver"><button class="btn" role="tab" data-act="pv" data-v="op" aria-selected="' + (pv === 'op') + '">Orden de producción' + (op ? '' : ' <small>(sin armar)</small>') + '</button><button class="btn" role="tab" data-act="pv" data-v="frescos" aria-selected="' + (pv === 'frescos') + '">Planilla de frescos' + (o ? '' : ' <small>(vacía)</small>') + '</button><button class="btn" role="tab" data-act="pv" data-v="tunel" aria-selected="' + (pv === 'tunel') + '">Mercadería para túnel' + (prodDe('tu-' + f) ? '' : ' <small>(vacía)</small>') + '</button></div>';
+    if (!solo3) h += '<div class="pv-tabs" role="tablist" aria-label="Qué planilla ver"><button class="btn" role="tab" data-act="pv" data-v="op" aria-selected="' + (pv === 'op') + '">Orden de producción' + (op ? '' : ' <small>(sin armar)</small>') + '</button><button class="btn" role="tab" data-act="pv" data-v="frescos" aria-selected="' + (pv === 'frescos') + '">Planilla de frescos' + (o ? '' : ' <small>(vacía)</small>') + '</button></div>';
     if (edit) { h += prodEditHTML(S.ep.doc); el.innerHTML = h; pintarMsg('prod'); crecer($('p-doc')); return; }
-    if (pv === 'tunel') { h += tuHTML(prodDe('tu-' + f), f); el.innerHTML = h; return; }
     if (pv === 'op') {
       if (op) h += opHTML(op, f);
       // Casi siempre es la misma (pedido de Renzo): un día nuevo (hoy o adelante) sin orden arranca solo con una copia de la última.
@@ -3041,6 +3008,103 @@
     return { dias: r, ultimo: ultimo };
   }
   function camDiaRef() { var h = hoy(), g = fecha(h).getDay(); return g > 0 && g < 6 ? h : habilSiguiente(h); }
+  /* Túnel (pestaña privada, pedido de Renzo 30/10/2026): la hoja "Guardar túnel contenedor" que hoy escribe a mano,
+     armada por día, por cliente y por corte. Se guarda en privado/tunel-AAAA-MM-DD:
+     { clientes: [{ nombre, items: [{ corte, cod, cant, uni ('kg' | 'cajas' | 'unid.'), nota }] }], actualizado, por }.
+     Se muestra solo a las mismas cuentas que Cámara (CAM_CUENTAS). */
+  var TU_UNI = ['kg', 'cajas', 'unid.'];
+  function tuFecha() { return S.tuF || fechaProdInicial(); }
+  function tuDoc(f) { var d = (S.tun || {})[f]; return d && (d.clientes || []).length ? d : null; }
+  function tuAnt(f) { var ks = Object.keys(S.tun || {}).filter(function (k) { return k < f && tuDoc(k); }).sort(); return ks.length ? tuDoc(ks[ks.length - 1]) : null; }
+  function tuAntFecha(f) { var ks = Object.keys(S.tun || {}).filter(function (k) { return k < f && tuDoc(k); }).sort(); return ks[ks.length - 1] || ''; }
+  function tuItem() { return { corte: '', cod: '', cant: '', uni: 'kg', nota: '' }; }
+  function tuLimpio(d) {
+    return { clientes: (d.clientes || []).map(function (c) {
+      return { nombre: c.nombre || '', items: (c.items || []).map(function (it) { return { corte: it.corte || '', cod: it.cod || '', cant: it.cant == null || it.cant === '' ? '' : String(it.cant), uni: it.uni || 'kg', nota: it.nota || '' }; }) };
+    }) };
+  }
+  function tuSuma(items, uni) { return items.reduce(function (a, it) { return a + ((it.uni || 'kg') === uni ? (+it.cant || 0) : 0); }, 0); }
+  function tuTodos(d) { var r = []; (d.clientes || []).forEach(function (c) { r = r.concat(c.items || []); }); return r; }
+  function tuCant(it) { return (it.cant === '' || it.cant == null ? '' : n(+it.cant) + ' ' + String(it.uni || 'kg').toUpperCase() + ' '); }
+  function tuRenglon(it) { return tuCant(it) + String(it.corte || '').toUpperCase() + (it.cod ? ' (COD ' + it.cod + ')' : '') + (it.nota ? ' – ' + String(it.nota).toUpperCase() : ''); }
+  function tuTotTxt(items) { var k = tuSuma(items, 'kg'), c = tuSuma(items, 'cajas'); return [k ? n(k) + ' kg' : '', c ? n(c) + ' cajas' : ''].filter(Boolean).join(' + '); }
+  function tuTexto(f) {
+    var d = tuDoc(f); if (!d) return '';
+    return 'GUARDAR TÚNEL CONTENEDOR · ' + tituloDe(f).toUpperCase() + '\n' + d.clientes.map(function (c) {
+      return '\n*' + (String(c.nombre || 'SIN CLIENTE').toUpperCase()) + '*\n' + c.items.map(function (it) { return '- ' + tuRenglon(it); }).join('\n');
+    }).join('\n') + (tuTotTxt(tuTodos(d)) ? '\n\nTOTAL: ' + tuTotTxt(tuTodos(d)) : '');
+  }
+  function tuGuardar() {
+    var e = S.tuEd, f = e.f;
+    var cls = e.doc.clientes.map(function (c) {
+      return { nombre: String(c.nombre || '').trim().toUpperCase(), items: c.items.map(function (it) {
+        var q = String(it.cant || '').trim();
+        return { corte: String(it.corte || '').trim().toUpperCase(), cod: String(it.cod || '').trim(), cant: q ? numero(q) : '', uni: it.uni || 'kg', nota: String(it.nota || '').trim() };
+      }).filter(function (it) { return it.corte || it.cant !== '' || it.cod; }) };
+    }).filter(function (c) { return c.nombre || c.items.length; });
+    S.tun = S.tun || {};
+    if (!cls.length) { delete S.tun[f]; return store.del('privado', 'tunel-' + f); }
+    var d = { fecha: f, clientes: cls, actualizado: ahoraTxt(), por: S.user ? S.user.email : '' };
+    var x = clone(d); x.id = f; S.tun[f] = x;
+    return store.set('privado', 'tunel-' + f, d);
+  }
+  function tuEditHTML() {
+    var cl = S.tuEd.doc.clientes;
+    return '<div class="panel tu-ed"><h3>Guardar túnel contenedor · ' + esc(tituloDe(S.tuEd.f)) + '</h3><p class="small muted">Un bloque por cliente; adentro, un renglón por corte. La cantidad va en kg o en cajas.</p>'
+      + cl.map(function (c, i) {
+        return '<div class="tu-cli"><div class="tu-cli-cab"><input data-tuc="' + i + '" value="' + esc(c.nombre) + '" placeholder="Cliente (ej.: SWIFT)" aria-label="Cliente"><button class="btn sm" data-act="tu-cli-x" data-i="' + i + '" aria-label="Quitar cliente">Quitar cliente</button></div>'
+          + c.items.map(function (it, j) {
+            var k = i + '.' + j + '.';
+            return '<div class="tu-r"><input class="tu-corte" data-tu="' + k + 'corte" value="' + esc(it.corte) + '" placeholder="Corte" aria-label="Corte">'
+              + '<input class="tu-cod" data-tu="' + k + 'cod" value="' + esc(it.cod) + '" placeholder="Cód." inputmode="numeric" aria-label="Código">'
+              + '<input class="tu-cant" data-tu="' + k + 'cant" value="' + esc(it.cant) + '" placeholder="Cant." inputmode="decimal" aria-label="Cantidad">'
+              + '<select class="tu-uni" data-tu="' + k + 'uni" aria-label="Unidad">' + TU_UNI.map(function (u) { return '<option' + (u === (it.uni || 'kg') ? ' selected' : '') + '>' + u + '</option>'; }).join('') + '</select>'
+              + '<input class="tu-nota" data-tu="' + k + 'nota" value="' + esc(it.nota) + '" placeholder="Nota (ej.: + producción jueves)" aria-label="Nota">'
+              + '<button class="btn sm tu-x" data-act="tu-ren-x" data-i="' + i + '" data-j="' + j + '" aria-label="Quitar renglón">✕</button></div>';
+          }).join('')
+          + '<button class="btn sm" data-act="tu-ren" data-i="' + i + '">+ Corte</button></div>';
+      }).join('')
+      + '<div class="acciones"><button class="btn" data-act="tu-cli">+ Cliente</button></div>'
+      + '<div class="acciones"><button class="btn pri" data-act="tu-guardar">Guardar</button><button class="btn" data-act="tu-cancelar">Cancelar</button></div></div>';
+  }
+  function tuHojaHTML(d, f) {
+    var tot = tuTotTxt(tuTodos(d));
+    return '<div class="panel hoja op-hoja tu-hoja"><header class="hoja-cab"><div><p class="hoja-sup">Guardar túnel contenedor</p><h2>TÚNEL · ' + esc(tituloDe(f).toUpperCase()) + '</h2></div>'
+      + (tuSuma(tuTodos(d), 'kg') ? '<div class="hoja-dato"><b>' + n(tuSuma(tuTodos(d), 'kg')) + '</b><span>kg</span></div>' : '') + '</header>'
+      + '<div class="acciones hoja-acc"><button class="btn pri" data-act="tu-armar">Editar</button><button class="btn wa" data-act="tu-pdf">PDF por WhatsApp</button><button class="btn" data-act="tu-texto">Copiar texto</button></div>'
+      + '<div class="op-lista">' + d.clientes.map(function (c) {
+        return '<div class="op-c"><p><u class="op-corte">' + esc(String(c.nombre || 'SIN CLIENTE').toUpperCase()) + '</u>' + (tuTotTxt(c.items) ? ' <span class="muted">· ' + esc(tuTotTxt(c.items)) + '</span>' : '') + '</p>'
+          + c.items.map(function (it) { return '<p class="op-sig">' + opLineaHTML(tuRenglon(it)) + '</p>'; }).join('') + '</div>';
+      }).join('') + '</div>'
+      + (tot ? '<p class="muted tu-tot">TOTAL: ' + esc(tot) + '</p>' : '')
+      + (d.actualizado ? '<div class="small muted">Guardado: ' + esc(d.actualizado) + '</div>' : '') + '</div>';
+  }
+  function renderTunel() {
+    var el = $('view-tunel');
+    if (!S.camaraOk) { el.innerHTML = '<div class="panel"><p class="state">Esta sección es privada.</p></div>'; return; }
+    var f = tuFecha(), d = tuDoc(f), ed = S.tuEd && S.tuEd.f === f;
+    var h = '<div class="nav"><button class="btn step" data-act="tu-fecha" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + fechaTit(f) + '</span><button class="btn step" data-act="tu-fecha" data-d="1" aria-label="Día siguiente">›</button>'
+      + '<input type="date" id="tu-fecha-in" value="' + esc(f) + '" aria-label="Ir a una fecha">' + (d && !ed ? '<button class="btn" data-act="imprimir">Imprimir</button>' : '') + '</div>';
+    if (ed) h += tuEditHTML();
+    else if (d) h += tuHojaHTML(d, f);
+    else {
+      var af = tuAntFecha(f);
+      h += '<div class="panel"><p class="state">Todavía no armaste lo del túnel para este día.</p><div class="acciones" style="justify-content:center">'
+        + (af ? '<button class="btn" data-act="tu-copiar">Copiar la del ' + esc(diaCorto(af).toLowerCase()) + '</button>' : '') + '<button class="btn pri" data-act="tu-armar">Armar</button></div>'
+        + '<p class="small muted" style="text-align:center">🔒 Solo la ves vos.</p></div>';
+    }
+    el.innerHTML = h;
+  }
+  document.addEventListener('input', function (e) {
+    var t = e.target; if (!S.tuEd || !t.closest || !t.closest('#view-tunel')) return;
+    if (t.dataset.tuc != null) S.tuEd.doc.clientes[+t.dataset.tuc].nombre = t.value;
+    else if (t.dataset.tu) { var p = t.dataset.tu.split('.'); S.tuEd.doc.clientes[+p[0]].items[+p[1]][p[2]] = t.value; }
+  });
+  document.addEventListener('change', function (e) {
+    var t = e.target; if (!t.closest || !t.closest('#view-tunel')) return;
+    if (t.id === 'tu-fecha-in' && t.value) { S.tuF = t.value; S.tuEd = null; render(); return; }
+    if (S.tuEd && t.dataset.tu) { var p = t.dataset.tu.split('.'); S.tuEd.doc.clientes[+p[0]].items[+p[1]][p[2]] = t.value; }
+  });
   function camaraTileHTML() {
     var c = camCalc(mas(hoy(), 14)), f = camDiaRef(), o = c.dias[f];
     var cab = '<span class="t-cab"><span class="t-ico">' + icono('camara') + '</span><b>Cámara</b><span class="badge cam-solo">🔒 Solo vos</span></span>';
@@ -3556,13 +3620,14 @@
     if (!store || !store.signIn || S.solo) e.innerHTML = '';
     else if (!S.user) e.innerHTML = '<button class="btn sm lnk" data-act="ingresar">Ingresar para cargar</button>';
     else e.innerHTML = '<span>' + esc(S.user.email) + (S.editor ? '' : ' · sin permiso para cargar') + '</span><button class="btn sm lnk" data-act="salir">Salir</button>';
-    $('tab-pedidos').hidden = !S.editor; $('tab-clientes').hidden = !S.editor; $('tab-camara').hidden = !S.camaraOk || !!S.solo;
+    $('tab-pedidos').hidden = !S.editor; $('tab-clientes').hidden = !S.editor; $('tab-camara').hidden = !S.camaraOk || !!S.solo; $('tab-tunel').hidden = !S.camaraOk || !!S.solo;
     if (S.tab === 'camara' && (!S.camaraOk || S.solo)) { if (!S.solo) S.volver = 'camara'; S.tab = 'inicio'; }
+    if (S.tab === 'tunel' && (!S.camaraOk || S.solo)) { if (!S.solo) S.volver = 'tunel'; S.tab = 'inicio'; }
     $('tabs').classList.toggle('muchas', !!S.editor);
     // Si la página se abrió (o se recargó sola) en Pedidos o Clientes, se vuelve ahí apenas se confirma el permiso.
     if ((S.tab === 'pedidos' || S.tab === 'clientes') && !S.editor) { S.volver = S.tab; S.tab = 'inicio'; }
     TABS.forEach(function (t) { $('view-' + t).hidden = S.tab !== t; if (S.tab !== t) $('view-' + t).innerHTML = ''; var tb = $('tab-' + t); if (tb) tb.setAttribute('aria-selected', String(S.tab === t)); });
-    if (S.tab === 'medias') renderMedias(); else if (S.tab === 'pedidos') renderPedidos(); else if (S.tab === 'produccion' || S.tab === 'ciclo3') renderProduccion(); else if (S.tab === 'logistica') renderLogistica(); else if (S.tab === 'rendering') renderRendering(); else if (S.tab === 'clientes') renderClientes(); else if (S.tab === 'camara') renderCamara(); else renderInicio();
+    if (S.tab === 'medias') renderMedias(); else if (S.tab === 'pedidos') renderPedidos(); else if (S.tab === 'produccion' || S.tab === 'ciclo3') renderProduccion(); else if (S.tab === 'logistica') renderLogistica(); else if (S.tab === 'rendering') renderRendering(); else if (S.tab === 'clientes') renderClientes(); else if (S.tab === 'camara') renderCamara(); else if (S.tab === 'tunel') renderTunel(); else renderInicio();
   }
   // Cuando llegan datos nuevos no se redibuja la pantalla en la que se está escribiendo.
   function renderDatos() {
@@ -3571,6 +3636,7 @@
     if (S.tab === 'pedidos' && (S.prop.length || escribiendo())) return;
     if (S.tab === 'clientes' && escribiendo()) return;
     if (S.tab === 'camara' && (escribiendo() || S.camPegar)) return;
+    if (S.tab === 'tunel' && (S.tuEd || escribiendo())) return;
     if (S.tab === 'logistica' && (S.ec || S.ef || (document.activeElement && document.activeElement.dataset && document.activeElement.dataset.flete))) return;
     render();
   }
@@ -3694,6 +3760,7 @@
     else if (a === 'hoja-pdf') { compartirPDF(b.closest('.hoja'), b); }
     // Una sola planilla (la de cortes o la de embutidos), sin las demás.
     else if (a === 'hoja-imprimir') { var hjx = b.closest('.hoja'); if (hjx) imprimirPDF([hjx], b); }
+    else if (a === 'imprimir' && S.tab === 'tunel' && document.querySelector('#view-tunel .hoja')) { imprimirPDF([document.querySelector('#view-tunel .hoja')], b); }
     else if (a === 'imprimir' && S.tab === 'produccion' && !S.ep && document.querySelector('#view-produccion .hoja')) { imprimirPDF(Array.prototype.slice.call(document.querySelectorAll('#view-produccion .hoja')), b); }
     else if (a === 'imprimir') {
       // Se imprime siempre la vista de lectura, no la de edición.
@@ -3749,10 +3816,17 @@
     else if (a === 'fr-ir') { S.fr = D.f; render(); window.scrollTo(0, 0); }
     else if (a === 'fecha') { S.pv = null; S.fechaFija = true; if (S.ep) guardar('prod', true); S.ep = null; var x = S.fecha; do { x = mas(x, +D.d); } while (!esHabil(x)); S.fecha = x; render(); }
     else if (a === 'pv') { if (S.ep) { guardar('prod', true); S.ep = null; } S.pv = D.v; render(); }
-    else if (a === 'tu-editar') { S.tuEd = D.f; render(); var tt2 = $('tu-txt'); if (tt2) tt2.focus(); }
+    else if (a === 'tu-fecha') { var xt = tuFecha(); do { xt = mas(xt, +D.d); } while (!esHabil(xt)); S.tuF = xt; S.tuEd = null; render(); }
+    else if (a === 'tu-armar') { S.tuEd = { f: tuFecha(), doc: tuDoc(tuFecha()) ? tuLimpio(tuDoc(tuFecha())) : { clientes: [{ nombre: '', items: [tuItem()] }] } }; render(); var pi = document.querySelector('#view-tunel [data-tuc]'); if (pi) pi.focus(); }
+    else if (a === 'tu-copiar') { var ta3 = tuAnt(tuFecha()); if (ta3) { S.tuEd = { f: tuFecha(), doc: tuLimpio(ta3) }; render(); } }
     else if (a === 'tu-cancelar') { S.tuEd = null; render(); }
-    else if (a === 'tu-guardar') { var tv2 = ($('tu-txt') || {}).value || ''; tuGuardar(D.f, tv2).then(function () { S.tuEd = null; avisar('Guardada la mercadería para túnel.', 3000); render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); }); }
-    else if (a === 'tu-copiar') { var ta2 = tuAnterior(D.f); if (ta2) tuGuardar(D.f, ta2.texto).then(function () { S.tuEd = D.f; render(); var tt3 = $('tu-txt'); if (tt3) tt3.focus(); }); }
+    else if (a === 'tu-guardar') { tuGuardar().then(function () { S.tuEd = null; avisar('Guardado lo del túnel.', 3000); render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); }); }
+    else if (a === 'tu-cli') { S.tuEd.doc.clientes.push({ nombre: '', items: [tuItem()] }); render(); var cs = document.querySelectorAll('#view-tunel [data-tuc]'); if (cs.length) cs[cs.length - 1].focus(); }
+    else if (a === 'tu-cli-x') { S.tuEd.doc.clientes.splice(+D.i, 1); render(); }
+    else if (a === 'tu-ren') { S.tuEd.doc.clientes[+D.i].items.push(tuItem()); render(); var rs2 = document.querySelectorAll('#view-tunel [data-tu^="' + D.i + '.' + (S.tuEd.doc.clientes[+D.i].items.length - 1) + '.corte"]'); if (rs2.length) rs2[0].focus(); }
+    else if (a === 'tu-ren-x') { S.tuEd.doc.clientes[+D.i].items.splice(+D.j, 1); render(); }
+    else if (a === 'tu-texto') { var tx = tuTexto(tuFecha()); (navigator.clipboard ? navigator.clipboard.writeText(tx) : Promise.reject()).then(function () { avisar('Copiado. Pegalo en WhatsApp.', 3000); }, function () { avisar('!No se pudo copiar.', 4000); }); }
+    else if (a === 'tu-pdf') { var ft = tuFecha(); compartirPDF(b.closest('.hoja'), b, true, 'Tunel ' + ft.slice(8, 10) + '-' + ft.slice(5, 7) + '.pdf'); }
     else if (a === 'op-nueva') {
       S.fechaFija = true; var idn = 'op-' + S.fecha, dn = opNueva(S.fecha, D.v);
       S.ep = { fecha: idn, doc: dn }; S.ep.base = clone(dn); S.pv = 'op'; S.msg.prod = ''; guardar('prod', true); render();
@@ -4584,7 +4658,7 @@
       if (!u) { S.em = null; S.ep = null; S.prop = []; S.camaraOk = false; S.cam = {}; render(); return; }
       if (store.puedeCamara) store.puedeCamara(u.email).then(function (c) {
         S.camaraOk = !!c;
-        if (c && S.volver === 'camara') { S.tab = 'camara'; S.volver = null; }
+        if (c && (S.volver === 'camara' || S.volver === 'tunel')) { S.tab = S.volver; S.volver = null; }
         render();
       });
       (store.renovar ? store.renovar() : Promise.resolve()).then(null, function () {}).then(function () { return store.esEditor(u.email); }).then(function (ok) {
@@ -4602,6 +4676,9 @@
               S.fletes = fl; if (JSON.stringify(fl) !== antesF && S.tab === 'logistica') renderDatos();
               var cm = {}, antesCm = JSON.stringify(S.cam || {});
               l.forEach(function (x) { var k = String(x.id); if (k.indexOf('camara-') === 0) { var o = clone(x); o.id = k.slice(7); cm[o.id] = o; } });
+              var tn = {}, antesTn = JSON.stringify(S.tun || {});
+              l.forEach(function (x) { var k = String(x.id); if (k.indexOf('tunel-') === 0) { var o = clone(x); o.id = k.slice(6); tn[o.id] = o; } });
+              S.tun = tn; if (JSON.stringify(tn) !== antesTn && S.tab === 'tunel' && !S.tuEd && !escribiendo()) renderTunel();
               S.cam = cm; S.camListo = true; if (JSON.stringify(cm) !== antesCm && S.camaraOk && (S.tab === 'camara' || S.tab === 'inicio') && !escribiendo() && !S.camPegar) render();
               var cl = l.filter(function (x) { return x.id === 'clientes'; })[0], antesC = JSON.stringify(clientes());
               S.clientes = (cl && cl.lista) || [];
