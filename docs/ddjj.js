@@ -77,7 +77,7 @@ function parseDJ(txt) {
     else if (t === 'FT') (o.ft[String(p[1]).trim()] = o.ft[String(p[1]).trim()] || {})[p[2]] = num(p[3]);   // faena de cada tropa por día (romaneo)
     else if (t === 'TP') o.tp.push({ tropa: String(p[1]).trim(), fecha: p[2], cab: num(p[3]), kg: num(p[4]), jaula: (p[5] || '').trim(), cue: +p[6], prod: (p[7] || '').trim(), loc: (p[8] || '').trim() });   // pestaña Tropas
     else if (t === 'FD') (o.fd[String(p[1]).trim()] = o.fd[String(p[1]).trim()] || {})[p[2]] = num(p[3]);
-    else if (t === 'TK') o.tk = p[1] || '';
+    else if (t === 'TK') { o.tk = p[1] || ''; o.tkTodas = p[2] || ''; }
     else if (t === 'FR') { const k = String(p[1]).trim(); (o.fr[k] = o.fr[k] || []).push([num(p[2]), num(p[3])]); }
     else if (t === 'CO') o.co[p[1]] = { den: (p[2] || '').trim(), pais: (p[3] || '').trim() };
   }

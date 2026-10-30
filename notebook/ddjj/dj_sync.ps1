@@ -130,9 +130,10 @@ SELECT 'TQ|'||TO_CHAR(t.tro_fecha,'YYYY-MM')||'|'||t.cue_codigo||'|'||TRIM(TRANS
 function Get-Tropas([string]$m) {
   $d0 = "DATE '$m-01'"; $d1 = "ADD_MONTHS($d0,1)"
   $k = @(Invoke-Sql "SELECT 'DK|'||column_name FROM all_tab_columns WHERE owner='FRIGO' AND table_name='TROPAS' AND column_name LIKE '%KILO%' ORDER BY column_id;" | Where-Object { $_ -like 'DK|*' } | ForEach-Object { $_.Substring(3).Trim() })
-  $kv = if ($k.Count) { "NVL(t." + $k[0] + ",0)" } else { "0" }
+  $kc = if ($k -contains 'TRO_KILOS') { 'TRO_KILOS' } elseif ($k.Count) { $k[0] } else { '' }   # en la Consulta de Tropa: "Cab. Kilos" (ej. 261814: 160 · 17.960)
+  $kv = if ($kc) { "NVL(t." + $kc + ",0)" } else { "0" }
   return Invoke-Sql @"
-SELECT 'TK|'||'$($k -join ',')' FROM dual;
+SELECT 'TK|'||'$kc'||'|'||'$($k -join ',')' FROM dual;
 SELECT 'TP|'||t.tro_numero||'|'||TO_CHAR(t.tro_fecha,'YYYY-MM-DD')||'|'||NVL(t.tro_cabezas,0)||'|'||$kv||'|'||TRIM(t.tro_patente)||'|'||t.cue_codigo||'|'||TRIM(TRANSLATE(NVL(c.cue_denom,' '),CHR(9)||'|','  '))||'|'||TRIM(NVL(l.loc_denom,' '))
   FROM tropas t LEFT JOIN cuentas c ON c.cue_codigo=t.cue_codigo LEFT JOIN localidades l ON l.loc_codigo=t.loc_codigo
  WHERE t.tro_fecha >= $d0 AND t.tro_fecha < $d1;

@@ -27,7 +27,7 @@ function filasTropas() {
 function renderTropas() {
   const F = filasTropas(), L = rangosT(), NR = nombresRangos(L), pct = (n, t) => t ? (n / t * 100).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' %' : '';
   let h = '<section><div class="dj-top"><div><h2>Tropas · ' + esc(nombreMes(S.mes)) + ' (' + F.length + ')</h2><p class="sub" style="margin:0">Tropas que ingresaron en el mes. Faenadas: cabezas del romaneo (y en qué días). Muertos: del sistema, de la playa de emergencia (A1) y cargados a mano. ' +
-    'Rangos de peso: porcentaje de los animales faenados de la tropa según el peso del romaneo.' + (soloVer() ? '' : ' <a href="#" onclick="cambiarRangos();return false">Cambiar rangos</a>') + '</p></div>' +
+    'Kg vivos: los kilos de la tropa (Consulta de Tropa, "Cab. Kilos")' + (S.sis && S.sis.tk ? ' <span class="muted" style="font-size:12px">(columna ' + esc(S.sis.tk) + ')</span>' : '') + '. Rangos de peso: porcentaje de los animales faenados de la tropa según el peso del romaneo.' + (soloVer() ? '' : ' <a href="#" onclick="cambiarRangos();return false">Cambiar rangos</a>') + '</p></div>' +
     (F.length ? '<div class="row"><button onclick="excelTropas()">⬇ Bajar Excel</button></div>' : '') + '</div>';
   if (!F.length) {
     h += '<div class="alerta warn">' + ((S.sis && S.sis.tk != null) ? 'No ingresaron tropas en ' + esc(nombreMes(S.mes)) + '.' : 'Todavía no llegaron los datos de las tropas: se suben con el programa de la PC (se actualiza solo dentro de la hora). Después tocá "Traer datos nuevos".') + '</div></section>';

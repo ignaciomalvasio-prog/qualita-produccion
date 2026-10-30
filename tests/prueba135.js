@@ -1,7 +1,7 @@
 // Centro de desposte › Tropas (pedido de Sabi 30/10): tropas que ingresaron en el mes con productor, granja, jaula, cabezas, faenadas
 // (y días), muertos (sistema + A1 + a mano), kg vivos, peso promedio vivo y % de animales del romaneo por rango de peso (rangos editables).
 const {chromium}=require('playwright');
-const DJ=['OK|2026-10-30 11:00','TK|TRO_KILOS',
+const DJ=['OK|2026-10-30 11:00','TK|TRO_KILOS|TRO_KILOS,TRO_KILOSDESB',
  'TP|261798|2026-10-25|160|21840|AE667IF|5153|LA QUIMERA S.A.|EL RODEO','TP|261814|2026-10-29|60|8160|AF672YQ|5153|LA QUIMERA S.A.|EL RODEO',
  'FD|261798|2026-10-26|81','FD|261798|2026-10-27|79','FD|261814|2026-10-30|60',
  'FR|261798|58|10','FR|261798|65|30','FR|261798|75|60','FR|261798|85|50','FR|261798|95|9','FR|261798|101|1',
