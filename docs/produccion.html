@@ -220,7 +220,8 @@ table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
 .cl-dia{max-width:560px}
 .cl-dia th,.cl-dia td{font-size:18px;padding:9px 8px}
 .cl-dia thead th{font-size:12px}
-.cl-dia.md-ed{max-width:820px}.cl-dia.md-ed input{width:100%;font-size:16px}.cl-dia.md-ed td:last-child{width:110px}
+.cl-dia.md-ed{max-width:1100px;width:100%;table-layout:fixed}.cl-dia.md-ed input{width:100%;font-size:16px;box-sizing:border-box}.cl-dia.md-ed th:first-child,.cl-dia.md-ed td:first-child{width:38%}.cl-dia.md-ed th:last-child,.cl-dia.md-ed td:last-child{width:100px}
+@media (max-width:560px){ .cl-dia.md-ed th:first-child,.cl-dia.md-ed td:first-child{width:42%}.cl-dia.md-ed th:last-child,.cl-dia.md-ed td:last-child{width:64px} }
 .cl-dia tfoot th,.cl-dia tfoot td{font-size:18px}
 .cl-ped{max-width:680px}.cl-ped td.ac,.cl-ped th:last-child{width:1%;white-space:nowrap;text-align:right}.cl-ped tr.cero td{color:var(--muted)}
 .op-ped p.lp{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;margin:0}.op-ped p.lp>span:first-child{min-width:0}.op-ped .btn{text-transform:none;flex:0 0 auto}

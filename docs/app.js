@@ -203,7 +203,7 @@
           + '<td><input type="text" ' + at + ' data-k="nota" value="' + esc(r.nota || '') + '" placeholder="Ej.: NO GORDAS" style="text-transform:uppercase" aria-label="Nota de ' + esc(r.cliente || '') + '"></td>'
           + '<td><input type="number" inputmode="decimal" step="0.5" min="0" class="n" ' + at + ' data-k="cant" value="' + esc(r.cant || '') + '" aria-label="Animales de ' + esc(r.cliente || '') + '"></td></tr>';
         return '<tr><td>' + esc(r.cliente || 'Sin nombre') + (r.nota ? ' <span class="small muted" style="text-transform:none;font-weight:400">' + esc(r.nota) + '</span>' : '') + '</td><td>' + n(+r.cant || 0) + '</td></tr>';
-      }).join('') + '</tbody><tfoot><tr><th>Total</th><td>' + n(tot) + '</td></tr></tfoot></table>'
+      }).join('') + '</tbody><tfoot><tr><th' + (edM ? ' colspan="2"' : '') + '>Total</th><td>' + n(tot) + '</td></tr></tfoot></table>'
         + '<p class="small muted">Cantidades en animales enteros (un animal son dos medias). Salen de la faena del ' + esc(tituloDe(f).toLowerCase()) + ' y se entregan el ' + esc(tituloDe(habilSiguiente(f)).toLowerCase()) + '.</p>';
     }
     el.innerHTML = h + '</div>';
