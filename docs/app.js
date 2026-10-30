@@ -28,6 +28,8 @@
   var SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
   var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
   var TABS = ['inicio', 'pedidos', 'produccion', 'ciclo3', 'logistica', 'medias', 'rendering', 'clientes', 'camara'];
+  // Artículos que solo se eligen a mano (no los usa la IA al leer pedidos): "CORTES", para casos eventuales (pedido de Renzo).
+  var CORTES_A_MANO = ['CORTES'];
   var CORTES_BASE = ['JAMON', 'PALETA', 'PECHO', 'PANCETA CON CUERO', 'PANCETA SIN CUERO', 'CARRE SIN SOLOMILLO', 'CARRE CON SOLOMILLO', 'SOLOMILLO', 'CINTA DE LOMO', 'MATAMBRE', 'VACIO', 'BONDIOLA', 'RECORTE', 'GRASA BUENA', 'GRASA MALA', 'CUERO', 'TAPA DE PALETA', 'TAPA DE JAMON', 'TORTUGA', 'GARRON', 'TOCINO', 'CHURRASCO', 'PAPADA', 'HUESITOS', 'UNTO', 'CABEZA', 'OREJAS', 'PULMON', 'HIGADO', 'PATAS Y MANOS', 'LENGUA', 'CHINCHULIN', 'RIÑON', 'RABO', 'MENUDENCIAS', 'EMBUTIDOS', 'CHORIZO', 'MORCILLA', 'SALCHICHA'];
 
   var S = {
@@ -2146,7 +2148,7 @@
 
   var ivaQ = function (pre, val, lab) { return '<select id="' + pre + '" ' + lab + '><option value=""' + (val ? '' : ' selected') + '>¿IVA?</option><option value="iva"' + (val === 'iva' ? ' selected' : '') + '>+ IVA</option><option value="final"' + (val === 'final' ? ' selected' : '') + '>Final</option></select>'; };
   function propHTML(q, i) {
-    var listaCortes = CORTES_BASE.slice(); (q.cortes || []).forEach(function (c) { if (c.corte && listaCortes.indexOf(c.corte) < 0) listaCortes.push(c.corte); });
+    var listaCortes = CORTES_BASE.concat(CORTES_A_MANO); (q.cortes || []).forEach(function (c) { if (c.corte && listaCortes.indexOf(c.corte) < 0) listaCortes.push(c.corte); });
     var h = '<div class="card">';
     h += '<div class="campos"><label class="campo"><span>Cliente</span><input type="text" id="q' + i + 'cliente" data-q="' + i + '" data-k="cliente" list="dl-clientes" autocomplete="off" value="' + esc(q.cliente) + '" style="text-transform:uppercase"></label>'
       + '<label class="campo"><span>N° de cuenta</span><input type="text" inputmode="numeric" id="q' + i + 'cuenta" data-q="' + i + '" data-k="cuenta" value="' + esc(q.cuenta || '') + '" placeholder="' + esc(cuentaDe(q.cliente) || 'Sin número') + '"></label>'
