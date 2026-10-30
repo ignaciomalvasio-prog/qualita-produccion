@@ -4,7 +4,7 @@
 const {chromium}=require('playwright');
 const ANUAL=['OK|2026-10-30 07:00','FA|2026-10|1|4000|400000|20','FX|ok|FAENAS|FAE_LISTA|FAE_CABEZAS|FAE_FECHA|FAE_NUMERO|P0 A1',
  'FE|2026-10-09|261756|A1|1|34612|160|AB1|5223|MALVASIO|X','FE|2026-10-21|261787|A1|1|34719|160|AB2|5153|LA QUIMERA|EL RODEO',
- 'FE|2026-10-22|261789|A1|1|34733|1|AB3|5208|CONSULTORES|Y','FE|2026-10-01|261732|A1|40|34528|160|AB4|5153|LA QUIMERA|EL RODEO',
+ 'FE|2026-10-22|261789|A1|1|34733|160|NJD593|5208|CONSULTORES ASOCIADOS|LOS COMETIERRAS','FE|2026-10-22|299999|A1|1|34734|1|AB3|5208|OTRO|Y','FE|2026-10-01|261732|A1|40|34528|160|AB4|5153|LA QUIMERA|EL RODEO',
  'FE|2026-10-15|261770|A1|1|34650|160|AB5|5153|LA QUIMERA|EL RODEO','MU|2026-10-15|261770|1|C|AB5|5153|LA QUIMERA|EL RODEO| '].join('\n');
 const DJ=['OK|x','TR|2026-10-23|261787|160|2026-10-21|318|25440','RE|2026-10-23|101|BONDIOLA|1|60|500|1300'].join('\n');
 (async()=>{const b=await chromium.launch();let mal=0;const ok=(c,m)=>{console.log((c?'OK  ':'MAL ')+m);if(!c)mal++;};
@@ -20,7 +20,7 @@ for(const w of [1300,400]){
  if(w===1300){console.log(filas.join('\n'));
   ok(filas.some(f=>/261756.*CORRAL.*Playa de emergencia \(A1, faena N° 34612\).*emergencia A1/.test(f)),'261756 (A1, 1 cabeza) entra como muerto en corral, marcado');
   ok(filas.some(f=>/261787.*emergencia A1/.test(f)),'261787 también');
-  ok(!filas.some(f=>/261789/.test(f)),'261789: tropa de un solo animal, no es muerto');
+  ok(filas.some(f=>/261789.*emergencia A1/.test(f)),'261789 (160 cabezas, A1 de 1 el 22/10) entra');ok(!filas.some(f=>/299999/.test(f)),'tropa de un solo animal (299999), no es muerto');
   ok(!filas.some(f=>/261732/.test(f)),'261732: A1 con 40 cabezas (más faena), no es muerto');
   ok(filas.filter(f=>/261770/.test(f)).length===1&&!filas.some(f=>/261770.*emergencia/.test(f)),'261770: ya estaba en el sistema, no se repite');
   ok(ing==='261787:159:FAENA PARCIAL','DDJJ: la tropa con muerto A1 va 159 y FAENA PARCIAL ('+ing+')');
