@@ -21,20 +21,20 @@ const ver=async(traza,w)=>{const p=await b.newPage({viewport:{width:w,height:900
 for(const w of [1100,400]){
  let r=await ver(T,w);
  if(w===1100){
-  ok(/416184\s*Desposte cerdo/.test(r.txt)&&/416193\s*Desposte cerdo/.test(r.txt),'quedan los reprocesos en desposte cerdo (416184, 416193)');
+  ok(!/volvieron a procesar/.test(r.txt)&&!/416184|416193/.test(r.txt),'no figura nada de lo reprocesado (ni la tabla ni los despostes 416184, 416193)');
   ok(!/Rendering|Chacinados|Ciclo III|Tipo 5/.test(r.txt),'no aparecen rendering, chacinados ni tipo 5');
   ok(!/416300/.test(r.txt),'el desposte de rendering no figura en "Despostes donde entró"');
   ok(/416191/.test(r.txt)&&/416196/.test(r.txt),'los despostes de cerdo siguen');
   ok(!/AGRO INDUSTRIAS/.test(r.txt),'no figura el cliente de la harina de carne (rendering)');
-  ok(/CARNICERIA EJEMPLO/.test(r.txt)&&/OTRO CLIENTE/.test(r.txt)&&/2 clientes/.test(r.txt),'sí los clientes de cortes de desposte cerdo');
-  ok(/2 clientes · 5 cajas o piezas · 100 kg/.test(r.txt),'la venta repetida en dos despostes cuenta una sola vez');
+  ok(/CARNICERIA EJEMPLO/.test(r.txt)&&!/OTRO CLIENTE/.test(r.txt),'sí los clientes de lo que salió de los despostes de la tropa; no los de un reproceso (416184)');
+  ok(/1 cliente · 3 cajas o piezas · 60 kg/.test(r.txt),'la venta repetida en dos despostes cuenta una sola vez');
   const bm=r.txt.slice(r.txt.indexOf('3 · Balance de masas')).replace(/\s+/g,' ');console.log('balance:',bm.slice(0,700));
   ok(/Conciliación 160 159 1 0 100,0 %/.test(bm),'a) animales: 160 = 159 faenados + 1 diferencia');
   ok(/5\.100 — 4\.900 200 96,1 %/.test(bm),'b) kg de medias: 5.100 = 4.900 a desposte + 200 de oreo');
-  ok(/N° 416191 22\/10\/26 8\.000 60 — 60 240 7\.640 100,0 %/.test(bm),'c) lote 416191: 8.000 = 60 + 60 + 240 + 7.640 → 100 %');
-  ok(/N° 416196 23\/10\/26 6\.000 — — 80 60 5\.860 100,0 %/.test(bm),'c) lote 416196 → 100 %');
+  ok(/N° 416191 22\/10\/26 8\.000 60 — 300 7\.640 100,0 %/.test(bm)&&!/Reprocesado/.test(bm),'c) lote 416191: 8.000 = 60 vendidos + 300 bajas + 7.640 stock → 100 %, sin columna de reprocesado');
+  ok(/N° 416196 23\/10\/26 6\.000 — — 140 5\.860 100,0 %/.test(bm),'c) lote 416196 → 100 %');
   r=await ver(C,w);
-  ok(/416184/.test(r.txt)&&!/416192/.test(r.txt),'correlativo: "A dónde fue" solo muestra el reproceso en desposte cerdo');
+  ok(!/volvió a procesar|416184|416192/.test(r.txt),'correlativo: "A dónde fue" sin reprocesos');
  }
  ok(r.des<=0,w+' sin desborde');ok(!r.errs.length,w+' errores: '+(r.errs.join('|')||'ninguno'));}
 await b.close();console.log(mal?'FALLARON '+mal:'todo bien');process.exit(mal?1:0);})();
