@@ -19,8 +19,9 @@ for(const w of [1100,400]){const p=await b.newPage({viewport:{width:w,height:900
  console.log('BRACCO → c1:',await cam('b'),'· publicado:',await p.evaluate(()=>JSON.stringify((window.__mock.data.config['log-2026-10-22'].pedidos||[]).filter(x=>x.camion==='c1').map(x=>x.cliente))),'· aviso:',await p.evaluate(()=>{const a=document.querySelector('.aviso,#aviso,.toast');return a?a.innerText:'';}));
  await p.click('.cam-chip[data-id="b"]');await p.click('.cam-menu [data-act="camp-set"][data-v=""]');await p.clock.runFor(1500);await p.waitForTimeout(200);
  console.log('sacar BRACCO:',await cam('b'));
- await p.click('.cam-chip[data-id="c"]');await p.click('.cam-menu [data-act="camp-otro"]');await p.waitForTimeout(200);
- console.log('otro camión → tildados:',await p.evaluate(()=>[...document.querySelectorAll('input[data-sel]:checked')].map(x=>x.dataset.sel).join(',')),'· campo N° con foco:',await p.evaluate(()=>document.activeElement.id));
+ await p.click('.cam-chip[data-id="c"]');await p.fill('#camp-nombre-c','camion nuevo');await p.click('.cam-menu [data-act="camp-crear"]');await p.clock.runFor(1500);await p.waitForTimeout(200);
+ console.log('camión nuevo escrito en el menú → GRION en:',await cam('c'));
+ await p.click('.cam-chip[data-id="c"]');await p.click('.cam-menu [data-act="camp-set"][data-v=""]');await p.clock.runFor(1500);await p.waitForTimeout(200);
  console.log('después:',await chips());
  // Con varios tildados, el camión elegido en uno va para todos los tildados.
  await p.click('[data-act="sel-nada"]').catch(()=>{});await p.waitForTimeout(100);

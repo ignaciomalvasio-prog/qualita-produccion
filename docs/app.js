@@ -2272,7 +2272,7 @@
     return '<div class="frio-menu cam-menu"><span class="small muted">' + (gr.length > 1 ? 'Sumar los <b>' + gr.length + ' tildados</b> a:' : 'Sumar a:') + '</span>'
       + cams.map(function (c) { var t = capTxt(c, cargaDe(pubs, c.id)); return b('d:' + c.id, esc(nomCam(c)) + (t ? ' <small>' + esc(t) + '</small>' : ''), p.camion === c.id); }).join('')
       + libres.map(function (c) { return b('f:' + c.id, esc(nomLimpio(c.nombre)) + (+c.kg ? ' <small>' + n(+c.kg) + ' kg</small>' : '')); }).join('')
-      + '<button class="btn sm" data-act="camp-otro" data-id="' + esc(p.id) + '">Otro camión…</button>'
+      + '<span class="camp-nuevo"><input type="text" id="camp-nombre-' + esc(p.id) + '" data-camp-nuevo="' + esc(p.id) + '" placeholder="Camión nuevo: escribí el nombre" aria-label="Nombre del camión nuevo" autocomplete="off" style="text-transform:uppercase"><button class="btn sm pri" data-act="camp-crear" data-id="' + esc(p.id) + '">Sumar</button></span>'
       + (gr.some(function (x) { return x.camion; }) ? b('', gr.length > 1 ? 'Sacarlos del camión' : 'Sacar del camión') : '')
       + '<button class="btn sm lnk" data-act="camp-menu" data-id="' + esc(p.id) + '">Cerrar</button></div>';
   }
@@ -3826,6 +3826,15 @@
     }
     else if (a === 'camp-menu') { e.preventDefault(); e.stopPropagation(); S.camMenu = S.camMenu === D.id ? null : D.id; S.frioMenu = null; renderPedidos(); }
     else if (a === 'camp-otro') { e.preventDefault(); e.stopPropagation(); var po = pedidoDe(D.id); S.camMenu = null; if (po) { if (!(S.sel[po.id] && S.selDia === po.entrega)) S.sel = {}; S.sel[po.id] = true; S.selDia = po.entrega; S.camOtro = true; } renderPedidos(); var fco = $('cam-nombre'); if (fco) fco.focus(); }
+    else if (a === 'camp-crear') {
+      // Camión nuevo con el nombre escrito ahí mismo, y el pedido (o los tildados) adentro.
+      e.preventDefault(); e.stopPropagation(); var pn2 = pedidoDe(D.id), inn = $('camp-nombre-' + D.id), nom2 = String((inn && inn.value) || '').trim().toUpperCase();
+      if (!pn2) return; if (!nom2) { if (inn) inn.focus(); avisar('!Escribí el nombre del camión.', 3000); return; }
+      var gr2 = camGrupo(pn2), ids2 = gr2.map(function (x) { return x.id; }), f2 = pn2.entrega;
+      var ya2 = camionesDe(f2).filter(function (c) { return norm(nomCam(c)) === norm(nom2); })[0];
+      S.camMenu = null;
+      (ya2 ? asignarCamion(f2, ids2, ya2.id).then(function () { return ya2; }) : crearCamion(f2, nom2, '', ids2)).then(function (cam) { if (gr2.length > 1) S.sel = {}; avisar(gr2.length > 1 ? avisoCamion(f2, cam.id, gr2.length) : pn2.cliente + ' va en ' + nomCam(cam) + '.', 4000); renderPedidos(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); renderPedidos(); });
+    }
     else if (a === 'camp-set') {
       e.preventDefault(); e.stopPropagation(); var pc = pedidoDe(D.id); S.camMenu = null; if (!pc) { renderPedidos(); return; }
       var vc = D.v || '', fc = pc.entrega, gr = camGrupo(pc), idsC = gr.map(function (x) { return x.id; });
@@ -3902,6 +3911,7 @@
 
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && S.menuAb) cerrarMenus(); });
   document.addEventListener('keydown', function (e) { var t = e.target; if ((e.key === 'Enter' || e.key === ' ') && t && t.classList && t.classList.contains('busq-f') && t.dataset.act) { e.preventDefault(); t.click(); } });
+  document.addEventListener('keydown', function (e) { var t = e.target; if (e.key === 'Enter' && t && t.dataset && t.dataset.campNuevo) { e.preventDefault(); var bt = document.querySelector('[data-act="camp-crear"][data-id="' + t.dataset.campNuevo + '"]'); if (bt) bt.click(); } });
   // Ctrl+Z / Ctrl+Y en Cámara (cuando no se está escribiendo en una casilla, que tiene su propio deshacer).
   document.addEventListener('keydown', function (e) {
     if (S.tab !== 'camara' || !(e.ctrlKey || e.metaKey) || document.getElementById('pin-lock')) return;
