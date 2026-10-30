@@ -61,7 +61,7 @@ const mesHoy = () => hoyIso().slice(0, 7);
 
 /* ---------- lectura de lo que subió la notebook ---------- */
 function parseDJ(txt) {
-  const o = { hora: '', dias: {}, co: {}, c3: {}, me: [] };
+  const o = { hora: '', dias: {}, co: {}, c3: {}, me: [], ft: {} };
   const d3 = f => o.c3[f] || (o.c3[f] = { re: [], in: [] });
   const dia = f => o.dias[f] || (o.dias[f] = { tr: [], in: [], re: [], en: [] });
   for (const l of String(txt || '').split(/\r?\n/)) {
@@ -74,6 +74,7 @@ function parseDJ(txt) {
     else if (t === 'C3I') d3(p[1]).in.push({ art: +p[2], den: (p[3] || '').trim(), uni: num(p[4]), kg: num(p[5]) });
     else if (t === 'EN') { const x = dia(p[1]); (x.en = x.en || []).push({ art: +p[2], tropa: String(p[3] || '').trim(), uni: num(p[4]) }); }
     else if (t === 'ME') o.me.push({ f: p[1], ticd: +p[2], art: +p[3], den: (p[4] || '').trim(), uni: num(p[5]), kg: num(p[6]) });
+    else if (t === 'FT') (o.ft[String(p[1]).trim()] = o.ft[String(p[1]).trim()] || {})[p[2]] = num(p[3]);   // faena de cada tropa por día (romaneo)
     else if (t === 'CO') o.co[p[1]] = { den: (p[2] || '').trim(), pais: (p[3] || '').trim() };
   }
   return o;
@@ -124,17 +125,23 @@ function calcular(f) {
     else if (!l.cant && esPanceta(l.n)) cant = re.reduce((a, r) => a + r.uni, 0);   // panceta sin regla de cantidad: unidades del sistema
     prod[l.n] = { n: l.n, cant, exp: kgExp || null, cons: kgExp && !kgCons ? null : kgCons, dest: (kgExp && l.dest) || 'CONSUMO', re, ing, est: l.cant === 'est' };
   }
-  /* una tropa faenada en dos días viene en dos renglones: los dos llevan FAENA PARCIAL.
-     Si la tropa tuvo muertos (corral o viaje, del sistema o cargados a mano), el total de tropa son las cabezas faenadas
-     (cabezas recibidas − muertos) y también va FAENA PARCIAL (pedido de Sabi, 29/10, tropa 261799: 160 − 1 = 159). */
+  /* FAENA PARCIAL (pedidos de Sabi 29 y 30/10):
+     - tropa faenada en más de un día (renglones FT del romaneo; ej. 261798: 81 el 26/10 y 79 el 27/10) → total de tropa = las cabezas
+       faenadas el día de faena de ese renglón;
+     - tropa con muertos (corral o viaje, del sistema o a mano; ej. 261799: 160 − 1 = 159) → total de tropa = cabezas faenadas;
+     - una tropa que viene en dos renglones el mismo día de desposte (dos fechas de faena) también.
+     Sin datos FT (antes de que la notebook los suba) se usa cabezas recibidas − muertos, como antes. */
   const veces = {}; d.tr.forEach(t => { veces[t.tropa] = (veces[t.tropa] || 0) + 1; });
-  const muertosDe = muertosPorTropa();
+  const muertosDe = muertosPorTropa(), FT = (S.sis && S.sis.ft) || {};
   const ingreso = d.tr.slice().sort((a, b) => String(a.tropa).localeCompare(String(b.tropa)) || String(a.faena).localeCompare(String(b.faena))).map(t => {
-    const mu = muertosDe[String(t.tropa)] || 0;
+    const mu = muertosDe[String(t.tropa)] || 0, fd = FT[String(t.tropa)] || {}, dias = Object.keys(fd).sort(), dosDias = dias.length > 1;
+    let cab = mu && t.cab ? Math.max(0, t.cab - mu) : t.cab;
+    if (dosDias && fd[t.faena]) cab = fd[t.faena];
+    else if (dias.length === 1 && fd[dias[0]]) cab = fd[dias[0]];
     return {
-      faena: t.faena, tropa: t.tropa, cab: mu && t.cab ? Math.max(0, t.cab - mu) : t.cab, medias: t.medias, prom: t.medias ? Math.round(t.kg / t.medias) : 0,
-      kg: t.medias ? t.medias * Math.round(t.kg / t.medias) : 0, obs: veces[t.tropa] > 1 || mu ? 'FAENA PARCIAL' : (obsAnterior(t.tropa, f) || 'Consumo'),
-      muertos: mu
+      faena: t.faena, tropa: t.tropa, cab, medias: t.medias, prom: t.medias ? Math.round(t.kg / t.medias) : 0,
+      kg: t.medias ? t.medias * Math.round(t.kg / t.medias) : 0, obs: veces[t.tropa] > 1 || mu || dosDias ? 'FAENA PARCIAL' : (obsAnterior(t.tropa, f) || 'Consumo'),
+      muertos: mu, cabTropa: t.cab, faenaDias: dosDias ? dias.map(x => ddmm(x) + ': ' + fd[x]).join(', ') : ''
     };
   });
   /* medias que salieron enteras (1/2 res sin jamón y sin paleta): se descuentan de su tropa (el sistema la guarda en el desposte);
@@ -381,7 +388,8 @@ function renderDia() {
   h += '<section><h2>Ingreso</h2><p class="sub">Tropas que entraron al desposte este día. Los kilos son medias × el peso promedio por media (redondeado), como en la planilla. El total se declara con ' +
     Math.round((1 - (eq().merma || 1)) * 100) + ' % de merma.' + (P.ingEditado ? ' <b>Esta parte está corregida a mano.</b> <a href="#" onclick="ingSistema();return false">Volver a lo del sistema</a>' : '') + '</p>' +
     (P.c.enteras && !P.ingEditado ? '<div class="alerta warn">Se descontaron <b>' + fmt0(P.c.enteras) + ' medias</b> que salieron enteras como 1/2 res sin jamón y sin paleta, de la tropa ' + esc(P.c.descEn.join(', ')) + '. Si iban de otra tropa, corregilo tocando las medias.</div>' : '') +
-    (!P.ingEditado && P.ingreso.some(t => t.muertos) ? '<div class="alerta warn">Tropas con muertos (Faena y mortalidad): ' + P.ingreso.filter(t => t.muertos).map(t => '<b>' + esc(t.tropa) + '</b> ' + fmt0(t.cab + t.muertos) + ' − ' + fmt0(t.muertos) + ' = ' + fmt0(t.cab) + ' faenados').join(' · ') + '. El total de tropa va con las faenadas y como FAENA PARCIAL.</div>' : '');
+    (!P.ingEditado && P.ingreso.some(t => t.muertos && !t.faenaDias) ? '<div class="alerta warn">Tropas con muertos (Faena y mortalidad): ' + P.ingreso.filter(t => t.muertos && !t.faenaDias).map(t => '<b>' + esc(t.tropa) + '</b> ' + fmt0(t.cabTropa) + ' − ' + fmt0(t.muertos) + ' = ' + fmt0(t.cab) + ' faenados').join(' · ') + '. El total de tropa va con las faenadas y como FAENA PARCIAL.</div>' : '') +
+    (!P.ingEditado && P.ingreso.some(t => t.faenaDias) ? '<div class="alerta warn">Tropas faenadas en más de un día: ' + [...new Map(P.ingreso.filter(t => t.faenaDias).map(t => [t.tropa, t])).values()].map(t => '<b>' + esc(t.tropa) + '</b> (' + fmt0(t.cabTropa) + ' cabezas · ' + esc(t.faenaDias) + ')').join(' · ') + '. El total de tropa va con las cabezas faenadas ese día y como FAENA PARCIAL.</div>' : '');
   h += '<div class="tw"><table class="planilla dj-tab"><thead><tr><th>Fecha de faena</th><th>Nº de tropa</th><th class="num">Total de tropa</th><th class="num">Medias reses</th><th class="num">Kg de ingreso</th><th>Observaciones</th><th></th></tr></thead><tbody>';
   P.ingreso.forEach((t, i) => {
     h += '<tr>' + celdaIng(i, 'faena', ddmmaaaa(t.faena)) + celdaIng(i, 'tropa', esc(t.tropa)) + celdaIng(i, 'cab', fmt0(t.cab), 1) + celdaIng(i, 'medias', fmt0(t.medias), 1) +
@@ -523,7 +531,7 @@ function agregar() {
 function guardarObs(v) { cambiarDia(x => { if (v == null) delete x.obs; else x.obs = v; }, v == null ? 'observación automática' : 'observación'); }
 
 /* ingreso: la primera corrección copia la lista del sistema y desde ahí queda a mano */
-function ingBase(x) { if (!x.ing) x.ing = JSON.parse(JSON.stringify(calcular(S.fecha).ingreso)); return x.ing; }
+function ingBase(x) { if (!x.ing) x.ing = calcular(S.fecha).ingreso.map(r => ({ faena: r.faena, tropa: r.tropa, cab: r.cab, medias: r.medias, kg: r.kg, obs: r.obs })); return x.ing; }
 const NOMBRE_I = { faena: 'Fecha de faena', tropa: 'Nº de tropa', cab: 'Total de tropa', medias: 'Medias reses', kg: 'Kg de ingreso', obs: 'Observaciones' };
 function editarIng(i, k) {
   const t = planilla(S.fecha).ingreso[i]; if (!t) return;

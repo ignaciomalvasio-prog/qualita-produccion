@@ -4,6 +4,7 @@
 #  https://qualita-produccion.web.app/ddjj  (Firestore c3sis/dj-AAAA-MM), donde S. Saavedra
 #  revisa, corrige e imprime la declaración jurada de cada día.
 #    TR|fecha desposte|tropa|cabezas de la tropa|fecha de faena|medias|kg de las medias   (una tropa faenada en dos días sale en dos renglones)
+#    FT|tropa|fecha de faena|cabezas faenadas ese día (romaneo; una tropa faenada en dos días tiene dos renglones = FAENA PARCIAL)
 #    IN|fecha|artículo|nombre|unidades|kg        (lo que entra al desposte que no son medias: reprocesos)
 #    RE|fecha|artículo|nombre|contrato|unidades|piezas|kg   (lo que sale del desposte)
 #    ME|fecha|tipo de ciclo (3 menudencias, 6 rendering)|artículo|nombre|unidades|kg   (resumen mensual de menudencias y rendering para SENASA)
@@ -62,6 +63,12 @@ SELECT 'TR|'||TO_CHAR(d.desp_fecha,'YYYY-MM-DD')||'|'||NVL(tr.tro_numero,0)||'|'
   LEFT JOIN tropas tr ON tr.tro_nroint=p.tro_nroint
  WHERE d.ticd_codigo=$TicdCerdo AND d.desp_fecha>=$d0 AND d.desp_fecha<$d1 AND i.art_codigo IN (18,19)
  GROUP BY d.desp_fecha, tr.tro_numero, tr.tro_cabezas, TRUNC(p.pro_fecha);
+SELECT 'FT|'||t.tro_numero||'|'||TO_CHAR(TRUNC(p.pro_fecha),'YYYY-MM-DD')||'|'||COUNT(*)
+  FROM romaneos r JOIN productos p ON p.pro_numero=r.pro_numero AND p.pro_item=r.pro_item JOIN tropas t ON t.tro_nroint=p.tro_nroint
+ WHERE p.tro_nroint IN (SELECT DISTINCT p2.tro_nroint FROM desposte d JOIN desposteing i ON i.desp_numero=d.desp_numero
+                         JOIN productos p2 ON p2.pro_numero=i.pro_numero AND p2.pro_item=i.pro_item
+                        WHERE d.ticd_codigo=$TicdCerdo AND d.desp_fecha>=$d0 AND d.desp_fecha<$d1 AND i.art_codigo IN (18,19))
+ GROUP BY t.tro_numero, TRUNC(p.pro_fecha);
 SELECT 'IN|'||TO_CHAR(d.desp_fecha,'YYYY-MM-DD')||'|'||i.art_codigo||'|'||$Den||'|'||SUM(NVL(i.despi_canuni,0))||'|'||TO_CHAR(ROUND(SUM(i.despi_kilos),2))
   FROM desposte d JOIN desposteing i ON i.desp_numero=d.desp_numero LEFT JOIN articulos a ON a.art_codigo=i.art_codigo
  WHERE d.ticd_codigo=$TicdCerdo AND d.desp_fecha>=$d0 AND d.desp_fecha<$d1 AND i.art_codigo NOT IN (18,19)
