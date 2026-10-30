@@ -148,24 +148,27 @@ SELECT 'DX|'||c.table_name||'|'||c.column_name||'|'||c.data_type FROM all_tab_co
     if ($pt -gt $pmax) { $pmax = $pt; $mejor = $g }
   }
   $T = $mejor.Name; $cs = $mejor.Group
-  $cL = ($cs | Where-Object { $_.c -like '*LISTA*' -and $_.c -notlike '*DIS*' } | Select-Object -First 1).c
-  $cC = ($cs | Where-Object { $_.c -like '*CAB*' -and $_.c -notlike '*FAE*' } | Select-Object -First 1).c
-  if (-not $cC) { $cC = ($cs | Where-Object { $_.c -like '*CAB*' } | Select-Object -First 1).c }
+  # Lista: en pantalla se ve "P 0" / "A 1" (letra y número). Se juntan las columnas de lista que no son el orden ni la "Lista Dism."
+  # (V_FAENA: FAE_ORDENLISTA es el orden dentro de la lista, no sirve). Cabezas: las del renglón, nunca TRO_CABEZAS (son las de la tropa).
+  $cLs = @($cs | Where-Object { $_.c -like '*LISTA*' -and $_.c -notlike '*ORDEN*' -and $_.c -notlike '*DIS*' })
+  $cL = ($cLs | ForEach-Object { $_.c }) -join '+'
+  $cC = ($cs | Where-Object { $_.c -like '*CAB*' -and $_.c -notlike 'TRO_*' -and $_.c -notlike '*FAE*FAE*' } | Select-Object -First 1).c
+  if (-not $cC) { $cC = ($cs | Where-Object { $_.c -like '*CAB*' -and $_.c -notlike 'TRO_*' } | Select-Object -First 1).c }
   $cF = ($cs | Where-Object { $_.ty -eq 'DATE' -and $_.c -like '*FEC*' } | Select-Object -First 1).c
   if (-not $cF) { $cF = ($cs | Where-Object { $_.ty -eq 'DATE' } | Select-Object -First 1).c }
-  $cN = ($cs | Where-Object { $_.c -like '*NUM*' -and $_.c -ne 'TRO_NROINT' } | Select-Object -First 1).c
+  $cN = ($cs | Where-Object { $_.c -like '*NUM*' -and $_.c -ne 'TRO_NROINT' -and $_.c -notlike 'TRO_*' } | Select-Object -First 1).c
   $todas = ($cs | ForEach-Object { $_.c }) -join ','
-  if (-not ($cL -and $cC -and $cF)) { return @("FX|no|$T|lista=$cL cabezas=$cC fecha=$cF|$todas") }
+  if (-not ($cLs.Count -and $cC -and $cF)) { return @("FX|no|$T|lista=$cL cabezas=$cC fecha=$cF|$todas") }
   $num = if ($cN) { "f.$cN" } else { "''" }
-  $lis = "UPPER(REPLACE(TRIM(TO_CHAR(f.$cL)),' ',''))"
+  $lis = "UPPER(REPLACE(" + (($cLs | ForEach-Object { "TRIM(TO_CHAR(f." + $_.c + "))" }) -join "||") + ",' ',''))"
   $r = Invoke-Sql @"
 SELECT 'FE|'||TO_CHAR(TRUNC(f.$cF),'YYYY-MM-DD')||'|'||t.tro_numero||'|'||$lis||'|'||f.$cC||'|'||$num||'|'||NVL(t.tro_cabezas,0)||'|'||TRIM(t.tro_patente)||'|'||t.cue_codigo||'|'||TRIM(TRANSLATE(NVL(c.cue_denom,' '),CHR(9)||'|','  '))||'|'||TRIM(NVL(l.loc_denom,' '))
   FROM $T f JOIN tropas t ON t.tro_nroint=f.tro_nroint LEFT JOIN cuentas c ON c.cue_codigo=t.cue_codigo LEFT JOIN localidades l ON l.loc_codigo=t.loc_codigo
- WHERE f.$cF >= $d0 AND f.$cC = 1 AND $lis LIKE 'A%';
+ WHERE f.$cF >= $d0 AND f.$cC = 1 AND INSTR($lis,'A') > 0;
 SELECT DISTINCT 'FV|'||$lis FROM $T f WHERE f.$cF >= SYSDATE-60;
 "@
   $vistas = (@($r | Where-Object { $_ -like 'FV|*' } | ForEach-Object { $_.Substring(3) }) | Select-Object -First 12) -join ' '
-  return @("FX|ok|$T|$cL|$cC|$cF|$cN|$vistas") + @($r | Where-Object { $_ -like 'FE|*' })
+  return @("FX|ok|$T|$cL|$cC|$cF|$cN|$vistas|$todas") + @($r | Where-Object { $_ -like 'FE|*' })
 }
 
 $Paso = ''

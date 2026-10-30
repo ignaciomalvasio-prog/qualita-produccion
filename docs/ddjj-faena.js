@@ -35,7 +35,7 @@ function muertosA1() {
   if (!S.anual || !S.anual.fe) return [];
   const otros = (S.anual.mu || []).concat((S.muertos && S.muertos.lista) || []);
   const usados = {};
-  return S.anual.fe.filter(e => /^A1?$/.test(String(e.lista || '').replace(/\s/g, '').toUpperCase()) && e.cab === 1 && e.cabTropa > 1).filter(e => {
+  return S.anual.fe.filter(e => /^(A1?|1A)$/.test(String(e.lista || '').replace(/\s/g, '').toUpperCase()) && e.cab === 1 && e.cabTropa > 1).filter(e => {
     const k = e.tropa + '|' + e.fecha, ya = otros.filter(m => String(m.tropa) === e.tropa && m.fecha === e.fecha && m.lugar === 'CORRAL').reduce((a, m) => a + (Number(m.cab) || 0), 0);
     usados[k] = (usados[k] || 0) + 1;
     return usados[k] > ya;
@@ -54,7 +54,8 @@ function avisoA1() {
   if (x[0] !== 'ok') return '<br><span class="chip sm bad">Muertos A1: no se pudieron leer</span> <span class="muted" style="font-size:12px">' + esc(x.slice(1).join(' · ').slice(0, 300)) + '</span>';
   const fe = S.anual.fe || [], n = muertosA1().length;
   return '<br><span class="muted" style="font-size:12px">Muertos A1: tabla ' + esc(x[1]) + ' (lista ' + esc(x[2]) + ', cabezas ' + esc(x[3]) + ', fecha ' + esc(x[4]) + ') · listas vistas: ' + esc(x[6] || '—') +
-    ' · renglones "A" de 1 cabeza: ' + fe.length + (fe.length ? ' (' + esc([...new Set(fe.map(e => e.lista))].join(', ')) + ')' : '') + ' · agregados: ' + n + '</span>';
+    ' · renglones "A" de 1 cabeza: ' + fe.length + (fe.length ? ' (' + esc([...new Set(fe.map(e => e.lista))].join(', ')) + ')' : '') + ' · agregados: ' + n +
+    (x[7] ? '<br>Columnas de ' + esc(x[1]) + ': ' + esc(x[7]) : '') + '</span>';
 }
 function faenaMes(a, i) {
   const m = a + '-' + pad(i + 1), F = (S.anual ? S.anual.fa : []).filter(x => x.mes === m);
