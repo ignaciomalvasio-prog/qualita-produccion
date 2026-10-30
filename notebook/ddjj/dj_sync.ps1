@@ -65,7 +65,7 @@ SELECT 'TR|'||TO_CHAR(d.desp_fecha,'YYYY-MM-DD')||'|'||NVL(tr.tro_numero,0)||'|'
  GROUP BY d.desp_fecha, tr.tro_numero, tr.tro_cabezas, TRUNC(p.pro_fecha);
 SELECT 'FT|'||t.tro_numero||'|'||TO_CHAR(TRUNC(p.pro_fecha),'YYYY-MM-DD')||'|'||COUNT(*)
   FROM romaneos r JOIN productos p ON p.pro_numero=r.pro_numero AND p.pro_item=r.pro_item JOIN tropas t ON t.tro_nroint=p.tro_nroint
- WHERE p.tro_nroint IN (SELECT DISTINCT p2.tro_nroint FROM desposte d JOIN desposteing i ON i.desp_numero=d.desp_numero
+ WHERE NVL(r.rom_kilos,0) > 0 AND p.tro_nroint IN (SELECT DISTINCT p2.tro_nroint FROM desposte d JOIN desposteing i ON i.desp_numero=d.desp_numero
                          JOIN productos p2 ON p2.pro_numero=i.pro_numero AND p2.pro_item=i.pro_item
                         WHERE d.ticd_codigo=$TicdCerdo AND d.desp_fecha>=$d0 AND d.desp_fecha<$d1 AND i.art_codigo IN (18,19))
  GROUP BY t.tro_numero, TRUNC(p.pro_fecha);
@@ -123,6 +123,51 @@ SELECT 'TQ|'||TO_CHAR(t.tro_fecha,'YYYY-MM')||'|'||t.cue_codigo||'|'||TRIM(TRANS
   return Invoke-Sql $sql
 }
 
+# Muertos de la playa de emergencia (pedido de Sabi 30/10): en la consulta de faena, un renglón de lista A1 con 1 sola cabeza,
+# de una tropa que tiene más animales, es un animal muerto en corrales que pasó por la playa de emergencia.
+# La tabla de la consulta de faena se busca sola en el diccionario de Oracle (la que tiene una columna LISTA y TRO_NROINT).
+#    FE|fecha|tropa|lista|cabezas|número de faena|cabezas de la tropa|patente|cuenta|productor|localidad   (renglones A con 1 cabeza)
+#    FX|ok|tabla|col. lista|col. cabezas|col. fecha|col. número|listas vistas en 60 días   ó   FX|no|lo que se encontró
+function Get-A1 {
+  $d0 = "DATE '$((Get-Date).Year - 1)-01-01'"
+  $dx = Invoke-Sql @"
+SELECT 'DX|'||c.table_name||'|'||c.column_name||'|'||c.data_type FROM all_tab_columns c
+ WHERE c.owner='FRIGO' AND c.table_name IN (SELECT table_name FROM all_tab_columns WHERE owner='FRIGO' AND column_name LIKE '%LISTA%')
+   AND c.table_name IN (SELECT table_name FROM all_tab_columns WHERE owner='FRIGO' AND column_name='TRO_NROINT')
+ ORDER BY c.table_name, c.column_id;
+"@
+  $cols = @($dx | Where-Object { $_ -like 'DX|*' } | ForEach-Object { $p = $_.Split('|'); [pscustomobject]@{ t = $p[1].Trim(); c = $p[2].Trim(); ty = $p[3].Trim() } })
+  if (-not $cols.Count) { return @('FX|no|ninguna tabla con columnas LISTA y TRO_NROINT') }
+  $mejor = $null; $pmax = -1
+  foreach ($g in ($cols | Group-Object t)) {
+    $n = $g.Name; $cs = $g.Group; $pt = 0
+    if ($n -like '*FAE*') { $pt += 3 }
+    if ($cs | Where-Object { $_.c -like '*GARR*' }) { $pt += 2 }
+    if ($cs | Where-Object { $_.c -like '*CAB*' }) { $pt += 1 }
+    if ($cs | Where-Object { $_.ty -eq 'DATE' }) { $pt += 1 }
+    if ($pt -gt $pmax) { $pmax = $pt; $mejor = $g }
+  }
+  $T = $mejor.Name; $cs = $mejor.Group
+  $cL = ($cs | Where-Object { $_.c -like '*LISTA*' -and $_.c -notlike '*DIS*' } | Select-Object -First 1).c
+  $cC = ($cs | Where-Object { $_.c -like '*CAB*' -and $_.c -notlike '*FAE*' } | Select-Object -First 1).c
+  if (-not $cC) { $cC = ($cs | Where-Object { $_.c -like '*CAB*' } | Select-Object -First 1).c }
+  $cF = ($cs | Where-Object { $_.ty -eq 'DATE' -and $_.c -like '*FEC*' } | Select-Object -First 1).c
+  if (-not $cF) { $cF = ($cs | Where-Object { $_.ty -eq 'DATE' } | Select-Object -First 1).c }
+  $cN = ($cs | Where-Object { $_.c -like '*NUM*' -and $_.c -ne 'TRO_NROINT' } | Select-Object -First 1).c
+  $todas = ($cs | ForEach-Object { $_.c }) -join ','
+  if (-not ($cL -and $cC -and $cF)) { return @("FX|no|$T|lista=$cL cabezas=$cC fecha=$cF|$todas") }
+  $num = if ($cN) { "f.$cN" } else { "''" }
+  $lis = "UPPER(REPLACE(TRIM(TO_CHAR(f.$cL)),' ',''))"
+  $r = Invoke-Sql @"
+SELECT 'FE|'||TO_CHAR(TRUNC(f.$cF),'YYYY-MM-DD')||'|'||t.tro_numero||'|'||$lis||'|'||f.$cC||'|'||$num||'|'||NVL(t.tro_cabezas,0)||'|'||TRIM(t.tro_patente)||'|'||t.cue_codigo||'|'||TRIM(TRANSLATE(NVL(c.cue_denom,' '),CHR(9)||'|','  '))||'|'||TRIM(NVL(l.loc_denom,' '))
+  FROM $T f JOIN tropas t ON t.tro_nroint=f.tro_nroint LEFT JOIN cuentas c ON c.cue_codigo=t.cue_codigo LEFT JOIN localidades l ON l.loc_codigo=t.loc_codigo
+ WHERE f.$cF >= $d0 AND f.$cC = 1 AND $lis LIKE 'A%';
+SELECT DISTINCT 'FV|'||$lis FROM $T f WHERE f.$cF >= SYSDATE-60;
+"@
+  $vistas = (@($r | Where-Object { $_ -like 'FV|*' } | ForEach-Object { $_.Substring(3) }) | Select-Object -First 12) -join ' '
+  return @("FX|ok|$T|$cL|$cC|$cF|$cN|$vistas") + @($r | Where-Object { $_ -like 'FE|*' })
+}
+
 $Paso = ''
 try {
   if (-not $SqlPlus) { throw 'No encuentro sqlplus.exe (el cliente de Oracle) en esta PC' }
@@ -132,6 +177,9 @@ try {
   $datos = @{}
   foreach ($m in $meses) { $Paso = "leer el mes $m"; $datos[$m] = ((Get-DJ $m) | Where-Object { "$_".Trim() -ne '' }) -join "`n" }
   $Paso = 'leer faena y mortalidad'; $anual = ((Get-Anual) | Where-Object { "$_".Trim() -ne '' }) -join "`n"
+  $Paso = 'buscar muertos de la playa de emergencia (A1)'
+  try { $anual += "`n" + (((Get-A1) | Where-Object { "$_".Trim() -ne '' }) -join "`n") }
+  catch { $m1 = ($_.Exception.Message -replace '[\r\n|]+', ' '); $anual += "`nFX|no|error: " + $m1.Substring(0, [Math]::Min(200, $m1.Length)) }
   # Si el sistema no devolvió nada (ni siquiera la hora), no se sube nada: así nunca se pisan los datos de la web con vacío.
   foreach ($x in @($datos.Values) + @($anual)) {
     if ("$x" -notmatch '(^|\n)OK\|') {

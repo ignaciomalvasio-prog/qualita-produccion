@@ -15,21 +15,42 @@ const pct2 = v => (v == null || !isFinite(v)) ? '' : (v * 100).toLocaleString('e
 const titulo = s => String(s || '').toLowerCase().replace(/(^|[\s(])\S/g, c => c.toUpperCase()).replace(/ S\.a\./g, ' S.A.');
 
 function parseAnual(txt) {
-  const o = { hora: '', fa: [], mu: [], tq: [] };
+  const o = { hora: '', fa: [], mu: [], tq: [], fe: [], fx: null };
   for (const l of String(txt || '').split(/\r?\n/)) {
     const p = l.replace(/^﻿/, '').split('|');
     if (p[0] === 'OK') o.hora = p[1];
     else if (p[0] === 'FA') o.fa.push({ mes: p[1], propia: p[2] === '1', cab: num(p[3]), kg: num(p[4]), dias: num(p[5]) });
     else if (p[0] === 'MU') o.mu.push({ fecha: p[1], tropa: p[2], cab: num(p[3]), lugar: p[4] === 'C' ? 'CORRAL' : 'VIAJE', patente: p[5], cue: +p[6], prod: p[7], loc: p[8], obs: p[9], sis: true });
+    else if (p[0] === 'FE') o.fe.push({ fecha: p[1], tropa: String(p[2] || '').trim(), lista: p[3], cab: num(p[4]), nro: p[5], cabTropa: num(p[6]), patente: p[7], cue: +p[8], prod: p[9], loc: p[10] });
+    else if (p[0] === 'FX') o.fx = p.slice(1);
     else if (p[0] === 'TQ') o.tq.push({ mes: p[1], cue: +p[2], prod: p[3], loc: p[4], tropas: num(p[5]), cab: num(p[6]) });
   }
   return o;
 }
 
-/* todos los muertos del año (sistema + cargados a mano) */
+/* Muertos de la playa de emergencia (pedido de Sabi 30/10): en la consulta de faena, un renglón de lista A1 con 1 sola cabeza
+   de una tropa de más de un animal es un animal muerto en corrales (si la tropa es solo ese animal, no cuenta). Renglones FE de dj_sync.ps1.
+   Si el mismo muerto ya está en la tabla de muertos del sistema o cargado a mano (misma tropa y fecha, en corral), no se repite. */
+function muertosA1() {
+  if (!S.anual || !S.anual.fe) return [];
+  const otros = (S.anual.mu || []).concat((S.muertos && S.muertos.lista) || []);
+  const usados = {};
+  return S.anual.fe.filter(e => /^A1?$/.test(String(e.lista || '').replace(/\s/g, '').toUpperCase()) && e.cab === 1 && e.cabTropa > 1).filter(e => {
+    const k = e.tropa + '|' + e.fecha, ya = otros.filter(m => String(m.tropa) === e.tropa && m.fecha === e.fecha && m.lugar === 'CORRAL').reduce((a, m) => a + (Number(m.cab) || 0), 0);
+    usados[k] = (usados[k] || 0) + 1;
+    return usados[k] > ya;
+  }).map(e => ({ fecha: e.fecha, tropa: e.tropa, cab: 1, lugar: 'CORRAL', patente: e.patente, cue: e.cue, prod: e.prod, loc: e.loc, obs: 'Playa de emergencia (A1' + (e.nro ? ', faena N° ' + e.nro : '') + ')', a1: true }));
+}
+/* todos los muertos del año (sistema + playa de emergencia A1 + cargados a mano) */
 function muertosAnio(a) {
   const man = ((S.muertos && S.muertos.lista) || []).map(m => Object.assign({ man: true }, m));
-  return (S.anual ? S.anual.mu : []).concat(man).filter(m => m.fecha.startsWith(String(a))).sort((x, y) => x.fecha.localeCompare(y.fecha));
+  return (S.anual ? S.anual.mu : []).concat(muertosA1(), man).filter(m => m.fecha.startsWith(String(a))).sort((x, y) => x.fecha.localeCompare(y.fecha));
+}
+/* si la notebook no encontró la tabla de la consulta de faena, se avisa con lo que vio (para corregir dj_sync.ps1) */
+function avisoA1() {
+  const x = S.anual && S.anual.fx;
+  if (!x || x[0] === 'ok' || soloVer()) return '';
+  return '<br><span class="chip sm bad">Muertos A1: no se pudieron leer</span> <span class="muted" style="font-size:12px">' + esc(x.slice(1).join(' · ').slice(0, 300)) + '</span>';
 }
 function faenaMes(a, i) {
   const m = a + '-' + pad(i + 1), F = (S.anual ? S.anual.fa : []).filter(x => x.mes === m);
@@ -88,9 +109,10 @@ function renderFaena() {
     meses.filter(i => TQ.some(t => Number(t.mes.slice(5, 7)) === i + 1)).map(i => '<tr><td><b>' + MESES[i] + '</b></td>' + fila('', TQ.filter(t => Number(t.mes.slice(5, 7)) === i + 1), MQ.filter(m => Number(m.fecha.slice(5, 7)) === i + 1)) + '</tr>').join('') + '</tbody></table></div></section>';
 
   /* ---- listado ---- */
-  h += '<section><div class="dj-top"><div><h2>Muertos ' + A + ' (' + z0(tm) + ')</h2><p class="sub" style="margin:0">Del sistema y cargados a mano.</p></div>' + (soloVer() ? '' : '<button class="primary" onclick="agregarMuerto()">+ Agregar un muerto que no está en el sistema</button>') + '</div>';
+  h += '<section><div class="dj-top"><div><h2>Muertos ' + A + ' (' + z0(tm) + ')</h2><p class="sub" style="margin:0">Del sistema, de la playa de emergencia (renglones A1 de la consulta de faena, marcados) y cargados a mano.' + avisoA1() + '</p></div>' + (soloVer() ? '' : '<button class="primary" onclick="agregarMuerto()">+ Agregar un muerto que no está en el sistema</button>') + '</div>';
   h += '<div class="tw" style="max-height:520px"><table class="planilla dj-rm"><thead><tr><th>Fecha</th><th>Tropa</th><th class="num">Cant.</th><th>Lugar</th><th>Jaula</th><th>Productor</th><th>Granja</th><th>Observación</th><th></th></tr></thead><tbody>' +
     MU.slice().reverse().map(m => '<tr><td>' + ddmm(m.fecha) + '</td><td>' + esc(m.tropa) + '</td><td class="num">' + z0(m.cab) + '</td><td>' + esc(m.lugar) + '</td><td>' + esc(m.patente || '') + '</td><td>' + esc(titulo(m.prod)) + '</td><td>' + esc(titulo(m.loc)) + '</td><td class="muted">' + esc(m.obs || '') + '</td><td>' +
+      (m.a1 ? '<span class="chip sm info" title="Renglón A1 de la consulta de faena: animal muerto en corrales que pasó por la playa de emergencia">emergencia A1</span>' : '') +
       (m.man ? '<span class="chip sm warn">a mano</span>' + (soloVer() ? '' : ' <button class="small danger" onclick="borrarMuerto(\'' + esc(m.id) + '\')">✕</button>') : '') + '</td></tr>').join('') + '</tbody></table></div></section>';
   $('main').innerHTML = h;
 }
@@ -158,7 +180,7 @@ function excelFaena() {
   for (let i = 0; i < 12; i++) { const x = faenaMes(A, i), y = faenaMes(A - 1, i); f1.push([MESES[i].toUpperCase(), y.cab || '', x.cab || '', x.kg || '', x.cabP || '', x.kgP || '', x.cabU || '', x.kgU || '', x.dias || '', x.dias ? Math.round(x.cab / x.dias * 10) / 10 : '']); }
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(f1), 'FAENA');
   const f2 = [['TROPA', 'FECHA', 'CANTIDAD', 'LUGAR', 'JAULA', 'GRANJA', 'LOCALIDAD', 'ORIGEN', 'OBSERVACIÓN']];
-  for (const m of muertosAnio(A)) f2.push([m.tropa, fechaDe(m.fecha), m.cab, m.lugar, m.patente || '', m.prod || '', m.loc || '', m.man ? 'A mano' : 'Sistema', m.obs || '']);
+  for (const m of muertosAnio(A)) f2.push([m.tropa, fechaDe(m.fecha), m.cab, m.lugar, m.patente || '', m.prod || '', m.loc || '', m.man ? 'A mano' : m.a1 ? 'Playa de emergencia (A1)' : 'Sistema', m.obs || '']);
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(f2, { cellDates: true }), 'MUERTOS ' + A);
   XLSX.writeFile(wb, 'Faena y mortalidad ' + A + '.xlsx');
 }

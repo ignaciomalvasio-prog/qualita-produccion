@@ -164,11 +164,12 @@ function calcular(f) {
   return { medias, enteras, descEn, prod, ingreso, rendKg: r2(rend.reduce((a, r) => a + r.kg, 0)), rend, nuevos, hay: d.tr.length + d.re.length > 0, d };
 }
 
-/* Muertos por número de tropa: los del sistema (dj-anual, MU) más los cargados a mano en Faena y mortalidad */
+/* Muertos por número de tropa: los del sistema (dj-anual, MU), los de la playa de emergencia (A1) y los cargados a mano en Faena y mortalidad */
 function muertosPorTropa() {
   const o = {};
   const sum = m => { const k = String(m.tropa || '').trim(); if (k) o[k] = (o[k] || 0) + (Number(m.cab) || 0); };
   ((S.anual && S.anual.mu) || []).forEach(sum);
+  if (typeof muertosA1 === 'function') muertosA1().forEach(sum);   // playa de emergencia (A1)
   ((S.muertos && S.muertos.lista) || []).forEach(sum);
   return o;
 }
