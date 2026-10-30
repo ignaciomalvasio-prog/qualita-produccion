@@ -81,6 +81,22 @@ SELECT 'RP|'||r.desp_numero||'|'||d.desp_numero||'|'||TO_CHAR(d.desp_fecha,'YYYY
  WHERE r.desp_numero IN ($D1) GROUP BY r.desp_numero, d.desp_numero, d.desp_fecha, d.ticd_codigo;
 "@
     $out += $c
+    # Tropa de cada caja (desposteres.despr_tropa, pedido de Sabi 30/10): si el desposte tiene cajas con tropa, se cuentan solo las de esta
+    # tropa (las que no tienen tropa no se tienen en cuenta) y lo producido, vendido, stock y bajas sale exacto.
+    #    PT|desposte|tropa de la caja ('?' si vacía)|cajas|kg
+    #    SX|desposte|cajas de esta tropa|kg|kg que pasaron a otro desposte (bajas)|kg en stock      VX/RX = VE/RI solo con las cajas de esta tropa
+    $XT = "SELECT r.desp_numero src, r.pro_numero, r.pro_item FROM desposteres r WHERE r.desp_numero IN ($D1) AND (TRIM(r.despr_tropa)='$V' OR TRIM(r.despr_tropa) LIKE '%$V')"
+    $out += Invoke-Sql @"
+SELECT 'PT|'||r.desp_numero||'|'||NVL(TRIM(r.despr_tropa),'?')||'|'||COUNT(*)||'|'||TO_CHAR(ROUND(SUM(r.despr_kilos),2))
+  FROM desposteres r WHERE r.desp_numero IN ($D1) GROUP BY r.desp_numero, NVL(TRIM(r.despr_tropa),'?');
+SELECT 'SX|'||r.desp_numero||'|'||COUNT(*)||'|'||TO_CHAR(ROUND(SUM(r.despr_kilos),2))||'|'||
+  TO_CHAR(ROUND(SUM(CASE WHEN EXISTS(SELECT 1 FROM desposteing i WHERE i.pro_numero=r.pro_numero AND i.pro_item=r.pro_item) THEN r.despr_kilos ELSE 0 END),2))||'|'||
+  TO_CHAR(ROUND(SUM(CASE WHEN NOT EXISTS(SELECT 1 FROM remitosdet rd WHERE rd.pro_numero=r.pro_numero AND rd.pro_item=r.pro_item)
+                          AND NOT EXISTS(SELECT 1 FROM desposteing i WHERE i.pro_numero=r.pro_numero AND i.pro_item=r.pro_item)
+                          AND NOT EXISTS(SELECT 1 FROM remitosintdet x WHERE x.pro_numero=r.pro_numero AND x.pro_item=r.pro_item) THEN r.despr_kilos ELSE 0 END),2))
+  FROM desposteres r WHERE r.desp_numero IN ($D1) AND (TRIM(r.despr_tropa)='$V' OR TRIM(r.despr_tropa) LIKE '%$V') GROUP BY r.desp_numero;
+"@
+    $out += @(Invoke-Sql (& $ventas $XT)) | ForEach-Object { $_ -replace '^VE\|', 'VX|' -replace '^RI\|', 'RX|' }
     $D = EnLista (@((Lista $b 'D1' 1)) + @((Lista $c 'RP' 2)) | Select-Object -Unique)
     $X = "SELECT r.desp_numero src, r.pro_numero, r.pro_item FROM desposteres r WHERE r.desp_numero IN ($D)"
     $out += Invoke-Sql (@"

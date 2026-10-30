@@ -9,7 +9,7 @@ const tipoD = t => TICD[t] || 'Tipo ' + t;
 let esperandoTraza = null;
 
 function parseTraza(txt) {
-  const o = { hora: '', tt: [], tm: [], dp: [], dt: [], rp: [], sr: {}, ve: [], ri: [], pr: [], dr: [], ti: [], tf: [] };
+  const o = { hora: '', tt: [], tm: [], dp: [], dt: [], rp: [], sr: {}, ve: [], ri: [], pr: [], dr: [], ti: [], tf: [], pt: {}, sx: {}, vx: [], rx: [] };
   for (const l of String(txt || '').split(/\r?\n/)) {
     const p = l.replace(/^\uFEFF/, '').split('|'), t = p[0];
     if (t === 'OK') o.hora = p[1];
@@ -18,6 +18,10 @@ function parseTraza(txt) {
     else if (t === 'DP') o.dp.push({ desp: p[1], fecha: p[2], ticd: +p[3], mias: num(p[4]), total: num(p[5]), kg: num(p[6]), tkg: p[7] == null ? null : num(p[7]) });
     else if (t === 'DT') o.dt.push({ desp: p[1], tropa: p[2], medias: num(p[3]) });
     else if (t === 'RP') o.rp.push({ orig: p[1], desp: p[2], fecha: p[3], ticd: +p[4], cajas: num(p[5]), kg: num(p[6]) });
+    else if (t === 'PT') (o.pt[p[1]] = o.pt[p[1]] || []).push({ tropa: String(p[2] || '').trim(), cajas: num(p[3]), kg: num(p[4]) });
+    else if (t === 'SX') o.sx[p[1]] = { cajas: num(p[2]), kg: num(p[3]), baj: num(p[4]), stock: num(p[5]) };
+    else if (t === 'VX') o.vx.push({ src: p[1], fecha: p[2], rem: p[3], cue: p[4], cli: p[5], art: p[6], den: p[7], cajas: num(p[8]), kg: num(p[9]) });
+    else if (t === 'RX') o.rx.push({ src: p[1], fecha: p[2], num: p[3], de: p[4], a: p[5], cajas: num(p[6]), kg: num(p[7]) });
     else if (t === 'SR') o.sr[p[1]] = { cajas: num(p[2]), kg: num(p[3]), vend: num(p[4]), repr: num(p[5]), int: num(p[6]), stock: p[7] == null ? null : num(p[7]) };
     else if (t === 'VE') o.ve.push({ src: p[1], fecha: p[2], rem: p[3], cue: p[4], cli: p[5], art: p[6], den: p[7], cajas: num(p[8]), kg: num(p[9]) });
     else if (t === 'RI') o.ri.push({ src: p[1], fecha: p[2], num: p[3], de: p[4], a: p[5], cajas: num(p[6]), kg: num(p[7]) });
@@ -37,6 +41,12 @@ function parseTraza(txt) {
     const propios = new Set(o.dp.filter(d => d.ticd === 2).map(d => String(d.desp)).concat(['0']));
     o.ve = o.ve.filter(v => propios.has(String(v.src)));
     o.ri = o.ri.filter(v => propios.has(String(v.src)));
+  }
+  /* despostes con la tropa en las cajas (pedido de Sabi 30/10): solo las cajas de esta tropa; las que no tienen tropa no cuentan */
+  o.exactos = new Set(Object.keys(o.pt).filter(k => o.pt[k].some(x => x.tropa && x.tropa !== '?')));
+  if (o.exactos.size) {
+    o.ve = o.ve.filter(v => !o.exactos.has(String(v.src))).concat(o.vx.filter(v => o.exactos.has(String(v.src))));
+    o.ri = o.ri.filter(v => !o.exactos.has(String(v.src))).concat(o.rx.filter(v => o.exactos.has(String(v.src))));
   }
   /* la misma venta en dos despostes (consultas hechas antes del arreglo de dj_traza.ps1): se cuenta una sola vez, en el desposte de número menor */
   const vistos = new Map();
@@ -99,14 +109,21 @@ const ddmmaa = iso => iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso
 const pie = (T, R) => '<p class="muted" style="font-size:12.5px">Sistema al ' + esc(ddmmaa(R.hora.slice(0, 10)) + ' ' + R.hora.slice(11)) + ' · consultó ' + esc(T.por || '') + '</p>';
 
 /* ---------- resultado por tropa ---------- */
-/* Parte de la tropa en cada desposte (pedido de Sabi 30/10): las cajas no llevan la tropa (solo las medias de la solapa Ingreso),
-   así que lo producido y lo vendido se le asignan en proporción a los kg de sus medias sobre todo lo que entró a ese desposte.
-   Medias enteras (src 0) = 100 %. null = consulta vieja sin el dato. */
-function parteTropa(R) {
-  const P = { '0': 1 };
-  for (const d of R.dp) P[String(d.desp)] = d.tkg == null ? null : (d.kg ? Math.min(1, d.tkg / d.kg) : 0);
-  return P;
+/* Lo que le corresponde a la tropa en cada desposte (pedido de Sabi 30/10).
+   Exacto: si el desposte tiene cajas con tropa (desposteres.despr_tropa): solo las cajas de esta tropa (SX, VX, RX); las que no tienen tropa no cuentan.
+   Si no, proporcional: kg de las medias de la tropa ÷ kg que entraron al desposte. Medias enteras (src 0) = 100 %.
+   { f: factor para las ventas de ese desposte (1 si exacto), parte: parte de la tropa en lo producido, prod, baj, stock, exacto } (null = falta el dato) */
+function infoTropa(R) {
+  const I = { '0': { f: 1, parte: 1, exacto: true } }, ex = R.exactos || new Set();
+  for (const d of R.dp) {
+    const k = String(d.desp), s = R.sr[k] || {}, prod = Number(s.kg) || 0;
+    if (ex.has(k)) { const x = R.sx[k] || { kg: 0, baj: 0, stock: 0 }; I[k] = { f: 1, parte: prod ? x.kg / prod : 0, prod: x.kg, baj: x.baj, stock: x.stock, exacto: true }; continue; }
+    const f = d.tkg == null ? null : (d.kg ? Math.min(1, d.tkg / d.kg) : 0);
+    I[k] = { f, parte: f, prod: f == null ? null : prod * f, baj: null, stock: s.stock == null || f == null ? null : s.stock * f, exacto: false };
+  }
+  return I;
 }
+function parteTropa(R) { const I = infoTropa(R), P = {}; for (const k of Object.keys(I)) P[k] = I[k].f; return P; }
 const pctTropa = x => (x * 100).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' %';
 function trazaTropa(R, T) {
   if (!R.tt.length) return '<section><div class="alerta warn">No existe la tropa ' + esc(T.valor) + ' en el sistema.</div></section>';
@@ -122,11 +139,13 @@ function trazaTropa(R, T) {
   const dpC = R.dp.filter(d => d.ticd === 2);
   if (dpC.length) {
     h += '<section><h3 class="dj-h3" style="margin-top:0">1 · Despostes donde entró</h3><div class="tw"><table class="planilla dj-tab"><thead><tr><th>Desposte</th><th>Fecha</th><th class="num">Medias de esta tropa</th><th>Otras tropas en el mismo desposte</th><th class="num">Cajas</th><th class="num">Kg producidos</th><th class="num">Kg que entraron de esta tropa</th><th class="num">Parte de la tropa</th><th class="num">Producido de la tropa</th></tr></thead><tbody>';
+    const IT = infoTropa(R);
     for (const d of dpC.sort((a, b) => a.fecha.localeCompare(b.fecha))) {
       const s = R.sr[d.desp] || {};
       h += '<tr><td>N° ' + esc(d.desp) + (d.ticd !== 2 ? ' <span class="muted">' + esc(tipoD(d.ticd)) + '</span>' : '') + '</td><td>' + ddmmaa(d.fecha) + '</td><td class="num">' + fmt0(d.mias) + ' de ' + fmt0(d.total) + '</td><td>' +
         (otras(d.desp).map(x => lnkT(x.tropa) + ' <span class="muted">(' + fmt0(x.medias) + ')</span>').join(', ') || '<span class="muted">ninguna</span>') + '</td><td class="num">' + fmt0(s.cajas) + '</td><td class="num">' + fmt0(s.kg) + '</td>' +
-        (d.tkg == null ? '<td colspan="3" class="muted" style="font-size:12px">volvé a consultar la tropa</td>' : '<td class="num">' + fmt0(d.tkg) + '</td><td class="num">' + pctTropa(d.kg ? d.tkg / d.kg : 0) + '</td><td class="num"><b>' + fmt0((Number(s.kg) || 0) * (d.kg ? Math.min(1, d.tkg / d.kg) : 0)) + '</b></td>') + '</tr>';
+        (IT[d.desp] && IT[d.desp].parte != null ? '<td class="num">' + (d.tkg == null ? '' : fmt0(d.tkg)) + '</td><td class="num">' + pctTropa(IT[d.desp].parte) + '</td><td class="num"><b>' + fmt0(IT[d.desp].prod) + '</b><div class="muted" style="font-size:11px">' + (IT[d.desp].exacto ? 'solo cajas con esta tropa' : 'proporcional') + '</div></td>'
+          : '<td colspan="3" class="muted" style="font-size:12px">volvé a consultar la tropa</td>') + '</tr>';
     }
     h += '</tbody></table></div>';
     h += '<p class="muted" style="font-size:12.5px;margin-top:6px">Las cajas de un desposte no se separan por tropa: todo lo que salió de un desposte donde entró esta tropa puede tener carne de ella.</p></section>';
@@ -136,10 +155,14 @@ function trazaTropa(R, T) {
   h += '<section><h3 class="dj-h3" style="margin-top:0">2 · A quién se vendió</h3>';
   if (!R.ve.length) h += '<p class="muted">Todavía no hay ventas registradas con estas medias o cajas.</p>';
   else {
-    const cl = {}, PT = parteTropa(R), conP = R.ve.every(v => PT[String(v.src)] != null), kT = v => v.kg * (PT[String(v.src)] || 0);
+    const IT = infoTropa(R), PT = parteTropa(R), conP = R.ve.every(v => PT[String(v.src)] != null), kT = v => v.kg * (PT[String(v.src)] || 0);
+    /* total vendido de la tropa: exacto por desposte cuando el sistema tiene la tropa en las cajas; si no, proporcional */
+    const srcs = [...new Set(R.ve.map(v => String(v.src)))], exactoTodo = srcs.every(k => IT[k] && IT[k].exacto);
+    const venTropa = R.ve.reduce((a, v) => a + kT(v), 0);
+    const cl = {};
     for (const v of R.ve) { const c = cl[v.cue] || (cl[v.cue] = { cli: v.cli, cue: v.cue, cajas: 0, kg: 0, kgT: 0, rem: new Set(), ven: [] }); c.cajas += v.cajas; c.kg += v.kg; c.kgT += kT(v); c.rem.add(v.rem); c.ven.push(v); }
     const lista = Object.values(cl).sort((a, b) => b.kg - a.kg);
-    h += '<p class="sub" style="margin:0 0 6px">' + lista.length + (lista.length === 1 ? ' cliente · ' : ' clientes · ') + fmt0(R.ve.reduce((a, v) => a + v.cajas, 0)) + ' cajas o piezas · ' + fmt0(R.ve.reduce((a, v) => a + v.kg, 0)) + ' kg' + (conP ? ', de los que le corresponden a esta tropa <b>' + fmt0(R.ve.reduce((a, v) => a + kT(v), 0)) + ' kg</b> (en proporción a lo que aportó a cada desposte)' : '') + '. Tocá un cliente para ver los remitos.</p>';
+    h += '<p class="sub" style="margin:0 0 6px">' + lista.length + (lista.length === 1 ? ' cliente · ' : ' clientes · ') + fmt0(R.ve.reduce((a, v) => a + v.cajas, 0)) + ' cajas o piezas · ' + fmt0(R.ve.reduce((a, v) => a + v.kg, 0)) + ' kg' + (conP ? ', de los que le corresponden a esta tropa <b>' + fmt0(venTropa) + ' kg</b>' + (exactoTodo ? ' (solo las cajas con esta tropa)' : ' (las cajas con esta tropa y, en los despostes sin tropa en las cajas, en proporción a lo que aportó)') : '') + '. Tocá un cliente para ver los remitos.</p>';
     h += '<div class="tw"><table class="planilla dj-tab"><thead><tr><th>Cliente</th><th class="num">Remitos</th><th class="num">Cajas</th><th class="num">Kg</th>' + (conP ? '<th class="num">Kg de esta tropa</th>' : '') + '</tr></thead><tbody>';
     for (const c of lista) {
       const ab = S.abierto['tz|' + c.cue];
@@ -210,22 +233,22 @@ function balanceMasas(R, T) {
   const lotes = R.dp.filter(d => d.ticd === 2).sort((a, b) => a.fecha.localeCompare(b.fecha));
   if (lotes.length) {
     h += '<h4 class="dj-h3">c) Kg producidos por lote (desposte), parte de esta tropa</h4><div class="tw"><table class="planilla dj-tab"><thead><tr><th>Lote</th><th class="num">Kg producidos</th><th class="num">Expedidos (ventas)</th><th class="num">Pases internos</th><th class="num">Bajas documentadas</th><th class="num">En stock</th><th class="num">% conciliación</th></tr></thead><tbody>';
-    const tot = [0, 0, 0, 0, 0];
+    const tot = [0, 0, 0, 0, 0], IT = infoTropa(R);
     for (const d of lotes) {
-      const k = String(d.desp), s = R.sr[k] || {}, f = d.tkg == null ? 1 : (d.kg ? Math.min(1, d.tkg / d.kg) : 0);   // parte de la tropa en el lote
-      const prod = (Number(s.kg) || 0) * f;
+      const k = String(d.desp), s = R.sr[k] || {}, it = IT[k] || {}, f = it.f == null ? 1 : it.f, parte = it.parte == null ? 1 : it.parte;
+      const prod = it.exacto ? it.prod : (Number(s.kg) || 0) * f;
       const ven = sum(R.ve, v => String(v.src) === k) * f, pas = sum(R.ri, x => String(x.src) === k) * f;
-      const rep = 0, baj = sum(R.rp, x => String(x.orig) === k && String(x.desp) !== k) * f;   // reprocesos y rendering: bajas documentadas (lo reprocesado no se detalla)
-      const st = s.stock == null ? null : s.stock * f;
+      const rep = 0, baj = it.exacto ? it.baj : sum(R.rp, x => String(x.orig) === k && String(x.desp) !== k) * f;   // reprocesos y rendering: bajas documentadas
+      const st = it.exacto ? it.stock : (s.stock == null ? null : s.stock * f);
       [prod, ven, pas, baj, st || 0].forEach((v, i) => { tot[i] += v; });
       const conc = st == null ? null : (ven + pas + rep + baj + st) / (prod || 1) * 100;
-      h += '<tr><td>N° ' + esc(k) + ' <span class="muted">' + ddmmaa(d.fecha) + (d.tkg == null ? '' : ' · ' + pctTropa(f)) + '</span></td><td class="num"><b>' + fmt0(prod) + '</b></td><td class="num">' + kg(ven) + '</td><td class="num">' + kg(pas) + '</td><td class="num">' + kg(baj) + '</td><td class="num">' + (st == null ? nuevo : kg(st)) + '</td>' +
+      h += '<tr><td>N° ' + esc(k) + ' <span class="muted">' + ddmmaa(d.fecha) + (it.parte == null ? '' : ' · ' + pctTropa(parte) + (it.exacto ? ' (cajas con tropa)' : '')) + '</span></td><td class="num"><b>' + fmt0(prod) + '</b></td><td class="num">' + kg(ven) + '</td><td class="num">' + kg(pas) + '</td><td class="num">' + kg(baj) + '</td><td class="num">' + (st == null ? nuevo : kg(st)) + '</td>' +
         '<td class="num">' + (conc == null ? '' : (Math.abs(conc - 100) > 2 ? '<span class="chip sm ' + (conc > 100 ? 'bad' : 'warn') + '">' + pc(ven + pas + rep + baj + st, prod) + '</span>' : pc(ven + pas + rep + baj + st, prod))) + '</td></tr>';
     }
     const sinS = lotes.some(d => (R.sr[String(d.desp)] || {}).stock == null);
     if (lotes.length > 1) h += '<tr class="tot"><td>Total</td>' + tot.map(v => '<td class="num">' + fmt0(v) + '</td>').join('') + '<td class="num">' + (sinS ? '' : pc(tot[1] + tot[2] + tot[3] + tot[4], tot[0])) + '</td></tr>';
     h += '</tbody></table></div><p class="muted" style="font-size:12.5px;margin:4px 0 0">% conciliación = (expedidos + pases internos + bajas documentadas + stock) ÷ kg producidos × 100. Bajas documentadas: lo que salió del lote a otro desposte (rendering u otros). Expedidos con los kg del remito; el resto con los kg de producción. ' +
-      'Como las cajas no llevan la tropa, a esta tropa le corresponde de cada lote la parte de lo que aportó (kg de sus medias ÷ kg que entraron al desposte; el % al lado del lote). Más de 100 % (en rojo) = se expidió más de lo producido: revisar.</p>';
+      'Si las cajas del desposte tienen tropa, se cuentan solo las de esta tropa (las que no tienen tropa no se tienen en cuenta); si no, a la tropa le corresponde la parte de lo que aportó (kg de sus medias ÷ kg que entraron al desposte). El % al lado del lote es esa parte. Más de 100 % (en rojo) = se expidió más de lo producido: revisar.</p>';
   }
   return h + '</section>';
 }

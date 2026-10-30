@@ -18,6 +18,15 @@ const ver=async(traza,w)=>{const p=await b.newPage({viewport:{width:w,height:900
  await p.click('#nav a[data-t="traza"]');await p.waitForTimeout(500);
  const txt=await p.evaluate(()=>document.getElementById('main').innerText);const des=await p.evaluate(()=>document.documentElement.scrollWidth-innerWidth);
  await p.close();return {txt,errs,des};};
+// cajas con tropa (desposteres.despr_tropa): en el 416191 solo cuentan las de esta tropa; las sin tropa no
+{const T2=Object.assign({},T,{res:T.res+'\n'+['PT|416191|261791|100|2600','PT|416191|261790|180|5000','PT|416191|?|20|400','SX|416191|100|2600|100|2440',
+  'VX|416191|2026-10-23|R 0001-00099999|502|CLIENTE DE LA TROPA|101|BONDIOLA|2|40'].join('\n')});
+ const r=await ver(T2,1100);const t=r.txt.replace(/\s+/g,' ');
+ ok(/CLIENTE DE LA TROPA 1 2 40,00 40,00/.test(t),'cajas con tropa: el cliente de las cajas de esta tropa cuenta entero (40 kg)');
+ ok(/CARNICERIA EJEMPLO 1 3 60,00 22,00/.test(t),'desposte sin tropa en las cajas (416196): en proporción (36,7 % de 60 = 22)');
+ ok(/2\.600 solo cajas con esta tropa/.test(t),'despostes: producido de la tropa exacto (2.600)');
+ ok(/N° 416191 22\/10\/26 · 32,5 % \(cajas con tropa\) 2\.600 40 — 100 2\.440 99,2 %/.test(t),'balance del lote con las cajas de la tropa');
+ ok(!r.errs.length,'errores: '+(r.errs.join('|')||'ninguno'));}
 for(const w of [1100,400]){
  let r=await ver(T,w);
  if(w===1100){
