@@ -26,6 +26,12 @@ function parseTraza(txt) {
     else if (t === 'TI') o.ti.push({ nivel: +p[1], desp: p[2], tropa: p[3], prod: p[4], faena: p[5], medias: num(p[6]), kg: num(p[7]) });
     else if (t === 'TF') o.tf.push({ tropa: p[1], fecha: p[2], cab: num(p[3]), prod: p[4], loc: p[5] });
   }
+  /* solo desposte cerdo (pedido de Sabi 29 y 30/10): las ventas y pases internos de lo que salió de despostes de rendering, menudencias,
+     chacinados, tipo 5, etc. (ej. harina de carne y hueso del 416192) no van */
+  const otros = new Set();
+  o.rp.concat(o.dp, o.dr).forEach(d => { if (d.ticd && d.ticd !== 2) otros.add(String(d.desp)); });
+  o.ve = o.ve.filter(v => !otros.has(String(v.src)));
+  o.ri = o.ri.filter(v => !otros.has(String(v.src)));
   return o;
 }
 
