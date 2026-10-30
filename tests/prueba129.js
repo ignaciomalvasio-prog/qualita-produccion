@@ -31,8 +31,10 @@ for(const w of [1100,400]){
   const bm=r.txt.slice(r.txt.indexOf('3 · Balance de masas')).replace(/\s+/g,' ');console.log('balance:',bm.slice(0,700));
   ok(/Conciliación 160 159 1 0 100,0 %/.test(bm),'a) animales: 160 = 159 faenados + 1 diferencia');
   ok(/5\.100 — 4\.900 200 96,1 %/.test(bm),'b) kg de medias: 5.100 = 4.900 a desposte + 200 de oreo');
-  ok(/N° 416191 22\/10\/26 8\.000 60 — 300 7\.640 100,0 %/.test(bm)&&!/Reprocesado/.test(bm),'c) lote 416191: 8.000 = 60 vendidos + 300 bajas + 7.640 stock → 100 %, sin columna de reprocesado');
-  ok(/N° 416196 23\/10\/26 6\.000 — — 140 5\.860 100,0 %/.test(bm),'c) lote 416196 → 100 %');
+  ok(/N° 416191 22\/10\/26 · 33,8 % 2\.700 20 — 101 2\.579 100,0 %/.test(bm)&&!/Reprocesado/.test(bm),'c) lote 416191, parte de la tropa (33,8 %): 2.700 = 20 + 101 + 2.579 → 100 %');
+  ok(/N° 416196 23\/10\/26 · 36,7 % 2\.200 — — 51 2\.149 100,0 %/.test(bm),'c) lote 416196, parte de la tropa → 100 %');
+  ok(/de los que le corresponden a esta tropa 20 kg/.test(r.txt),'clientes: kg que le corresponden a la tropa');
+  ok(/N° 416191 22\/10\/26 100 de 300 ninguna 300 8\.000 2\.700 33,8 % 2\.700/.test(r.txt.replace(/\s+/g,' ')),'despostes: kg de la tropa, % y producido de la tropa');
   r=await ver(C,w);
   ok(!/volvió a procesar|416184|416192/.test(r.txt),'correlativo: "A dónde fue" sin reprocesos');
  }

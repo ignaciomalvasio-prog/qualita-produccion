@@ -99,6 +99,15 @@ const ddmmaa = iso => iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso
 const pie = (T, R) => '<p class="muted" style="font-size:12.5px">Sistema al ' + esc(ddmmaa(R.hora.slice(0, 10)) + ' ' + R.hora.slice(11)) + ' · consultó ' + esc(T.por || '') + '</p>';
 
 /* ---------- resultado por tropa ---------- */
+/* Parte de la tropa en cada desposte (pedido de Sabi 30/10): las cajas no llevan la tropa (solo las medias de la solapa Ingreso),
+   así que lo producido y lo vendido se le asignan en proporción a los kg de sus medias sobre todo lo que entró a ese desposte.
+   Medias enteras (src 0) = 100 %. null = consulta vieja sin el dato. */
+function parteTropa(R) {
+  const P = { '0': 1 };
+  for (const d of R.dp) P[String(d.desp)] = d.tkg == null ? null : (d.kg ? Math.min(1, d.tkg / d.kg) : 0);
+  return P;
+}
+const pctTropa = x => (x * 100).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' %';
 function trazaTropa(R, T) {
   if (!R.tt.length) return '<section><div class="alerta warn">No existe la tropa ' + esc(T.valor) + ' en el sistema.</div></section>';
   let h = '<section><div class="dj-top"><div><h2>Tropa ' + esc(T.valor) + '</h2>';
@@ -112,11 +121,12 @@ function trazaTropa(R, T) {
   /* solo los despostes de cerdo (pedido de Sabi 29/10): rendering, chacinados, tipo 5, etc. no se muestran */
   const dpC = R.dp.filter(d => d.ticd === 2);
   if (dpC.length) {
-    h += '<section><h3 class="dj-h3" style="margin-top:0">1 · Despostes donde entró</h3><div class="tw"><table class="planilla dj-tab"><thead><tr><th>Desposte</th><th>Fecha</th><th class="num">Medias de esta tropa</th><th>Otras tropas en el mismo desposte</th><th class="num">Cajas</th><th class="num">Kg producidos</th></tr></thead><tbody>';
+    h += '<section><h3 class="dj-h3" style="margin-top:0">1 · Despostes donde entró</h3><div class="tw"><table class="planilla dj-tab"><thead><tr><th>Desposte</th><th>Fecha</th><th class="num">Medias de esta tropa</th><th>Otras tropas en el mismo desposte</th><th class="num">Cajas</th><th class="num">Kg producidos</th><th class="num">Kg que entraron de esta tropa</th><th class="num">Parte de la tropa</th><th class="num">Producido de la tropa</th></tr></thead><tbody>';
     for (const d of dpC.sort((a, b) => a.fecha.localeCompare(b.fecha))) {
       const s = R.sr[d.desp] || {};
       h += '<tr><td>N° ' + esc(d.desp) + (d.ticd !== 2 ? ' <span class="muted">' + esc(tipoD(d.ticd)) + '</span>' : '') + '</td><td>' + ddmmaa(d.fecha) + '</td><td class="num">' + fmt0(d.mias) + ' de ' + fmt0(d.total) + '</td><td>' +
-        (otras(d.desp).map(x => lnkT(x.tropa) + ' <span class="muted">(' + fmt0(x.medias) + ')</span>').join(', ') || '<span class="muted">ninguna</span>') + '</td><td class="num">' + fmt0(s.cajas) + '</td><td class="num">' + fmt0(s.kg) + '</td></tr>';
+        (otras(d.desp).map(x => lnkT(x.tropa) + ' <span class="muted">(' + fmt0(x.medias) + ')</span>').join(', ') || '<span class="muted">ninguna</span>') + '</td><td class="num">' + fmt0(s.cajas) + '</td><td class="num">' + fmt0(s.kg) + '</td>' +
+        (d.tkg == null ? '<td colspan="3" class="muted" style="font-size:12px">volvé a consultar la tropa</td>' : '<td class="num">' + fmt0(d.tkg) + '</td><td class="num">' + pctTropa(d.kg ? d.tkg / d.kg : 0) + '</td><td class="num"><b>' + fmt0((Number(s.kg) || 0) * (d.kg ? Math.min(1, d.tkg / d.kg) : 0)) + '</b></td>') + '</tr>';
     }
     h += '</tbody></table></div>';
     h += '<p class="muted" style="font-size:12.5px;margin-top:6px">Las cajas de un desposte no se separan por tropa: todo lo que salió de un desposte donde entró esta tropa puede tener carne de ella.</p></section>';
@@ -126,15 +136,15 @@ function trazaTropa(R, T) {
   h += '<section><h3 class="dj-h3" style="margin-top:0">2 · A quién se vendió</h3>';
   if (!R.ve.length) h += '<p class="muted">Todavía no hay ventas registradas con estas medias o cajas.</p>';
   else {
-    const cl = {};
-    for (const v of R.ve) { const c = cl[v.cue] || (cl[v.cue] = { cli: v.cli, cue: v.cue, cajas: 0, kg: 0, rem: new Set(), ven: [] }); c.cajas += v.cajas; c.kg += v.kg; c.rem.add(v.rem); c.ven.push(v); }
+    const cl = {}, PT = parteTropa(R), conP = R.ve.every(v => PT[String(v.src)] != null), kT = v => v.kg * (PT[String(v.src)] || 0);
+    for (const v of R.ve) { const c = cl[v.cue] || (cl[v.cue] = { cli: v.cli, cue: v.cue, cajas: 0, kg: 0, kgT: 0, rem: new Set(), ven: [] }); c.cajas += v.cajas; c.kg += v.kg; c.kgT += kT(v); c.rem.add(v.rem); c.ven.push(v); }
     const lista = Object.values(cl).sort((a, b) => b.kg - a.kg);
-    h += '<p class="sub" style="margin:0 0 6px">' + lista.length + (lista.length === 1 ? ' cliente · ' : ' clientes · ') + fmt0(R.ve.reduce((a, v) => a + v.cajas, 0)) + ' cajas o piezas · ' + fmt0(R.ve.reduce((a, v) => a + v.kg, 0)) + ' kg. Tocá un cliente para ver los remitos.</p>';
-    h += '<div class="tw"><table class="planilla dj-tab"><thead><tr><th>Cliente</th><th class="num">Remitos</th><th class="num">Cajas</th><th class="num">Kg</th></tr></thead><tbody>';
+    h += '<p class="sub" style="margin:0 0 6px">' + lista.length + (lista.length === 1 ? ' cliente · ' : ' clientes · ') + fmt0(R.ve.reduce((a, v) => a + v.cajas, 0)) + ' cajas o piezas · ' + fmt0(R.ve.reduce((a, v) => a + v.kg, 0)) + ' kg' + (conP ? ', de los que le corresponden a esta tropa <b>' + fmt0(R.ve.reduce((a, v) => a + kT(v), 0)) + ' kg</b> (en proporción a lo que aportó a cada desposte)' : '') + '. Tocá un cliente para ver los remitos.</p>';
+    h += '<div class="tw"><table class="planilla dj-tab"><thead><tr><th>Cliente</th><th class="num">Remitos</th><th class="num">Cajas</th><th class="num">Kg</th>' + (conP ? '<th class="num">Kg de esta tropa</th>' : '') + '</tr></thead><tbody>';
     for (const c of lista) {
       const ab = S.abierto['tz|' + c.cue];
-      h += '<tr><td><a href="#" class="dj-n" onclick="S.abierto[\'tz|' + c.cue + '\']=!S.abierto[\'tz|' + c.cue + '\'];render();return false">' + (ab ? '▾ ' : '▸ ') + esc(c.cli) + '</a></td><td class="num">' + c.rem.size + '</td><td class="num">' + fmt0(c.cajas) + '</td><td class="num">' + fmt2(c.kg) + '</td></tr>';
-      if (ab) h += '<tr class="dj-det"><td colspan="4"><table class="dj-mini"><tbody>' + c.ven.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.rem.localeCompare(b.rem)).map(v =>
+      h += '<tr><td><a href="#" class="dj-n" onclick="S.abierto[\'tz|' + c.cue + '\']=!S.abierto[\'tz|' + c.cue + '\'];render();return false">' + (ab ? '▾ ' : '▸ ') + esc(c.cli) + '</a></td><td class="num">' + c.rem.size + '</td><td class="num">' + fmt0(c.cajas) + '</td><td class="num">' + fmt2(c.kg) + '</td>' + (conP ? '<td class="num">' + fmt2(c.kgT) + '</td>' : '') + '</tr>';
+      if (ab) h += '<tr class="dj-det"><td colspan="' + (conP ? 5 : 4) + '"><table class="dj-mini"><tbody>' + c.ven.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.rem.localeCompare(b.rem)).map(v =>
         '<tr><td>' + ddmmaa(v.fecha) + '</td><td>Remito ' + esc(v.rem) + '</td><td>' + esc(v.den) + '</td><td class="num">' + fmt0(v.cajas) + '</td><td class="num">' + fmt2(v.kg) + ' kg</td><td class="muted">' + (v.src === '0' ? 'media entera' : 'desposte ' + esc(v.src)) + '</td></tr>').join('') + '</tbody></table></td></tr>';
     }
     h += '</tbody></table></div>';
@@ -199,22 +209,23 @@ function balanceMasas(R, T) {
   /* c) por lote */
   const lotes = R.dp.filter(d => d.ticd === 2).sort((a, b) => a.fecha.localeCompare(b.fecha));
   if (lotes.length) {
-    h += '<h4 class="dj-h3">c) Kg producidos por lote (desposte)</h4><div class="tw"><table class="planilla dj-tab"><thead><tr><th>Lote</th><th class="num">Kg producidos</th><th class="num">Expedidos (ventas)</th><th class="num">Pases internos</th><th class="num">Bajas documentadas</th><th class="num">En stock</th><th class="num">% conciliación</th></tr></thead><tbody>';
+    h += '<h4 class="dj-h3">c) Kg producidos por lote (desposte), parte de esta tropa</h4><div class="tw"><table class="planilla dj-tab"><thead><tr><th>Lote</th><th class="num">Kg producidos</th><th class="num">Expedidos (ventas)</th><th class="num">Pases internos</th><th class="num">Bajas documentadas</th><th class="num">En stock</th><th class="num">% conciliación</th></tr></thead><tbody>';
     const tot = [0, 0, 0, 0, 0];
     for (const d of lotes) {
-      const k = String(d.desp), s = R.sr[k] || {}, prod = Number(s.kg) || 0;
-      const ven = sum(R.ve, v => String(v.src) === k), pas = sum(R.ri, x => String(x.src) === k);
-      const rep = 0, baj = sum(R.rp, x => String(x.orig) === k && String(x.desp) !== k);   // reprocesos y rendering: bajas documentadas (lo reprocesado no se detalla)
-      const st = s.stock;
+      const k = String(d.desp), s = R.sr[k] || {}, f = d.tkg == null ? 1 : (d.kg ? Math.min(1, d.tkg / d.kg) : 0);   // parte de la tropa en el lote
+      const prod = (Number(s.kg) || 0) * f;
+      const ven = sum(R.ve, v => String(v.src) === k) * f, pas = sum(R.ri, x => String(x.src) === k) * f;
+      const rep = 0, baj = sum(R.rp, x => String(x.orig) === k && String(x.desp) !== k) * f;   // reprocesos y rendering: bajas documentadas (lo reprocesado no se detalla)
+      const st = s.stock == null ? null : s.stock * f;
       [prod, ven, pas, baj, st || 0].forEach((v, i) => { tot[i] += v; });
       const conc = st == null ? null : (ven + pas + rep + baj + st) / (prod || 1) * 100;
-      h += '<tr><td>N° ' + esc(k) + ' <span class="muted">' + ddmmaa(d.fecha) + '</span></td><td class="num"><b>' + fmt0(prod) + '</b></td><td class="num">' + kg(ven) + '</td><td class="num">' + kg(pas) + '</td><td class="num">' + kg(baj) + '</td><td class="num">' + (st == null ? nuevo : kg(st)) + '</td>' +
+      h += '<tr><td>N° ' + esc(k) + ' <span class="muted">' + ddmmaa(d.fecha) + (d.tkg == null ? '' : ' · ' + pctTropa(f)) + '</span></td><td class="num"><b>' + fmt0(prod) + '</b></td><td class="num">' + kg(ven) + '</td><td class="num">' + kg(pas) + '</td><td class="num">' + kg(baj) + '</td><td class="num">' + (st == null ? nuevo : kg(st)) + '</td>' +
         '<td class="num">' + (conc == null ? '' : (Math.abs(conc - 100) > 2 ? '<span class="chip sm ' + (conc > 100 ? 'bad' : 'warn') + '">' + pc(ven + pas + rep + baj + st, prod) + '</span>' : pc(ven + pas + rep + baj + st, prod))) + '</td></tr>';
     }
     const sinS = lotes.some(d => (R.sr[String(d.desp)] || {}).stock == null);
     if (lotes.length > 1) h += '<tr class="tot"><td>Total</td>' + tot.map(v => '<td class="num">' + fmt0(v) + '</td>').join('') + '<td class="num">' + (sinS ? '' : pc(tot[1] + tot[2] + tot[3] + tot[4], tot[0])) + '</td></tr>';
     h += '</tbody></table></div><p class="muted" style="font-size:12.5px;margin:4px 0 0">% conciliación = (expedidos + pases internos + bajas documentadas + stock) ÷ kg producidos × 100. Bajas documentadas: lo que salió del lote a otro desposte (rendering u otros). Expedidos con los kg del remito; el resto con los kg de producción. ' +
-      'El lote es todo el desposte (incluye las otras tropas que entraron con esta). Más de 100 % (en rojo) = se expidió más de lo producido: revisar.</p>';
+      'Como las cajas no llevan la tropa, a esta tropa le corresponde de cada lote la parte de lo que aportó (kg de sus medias ÷ kg que entraron al desposte; el % al lado del lote). Más de 100 % (en rojo) = se expidió más de lo producido: revisar.</p>';
   }
   return h + '</section>';
 }
