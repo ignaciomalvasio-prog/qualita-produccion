@@ -435,6 +435,39 @@
      (produccion/op-AAAA-MM-DD). Arranca de la orden anterior o de la orden base, y se modifica a mano. Va aparte de la
      planilla de frescos (produccion/AAAA-MM-DD), que se arma desde los pedidos. */
   function esOP(id) { return /^op-/.test(String(id || '')); }
+  function esTU(id) { return /^tu-/.test(String(id || '')); }
+  /* Mercadería para túnel (pedido de Renzo): la hoja de "congelar túnel" que hoy escribe a mano. Un texto por día en
+     produccion/tu-AAAA-MM-DD: renglones como "300KG BONDIOLA"; un renglón que termina en ":" es un título (ej. "CARREFOUR:"). */
+  function tuAnterior(f) { return (S.prod || []).filter(function (o) { return esTU(o.id) && o.id.slice(3) < f && String(o.texto || '').trim(); }).sort(function (a, b) { return a.id < b.id ? 1 : -1; })[0] || null; }
+  function tuKg(t) { var k = 0; String(t || '').split('\n').forEach(function (l) { var m = norm(l).match(/^\s*([\d.,]+)\s*(KGS?|KILOS?|K)\b/); if (m) k += numero(m[1]); }); return Math.round(k); }
+  function tuHTML(o, f) {
+    var txt = String((o && o.texto) || '');
+    if (S.tuEd === f) return '<div class="panel"><h3>Mercadería para túnel · ' + esc(tituloDe(f)) + '</h3><p class="small muted">Un renglón por cosa (ej.: 300KG BONDIOLA). Si un renglón termina en ":" queda como título (ej.: CARREFOUR:).</p>'
+      + '<textarea id="tu-txt" rows="14" style="width:100%;text-transform:uppercase;font-size:16px" aria-label="Mercadería para túnel">' + esc(txt) + '</textarea>'
+      + '<div class="acciones"><button class="btn pri" data-act="tu-guardar" data-f="' + esc(f) + '">Guardar</button><button class="btn" data-act="tu-cancelar">Cancelar</button></div></div>';
+    if (!o) {
+      var ant = tuAnterior(f);
+      return '<div class="panel"><p class="state">Todavía no está cargada la mercadería para túnel de este día.</p>' + (S.editor && !S.solo ? '<div class="acciones" style="justify-content:center">' + (ant ? '<button class="btn pri" data-act="tu-copiar" data-f="' + esc(f) + '">Copiar la del ' + esc(diaCorto(ant.id.slice(3)).toLowerCase()) + '</button>' : '') + '<button class="btn' + (ant ? '' : ' pri') + '" data-act="tu-editar" data-f="' + esc(f) + '">Escribir</button></div>' : '') + '</div>';
+    }
+    var bloques = [], cur = null;
+    txt.split('\n').map(function (l) { return l.replace(/\s+/g, ' ').trim(); }).filter(Boolean).forEach(function (l) {
+      if (/:$/.test(l)) { cur = { tit: l.replace(/:$/, ''), ls: [] }; bloques.push(cur); }
+      else { if (!cur) { cur = { tit: '', ls: [] }; bloques.push(cur); } cur.ls.push(l); }
+    });
+    var kg = tuKg(txt);
+    return '<div class="panel hoja op-hoja tu-hoja"><header class="hoja-cab"><div><p class="hoja-sup">Mercadería para túnel</p><h2>CONGELAR TÚNEL · ' + esc(tituloDe(f)) + '</h2></div>'
+      + (kg ? '<div class="hoja-dato"><b>' + n(kg) + '</b><span>kg</span></div>' : '') + '</header>'
+      + '<div class="acciones hoja-acc">' + (S.editor && !S.solo ? '<button class="btn pri" data-act="tu-editar" data-f="' + esc(f) + '">Editar</button>' : '') + '<button class="btn wa" data-act="wa-pdf">PDF por WhatsApp</button></div>'
+      + '<div class="op-lista">' + bloques.map(function (b) {
+        return '<div class="op-c">' + (b.tit ? '<p><u class="op-corte">' + esc(b.tit) + '</u>:' + (b.ls.length ? ' ' + opLineaHTML(b.ls[0]) : '') + '</p>' + b.ls.slice(1).map(function (l) { return '<p class="op-sig">' + opLineaHTML(l) + '</p>'; }).join('')
+          : b.ls.map(function (l) { return '<p>' + opLineaHTML(l) + '</p>'; }).join('')) + '</div>';
+      }).join('') + '</div></div>';
+  }
+  function tuGuardar(f, txt) {
+    var d = { fecha: f, linea: 'tunel', texto: String(txt || '').toUpperCase().replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim(), cortes: [], actualizado: ahoraTxt(), por: S.user ? S.user.email : '' };
+    if (!d.texto) { S.prod = (S.prod || []).filter(function (x) { return x.id !== 'tu-' + f; }); return store.del('produccion', 'tu-' + f); }
+    var x = clone(d); x.id = 'tu-' + f; S.prod = poner(S.prod, 'tu-' + f, x); return store.set('produccion', 'tu-' + f, d);
+  }
   var OP_BASE = ['JAMON: RESTO: RECORTE DE JAMON CON GRASA 3º (COD 359) FRESCO EN BINES “ARGENCARNES”',
     'PALETA: RESTO: PALETA SIN HUESO SIN CUERO SIN GRASA SIN GARRON CAJAS A CONGELAR (COD 377)',
     'PECHO: CONGELAR EN CAJAS “CARREFOUR” (COD 30216)', 'CARRE: CAJAS A CONGELAR “CARREFOUR” (COD 30276)',
@@ -762,7 +795,7 @@
   function compartirPDF(hoja, btn, wa, nombre0) {
     if (!hoja || (btn && btn.disabled)) return;
     var dia = S.fecha || '';
-    var nombre = nombre0 || (hoja.classList.contains('op-hoja') ? 'Orden de produccion' : hoja.classList.contains('hoja-c3') ? 'Embutidos' : hoja.classList.contains('hoja-faena') ? 'Faena' : 'Planilla de frescos') + ' ' + dia.slice(8, 10) + '-' + dia.slice(5, 7) + '.pdf';
+    var nombre = nombre0 || (hoja.classList.contains('tu-hoja') ? 'Tunel' : hoja.classList.contains('op-hoja') ? 'Orden de produccion' : hoja.classList.contains('hoja-c3') ? 'Embutidos' : hoja.classList.contains('hoja-faena') ? 'Faena' : 'Planilla de frescos') + ' ' + dia.slice(8, 10) + '-' + dia.slice(5, 7) + '.pdf';
     var txt0 = btn ? btn.textContent : ''; if (btn) { btn.disabled = true; btn.textContent = 'Armando el PDF…'; }
     var fin = function (m) { if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = txt0; } if (m) avisar(m, m.charAt(0) === '!' ? 7000 : 4000); };
     cargarScript('lib/pdf-lib.min.js').then(function () { return typeof hoja === 'function' ? hoja() : armarPDF(hoja); }).then(function (bytes) {
@@ -838,12 +871,13 @@
     var pv = solo3 ? 'frescos' : (S.pv || (op ? 'op' : 'frescos')); if (edit) pv = esOP(S.ep.fecha) ? 'op' : 'frescos';
     var h = '<div class="nav"><button class="btn step" data-act="fecha" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + fechaTit(f) + '</span><button class="btn step" data-act="fecha" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="p-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">';
-    if (pv === 'op' ? op : (o || o3)) h += '<button class="btn" data-act="imprimir">Imprimir</button>';
+    if (pv === 'tunel' ? prodDe('tu-' + f) && S.tuEd !== f : pv === 'op' ? op : (o || o3)) h += '<button class="btn" data-act="imprimir">Imprimir</button>';
     if (edit) h += '<button class="btn pri" data-act="p-editar">Listo</button>';
     if (S.editor) h += '<button class="btn" data-act="link-prod">Copiar link para compartir</button><span class="guardado" id="g-prod"></span>';
     h += '</div>';
-    if (!solo3) h += '<div class="pv-tabs" role="tablist" aria-label="Qué planilla ver"><button class="btn" role="tab" data-act="pv" data-v="op" aria-selected="' + (pv === 'op') + '">Orden de producción' + (op ? '' : ' <small>(sin armar)</small>') + '</button><button class="btn" role="tab" data-act="pv" data-v="frescos" aria-selected="' + (pv === 'frescos') + '">Planilla de frescos' + (o ? '' : ' <small>(vacía)</small>') + '</button></div>';
+    if (!solo3) h += '<div class="pv-tabs" role="tablist" aria-label="Qué planilla ver"><button class="btn" role="tab" data-act="pv" data-v="op" aria-selected="' + (pv === 'op') + '">Orden de producción' + (op ? '' : ' <small>(sin armar)</small>') + '</button><button class="btn" role="tab" data-act="pv" data-v="frescos" aria-selected="' + (pv === 'frescos') + '">Planilla de frescos' + (o ? '' : ' <small>(vacía)</small>') + '</button><button class="btn" role="tab" data-act="pv" data-v="tunel" aria-selected="' + (pv === 'tunel') + '">Mercadería para túnel' + (prodDe('tu-' + f) ? '' : ' <small>(vacía)</small>') + '</button></div>';
     if (edit) { h += prodEditHTML(S.ep.doc); el.innerHTML = h; pintarMsg('prod'); crecer($('p-doc')); return; }
+    if (pv === 'tunel') { h += tuHTML(prodDe('tu-' + f), f); el.innerHTML = h; return; }
     if (pv === 'op') {
       if (op) h += opHTML(op, f);
       // Casi siempre es la misma (pedido de Renzo): un día nuevo (hoy o adelante) sin orden arranca solo con una copia de la última.
@@ -1903,7 +1937,7 @@
   function instrucciones() {
     var clientes = {}, ejemplos = [];
     (S.faena || []).forEach(function (s) { s.dias.forEach(function (d) { d.clientes.forEach(function (r) { if (r.cliente) clientes[r.cliente] = 1; }); }); });
-    (S.prod || []).filter(function (o) { return !esC3(o.id) && !esOP(o.id); }).slice(-3).forEach(function (o) { ejemplos.push(textoOrden(o, true)); });
+    (S.prod || []).filter(function (o) { return !esC3(o.id) && !esOP(o.id) && !esTU(o.id); }).slice(-3).forEach(function (o) { ejemplos.push(textoOrden(o, true)); });
     return 'Sos el asistente de carga de pedidos del Frigorífico Qualitá, un frigorífico de cerdo. Recibís una foto, una captura de pantalla o un texto pegado (por ejemplo de WhatsApp) con uno o varios pedidos de clientes y devolvés los pedidos leídos como datos estructurados, sin texto adicional.\n\n'
       + 'Hoy es ' + diaDe(hoy()) + ' ' + hoy() + '.\n\n'
       + 'PRIMERO MIRÁ SI ES LA PLANILLA SEMANAL\n'
@@ -3715,6 +3749,10 @@
     else if (a === 'fr-ir') { S.fr = D.f; render(); window.scrollTo(0, 0); }
     else if (a === 'fecha') { S.pv = null; S.fechaFija = true; if (S.ep) guardar('prod', true); S.ep = null; var x = S.fecha; do { x = mas(x, +D.d); } while (!esHabil(x)); S.fecha = x; render(); }
     else if (a === 'pv') { if (S.ep) { guardar('prod', true); S.ep = null; } S.pv = D.v; render(); }
+    else if (a === 'tu-editar') { S.tuEd = D.f; render(); var tt2 = $('tu-txt'); if (tt2) tt2.focus(); }
+    else if (a === 'tu-cancelar') { S.tuEd = null; render(); }
+    else if (a === 'tu-guardar') { var tv2 = ($('tu-txt') || {}).value || ''; tuGuardar(D.f, tv2).then(function () { S.tuEd = null; avisar('Guardada la mercadería para túnel.', 3000); render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); }); }
+    else if (a === 'tu-copiar') { var ta2 = tuAnterior(D.f); if (ta2) tuGuardar(D.f, ta2.texto).then(function () { S.tuEd = D.f; render(); var tt3 = $('tu-txt'); if (tt3) tt3.focus(); }); }
     else if (a === 'op-nueva') {
       S.fechaFija = true; var idn = 'op-' + S.fecha, dn = opNueva(S.fecha, D.v);
       S.ep = { fecha: idn, doc: dn }; S.ep.base = clone(dn); S.pv = 'op'; S.msg.prod = ''; guardar('prod', true); render();

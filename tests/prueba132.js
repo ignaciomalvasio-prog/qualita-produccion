@@ -1,34 +1,18 @@
-// Centro de desposte · descarga automática diaria (dj_excel_diario.ps1): la PC arma una copia de ddjj.html con los datos en
-// window.__mock y el pedido en window.__auto, la abre con Edge sin ventana y lee <pre id="auto-out">. Acá se hace lo mismo con Chromium.
-const {chromium}=require('playwright');const fs=require('fs');const path=require('path');const SP=process.argv[2];
-const TXT=['OK|2026-10-29 07:00',
- 'TR|2026-10-27|261790|160|2026-10-25|320|25600','RE|2026-10-27|101|BONDIOLA|1|64|554|1355.97',
- 'TR|2026-10-28|261799|160|2026-10-27|318|25440','RE|2026-10-28|101|BONDIOLA|1|60|500|1300',
- 'TR|2026-10-29|261805|160|2026-10-28|300|24000','RE|2026-10-29|101|BONDIOLA|1|10|50|130'].join('\n');
-const ANUAL='OK|2026-10-29 07:00\nMU|2026-10-27|261799|1|C|AB123CD|10|PRODUCTOR|LOCALIDAD| ';
-function armar(auto){   // lo mismo que hace dj_excel_diario.ps1
-  let h=fs.readFileSync(path.join(__dirname,'../docs/ddjj.html'),'utf8');
-  const mock={user:{email:'pc@x.com',displayName:'Descarga automática',emailVerified:true},rol:'ddjj',sis:{'dj-2026-10':TXT,'dj-anual':ANUAL},docs:{}};
-  const js=('window.__mock='+JSON.stringify(mock)+';window.__auto='+JSON.stringify(auto)+';').replace(/<\//g,'<\\/');
-  h=h.replace(/<head>/i,'<head><base href="http://127.0.0.1:8765/"><script>'+js+'</script>');
-  const f=path.join(SP,'auto.html');fs.writeFileSync(f,h);return 'file://'+f;
-}
-(async()=>{const b=await chromium.launch();let mal=0;const ok=(c,m)=>{console.log((c?'OK  ':'MAL ')+m);if(!c)mal++;};
-const correr=async auto=>{const p=await b.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));
- // la librería de Excel viene de internet: acá una de mentira que devuelve el contenido en vez del archivo
- await p.addInitScript(()=>{window.XLSX={utils:{book_new:()=>({h:[]}),aoa_to_sheet:a=>({a}),book_append_sheet:(wb,ws,n)=>wb.h.push([n,ws.a])},write:wb=>btoa(unescape(encodeURIComponent(JSON.stringify(wb.h))))};});
- await p.goto(armar(auto));await p.waitForFunction(()=>/^AUTO-/.test(document.title),null,{timeout:20000});
- const r={titulo:await p.title(),out:JSON.parse(await p.textContent('#auto-out')),errs};await p.close();return r;};
-let r=await correr({hasta:'2026-10-28',tener:[]});
-ok(r.titulo==='AUTO-OK','termina bien ('+r.titulo+')');
-ok(JSON.stringify(r.out.dias)==='["2026-10-27","2026-10-28"]','sin archivos: todos los días hasta ayer, no el de hoy ('+r.out.dias+')');
-const nom=r.out.archivos.map(a=>a.nombre);console.log('archivos:',nom.join(', '));
-ok(nom.includes('DDJJ desposte 28-10-2026.xlsx')&&nom.includes('Rendimiento desposte 2026-10.xlsx'),'DDJJ del día y Rendimiento del mes');
-const d28=Buffer.from(r.out.archivos.find(a=>a.nombre==='DDJJ desposte 28-10-2026.xlsx').b64,'base64').toString('latin1');
-ok(/<c r="D19"[^>]*><v>159<\/v>/.test(d28)&&/FAENA PARCIAL/.test(d28),'el Excel trae lo mismo que la página (159, FAENA PARCIAL), con formato');
-ok(!r.errs.length,'errores: '+(r.errs.join('|')||'ninguno'));
-r=await correr({hasta:'2026-10-28',tener:['2026-10-27','2026-10-28']});
-ok(JSON.stringify(r.out.dias)==='["2026-10-28"]','con archivos: solo vuelve a guardar el último día ('+r.out.dias+')');
-r=await correr({hasta:'2026-10-26',tener:[]});
-ok(r.titulo==='AUTO-OK'&&r.out.archivos.length===0,'sin desposte hasta esa fecha: no guarda nada');
-await b.close();console.log(mal?'FALLARON '+mal:'todo bien');process.exit(mal?1:0);})();
+// Producción: solapa "Mercadería para túnel" (texto por día, títulos con ":", total de kg, copiar la anterior, PDF).
+const {chromium}=require('playwright');const SP=process.argv[2];
+const data={faena:{},produccion:{'tu-2026-10-29':{fecha:'2026-10-29',linea:'tunel',texto:'CARREFOUR:\n300KG BONDIOLA\n300KG MATAMBRE\nVARIOS:\n200KG PECHO',cortes:[]}},config:{general:{}},privado:{},pedidos:{}};
+(async()=>{const b=await chromium.launch();const errs=[];
+for(const w of [1366,400]){const p=await b.newPage({viewport:{width:w,height:900}});p.on('pageerror',e=>errs.push(e.message));
+await p.clock.install({time:new Date('2026-10-30T10:00:00-03:00')});
+await p.addInitScript(d=>{window.__mock={data:JSON.parse(JSON.stringify(d)),user:{email:'yo@x.com'},editores:['yo@x.com']}},data);
+await p.goto('http://127.0.0.1:8765/index.html#produccion');await p.clock.runFor(1500);await p.waitForTimeout(200);
+await p.click('[data-act="pv"][data-v="tunel"]');await p.waitForTimeout(200);
+console.log(w,'día:',await p.locator('#view-produccion .nav .tit').innerText(),'· vacío:',(await p.locator('#view-produccion .panel').last().innerText()).replace(/\s+/g,' '));
+await p.click('[data-act="tu-copiar"]');await p.clock.runFor(800);await p.waitForTimeout(200);
+await p.fill('#tu-txt','CARREFOUR:\n300kg bondiola\n300kg matambre\n150kg solomillo\nVARIOS:\n200kg pecho');await p.click('[data-act="tu-guardar"]');await p.clock.runFor(800);await p.waitForTimeout(300);
+console.log(w,'guardado:',JSON.stringify(await p.evaluate(()=>window.__mock.data.produccion['tu-2026-10-30'].texto)));
+console.log(w,'hoja:',(await p.locator('.tu-hoja').innerText()).replace(/\s+/g,' '));
+await p.click('.tu-hoja [data-act="wa-pdf"]');await p.waitForFunction(()=>window.__mock.ultimoPDF,null,{timeout:15000});console.log(w,'PDF:',await p.evaluate(()=>window.__mock.ultimoPDF.nombre));
+if(w===1366)await p.screenshot({path:SP+'/tunel.png'});
+console.log(w,'desborde',await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth));await p.close();}
+console.log('errores:',errs.join('|')||'ninguno');await b.close();})();
