@@ -667,10 +667,11 @@
       return r;
     };
     var rs = [];
-    hoja.querySelectorAll('.op-c > p, .hoja-nom, .hoja-corte li, .hoja > p.muted').forEach(function (el) {
-      if (el.matches('.hoja-nom')) rs.push({ tipo: 'tit', trozos: trozos(el) });
+    hoja.querySelectorAll('.op-c > p, .hoja-nom, .hoja-corte li, .hoja > p.muted, .hoja > p.tu-tot').forEach(function (el) {
+      if (el.matches('.tu-nom')) rs.push({ tipo: 'cam', trozos: trozos(el) });   // nombre del cliente en Túnel: más grande
+      else if (el.matches('.hoja-nom')) rs.push({ tipo: 'tit', trozos: trozos(el) });
       else if (el.matches('li')) rs.push({ tipo: 'li', trozos: trozos(el) });
-      else rs.push({ tipo: el.classList.contains('op-sig') ? 'sig' : el.classList.contains('muted') ? 'nota' : 'op', trozos: trozos(el) });
+      else rs.push({ tipo: el.classList.contains('op-sig') ? 'sig' : el.classList.contains('muted') || el.classList.contains('tu-tot') ? 'nota' : 'op', trozos: trozos(el) });
     });
     return { cab: cab, renglones: rs };
   }
@@ -3080,10 +3081,10 @@
       + (tuSuma(tuTodos(d), 'kg') ? '<div class="hoja-dato"><b>' + n(tuSuma(tuTodos(d), 'kg')) + '</b><span>kg</span></div>' : '') + '</header>'
       + '<div class="acciones hoja-acc"><button class="btn pri" data-act="tu-armar">Editar</button><button class="btn wa" data-act="tu-pdf">PDF por WhatsApp</button><button class="btn" data-act="tu-texto">Copiar texto</button></div>'
       + '<div class="op-lista">' + d.clientes.map(function (c) {
-        return '<div class="op-c"><p><u class="op-corte">' + esc(String(c.nombre || 'SIN CLIENTE').toUpperCase()) + '</u>' + (tuTotTxt(c.items) ? ' <span class="muted">· ' + esc(tuTotTxt(c.items)) + '</span>' : '') + '</p>'
+        return '<div class="op-c"><p class="tu-nom"><u class="op-corte">' + esc(String(c.nombre || 'SIN CLIENTE').toUpperCase()) + '</u></p>'
           + c.items.map(function (it) { return '<p class="op-sig">' + opLineaHTML(tuRenglon(it)) + '</p>'; }).join('') + '</div>';
       }).join('') + '</div>'
-      + (tot ? '<p class="muted tu-tot">TOTAL: ' + esc(tot) + '</p>' : '')
+      + (tot ? '<p class="tu-tot"><b>TOTAL: ' + esc(tot.toUpperCase()) + '</b></p>' : '')
       + (d.actualizado ? '<div class="small muted">Guardado: ' + esc(d.actualizado) + '</div>' : '') + '</div>';
   }
   function renderTunel() {
