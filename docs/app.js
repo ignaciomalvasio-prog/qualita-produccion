@@ -1605,7 +1605,7 @@
     var libre = +cam.kg - cargado;
     return '≈ ' + n(cargado) + ' de ' + n(+cam.kg) + ' kg · ' + (libre >= 0 ? 'quedan ' + n(libre) + ' kg' : 'se pasa por ' + n(-libre) + ' kg');
   }
-  function logDe(f) { return (S.log || {})[f] || null; }
+  function logDe(f) { return (S.log || {})[f] || (S.logHist || {})[f] || null; }
   function camionesDe(f) { var l = logDe(f); return (l && l.camiones) || []; }
   // El número de camión lo pone Renzo (no se numera solo); sin nombre, el camión se llama por su número.
   // El nombre se muestra tal cual lo puso Renzo, sin la palabra "Camión" adelante.
@@ -2656,20 +2656,39 @@
     }).join('') + '</div>';
   }
   // Buscador de camiones: los camiones que ya tienen clientes (desde la semana pasada), por nombre o N°.
-  function buscarCamionesHTML(q) {
-    var t = norm(q).trim(), desde = mas(hoy(), -7), l = [];
-    Object.keys(S.log || {}).sort().forEach(function (f) {
-      if (f < desde) return;
-      camionesDe(f).forEach(function (c) {
+  /* Historial completo para las búsquedas (pedido de Renzo: "todos los viajes desde un principio"). La app escucha solo
+     los últimos 45 días; al buscar se leen una sola vez los días más viejos (S.logHist) y se suman. */
+  function cargarLogHist() {
+    if (S.logHist || S.logHistCargando || !store || !store.rango) return;
+    S.logHistCargando = true;
+    store.rango('config', 'log-', 'log-' + mas(hoy(), -45)).then(function (l) {
+      var o = {}; l.forEach(function (d) { var f = String(d.id).slice(4); if (/^\d{4}-\d{2}-\d{2}$/.test(f)) o[f] = d; });
+      S.logHist = o; S.logHistCargando = false; if (!ocupado()) render();
+    }, function () { S.logHistCargando = false; S.logHist = {}; });
+  }
+  function logsTodos() { var o = {}; Object.keys(S.logHist || {}).forEach(function (f) { o[f] = S.logHist[f]; }); Object.keys(S.log || {}).forEach(function (f) { o[f] = S.log[f]; }); return o; }
+  function busqPie(n0) { return S.logHistCargando ? '<p class="small muted">Buscando también en los días más viejos…</p>' : ''; }
+  // Los viajes de un camión que coincide con lo buscado, de todos los días (lo más nuevo arriba).
+  function viajesDeCamion(t, soloConCamion) {
+    var todos = logsTodos(), l = [];
+    cargarLogHist();
+    Object.keys(todos).sort().reverse().forEach(function (f) {
+      var lg = todos[f], cams = (lg && lg.camiones) || [], pubs = ((lg && lg.pedidos) || []).filter(function (p) { return !soloConCamion || p.camion; });
+      cams.forEach(function (c) {
         if (norm(nomCam(c)).indexOf(t) < 0 && norm(c.nombre || '').indexOf(t) < 0 && String(c.num || '').indexOf(t) !== 0) return;
-        var o = c.orden || [], ps = (S.pedidos || []).filter(function (p) { return p.entrega === f && p.camion === c.id; })
-          .sort(function (a, b) { var i = o.indexOf(a.id), j = o.indexOf(b.id); return (i < 0 ? 1e6 : i) - (j < 0 ? 1e6 : j); });
+        var o = c.orden || [], ps = pubs.filter(function (p) { return p.camion === c.id; });
+        if (!ps.length && S.editor) ps = (S.pedidos || []).filter(function (p) { return p.entrega === f && p.camion === c.id; });
+        ps = ps.slice().sort(function (a, b) { var i = o.indexOf(a.id), j = o.indexOf(b.id); return (i < 0 ? 1e6 : i) - (j < 0 ? 1e6 : j); });
         if (ps.length) l.push({ f: f, c: c, ps: ps });
       });
     });
-    if (!l.length) return '<p class="muted sin">No hay camiones con clientes que se llamen "' + esc(q) + '" desde el ' + esc(diaCorto(desde)) + '.</p>';
-    return '<p class="small muted">' + l.length + (l.length === 1 ? ' camión encontrado' : ' camiones encontrados') + ':</p><div class="busq">' + l.map(function (x) {
-      var kg = x.ps.reduce(function (t, p) { return t + kgPedido(p).kg; }, 0);
+    return l;
+  }
+  function buscarCamionesHTML(q) {
+    var t = norm(q).trim(), l = viajesDeCamion(t);
+    if (!l.length) return '<p class="muted sin">No hay camiones con clientes que se llamen "' + esc(q) + '".</p>' + busqPie();
+    return '<p class="small muted">' + l.length + (l.length === 1 ? ' viaje encontrado' : ' viajes encontrados') + ' (del más nuevo al más viejo):</p>' + busqPie() + '<div class="busq">' + l.map(function (x) {
+      var kg = x.ps.reduce(function (t, p) { return t + (+p.kg || kgPedido(p).kg || 0); }, 0);
       return '<div class="busq-f busq-cam"><span class="busq-dia">' + esc(diaCorto(x.f)) + '</span><span class="badge cam-ped">' + esc(nomCam(x.c)) + '</span>' + (x.c.hora ? '<span class="cam-hora">' + esc(x.c.hora) + ' hs</span>' : '')
         + '<span class="small muted">' + x.ps.length + (x.ps.length === 1 ? ' cliente' : ' clientes') + (kg ? ' · ≈ ' + n(Math.round(kg)) + ' kg' : '') + '</span>'
         + '<button class="btn sm" data-act="busq-cam" data-f="' + esc(x.f) + '" data-cam="' + esc(x.c.id) + '">Ver</button>'
@@ -2826,21 +2845,16 @@
   }
   // Buscadores de Logística (cliente o camión), sobre lo publicado desde la semana pasada. Quien mira sin cuenta ve solo lo que tiene camión.
   function buscarLogHTML(q, camion) {
-    var t = norm(q).trim(), desde = mas(hoy(), -7), l = [];
-    Object.keys(S.log || {}).sort().forEach(function (f) {
+    var t = norm(q).trim(), desde = mas(hoy(), -7), l = camion ? viajesDeCamion(t, !S.editor) : [];
+    if (!camion) Object.keys(S.log || {}).sort().forEach(function (f) {
       if (f < desde) return;
       var lg = logDe(f), cams = (lg && lg.camiones) || [], peds = ((lg && lg.pedidos) || []).filter(function (p) { return S.editor || p.camion; });
       var cam = function (id) { return cams.filter(function (c) { return c.id === id; })[0]; };
-      if (camion) cams.forEach(function (c) {
-        if (norm(nomCam(c)).indexOf(t) < 0 && norm(c.nombre || '').indexOf(t) < 0 && String(c.num || '').indexOf(t) !== 0) return;
-        var o = c.orden || [], ps = peds.filter(function (p) { return p.camion === c.id; }).sort(function (a, b) { var i = o.indexOf(a.id), j = o.indexOf(b.id); return (i < 0 ? 1e6 : i) - (j < 0 ? 1e6 : j); });
-        if (ps.length) l.push({ f: f, c: c, ps: ps });
-      });
-      else peds.forEach(function (p) { if (norm(p.cliente).indexOf(t) >= 0 || (p.cuenta && String(p.cuenta).indexOf(t) === 0)) l.push({ f: f, p: p, c: cam(p.camion) }); });
+      peds.forEach(function (p) { if (norm(p.cliente).indexOf(t) >= 0 || (p.cuenta && String(p.cuenta).indexOf(t) === 0)) l.push({ f: f, p: p, c: cam(p.camion) }); });
     });
-    if (!l.length) return '<p class="muted sin">No hay ' + (camion ? 'camiones con clientes que se llamen' : 'clientes') + ' "' + esc(q) + '" desde el ' + esc(diaCorto(desde)) + '.</p>';
-    var cuantos = l.length + (camion ? (l.length === 1 ? ' camión encontrado' : ' camiones encontrados') : (l.length === 1 ? ' cliente encontrado' : ' clientes encontrados'));
-    return '<p class="small muted">' + cuantos + ':</p><div class="busq">' + l.map(function (x) {
+    if (!l.length) return '<p class="muted sin">No hay ' + (camion ? 'camiones con clientes que se llamen' : 'clientes') + ' "' + esc(q) + '"' + (camion ? '' : ' desde el ' + esc(diaCorto(desde))) + '.</p>' + (camion ? busqPie() : '');
+    var cuantos = l.length + (camion ? (l.length === 1 ? ' viaje encontrado (del más nuevo al más viejo)' : ' viajes encontrados (del más nuevo al más viejo)') : (l.length === 1 ? ' cliente encontrado' : ' clientes encontrados'));
+    return '<p class="small muted">' + cuantos + ':</p>' + (camion ? busqPie() : '') + '<div class="busq">' + l.map(function (x) {
       var cb = x.c ? '<span class="badge cam-ped">' + esc(nomCam(x.c)) + '</span>' + (x.c.hora ? '<span class="cam-hora">' + esc(x.c.hora) + ' hs</span>' : '') : '<span class="badge warn">Sin camión</span>';
       if (camion) {
         var kg = x.ps.reduce(function (t, p) { return t + (+p.kg || 0); }, 0);
@@ -4393,6 +4407,7 @@
     return {
       sub: function (c, cb) { (subs[c] = subs[c] || []).push(cb); setTimeout(function () { emit(c); }, 0); },
       set: function (c, id, data) { if (m.fallar) return Promise.reject(new Error('x')); m.data[c] = m.data[c] || {}; m.data[c][id] = clone(data); if (m.alGuardar) m.alGuardar(c, id, m.data[c][id]); setTimeout(function () { emit(c); }, 0); return Promise.resolve(); },
+      rango: function (c, desde, hasta) { return Promise.resolve(Object.keys(m.data[c] || {}).filter(function (id) { return id >= desde && id < hasta; }).map(function (id) { var o = clone(m.data[c][id]); o.id = id; return o; })); },
       del: function (c, id) { if (m.data[c]) delete m.data[c][id]; setTimeout(function () { emit(c); }, 0); return Promise.resolve(); },
       onAuth: function (cb) { authCb = cb; setTimeout(function () { cb(m.user || null); }, 0); },
       signIn: function () { m.user = { email: m.loginAs }; authCb(m.user); return Promise.resolve(); },
@@ -4416,6 +4431,8 @@
         sub: function (c, cb, err) { return fs.onSnapshot(fs.collection(db, c), function (snap) { cb(snap.docs.map(function (x) { var o = x.data(); o.id = x.id; return o; })); }, err || function () {}); },
         // Escucha solo algunos documentos de una colección (por id exacto o por rango de ids) y avisa con todos juntos.
         // Se usa para config: así no se bajan cada vez todos los log-* y rend-* históricos (cuidar el cupo de lecturas).
+        // Lee una sola vez (sin quedarse escuchando) los documentos con id entre desde y hasta.
+        rango: function (c, desde, hasta) { return fs.getDocs(fs.query(fs.collection(db, c), fs.where(fs.documentId(), '>=', desde), fs.where(fs.documentId(), '<', hasta))).then(function (s) { return s.docs.map(function (x) { var o = x.data(); o.id = x.id; return o; }); }); },
         subRangos: function (c, rangos, cb, err) {
           var partes = {};
           rangos.forEach(function (r, i) {
