@@ -1,11 +1,11 @@
 // Centro de desposte › Trazabilidad: solo se muestran los despostes de cerdo (pedido de Sabi 29/10); rendering, chacinados y tipo 5 no.
 const {chromium}=require('playwright');
-const RES=['OK|2026-10-29 13:00','TT|261791|x|2026-10-20|160|PRODUCTOR|LOCALIDAD|AB123','TM|2026-10-21|318|25440',
- 'DP|416191|2026-10-22|2|100|300|8000','DP|416196|2026-10-23|2|80|250|6000','DP|416300|2026-10-23|6|10|10|500',
+const RES=['OK|2026-10-29 13:00','TT|261791|x|2026-10-20|160|PRODUCTOR|LOCALIDAD|AB123','TM|2026-10-21|318|5100',
+ 'DP|416191|2026-10-22|2|100|300|8000|2700','DP|416196|2026-10-23|2|80|250|6000|2200','DP|416300|2026-10-23|6|10|10|500',
  'RP|416191|416192|2026-10-23|6|5|100','RP|416191|416184|2026-10-23|2|3|60','RP|416196|416193|2026-10-24|2|4|80',
  'RP|416196|416200|2026-10-24|6|2|40','RP|416191|416194|2026-10-24|4|6|120','RP|416196|416218|2026-10-25|5|1|20','RP|416191|416218|2026-10-25|5|1|20',
  'VE|416192|2026-10-22|R 0011-00044568|900|AGRO INDUSTRIAS BAIRES SA|9001|HARINA DE CARNE Y HUESO PORCINA|1|1200','VE|416200|2026-10-29|R 0011-00044749|900|AGRO INDUSTRIAS BAIRES SA|9001|HARINA DE CARNE Y HUESO PORCINA|4|5570',
- 'VE|416191|2026-10-23|R 0001-00012345|500|CARNICERIA EJEMPLO|101|BONDIOLA|3|60','VE|416196|2026-10-23|R 0001-00012345|500|CARNICERIA EJEMPLO|101|BONDIOLA|3|60','SR|416191|300|8000|3|5|0','VE|416184|2026-10-24|R 0001-00012346|501|OTRO CLIENTE|211|PECHITO|2|40'].join('\n');
+ 'VE|416191|2026-10-23|R 0001-00012345|500|CARNICERIA EJEMPLO|101|BONDIOLA|3|60','VE|416196|2026-10-23|R 0001-00012345|500|CARNICERIA EJEMPLO|101|BONDIOLA|3|60','SR|416191|300|8000|3|5|0|7640','SR|416196|250|6000|0|0|0|5860','VE|416184|2026-10-24|R 0001-00012346|501|OTRO CLIENTE|211|PECHITO|2|40'].join('\n');
 const T={tipo:'tropa',valor:'261791',pedido:'2026-10-29T16:00:00Z',hecho:'2026-10-29T16:00:05Z',res:RES};
 const C={tipo:'corr',valor:'4905612',pedido:'2026-10-29T16:00:00Z',hecho:'2026-10-29T16:00:05Z',
  res:['OK|2026-10-29 13:00','PR|4905612|1|30276|CARRE|17.68|2026-10-22|4905612|261791','DR|416191|2026-10-22|2|0',
@@ -28,8 +28,11 @@ for(const w of [1100,400]){
   ok(!/AGRO INDUSTRIAS/.test(r.txt),'no figura el cliente de la harina de carne (rendering)');
   ok(/CARNICERIA EJEMPLO/.test(r.txt)&&/OTRO CLIENTE/.test(r.txt)&&/2 clientes/.test(r.txt),'sí los clientes de cortes de desposte cerdo');
   ok(/2 clientes · 5 cajas o piezas · 100 kg/.test(r.txt),'la venta repetida en dos despostes cuenta una sola vez');
-  const fila=(r.txt.split('\n').find(l=>/^N° 416191/.test(l))||'').replace(/\s+/g,' ');console.log('balance 416191:',fila);
-  ok(/8\.000 60 60 240 — 7\.640$/.test(fila),'balance: 8.000 producidos = 60 vendidos + 60 reprocesado + 240 a rendering u otros + 7.640 en cámara');
+  const bm=r.txt.slice(r.txt.indexOf('3 · Balance de masas')).replace(/\s+/g,' ');console.log('balance:',bm.slice(0,700));
+  ok(/Conciliación 160 159 1 0 100,0 %/.test(bm),'a) animales: 160 = 159 faenados + 1 diferencia');
+  ok(/5\.100 — 4\.900 200 96,1 %/.test(bm),'b) kg de medias: 5.100 = 4.900 a desposte + 200 de oreo');
+  ok(/N° 416191 22\/10\/26 8\.000 60 — 60 240 7\.640 100,0 %/.test(bm),'c) lote 416191: 8.000 = 60 + 60 + 240 + 7.640 → 100 %');
+  ok(/N° 416196 23\/10\/26 6\.000 — — 80 60 5\.860 100,0 %/.test(bm),'c) lote 416196 → 100 %');
   r=await ver(C,w);
   ok(/416184/.test(r.txt)&&!/416192/.test(r.txt),'correlativo: "A dónde fue" solo muestra el reproceso en desposte cerdo');
  }

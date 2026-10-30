@@ -15,10 +15,10 @@ function parseTraza(txt) {
     if (t === 'OK') o.hora = p[1];
     else if (t === 'TT') o.tt.push({ tropa: p[1], fecha: p[3], cab: num(p[4]), prod: p[5], loc: p[6], pat: p[7] });
     else if (t === 'TM') o.tm.push({ fecha: p[1], medias: num(p[2]), kg: num(p[3]) });
-    else if (t === 'DP') o.dp.push({ desp: p[1], fecha: p[2], ticd: +p[3], mias: num(p[4]), total: num(p[5]), kg: num(p[6]) });
+    else if (t === 'DP') o.dp.push({ desp: p[1], fecha: p[2], ticd: +p[3], mias: num(p[4]), total: num(p[5]), kg: num(p[6]), tkg: p[7] == null ? null : num(p[7]) });
     else if (t === 'DT') o.dt.push({ desp: p[1], tropa: p[2], medias: num(p[3]) });
     else if (t === 'RP') o.rp.push({ orig: p[1], desp: p[2], fecha: p[3], ticd: +p[4], cajas: num(p[5]), kg: num(p[6]) });
-    else if (t === 'SR') o.sr[p[1]] = { cajas: num(p[2]), kg: num(p[3]), vend: num(p[4]), repr: num(p[5]), int: num(p[6]) };
+    else if (t === 'SR') o.sr[p[1]] = { cajas: num(p[2]), kg: num(p[3]), vend: num(p[4]), repr: num(p[5]), int: num(p[6]), stock: p[7] == null ? null : num(p[7]) };
     else if (t === 'VE') o.ve.push({ src: p[1], fecha: p[2], rem: p[3], cue: p[4], cli: p[5], art: p[6], den: p[7], cajas: num(p[8]), kg: num(p[9]) });
     else if (t === 'RI') o.ri.push({ src: p[1], fecha: p[2], num: p[3], de: p[4], a: p[5], cajas: num(p[6]), kg: num(p[7]) });
     else if (t === 'PR') o.pr.push({ corr: p[1], item: p[2], art: p[3], den: p[4], kg: num(p[5]), fecha: p[6], ident: p[7], tropa: p[8] });
@@ -106,11 +106,11 @@ function trazaTropa(R, T) {
   /* solo los despostes de cerdo (pedido de Sabi 29/10): rendering, chacinados, tipo 5, etc. no se muestran */
   const dpC = R.dp.filter(d => d.ticd === 2);
   if (dpC.length) {
-    h += '<section><h3 class="dj-h3" style="margin-top:0">1 · Despostes donde entró</h3><div class="tw"><table class="planilla dj-tab"><thead><tr><th>Desposte</th><th>Fecha</th><th class="num">Medias de esta tropa</th><th>Otras tropas en el mismo desposte</th><th class="num">Cajas</th><th class="num">Kg producidos</th><th class="num">Kg vendidos</th><th class="num">Reprocesado (cerdo)</th><th class="num">A rendering u otros</th><th class="num">Pases internos</th><th class="num">En cámara / sin vender</th></tr></thead><tbody>';
+    h += '<section><h3 class="dj-h3" style="margin-top:0">1 · Despostes donde entró</h3><div class="tw"><table class="planilla dj-tab"><thead><tr><th>Desposte</th><th>Fecha</th><th class="num">Medias de esta tropa</th><th>Otras tropas en el mismo desposte</th><th class="num">Cajas</th><th class="num">Kg producidos</th></tr></thead><tbody>';
     for (const d of dpC.sort((a, b) => a.fecha.localeCompare(b.fecha))) {
       const s = R.sr[d.desp] || {};
       h += '<tr><td>N° ' + esc(d.desp) + (d.ticd !== 2 ? ' <span class="muted">' + esc(tipoD(d.ticd)) + '</span>' : '') + '</td><td>' + ddmmaa(d.fecha) + '</td><td class="num">' + fmt0(d.mias) + ' de ' + fmt0(d.total) + '</td><td>' +
-        (otras(d.desp).map(x => lnkT(x.tropa) + ' <span class="muted">(' + fmt0(x.medias) + ')</span>').join(', ') || '<span class="muted">ninguna</span>') + '</td><td class="num">' + fmt0(s.cajas) + '</td>' + balanceDesp(R, d.desp, s) + '</tr>';
+        (otras(d.desp).map(x => lnkT(x.tropa) + ' <span class="muted">(' + fmt0(x.medias) + ')</span>').join(', ') || '<span class="muted">ninguna</span>') + '</td><td class="num">' + fmt0(s.cajas) + '</td><td class="num">' + fmt0(s.kg) + '</td></tr>';
     }
     h += '</tbody></table></div>';
     const rp = R.rp.filter(x => x.orig !== x.desp && x.ticd === 2);
@@ -142,7 +142,8 @@ function trazaTropa(R, T) {
     const ri = {}; for (const x of R.ri) { const k = x.de + ' → ' + x.a; const z = ri[k] || (ri[k] = { cajas: 0, kg: 0 }); z.cajas += x.cajas; z.kg += x.kg; }
     h += '<p class="sub" style="margin-top:10px">Pasaron a otra sección (remito interno): ' + Object.entries(ri).map(([k, z]) => esc(k.toLowerCase()) + ' ' + fmt0(z.cajas) + ' cajas, ' + fmt0(z.kg) + ' kg').join(' · ') + '. Si después se vendieron, ya figuran arriba.</p>';
   }
-  return h + pie(T, R) + '</section>';
+  h += '</section>' + balanceMasas(R, T);
+  return h + pie(T, R);
 }
 
 /* ---------- resultado por correlativo ---------- */
@@ -175,15 +176,46 @@ function trazaCorr(R, T) {
   h += dest.length ? '<ul class="tz-dest">' + dest.join('') + '</ul>' : '<p class="muted">Todavía no tiene venta ni movimiento registrado (debería estar en cámara).</p>';
   return h + pie(T, R) + '</section>';
 }
-/* balance en kilos de un desposte (pedido de Sabi 30/10): producido = vendido + reprocesado en cerdo + a rendering u otros + pases internos + en cámara */
-function balanceDesp(R, desp, s) {
-  const k = String(desp), sum = (L, f) => L.filter(f).reduce((a, x) => a + (Number(x.kg) || 0), 0);
-  const prod = Number(s.kg) || 0, vend = sum(R.ve, v => String(v.src) === k);
-  const repC = sum(R.rp, x => String(x.orig) === k && String(x.desp) !== k && x.ticd === 2), repO = sum(R.rp, x => String(x.orig) === k && x.ticd !== 2);
-  const pase = sum(R.ri, x => String(x.src) === k), resto = prod - vend - repC - repO - pase;
-  const kg = v => v ? fmt0(v) : '<span class="muted">—</span>';
-  return '<td class="num"><b>' + kg(prod) + '</b></td><td class="num">' + kg(vend) + '</td><td class="num">' + kg(repC) + '</td><td class="num">' + kg(repO) + '</td><td class="num">' + kg(pase) + '</td>' +
-    '<td class="num">' + (resto < -0.5 ? '<span class="chip sm bad" title="Se vendió o movió más de lo producido: revisar">' + fmt0(resto) + '</span>' : kg(Math.max(0, resto))) + '</td>';
+/* 3 · Balance de masas (procedimiento de trazabilidad, punto f; pedido de Sabi 30/10):
+   animales ingresados = faenados + decomisados + muertos; kg de medias = kg expedidos en media res + kg ingresados a desposte;
+   por lote (desposte): kg producidos = kg expedidos + kg en stock + bajas documentadas → % conciliación */
+function balanceMasas(R, T) {
+  const pc = (a, b) => b ? (a / b * 100).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' %' : '—';
+  const kg = v => v ? fmt0(v) : '<span class="muted">—</span>', sum = (L, f, k) => L.filter(f).reduce((a, x) => a + (Number(x[k || 'kg']) || 0), 0);
+  const nuevo = '<span class="muted" style="font-size:12px">volvé a consultar la tropa (falta el dato nuevo)</span>';
+  let h = '<section><h3 class="dj-h3" style="margin-top:0">3 · Balance de masas</h3><p class="sub" style="margin:0 0 8px">Según el procedimiento de trazabilidad: se concilian los animales, los kg de medias reses y los kg producidos por lote.</p>';
+  /* a) animales */
+  const ing = R.tt.reduce((a, t) => a + t.cab, 0), fae = R.tm.reduce((a, x) => a + x.medias, 0) / 2;
+  const mu = (typeof muertosPorTropa === 'function' ? muertosPorTropa() : {})[String(T.valor)] || 0, dec = ing - fae - mu;
+  h += '<h4 class="dj-h3">a) Animales</h4><div class="tw"><table class="planilla dj-tab"><thead><tr><th class="num">Ingresados</th><th class="num">Faenados</th><th class="num">Decomisados (diferencia)</th><th class="num">Muertos</th><th class="num">Conciliación</th></tr></thead><tbody>' +
+    '<tr><td class="num"><b>' + fmt0(ing) + '</b></td><td class="num">' + fmt0(fae) + '</td><td class="num">' + (dec < 0 ? '<span class="chip sm bad">' + fmt0(dec) + '</span>' : fmt0(dec)) + '</td><td class="num">' + fmt0(mu) + '</td><td class="num">' + pc(fae + Math.max(dec, 0) + mu, ing) + '</td></tr></tbody></table></div>' +
+    '<p class="muted" style="font-size:12.5px;margin:4px 0 10px">Faenados: cabezas del romaneo con kilos. Muertos: del sistema, de la playa de emergencia (A1) y cargados a mano. El sistema no informa los decomisos totales: van como diferencia (ingresados − faenados − muertos); si da negativo, revisar.</p>';
+  /* b) kg de medias reses */
+  const kgM = R.tm.reduce((a, x) => a + x.kg, 0), exp = sum(R.ve, v => String(v.src) === '0'), sinT = R.dp.length > 0 && R.dp.every(d => d.tkg == null), ingD = sum(R.dp, () => true, 'tkg');
+  h += '<h4 class="dj-h3">b) Kg de medias reses</h4><div class="tw"><table class="planilla dj-tab"><thead><tr><th class="num">Kg de medias (faena)</th><th class="num">Expedidos en media res</th><th class="num">Ingresados a desposte</th><th class="num">Diferencia (oreo / merma)</th><th class="num">Conciliación</th></tr></thead><tbody>' +
+    '<tr><td class="num"><b>' + fmt0(kgM) + '</b></td><td class="num">' + kg(exp) + '</td><td class="num">' + (sinT ? nuevo : kg(ingD)) + '</td><td class="num">' + (sinT ? '' : fmt0(kgM - exp - ingD)) + '</td><td class="num">' + (sinT ? '' : pc(exp + ingD, kgM)) + '</td></tr></tbody></table></div>' +
+    '<p class="muted" style="font-size:12.5px;margin:4px 0 10px">Los kg de faena son en caliente (romaneo); los que entran a desposte, en frío: la diferencia es el oreo de cámara.</p>';
+  /* c) por lote */
+  const lotes = R.dp.filter(d => d.ticd === 2).sort((a, b) => a.fecha.localeCompare(b.fecha));
+  if (lotes.length) {
+    h += '<h4 class="dj-h3">c) Kg producidos por lote (desposte)</h4><div class="tw"><table class="planilla dj-tab"><thead><tr><th>Lote</th><th class="num">Kg producidos</th><th class="num">Expedidos (ventas)</th><th class="num">Pases internos</th><th class="num">Reprocesado (pasa a otro lote)</th><th class="num">Bajas documentadas (rendering u otros)</th><th class="num">En stock</th><th class="num">% conciliación</th></tr></thead><tbody>';
+    const tot = [0, 0, 0, 0, 0, 0];
+    for (const d of lotes) {
+      const k = String(d.desp), s = R.sr[k] || {}, prod = Number(s.kg) || 0;
+      const ven = sum(R.ve, v => String(v.src) === k), pas = sum(R.ri, x => String(x.src) === k);
+      const rep = sum(R.rp, x => String(x.orig) === k && String(x.desp) !== k && x.ticd === 2), baj = sum(R.rp, x => String(x.orig) === k && x.ticd !== 2);
+      const st = s.stock;
+      [prod, ven, pas, rep, baj, st || 0].forEach((v, i) => { tot[i] += v; });
+      const conc = st == null ? null : (ven + pas + rep + baj + st) / (prod || 1) * 100;
+      h += '<tr><td>N° ' + esc(k) + ' <span class="muted">' + ddmmaa(d.fecha) + '</span></td><td class="num"><b>' + fmt0(prod) + '</b></td><td class="num">' + kg(ven) + '</td><td class="num">' + kg(pas) + '</td><td class="num">' + kg(rep) + '</td><td class="num">' + kg(baj) + '</td><td class="num">' + (st == null ? nuevo : kg(st)) + '</td>' +
+        '<td class="num">' + (conc == null ? '' : (Math.abs(conc - 100) > 2 ? '<span class="chip sm ' + (conc > 100 ? 'bad' : 'warn') + '">' + pc(ven + pas + rep + baj + st, prod) + '</span>' : pc(ven + pas + rep + baj + st, prod))) + '</td></tr>';
+    }
+    const sinS = lotes.some(d => (R.sr[String(d.desp)] || {}).stock == null);
+    if (lotes.length > 1) h += '<tr class="tot"><td>Total</td>' + tot.map(v => '<td class="num">' + fmt0(v) + '</td>').join('') + '<td class="num">' + (sinS ? '' : pc(tot[1] + tot[2] + tot[3] + tot[4] + tot[5], tot[0])) + '</td></tr>';
+    h += '</tbody></table></div><p class="muted" style="font-size:12.5px;margin:4px 0 0">% conciliación = (expedidos + pases + reprocesado + bajas documentadas + stock) ÷ kg producidos × 100. Expedidos con los kg del remito; el resto con los kg de producción. ' +
+      'El lote es todo el desposte (incluye las otras tropas que entraron con esta). Más de 100 % (en rojo) = se expidió más de lo producido: revisar.</p>';
+  }
+  return h + '</section>';
 }
 function tablaTI(l, conDesp) {
   if (!l.length) return '<p class="muted">Sin medias registradas.</p>';

@@ -7,9 +7,9 @@
 #  Lo llama dj_pedido.ps1 cuando alguien consulta desde la web (c3docs/ddjj-traza). Prueba: dj_traza.ps1 -Tipo tropa -Valor 261791 -Probar
 #  Renglones:
 #    TT|tropa|nroint|fecha ingreso|cabezas|productor|localidad|patente     TM|fecha faena|medias (cabezas del romaneo × 2)|kg de faena
-#    DP|desposte|fecha|tipo ciclo|medias de la tropa|total entradas|kg entrada    DT|desposte|otra tropa|medias
+#    DP|desposte|fecha|tipo ciclo|medias de la tropa|total entradas|kg entrada|kg de las medias de la tropa    DT|desposte|otra tropa|medias
 #    RP|desposte origen|desposte que reprocesó|fecha|tipo ciclo|cajas|kg
-#    SR|desposte|cajas|kg|vendidas|reprocesadas|pasadas a otra sección
+#    SR|desposte|cajas|kg|vendidas|reprocesadas|pasadas a otra sección|kg en stock (cajas sin venta, reproceso ni pase)
 #    VE|origen (desposte, 0 = medias enteras)|fecha|remito|cuenta|cliente|artículo|nombre|cajas|kg
 #    RI|origen|fecha|remito interno|de|a|cajas|kg
 #    PR|correlativo|item|art|nombre|kg|fecha|identif|tropa (si es media)|nroint    TF|tropa|fecha|cabezas|productor|localidad (de la media)
@@ -70,7 +70,7 @@ SELECT DISTINCT 'D1|'||i.desp_numero FROM desposteing i JOIN productos p ON p.pr
     $out += $b; $D1 = EnLista (Lista $b 'D1' 1)
     if ($D1 -eq '-1') { return $out }
     $c = Invoke-Sql @"
-SELECT 'DP|'||d.desp_numero||'|'||TO_CHAR(d.desp_fecha,'YYYY-MM-DD')||'|'||d.ticd_codigo||'|'||SUM(CASE WHEN p.tro_nroint IN ($NI) THEN 1 ELSE 0 END)||'|'||COUNT(*)||'|'||TO_CHAR(ROUND(SUM(i.despi_kilos),2))
+SELECT 'DP|'||d.desp_numero||'|'||TO_CHAR(d.desp_fecha,'YYYY-MM-DD')||'|'||d.ticd_codigo||'|'||SUM(CASE WHEN p.tro_nroint IN ($NI) THEN 1 ELSE 0 END)||'|'||COUNT(*)||'|'||TO_CHAR(ROUND(SUM(i.despi_kilos),2))||'|'||TO_CHAR(ROUND(SUM(CASE WHEN p.tro_nroint IN ($NI) THEN i.despi_kilos ELSE 0 END),2))
   FROM desposte d JOIN desposteing i ON i.desp_numero=d.desp_numero LEFT JOIN productos p ON p.pro_numero=i.pro_numero AND p.pro_item=i.pro_item
  WHERE d.desp_numero IN ($D1) GROUP BY d.desp_numero, d.desp_fecha, d.ticd_codigo;
 SELECT 'DT|'||i.desp_numero||'|'||t.tro_numero||'|'||COUNT(*)
@@ -87,7 +87,10 @@ SELECT 'RP|'||r.desp_numero||'|'||d.desp_numero||'|'||TO_CHAR(d.desp_fecha,'YYYY
 SELECT 'SR|'||r.desp_numero||'|'||COUNT(*)||'|'||TO_CHAR(ROUND(SUM(r.despr_kilos),2))||'|'||
   SUM(CASE WHEN EXISTS(SELECT 1 FROM remitosdet rd WHERE rd.pro_numero=r.pro_numero AND rd.pro_item=r.pro_item) THEN 1 ELSE 0 END)||'|'||
   SUM(CASE WHEN EXISTS(SELECT 1 FROM desposteing i WHERE i.pro_numero=r.pro_numero AND i.pro_item=r.pro_item) THEN 1 ELSE 0 END)||'|'||
-  SUM(CASE WHEN EXISTS(SELECT 1 FROM remitosintdet x WHERE x.pro_numero=r.pro_numero AND x.pro_item=r.pro_item) THEN 1 ELSE 0 END)
+  SUM(CASE WHEN EXISTS(SELECT 1 FROM remitosintdet x WHERE x.pro_numero=r.pro_numero AND x.pro_item=r.pro_item) THEN 1 ELSE 0 END)||'|'||
+  TO_CHAR(ROUND(SUM(CASE WHEN NOT EXISTS(SELECT 1 FROM remitosdet rd WHERE rd.pro_numero=r.pro_numero AND rd.pro_item=r.pro_item)
+                          AND NOT EXISTS(SELECT 1 FROM desposteing i WHERE i.pro_numero=r.pro_numero AND i.pro_item=r.pro_item)
+                          AND NOT EXISTS(SELECT 1 FROM remitosintdet x WHERE x.pro_numero=r.pro_numero AND x.pro_item=r.pro_item) THEN r.despr_kilos ELSE 0 END),2))
   FROM desposteres r WHERE r.desp_numero IN ($D) GROUP BY r.desp_numero;
 "@ + (& $ventas $X))
   } elseif ($tipo -eq 'correlativo') {
