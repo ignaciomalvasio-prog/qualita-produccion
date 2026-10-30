@@ -3017,10 +3017,17 @@
   function tuDoc(f) { var d = (S.tun || {})[f]; return d && (d.clientes || []).length ? d : null; }
   function tuAnt(f) { var ks = Object.keys(S.tun || {}).filter(function (k) { return k < f && tuDoc(k); }).sort(); return ks.length ? tuDoc(ks[ks.length - 1]) : null; }
   function tuAntFecha(f) { var ks = Object.keys(S.tun || {}).filter(function (k) { return k < f && tuDoc(k); }).sort(); return ks[ks.length - 1] || ''; }
+  // Cantidad con punto de miles mientras se escribe (pedido de Renzo): 10000 → 10.000; la coma queda para decimales.
+  function tuMiles(v) {
+    var t = String(v == null ? '' : v).replace(/[^\d,]/g, ''), i = t.indexOf(','), ent = i >= 0 ? t.slice(0, i) : t, dec = i >= 0 ? ',' + t.slice(i + 1).replace(/,/g, '') : '';
+    ent = ent.replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return ent + dec;
+  }
+  function tuNum(v) { var t = String(v || '').replace(/\./g, '').replace(',', '.'); return t === '' ? '' : (+t || 0); }
   function tuItem() { return { corte: '', cod: '', cant: '', uni: 'kg', nota: '' }; }
   function tuLimpio(d) {
     return { clientes: (d.clientes || []).map(function (c) {
-      return { nombre: c.nombre || '', items: (c.items || []).map(function (it) { return { corte: it.corte || '', cod: it.cod || '', cant: it.cant == null || it.cant === '' ? '' : String(it.cant), uni: it.uni || 'kg', nota: it.nota || '' }; }) };
+      return { nombre: c.nombre || '', items: (c.items || []).map(function (it) { return { corte: it.corte || '', cod: it.cod || '', cant: it.cant == null || it.cant === '' ? '' : tuMiles(String(it.cant).replace('.', ',')), uni: it.uni || 'kg', nota: it.nota || '' }; }) };
     }) };
   }
   function tuSuma(items, uni) { return items.reduce(function (a, it) { return a + ((it.uni || 'kg') === uni ? (+it.cant || 0) : 0); }, 0); }
@@ -3039,7 +3046,7 @@
     var cls = e.doc.clientes.map(function (c) {
       return { nombre: String(c.nombre || '').trim().toUpperCase(), items: c.items.map(function (it) {
         var q = String(it.cant || '').trim();
-        return { corte: String(it.corte || '').trim().toUpperCase(), cod: String(it.cod || '').trim(), cant: q ? numero(q) : '', uni: it.uni || 'kg', nota: String(it.nota || '').trim() };
+        return { corte: String(it.corte || '').trim().toUpperCase(), cod: String(it.cod || '').trim(), cant: q ? tuNum(q) : '', uni: it.uni || 'kg', nota: String(it.nota || '').trim() };
       }).filter(function (it) { return it.corte || it.cant !== '' || it.cod; }) };
     }).filter(function (c) { return c.nombre || c.items.length; });
     S.tun = S.tun || {};
@@ -3098,7 +3105,14 @@
   document.addEventListener('input', function (e) {
     var t = e.target; if (!S.tuEd || !t.closest || !t.closest('#view-tunel')) return;
     if (t.dataset.tuc != null) S.tuEd.doc.clientes[+t.dataset.tuc].nombre = t.value;
-    else if (t.dataset.tu) { var p = t.dataset.tu.split('.'); S.tuEd.doc.clientes[+p[0]].items[+p[1]][p[2]] = t.value; }
+    else if (t.dataset.tu) {
+      var p = t.dataset.tu.split('.');
+      if (p[2] === 'cant') {
+        var cur = t.selectionStart == null ? t.value.length : t.selectionStart, dig = t.value.slice(0, cur).replace(/[^\d,]/g, '').length, nv = tuMiles(t.value);
+        if (nv !== t.value) { t.value = nv; var k = 0, c = 0; while (k < nv.length && c < dig) { if (/[\d,]/.test(nv[k])) c++; k++; } try { t.setSelectionRange(k, k); } catch (err) {} }
+      }
+      S.tuEd.doc.clientes[+p[0]].items[+p[1]][p[2]] = t.value;
+    }
   });
   document.addEventListener('change', function (e) {
     var t = e.target; if (!t.closest || !t.closest('#view-tunel')) return;

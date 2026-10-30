@@ -1,3 +1,4 @@
+// Túnel (cantidades con punto de miles al escribir)
 // Túnel 🔒 (pestaña privada como Cámara): se arma por día, por cliente y corte; copiar el día anterior, total de kg, PDF.
 // Producción ya no tiene la solapa "Mercadería para túnel". Quien no es de Cámara no ve la pestaña.
 const {chromium}=require('playwright');const SP=process.argv[2];
@@ -11,9 +12,10 @@ console.log(w,'producción sin túnel:',await p.locator('[data-act="pv"][data-v=
 await p.click('#tab-tunel');await p.waitForTimeout(200);
 console.log(w,'día:',await p.locator('#view-tunel .nav .tit').innerText(),'·',(await p.locator('#view-tunel .panel').last().innerText()).replace(/\s+/g,' '));
 await p.click('[data-act="tu-copiar"]');await p.waitForTimeout(100);
-await p.fill('[data-tu="0.1.cant"]','5.200');
+console.log(w,'copiado muestra:',await p.inputValue('[data-tu="0.0.cant"]'));
+await p.fill('[data-tu="0.1.cant"]','');await p.type('[data-tu="0.1.cant"]','5200');console.log(w,'escrito 5200 →',await p.inputValue('[data-tu="0.1.cant"]'));
 await p.click('[data-act="tu-ren"][data-i="0"]');await p.fill('[data-tu="0.2.corte"]','carre');await p.fill('[data-tu="0.2.cant"]','8100');
-await p.click('[data-act="tu-cli"]');await p.fill('[data-tuc="1"]','swift');await p.fill('[data-tu="1.0.corte"]','grasa');await p.fill('[data-tu="1.0.cod"]','479');await p.fill('[data-tu="1.0.cant"]','7500');await p.fill('[data-tu="1.0.nota"]','+ producción jueves');
+await p.click('[data-act="tu-cli"]');await p.fill('[data-tuc="1"]','swift');await p.fill('[data-tu="1.0.corte"]','grasa');await p.fill('[data-tu="1.0.cod"]','479');await p.type('[data-tu="1.0.cant"]','12500,5');console.log(w,'escrito 12500,5 →',await p.inputValue('[data-tu="1.0.cant"]'));await p.fill('[data-tu="1.0.nota"]','+ producción jueves');
 await p.click('[data-act="tu-ren"][data-i="1"]');await p.fill('[data-tu="1.1.corte"]','pecho');await p.fill('[data-tu="1.1.cant"]','100');await p.selectOption('[data-tu="1.1.uni"]','cajas');
 if(w===400)await p.screenshot({path:SP+'/tunel-ed.png',fullPage:true});
 console.log(w,'desborde editando',await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth));
