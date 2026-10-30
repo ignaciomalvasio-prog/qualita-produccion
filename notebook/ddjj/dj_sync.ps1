@@ -123,6 +123,30 @@ SELECT 'TQ|'||TO_CHAR(t.tro_fecha,'YYYY-MM')||'|'||t.cue_codigo||'|'||TRIM(TRANS
   return Invoke-Sql $sql
 }
 
+# Pestaña "Tropas" (pedido de Sabi 30/10): tropas que ingresaron en el mes, con su faena por día.
+#    TP|tropa|fecha ingreso|cabezas|kilos vivos|jaula|cuenta|productor|localidad     FD|tropa|fecha faena|cabezas faenadas (romaneo con kg)
+#    FR|tropa|kg del romaneo (entero)|animales   (para los rangos de peso)
+# El peso vivo de la tropa se busca en el diccionario (columna de TROPAS con KILO en el nombre); si no hay, va 0.
+function Get-Tropas([string]$m) {
+  $d0 = "DATE '$m-01'"; $d1 = "ADD_MONTHS($d0,1)"
+  $k = @(Invoke-Sql "SELECT 'DK|'||column_name FROM all_tab_columns WHERE owner='FRIGO' AND table_name='TROPAS' AND column_name LIKE '%KILO%' ORDER BY column_id;" | Where-Object { $_ -like 'DK|*' } | ForEach-Object { $_.Substring(3).Trim() })
+  $kv = if ($k.Count) { "NVL(t." + $k[0] + ",0)" } else { "0" }
+  return Invoke-Sql @"
+SELECT 'TK|'||'$($k -join ',')' FROM dual;
+SELECT 'TP|'||t.tro_numero||'|'||TO_CHAR(t.tro_fecha,'YYYY-MM-DD')||'|'||NVL(t.tro_cabezas,0)||'|'||$kv||'|'||TRIM(t.tro_patente)||'|'||t.cue_codigo||'|'||TRIM(TRANSLATE(NVL(c.cue_denom,' '),CHR(9)||'|','  '))||'|'||TRIM(NVL(l.loc_denom,' '))
+  FROM tropas t LEFT JOIN cuentas c ON c.cue_codigo=t.cue_codigo LEFT JOIN localidades l ON l.loc_codigo=t.loc_codigo
+ WHERE t.tro_fecha >= $d0 AND t.tro_fecha < $d1;
+SELECT 'FD|'||t.tro_numero||'|'||TO_CHAR(TRUNC(p.pro_fecha),'YYYY-MM-DD')||'|'||COUNT(*)
+  FROM romaneos r JOIN productos p ON p.pro_numero=r.pro_numero AND p.pro_item=r.pro_item JOIN tropas t ON t.tro_nroint=p.tro_nroint
+ WHERE t.tro_fecha >= $d0 AND t.tro_fecha < $d1 AND NVL(r.rom_kilos,0) > 0
+ GROUP BY t.tro_numero, TRUNC(p.pro_fecha);
+SELECT 'FR|'||t.tro_numero||'|'||FLOOR(r.rom_kilos)||'|'||COUNT(*)
+  FROM romaneos r JOIN productos p ON p.pro_numero=r.pro_numero AND p.pro_item=r.pro_item JOIN tropas t ON t.tro_nroint=p.tro_nroint
+ WHERE t.tro_fecha >= $d0 AND t.tro_fecha < $d1 AND NVL(r.rom_kilos,0) > 0
+ GROUP BY t.tro_numero, FLOOR(r.rom_kilos);
+"@
+}
+
 # Muertos de la playa de emergencia (pedido de Sabi 30/10): en la consulta de faena, un renglón de lista A1 con 1 sola cabeza,
 # de una tropa que tiene más animales, es un animal muerto en corrales que pasó por la playa de emergencia.
 # La tabla de la consulta de faena se busca sola en el diccionario de Oracle (la que tiene una columna LISTA y TRO_NROINT).
@@ -179,6 +203,10 @@ try {
   $meses = @($hoy.AddMonths(-1).ToString('yyyy-MM'), $hoy.ToString('yyyy-MM'))
   $datos = @{}
   foreach ($m in $meses) { $Paso = "leer el mes $m"; $datos[$m] = ((Get-DJ $m) | Where-Object { "$_".Trim() -ne '' }) -join "`n" }
+  foreach ($m in $meses) {   # tropas del mes (pestaña Tropas): si falla, no frena lo demás
+    $Paso = "leer las tropas de $m"
+    try { $datos[$m] += "`n" + (((Get-Tropas $m) | Where-Object { "$_".Trim() -ne '' }) -join "`n") } catch { LogL ("No se pudieron leer las tropas de $m" + ': ' + $_.Exception.Message) }
+  }
   $Paso = 'leer faena y mortalidad'; $anual = ((Get-Anual) | Where-Object { "$_".Trim() -ne '' }) -join "`n"
   $Paso = 'buscar muertos de la playa de emergencia (A1)'
   try { $anual += "`n" + (((Get-A1) | Where-Object { "$_".Trim() -ne '' }) -join "`n") }

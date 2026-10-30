@@ -61,7 +61,7 @@ const mesHoy = () => hoyIso().slice(0, 7);
 
 /* ---------- lectura de lo que subió la notebook ---------- */
 function parseDJ(txt) {
-  const o = { hora: '', dias: {}, co: {}, c3: {}, me: [], ft: {} };
+  const o = { hora: '', dias: {}, co: {}, c3: {}, me: [], ft: {}, tp: [], fd: {}, fr: {}, tk: null };
   const d3 = f => o.c3[f] || (o.c3[f] = { re: [], in: [] });
   const dia = f => o.dias[f] || (o.dias[f] = { tr: [], in: [], re: [], en: [] });
   for (const l of String(txt || '').split(/\r?\n/)) {
@@ -75,6 +75,10 @@ function parseDJ(txt) {
     else if (t === 'EN') { const x = dia(p[1]); (x.en = x.en || []).push({ art: +p[2], tropa: String(p[3] || '').trim(), uni: num(p[4]) }); }
     else if (t === 'ME') o.me.push({ f: p[1], ticd: +p[2], art: +p[3], den: (p[4] || '').trim(), uni: num(p[5]), kg: num(p[6]) });
     else if (t === 'FT') (o.ft[String(p[1]).trim()] = o.ft[String(p[1]).trim()] || {})[p[2]] = num(p[3]);   // faena de cada tropa por día (romaneo)
+    else if (t === 'TP') o.tp.push({ tropa: String(p[1]).trim(), fecha: p[2], cab: num(p[3]), kg: num(p[4]), jaula: (p[5] || '').trim(), cue: +p[6], prod: (p[7] || '').trim(), loc: (p[8] || '').trim() });   // pestaña Tropas
+    else if (t === 'FD') (o.fd[String(p[1]).trim()] = o.fd[String(p[1]).trim()] || {})[p[2]] = num(p[3]);
+    else if (t === 'TK') o.tk = p[1] || '';
+    else if (t === 'FR') { const k = String(p[1]).trim(); (o.fr[k] = o.fr[k] || []).push([num(p[2]), num(p[3])]); }
     else if (t === 'CO') o.co[p[1]] = { den: (p[2] || '').trim(), pais: (p[3] || '').trim() };
   }
   return o;
@@ -333,6 +337,7 @@ function render() {
   if (S.tab === 'faena') return renderFaena();
   if (S.tab === 'men') return renderMen();
   if (S.tab === 'traza') return renderTraza();
+  if (S.tab === 'tropas' && typeof renderTropas === 'function') return renderTropas();
   renderDia();
 }
 
