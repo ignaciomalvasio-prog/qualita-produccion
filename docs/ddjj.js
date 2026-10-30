@@ -635,6 +635,12 @@ const d0n = i => eq().lineas[i] ? eq().lineas[i].n : '';
 /* Excel de la DDJJ de desposte: lo mismo que la hoja impresa (ingreso + producción, con lo corregido a mano).
    Del día: una hoja; del mes: una hoja por cada día con desposte. */
 /* Descarga el Excel; en el modo automático de la PC (window.__auto, dj_excel_diario.ps1) lo deja para que lo guarde el programa */
+/* Excel ya armado (bytes del .xlsx): descarga, o en el modo automático lo deja para el programa de la PC */
+function guardarBytes(u8, nombre) {
+  if (window.__auto) { let b = ''; for (let i = 0; i < u8.length; i += 0x8000) b += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); (window.__autoOut = window.__autoOut || []).push({ nombre, b64: btoa(b) }); return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([u8], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })); a.download = nombre;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
 function guardarXlsx(wb, nombre) {
   if (window.__auto) { (window.__autoOut = window.__autoOut || []).push({ nombre, b64: XLSX.write(wb, { type: 'base64', bookType: 'xlsx' }) }); return; }
   XLSX.writeFile(wb, nombre);
@@ -669,16 +675,10 @@ function filasDJ(f) {
   return filas;
 }
 function excelDJ(mes) {
-  if (!window.XLSX) { toast('No se pudo cargar el Excel. Revisá internet.', true); return; }
   const dias = mes ? Object.keys((S.sis && S.sis.dias) || {}).sort().filter(f => calcular(f).hay) : [S.fecha];
   if (!dias.length || !dias[0]) { toast('No hay días con desposte.', true); return; }
-  const wb = XLSX.utils.book_new();
-  for (const f of dias) {
-    const ws = XLSX.utils.aoa_to_sheet(filasDJ(f));
-    ws['!cols'] = [{ wch: 30 }, { wch: 18 }, { wch: 22 }, { wch: 22 }, { wch: 24 }, { wch: 40 }];
-    XLSX.utils.book_append_sheet(wb, ws, ddmm(f).replace('/', '-'));
-  }
-  guardarXlsx(wb, mes ? 'DDJJ desposte ' + nombreMes(S.mes) + '.xlsx' : 'DDJJ desposte ' + ddmmaaaa(S.fecha).replace(/\//g, '-') + '.xlsx');
+  /* con el formato de la planilla (hojas INGRESO y PROD; del mes, dos hojas por día) — ddjj-xlsx.js */
+  guardarBytes(libroDJ(dias), mes ? 'DDJJ desposte ' + nombreMes(S.mes) + '.xlsx' : 'DDJJ desposte ' + ddmmaaaa(S.fecha).replace(/\//g, '-') + '.xlsx');
 }
 
 /* Las medidas (en puntos, hoja A4 de 595 × 842) son las de la planilla de Excel impresa: el formulario

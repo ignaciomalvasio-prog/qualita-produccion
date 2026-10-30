@@ -24,14 +24,14 @@ if(w===1300){console.log('ingreso:',ing.join(' / '));
  await p.evaluate(()=>{document.getElementById('impresion').innerHTML=hojas(S.fecha)});
  const imp=await p.evaluate(()=>document.getElementById('impresion').textContent);
  ok(/261799159318/.test(imp)&&/FAENA PARCIAL/.test(imp),'la hoja impresa lleva 159 y FAENA PARCIAL');
- // Excel del día y del mes (librería de mentira que guarda lo que iría a cada hoja)
- await p.evaluate(()=>{window.__xl=[];window.XLSX={utils:{book_new:()=>({h:[]}),aoa_to_sheet:a=>({a}),book_append_sheet:(wb,ws,n)=>wb.h.push([n,ws.a])},writeFile:(wb,n)=>window.__xl.push([n,wb.h])};});
+ // Excel del día y del mes (con formato, hojas INGRESO y PROD; el .xlsx va sin comprimir, así se lee el XML directo)
+ await p.evaluate(()=>{window.__auto={hecho:true};window.__autoOut=[];});
  await p.click('text=Excel del día');await p.click('text=Excel del mes');
- const xl=await p.evaluate(()=>window.__xl);const dia=xl[0][1][0][1].map(r=>r.join('|'));
- ok(xl[0][0]==='DDJJ desposte 28-10-2026.xlsx','nombre del Excel del día: '+xl[0][0]);
- ok(dia.includes('27/10/2026|261799|159|318|25440|FAENA PARCIAL'),'Excel del día: tropa 261799 con 159 y FAENA PARCIAL');
- ok(dia.some(r=>r.startsWith('Bondiola|')),'Excel del día: producción');
- ok(xl[1][1].length===1&&xl[1][1][0][0]==='28-10','Excel del mes: una hoja por día ('+xl[1][1].map(h=>h[0])+')');
+ const xl=await p.evaluate(()=>window.__autoOut);const dia=Buffer.from(xl[0].b64,'base64').toString('latin1');
+ ok(xl[0].nombre==='DDJJ desposte 28-10-2026.xlsx','nombre del Excel del día: '+xl[0].nombre);
+ ok(/<c r="C19"[^>]*><v>261799<\/v>/.test(dia)&&/<c r="D19"[^>]*><v>159<\/v>/.test(dia)&&/<c r="I19"[^>]*><is><t[^>]*>FAENA PARCIAL/.test(dia),'Excel del día: tropa 261799 con 159 y FAENA PARCIAL');
+ ok(/>Bondiola</.test(dia)&&/name="INGRESO"/.test(dia)&&/name="PROD"/.test(dia),'Excel del día: hojas INGRESO y PROD con la producción');
+ ok(/name="INGRESO"/.test(Buffer.from(xl[1].b64,'base64').toString('latin1')),'Excel del mes con el mismo formato');
  await p.screenshot({path:SP+'/ddjj-muertos.png',fullPage:true});}
 const des=await p.evaluate(()=>document.documentElement.scrollWidth-innerWidth);ok(des<=0,w+' sin desborde');ok(!errs.length,w+' errores: '+(errs.join('|')||'ninguno'));
 await p.close();}
