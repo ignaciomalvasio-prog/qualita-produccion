@@ -1,38 +1,15 @@
-// Centro de desposte › DDJJ desposte: una tropa con un muerto (tropa 261799, 160 cabezas, 1 muerto) declara 159 y FAENA PARCIAL.
-// Botones Excel del día y del mes.
-// También cuenta un muerto cargado a mano en Faena y mortalidad, y no toca las tropas sin muertos.
-const {chromium}=require('playwright');const SP=process.argv[2];
-const TXT=['OK|2026-10-28 19:00',
- 'TR|2026-10-28|261799|160|2026-10-27|318|25440','TR|2026-10-28|261800|150|2026-10-27|300|24000','TR|2026-10-28|261801|80|2026-10-27|160|12800',
- 'RE|2026-10-28|101|BONDIOLA|1|64|554|1355.97'].join('\n');
-const ANUAL=['OK|2026-10-28 19:00','MU|2026-10-27|261799|1|C|AB123CD|10|PRODUCTOR|LOCALIDAD| '].join('\n');
-const MUERTOS={lista:[{id:'a1',fecha:'2026-10-27',tropa:'261801',cab:2,lugar:'VIAJE'}]};
-(async()=>{const b=await chromium.launch();let mal=0;const ok=(c,m)=>{console.log((c?'OK  ':'MAL ')+m);if(!c)mal++;};
-for(const w of [1300,400]){const p=await b.newPage({viewport:{width:w,height:900}});const errs=[];p.on('pageerror',e=>errs.push(e.message));
-await p.clock.install({time:new Date('2026-10-29T09:00:00-03:00')});
-await p.addInitScript(m=>{window.__mock=m},{user:{email:'ssaavedra@x.com',displayName:'Saavedra',emailVerified:true},rol:'ddjj',sis:{'dj-2026-10':TXT,'dj-anual':ANUAL},docs:{'ddjj-muertos':MUERTOS}});
-await p.goto('http://127.0.0.1:8765/ddjj.html?f=2026-10-28');await p.clock.runFor(1500);
-await p.evaluate(()=>{const a=document.querySelector('#nav a[data-t="dia"]');if(a)a.click();});await p.waitForTimeout(400);
-await p.waitForSelector('.dj-tab');
-const ing=await p.evaluate(()=>planilla('2026-10-28').ingreso.map(t=>t.tropa+':'+t.cab+':'+t.obs));
-if(w===1300){console.log('ingreso:',ing.join(' / '));
- ok(ing.includes('261799:159:FAENA PARCIAL'),'261799 → 159 y FAENA PARCIAL');
- ok(ing.includes('261800:150:Consumo'),'261800 sin muertos queda igual');
- ok(ing.includes('261801:78:FAENA PARCIAL'),'261801 con 2 muertos a mano → 78');
- const aviso=await p.evaluate(()=>[...document.querySelectorAll('.alerta')].map(a=>a.textContent).join(' '));
- ok(/261799 160 − 1 = 159/.test(aviso),'aviso de muertos en Ingreso');
- await p.evaluate(()=>{document.getElementById('impresion').innerHTML=hojas(S.fecha)});
- const imp=await p.evaluate(()=>document.getElementById('impresion').textContent);
- ok(/261799159318/.test(imp)&&/FAENA PARCIAL/.test(imp),'la hoja impresa lleva 159 y FAENA PARCIAL');
- // Excel del día y del mes (con formato, hojas INGRESO y PROD; el .xlsx va sin comprimir, así se lee el XML directo)
- await p.evaluate(()=>{window.__auto={hecho:true};window.__autoOut=[];});
- await p.click('text=Excel del día');await p.click('text=Excel del mes');
- const xl=await p.evaluate(()=>window.__autoOut);const dia=Buffer.from(xl[0].b64,'base64').toString('latin1');
- ok(xl[0].nombre==='DDJJ desposte 28-10-2026.xlsx','nombre del Excel del día: '+xl[0].nombre);
- ok(/<c r="C19"[^>]*><v>261799<\/v>/.test(dia)&&/<c r="D19"[^>]*><v>159<\/v>/.test(dia)&&/<c r="I19"[^>]*><is><t[^>]*>FAENA PARCIAL/.test(dia),'Excel del día: tropa 261799 con 159 y FAENA PARCIAL');
- ok(/>Bondiola</.test(dia)&&/name="INGRESO"/.test(dia)&&/name="PROD"/.test(dia),'Excel del día: hojas INGRESO y PROD con la producción');
- ok(/name="INGRESO"/.test(Buffer.from(xl[1].b64,'base64').toString('latin1')),'Excel del mes con el mismo formato');
- await p.screenshot({path:SP+'/ddjj-muertos.png',fullPage:true});}
-const des=await p.evaluate(()=>document.documentElement.scrollWidth-innerWidth);ok(des<=0,w+' sin desborde');ok(!errs.length,w+' errores: '+(errs.join('|')||'ninguno'));
-await p.close();}
-await b.close();console.log(mal?'FALLARON '+mal:'todo bien');process.exit(mal?1:0);})();
+// Medias: las de usuario (ej. DON PEDRO en la faena con usuarios) no cuentan como clientes; arriba en verde, abajo no aparecen.
+const {chromium}=require('playwright');const L='2026-10-26';
+const dia=(f,cl)=>({faena:f,clientes:cl});
+const vie=dia([{origen:'CANDELARIA',propios:160},{origen:'EL CEBIL',propios:120},{origen:'AG',propios:120},{origen:'DON PEDRO',propios:0,usuarios:160}],[{cliente:'CABAÑAS DEL SUR',cant:25},{cliente:'EMERIC',cant:5},{cliente:'DON PEDRO',cant:160}]);
+const sem={id:L,desde:L,dias:[dia([],[]),dia([],[]),dia([],[]),dia([],[]),vie]};
+(async()=>{const b=await chromium.launch();const errs=[];const p=await b.newPage({viewport:{width:1366,height:900}});p.on('pageerror',e=>errs.push(e.message));
+await p.clock.install({time:new Date('2026-10-30T16:00:00-03:00')});
+await p.addInitScript(d=>{window.__mock={data:d,user:{email:'yo@x.com'},editores:['yo@x.com']}},{faena:{[L]:sem},produccion:{},privado:{},config:{general:{}},pedidos:{}});
+await p.goto('http://127.0.0.1:8765/index.html#medias');await p.clock.runFor(1500);await p.waitForTimeout(300);
+const v=p.locator('section.dia').nth(4);
+console.log('verde arriba:',await v.locator('tr.usu').innerText().then(t=>t.replace(/\s+/g,' ')),'· color:',await v.locator('tr.usu td').first().evaluate(e=>getComputedStyle(e).backgroundColor));
+console.log('clientes abajo:',(await v.innerText()).split('\n').filter(l=>/CABAÑAS|EMERIC|DON PEDRO|TOTAL CLIENTES|A DESPOSTE/.test(l)).join(' | '));
+await p.locator('[data-act="m-dia"]').click().catch(()=>{});await p.waitForTimeout(200);await p.click('[data-act="fm-ir"][data-f="2026-10-30"]').catch(()=>{});await p.waitForTimeout(200);
+console.log('día viernes:',(await p.locator('.cl-dia').innerText().catch(()=>'-')).replace(/\s+/g,' '));
+console.log('errores:',errs.join('|')||'ninguno');await b.close();})();

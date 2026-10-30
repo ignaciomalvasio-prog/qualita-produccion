@@ -75,10 +75,16 @@
     if (S.ep && S.ep.fecha === f) return S.ep.doc;
     return (S.prod || []).filter(function (o) { return o.id === f; })[0] || null;
   }
+  /* Las medias de un usuario (faena de usuario, ej. DON PEDRO) no son venta a clientes (pedido de Renzo): si en la faena del día
+     hay un usuario con ese nombre, su renglón de clientes no se cuenta ni se muestra abajo; queda solo arriba, en verde. */
+  function esDeUsuario(d, nombre) {
+    var x = norm(nombre).replace(/\s+/g, ' ').trim(); if (!x) return false;
+    return (d && d.faena || []).some(function (r) { var o = norm(r.origen || '').replace(/\s+/g, ' ').trim(); return +r.usuarios > 0 && o && (o === x || x.indexOf(o) === 0 || o.indexOf(x) === 0); });
+  }
   function sumas(d) {
     var p = 0, u = 0, c = 0;
     (d.faena || []).forEach(function (r) { p += +r.propios || 0; u += +r.usuarios || 0; });
-    (d.clientes || []).forEach(function (r) { c += +r.cant || 0; });
+    (d.clientes || []).forEach(function (r) { if (!esDeUsuario(d, r.cliente)) c += +r.cant || 0; });
     return { propios: p, usuarios: u, clientes: c, desposte: p - c, medias: (p - c) * 2 };
   }
   function desposteDe(f) { var o = prodDe('op-' + f) || prodDe(f); return o && o.medias !== '' && o.medias != null ? +o.medias || 0 : +S.config.desposteHabitual || 750; }
@@ -120,7 +126,7 @@
           + '<td><input type="number" inputmode="numeric" class="n" id="f' + i + '-' + j + 'p" data-m="faena" data-i="' + i + '" data-r="' + j + '" data-k="propios" value="' + esc(r.propios || '') + '" aria-label="Propios"></td>'
           + '<td><input type="number" inputmode="numeric" class="n" id="f' + i + '-' + j + 'u" data-m="faena" data-i="' + i + '" data-r="' + j + '" data-k="usuarios" value="' + esc(r.usuarios || '') + '" aria-label="Usuarios"></td>'
           + '<td class="xq"><button class="btn x" data-act="m-quitar" data-m="faena" data-i="' + i + '" data-r="' + j + '" aria-label="Quitar renglón">×</button></td></tr>'
-        : '<tr><td>' + esc(r.origen) + '</td><td>' + (r.propios ? n(+r.propios) : '') + '</td><td>' + (r.usuarios ? n(+r.usuarios) : '') + '</td></tr>';
+        : '<tr' + (+r.usuarios > 0 ? ' class="usu" title="Faena de usuario: no cuenta como venta a clientes"' : '') + '><td>' + esc(r.origen) + '</td><td>' + (r.propios ? n(+r.propios) : '') + '</td><td>' + (r.usuarios ? n(+r.usuarios) : '') + '</td></tr>';
     });
     h += '</tbody><tfoot><tr><th>Total</th><td id="sp' + i + '">' + n(s.propios) + '</td><td id="su' + i + '">' + n(s.usuarios) + '</td>' + (edit ? '<td></td>' : '') + '</tr></tfoot></table>';
     if (edit) h += '<div class="acciones"><button class="btn sm" data-act="m-agregar" data-m="faena" data-i="' + i + '">+ Origen</button></div>';
@@ -128,6 +134,7 @@
     h += '<table class="pl"><thead><tr><th>Clientes</th><th>Cerdos</th>' + (edit ? '<th></th>' : '') + '</tr></thead><tbody>';
     if (!(d.clientes || []).length && !edit) h += '<tr><td class="muted" style="text-transform:none;font-weight:400">Sin pedidos de medias</td><td></td></tr>';
     (d.clientes || []).forEach(function (r, j) {
+      if (!edit && esDeUsuario(d, r.cliente)) return;
       h += edit
         ? '<tr><td><input type="text" id="c' + i + '-' + j + 'c" data-m="clientes" data-i="' + i + '" data-r="' + j + '" data-k="cliente" value="' + esc(r.cliente) + '" aria-label="Cliente"></td>'
           + '<td><input type="number" inputmode="decimal" step="0.5" class="n" id="c' + i + '-' + j + 'n" data-m="clientes" data-i="' + i + '" data-r="' + j + '" data-k="cant" value="' + esc(r.cant || '') + '" aria-label="Cerdos"></td>'
@@ -163,7 +170,7 @@
 
   // Lo que ve el encargado: solo los clientes del día y cuántas medias lleva cada uno.
   function mvAct() { return S.editor ? (S.mv || 'semana') : 'dia'; }
-  function conMedias(d) { return ((d && d.clientes) || []).filter(function (r) { return +r.cant > 0; }); }
+  function conMedias(d) { return ((d && d.clientes) || []).filter(function (r) { return +r.cant > 0 && !esDeUsuario(d, r.cliente); }); }
   function animales(v) { return n(v) + (v === 1 ? ' animal' : ' animales'); }
   function fmInicial() { var h = hoy(); return esHabil(h) ? h : habilSiguiente(h); }
   function diaFaena(f) {
