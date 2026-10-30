@@ -1,4 +1,4 @@
-// Producción: dos solapas. "Orden de producción" (completa, como el Word: se arma desde la anterior o la base y se edita a mano)
+// Producción: dos solapas (los días nuevos copian solos la orden anterior). "Orden de producción" (completa, como el Word: se arma desde la anterior o la base y se edita a mano)
 // y "Planilla de frescos" (la de los pedidos, aparte).
 const {chromium}=require('playwright');const SP=process.argv[2];
 const F='2026-10-21',A='2026-10-20';
@@ -14,9 +14,10 @@ await p.addInitScript(d=>{window.print=()=>{};window.__mock={data:JSON.parse(JSO
 await p.goto('http://127.0.0.1:8765/index.html#produccion');await p.clock.runFor(1500);await p.waitForSelector('.pv-tabs');
 console.log(w,'abre en:',await p.locator('.pv-tabs [aria-selected="true"]').innerText());await p.click('[data-act="pv"][data-v="op"]');await p.waitForTimeout(100);
 console.log(w,'solapas:',await p.$$eval('.pv-tabs .btn',x=>x.map(e=>e.innerText.replace(/\s+/g,' ')+(e.getAttribute('aria-selected')==='true'?' *':'')).join(' | ')),'· día:',await p.locator('.nav .tit').innerText());
-console.log(w,'vacía:',(await p.locator('#view-produccion .panel .acciones').first().innerText()).replace(/\s+/g,' '));
-// desde la base
-await p.click('[data-act="op-nueva"][data-v="base"]');await p.clock.runFor(1500);await p.waitForTimeout(200);
+await p.clock.runFor(800);await p.waitForTimeout(200);
+console.log(w,'día nuevo → copiada sola:',await p.locator('.op-copia').innerText().catch(()=>'(no)'));
+// editarla
+await p.click('.op-hoja [data-act="p-editar"]');await p.clock.runFor(500);await p.waitForTimeout(200);
 const doc=await p.inputValue('#p-doc');console.log(w,'base, primeras líneas:',doc.split('\n').slice(0,5).join(' / '),'· cortes:',(doc.match(/^[A-Z ]+:/gm)||[]).length);
 // modificar: agregar un pedido especial al pecho
 await p.fill('#p-doc',doc.replace('PECHO: CONGELAR','PECHO: 300KG PECHITO FRESCO EN CAJAS “ROVER”\nRESTO: CONGELAR'));await p.locator('#p-doc').dispatchEvent('input');await p.clock.runFor(1500);await p.waitForTimeout(200);
@@ -29,8 +30,9 @@ await p.click('[data-act="pv"][data-v="frescos"]');await p.waitForTimeout(150);
 console.log(w,'frescos:',(await p.locator('.hoja-corte').first().innerText()).replace(/\s+/g,' '));
 // día siguiente: armar desde la anterior
 await p.click('.nav [data-act="fecha"][data-d="1"]');await p.waitForTimeout(100);await p.click('[data-act="pv"][data-v="op"]');await p.waitForTimeout(100);
-console.log(w,'otro día:',(await p.locator('#view-produccion .panel .acciones').first().innerText()).replace(/\s+/g,' '));
-await p.click('[data-act="op-nueva"][data-v="ant"]');await p.clock.runFor(1500);await p.waitForTimeout(200);
+await p.clock.runFor(800);await p.waitForTimeout(200);
+console.log(w,'otro día → copiada sola:',await p.locator('.op-copia').innerText().catch(()=>'(no)'));
+await p.click('.op-hoja [data-act="p-editar"]');await p.clock.runFor(500);await p.waitForTimeout(200);
 console.log(w,'desde la anterior, pecho:',(await p.inputValue('#p-doc')).split('\n').filter(l=>/PECHO|ROVER/.test(l)).join(' / '));
 // guardar como base
 await p.click('[data-act="op-base"]');await p.clock.runFor(2000);await p.waitForTimeout(200);

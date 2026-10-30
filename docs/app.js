@@ -461,6 +461,7 @@
     var h = '<div class="panel hoja op-hoja"><header class="hoja-cab"><div><p class="hoja-sup">Orden de producción</p><h2>PRODUCCIÓN · ' + esc(tituloDe(f)) + '</h2></div>'
       + '<div class="hoja-dato"><b>' + n(+o.medias || 0) + '½</b><span>' + esc(o.mercado || 'medias') + '</span></div>'
       + (o.estado === 'borrador' ? '<span class="badge warn">Borrador</span>' : '<span class="badge ok">Confirmada</span>') + '</header>';
+    if (o.copiadaDe && S.editor && !S.solo) h += '<p class="op-copia">Copiada sola de la orden del ' + esc(diaCorto(o.copiadaDe).toLowerCase()) + '. Si hay que cambiar algo, tocá <b>Editar la orden</b>.</p>';
     h += '<div class="acciones hoja-acc">' + (S.editor ? '<button class="btn pri" data-act="p-editar" data-id="op-' + f + '">Editar la orden</button>' : '') + '<button class="btn" data-act="copiar" data-t="op">Copiar como texto</button><button class="btn wa" data-act="wa-pdf">PDF por WhatsApp</button><button class="btn" data-act="hoja-pdf">Compartir PDF</button><span class="small muted" id="copiado-op" aria-live="polite"></span></div>';
     h += '<div class="op-lista">' + (o.cortes || []).map(function (c) {
       var ls = c.lineas.length ? c.lineas : [{ t: '' }];
@@ -838,6 +839,17 @@
     if (edit) { h += prodEditHTML(S.ep.doc); el.innerHTML = h; pintarMsg('prod'); crecer($('p-doc')); return; }
     if (pv === 'op') {
       if (op) h += opHTML(op, f);
+      // Casi siempre es la misma (pedido de Renzo): un día nuevo (hoy o adelante) sin orden arranca solo con una copia de la última.
+      else if (S.editor && !S.solo && f >= hoy() && opAnterior(f) && !(S.opAuto || {})[f]) {
+        S.opAuto = S.opAuto || {}; S.opAuto[f] = true;
+        var antA = opAnterior(f), dA = opNueva(f, 'ant'); dA.copiadaDe = antA.id.slice(3); dA.estado = 'borrador';
+        // Las medias (consumo), del último mismo día de la semana (el viernes suele ser distinto); si no hay, las de la última orden.
+        var mismoDia = (S.prod || []).filter(function (x) { return esOP(x.id) && x.id.slice(3) < f && fecha(x.id.slice(3)).getDay() === fecha(f).getDay(); }).sort(function (a, b) { return a.id < b.id ? 1 : -1; })[0];
+        if (mismoDia && +mismoDia.medias) dA.medias = mismoDia.medias;
+        else if (fecha(antA.id.slice(3)).getDay() === 5 && fecha(f).getDay() !== 5) dA.medias = +S.config.desposteHabitual || 750;
+        guardarOrden('op-' + f, dA).then(function () { if (S.tab === 'produccion' && !ocupado()) render(); }, function () { S.opAuto[f] = false; });
+        h += '<div class="panel"><p class="state">Copiando la orden del ' + esc(diaCorto(antA.id.slice(3)).toLowerCase()) + '…</p></div>';
+      }
       else {
         var ant = opAnterior(f);
         h += '<div class="panel"><p class="state">Todavía no está armada la orden de producción de este día.</p>';
@@ -3705,7 +3717,7 @@
       S.config.opBase = docDeOrden(S.ep.doc).replace(/^[^\n]*½[^\n]*\n+/, ''); guardarConfig(); avisar('Guardada como orden base. Los días nuevos van a arrancar con esta orden.', 5000);
     }
     else if (a === 'p-nueva') { S.fechaFija = true; S.ep = { fecha: idActual(), doc: prodVacia(idActual()) }; S.ep.base = clone(S.ep.doc); S.msg.prod = ''; guardar('prod', true); render(); var pn = $('p-doc'); if (pn) { pn.focus(); pn.setSelectionRange(pn.value.length, pn.value.length); } }
-    else if (a === 'p-editar') { S.fechaFija = true; if (S.ep) { guardar('prod', true); S.ep = null; } else { var ide = D.id || idActual(); S.ep = { fecha: ide, doc: clone(prodDe(ide)) }; S.ep.base = clone(S.ep.doc); S.msg.prod = ''; } render(); if (S.ep) { var pd = $('p-doc'); if (pd) { pd.focus(); pd.setSelectionRange(0, 0); window.scrollTo(0, 0); } } }
+    else if (a === 'p-editar') { S.fechaFija = true; if (S.ep) { guardar('prod', true); S.ep = null; } else { var ide = D.id || idActual(); S.ep = { fecha: ide, doc: clone(prodDe(ide)) }; S.ep.base = clone(S.ep.doc); delete S.ep.doc.copiadaDe; S.msg.prod = ''; } render(); if (S.ep) { var pd = $('p-doc'); if (pd) { pd.focus(); pd.setSelectionRange(0, 0); window.scrollTo(0, 0); } } }
     else if (a === 'p-borrar' && S.ep) { if (!confirma('p-borrar')) { render(); return; } clearTimeout(timers.prod); var fb = S.ep.fecha; S.ep = null; S.prod = (S.prod || []).filter(function (x) { return x.id !== fb; }); store.del('produccion', fb).then(tocar, function () {}); render(); }
     else if (a === 'p-estado' && S.ep) { S.ep.doc.estado = D.v; S.ep.base = clone(S.ep.doc); guardar('prod', true); render(); }
 
