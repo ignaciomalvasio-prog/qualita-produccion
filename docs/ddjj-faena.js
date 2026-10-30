@@ -48,9 +48,13 @@ function muertosAnio(a) {
 }
 /* si la notebook no encontró la tabla de la consulta de faena, se avisa con lo que vio (para corregir dj_sync.ps1) */
 function avisoA1() {
-  const x = S.anual && S.anual.fx;
-  if (!x || x[0] === 'ok' || soloVer()) return '';
-  return '<br><span class="chip sm bad">Muertos A1: no se pudieron leer</span> <span class="muted" style="font-size:12px">' + esc(x.slice(1).join(' · ').slice(0, 300)) + '</span>';
+  if (soloVer() || !S.anual) return '';
+  const x = S.anual.fx;
+  if (!x) return '<br><span class="muted" style="font-size:12px">Muertos A1: el programa de la PC todavía no los buscó (no se actualizó o no volvió a leer el sistema).</span>';
+  if (x[0] !== 'ok') return '<br><span class="chip sm bad">Muertos A1: no se pudieron leer</span> <span class="muted" style="font-size:12px">' + esc(x.slice(1).join(' · ').slice(0, 300)) + '</span>';
+  const fe = S.anual.fe || [], n = muertosA1().length;
+  return '<br><span class="muted" style="font-size:12px">Muertos A1: tabla ' + esc(x[1]) + ' (lista ' + esc(x[2]) + ', cabezas ' + esc(x[3]) + ', fecha ' + esc(x[4]) + ') · listas vistas: ' + esc(x[6] || '—') +
+    ' · renglones "A" de 1 cabeza: ' + fe.length + (fe.length ? ' (' + esc([...new Set(fe.map(e => e.lista))].join(', ')) + ')' : '') + ' · agregados: ' + n + '</span>';
 }
 function faenaMes(a, i) {
   const m = a + '-' + pad(i + 1), F = (S.anual ? S.anual.fa : []).filter(x => x.mes === m);
