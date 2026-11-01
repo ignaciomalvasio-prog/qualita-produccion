@@ -927,6 +927,36 @@ details[open] > summary{margin-bottom:10px}
 @media print{.mf-abrir,.mf-menu,[data-act="mf-set"]{display:none!important}}
 @media print{ #view-logistica.por-camion .cam ~ .cam{break-before:page;page-break-before:always;margin-top:0} #view-logistica.por-camion .cam{break-inside:auto} }
 .btn.wa{background:#25d366;border-color:#1ea952;color:#fff;font-weight:700}
+/* Logística en el celular (pedido de Renzo): el ⋯ arriba a la derecha de cada cliente (el menú abre hacia adentro),
+   todo más chico y alineado: número, nombre, kilos y debajo los cortes con el precio en una línea. */
+@media screen and (max-width:560px){
+  #view-logistica .log-ped{padding:8px 8px 8px 6px;gap:8px}
+  #view-logistica .log-num{width:26px;height:26px;font-size:14px}
+  #view-logistica .log-cab{position:relative;padding-right:40px;min-height:28px;gap:2px 8px;align-items:baseline}
+  #view-logistica .log-cab strong{font-size:16px;line-height:1.2}
+  #view-logistica .log-cab .cta{font-size:12px}
+  #view-logistica .log-cab .small{font-size:12px}
+  #view-logistica .log-cab .log-chk{position:static}
+  #view-logistica .log-cab .log-acc{position:absolute;right:0;top:-2px;margin:0;flex-basis:auto}
+  #view-logistica .log-cab .mas-btn{min-width:32px;min-height:28px;padding:0 6px;font-size:14px}
+  #view-logistica .menu-pop{min-width:190px}
+  #view-logistica .log-cortes{font-size:13.5px}
+  #view-logistica .log-cortes p,#view-logistica .log-cortes p:has(.log-pre-ed){padding:4px 0;gap:2px 8px}
+  #view-logistica .log-cortes .lc-corte{font-size:13px}
+  #view-logistica .lc-cant{font-size:14px}
+  #view-logistica .lp-pre input{width:92px;font-size:13px;padding:2px 6px}
+  #view-logistica .log-nota{font-size:13px;padding:3px 8px}
+  #view-logistica .cam>.cam-cab{padding:6px 8px;flex-wrap:nowrap;gap:6px}
+  #view-logistica .cam:not(.suelto)>.cam-cab h2{font-size:16px;min-width:0;line-height:1.15;padding:3px 10px 2px}
+  #view-logistica .cam>.cam-cab .cam-hora{flex:0 0 auto;font-size:13px}
+  #view-logistica .cam>.cam-cab .log-acc{margin-left:auto;flex:0 0 auto}
+  #view-logistica .cam>.cam-cab .cam-nota{display:none}
+  #view-logistica .cam-datos{padding:4px 10px;gap:2px 12px;flex-wrap:wrap;align-items:baseline}
+  #view-logistica .cam-res b{font-size:16px}
+  #view-logistica .cam-carga{flex:1 1 auto}
+  #view-logistica .cam-carga .cam-cap{font-size:13px;margin:0}
+  #view-logistica .cam-cuerpo{padding:4px 6px 8px}
+}
 .mas-menu{position:relative;display:inline-flex}.mas-btn{min-width:34px;font-weight:800;letter-spacing:.05em}
 .menu-pop{position:absolute;right:0;top:calc(100% + 4px);z-index:40;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.16);padding:6px;display:flex;flex-direction:column;gap:4px;min-width:200px}
 .menu-pop .btn{width:100%;justify-content:flex-start;text-align:left;white-space:nowrap}
