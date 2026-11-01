@@ -2348,10 +2348,10 @@
     if (S.camMenu === p.id) h += camMenuHTML(p);
     if (!ab) return h + '</div>';
     h += '<div class="ped-det">' + elegirCuentaHTML(p) + '<div class="op-ped">';
-    if (+p.medias) h += '<p class="lp"><span class="lp-izq"><span class="lc-corte">Medias</span><span class="lc-txt">' + cantHTML(textoMedias(p)) + mediasFaenaHTML(p) + '</span></span><span class="lp-der">' + precioHTML(p.id, 'm', p.precioMedias, 'las medias', p.ivaMedias) + '</span></p>';
+    if (+p.medias) h += '<p class="lp"><span class="lp-izq"><span class="lc-corte">Medias</span><span class="lc-txt">' + cantHTML(mediasCorto(p)) + mediasFaenaHTML(p) + '</span></span><span class="lp-der">' + precioHTML(p.id, 'm', p.precioMedias, 'las medias', p.ivaMedias) + '</span></p>';
     cs.forEach(function (c) {
       var f = fechaProdDe(m, p, c);
-      h += '<p class="lp"><span class="lp-izq"><span class="lc-corte">' + esc(c.corte) + '</span><span class="lc-txt">' + cantHTML(sinCliente(c.texto, p.cliente), unidadSelHTML(p.id, c)) + (c.frio && c.frio !== p.frio ? ' ' + frioBadge(c.frio) : '') + '</span></span><span class="lp-der">' + precioHTML(p.id, c.k, c.precio, c.corte, c.iva) + (f
+      h += '<p class="lp"><span class="lp-izq"><span class="lc-corte">' + esc(c.corte) + '</span><span class="lc-txt">' + cantHTML(sinCorteTxt(sinCliente(c.texto, p.cliente), c.corte), unidadSelHTML(p.id, c)) + (c.frio && c.frio !== p.frio ? ' ' + frioBadge(c.frio) : '') + '</span></span><span class="lp-der">' + precioHTML(p.id, c.k, c.precio, c.corte, c.iva) + (f
         ? '<span class="en"><span class="badge ok">' + (esC3(f) ? 'En producción · embutidos' : 'En producción') + '</span><button class="btn sm" data-act="c-quitar" data-id="' + id + '" data-k="' + esc(c.k) + '">Quitar</button></span>'
         : '<button class="btn sm pri" data-act="c-sumar" data-id="' + id + '" data-k="' + esc(c.k) + '">' + 'Sumar a producción' + '</button>') + '</span></p>';
     });
@@ -2831,6 +2831,15 @@
   }
   // Cantidad al principio del renglón ("20 KG", "6 CAJAS", "100 MEDIAS"), para resaltarla. Con selector de unidad, va en su lugar.
   var RE_CANT = /^\s*([\d.,½]+)\s*((?:KGS?|KILOS?|K|CAJAS?|CJS?|UND|UNIDAD(?:ES)?|UNID|U|MEDIAS?|CANASTOS?|CANASTAS?|BINES?)\.?(?:\s+(?:DE|X)\s*[\d.,]+\s*(?:KGS?|KILOS?)\.?)?)?(?=\s|$)/i;
+  /* Para no repetir (pedido de Renzo): al lado del nombre del corte, el texto sin volver a decir el corte
+     ("BONDIOLA · 20 KG BONDIOLA" → "BONDIOLA · 20 KG"), y en las medias solo el número ("MEDIAS · 4"). Solo para mostrar. */
+  function sinCorteTxt(t, corte) {
+    var s = String(t || ''), c = String(corte || '').trim(); if (!c || norm(c) === 'CORTES') return s;
+    var pat = c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/A/gi, '[AÁ]').replace(/E/gi, '[EÉ]').replace(/I/gi, '[IÍ]').replace(/O/gi, '[OÓ]').replace(/U/gi, '[UÚ]').replace(/\s+/g, '\\s+');
+    var r = s.replace(new RegExp('(^|\\s)' + pat + '(?=\\s|$|[,.;:)])', 'i'), '$1').replace(/\s{2,}/g, ' ').replace(/\s+([,.;:])/g, '$1').replace(/^[,.;:]\s*/, '').trim();
+    return /[A-Z0-9]/i.test(r) ? r : s;
+  }
+  function mediasCorto(p) { return +p.medias ? n(+p.medias) + (p.peso ? ' ' + String(p.peso).toUpperCase() : '') : ''; }
   function cantHTML(t, sel) {
     var s = String(t || ''), m = s.match(RE_CANT); if (!m) return esc(s);
     var resto = s.slice(m[0].length).trim(), pal = (m[2] || '').trim();
@@ -2840,7 +2849,7 @@
   // Un cliente dentro del camión: su lugar bien grande, el nombre y los cortes en columnas; cada cliente en su recuadro.
   function logPedidoHTML(p, cam, cams, pos, total) {
     var id = esc(p.id), filas = (p.cortes || []).map(function (c) { return { corte: c.corte, texto: sinCliente(c.texto, p.cliente), precio: precioTxt(c.precio, c.iva, tasaIva(c)), uni: S.editor && !S.solo ? unidadSelHTML(p.id, c) : '', k: c.k, v: c.precio, iv: c.iva, tasa: tasaIva(c) }; });
-    if (+p.medias) filas.unshift({ corte: 'MEDIAS', texto: textoMedias(p), precio: precioTxt(p.precioMedias, p.ivaMedias), k: 'm', v: p.precioMedias, iv: p.ivaMedias });
+    if (+p.medias) filas.unshift({ corte: 'MEDIAS', texto: mediasCorto(p), precio: precioTxt(p.precioMedias, p.ivaMedias), k: 'm', v: p.precioMedias, iv: p.ivaMedias });
     var edPre = S.editor && !S.solo && pedidoDe(p.id);
     var num = cam && pos != null;
     var h = '<div class="log-ped' + (num ? '' : ' sin-num') + '" data-lp="' + id + '">' + (num ? (S.editor && !S.solo && total > 1 ? '<span class="log-num log-num-sel"><select data-pos-ped="' + id + '" data-cam="' + esc(cam.id) + '" aria-label="Lugar de ' + esc(p.cliente) + ' en el camión (elegí el número)">' + (function () { var o = ''; for (var i = 0; i < total; i++) o += '<option value="' + i + '"' + (i === pos ? ' selected' : '') + '>' + (i + 1) + '</option>'; return o; })() + '</select><span class="solo-print">' + (pos + 1) + '</span></span>' : '<span class="log-num" aria-label="Lugar ' + (pos + 1) + '">' + (pos + 1) + '</span>') : '') + '<div class="log-body"><div class="log-cab">'
@@ -2855,7 +2864,7 @@
     h += '</div>';
     // Editar el pedido ahí mismo, sin ir a Pedidos.
     if (ke >= 0) return h + '<div class="log-edit">' + propHTML(S.prop[ke], ke) + '</div></div></div>';
-    if (filas.length) h += '<div class="log-cortes">' + filas.map(function (c) { return '<p><span class="lc-corte">' + esc(c.corte) + '</span><span class="lc-txt">' + cantHTML(c.texto, c.uni) + (c.precio ? ' <span class="log-precio' + (edPre && c.k ? ' solo-print' : '') + '">' + esc(c.precio) + '</span>' : '') + '</span>' + (edPre && c.k ? precioLogHTML(p.id, c.k, c.v, c.iv, c.corte, c.tasa) : '') + '</p>'; }).join('') + '</div>';
+    if (filas.length) h += '<div class="log-cortes">' + filas.map(function (c) { return '<p><span class="lc-corte">' + esc(c.corte) + '</span><span class="lc-txt">' + cantHTML(c.corte === 'MEDIAS' ? c.texto : sinCorteTxt(c.texto, c.corte), c.uni) + (c.precio ? ' <span class="log-precio' + (edPre && c.k ? ' solo-print' : '') + '">' + esc(c.precio) + '</span>' : '') + '</span>' + (edPre && c.k ? precioLogHTML(p.id, c.k, c.v, c.iv, c.corte, c.tasa) : '') + '</p>'; }).join('') + '</div>';
     // La nota se escribe ahí mismo (sin apretar Editar): se guarda sola al salir del recuadro o con Enter.
     if (edPre && (p.nota || S.notaAbierta === p.id)) h += '<textarea class="log-nota log-nota-ed" rows="1" data-nota-ped="' + id + '" placeholder="Escribí la nota…" aria-label="Nota de ' + esc(p.cliente) + '">' + esc(p.nota || '') + '</textarea>' + (p.nota ? '<p class="log-nota solo-print">' + esc(p.nota) + '</p>' : '');
     else if (edPre) h += '<button class="btn lnk sm log-nota-mas" data-act="nota-abrir" data-id="' + id + '">+ Nota</button>';
