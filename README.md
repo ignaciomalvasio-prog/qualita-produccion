@@ -307,3 +307,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Túnel 🔒: la cantidad se escribe con punto de miles mientras se tipea (10000 → 10.000; la coma queda para decimales). Lo guardado sigue siendo el número.
 - Túnel 🔒: sin el subtotal de kg al lado de cada cliente (queda el total arriba a la derecha y abajo, en negrita); el nombre del cliente va más grande en pantalla, PDF e impresión.
 - Logística en el celular más prolija: el ⋯ de cada cliente arriba a la derecha (su menú abre hacia adentro y se ve entero), nombres y números más chicos y alineados, cabecera del camión en un renglón (nombre, hora y ⋯) y pedidos · medias · kg en una sola línea.
+- Pedido abierto en el celular más prolijo: cuenta, cortes, precios y botones más chicos y alineados (corte + cantidad en un renglón, precio con + IVA / Final debajo, Sumar a producción a la derecha); el kg del encabezado ya no aprieta el nombre ("sin peso" queda como *).

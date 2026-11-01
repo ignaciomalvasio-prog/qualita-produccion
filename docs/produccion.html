@@ -927,6 +927,38 @@ details[open] > summary{margin-bottom:10px}
 @media print{.mf-abrir,.mf-menu,[data-act="mf-set"]{display:none!important}}
 @media print{ #view-logistica.por-camion .cam ~ .cam{break-before:page;page-break-before:always;margin-top:0} #view-logistica.por-camion .cam{break-inside:auto} }
 .btn.wa{background:#25d366;border-color:#1ea952;color:#fff;font-weight:700}
+/* Pedido abierto en el celular (pedido de Renzo): todo más chico y alineado. Cada corte en un renglón (corte + cantidad),
+   abajo el precio con + IVA / Final y "Sumar a producción" en la misma línea; botones de abajo compactos. */
+@media screen and (max-width:560px){
+  #view-pedidos .ped.abierto .ped-det{padding:8px 8px 10px;gap:8px}
+  #view-pedidos .ped-det .lp.sin-cta{font-size:13px;padding:6px 8px;gap:4px 8px;margin:0}
+  #view-pedidos .ped-det .lp.sin-cta b{font-size:12px}
+  #view-pedidos .ped-det .lp.sin-cta>span:first-child{flex:1 1 100%}
+  #view-pedidos .ped-det .lp.sin-cta .lp-der{flex:1 1 100%;justify-content:flex-start;flex-wrap:nowrap;gap:6px}
+  #view-pedidos .ped-det .cta-in{width:110px;padding:4px 8px;min-height:32px}
+  #view-pedidos .ped-det .lp.sin-cta .btn{min-height:32px;padding:3px 12px;font-size:13px}
+  #view-pedidos .ped-det .op-ped p.lp{flex-wrap:wrap;padding:6px 0;gap:4px 8px;align-items:center}
+  #view-pedidos .ped-det .op-ped .lp-izq{grid-template-columns:auto minmax(0,1fr);gap:2px 8px;flex:1 1 100%;align-items:center}
+  #view-pedidos .ped-det .op-ped .lc-corte{font-size:13.5px}
+  #view-pedidos .ped-det .op-ped .lc-txt{font-size:13.5px}
+  #view-pedidos .ped-det .op-ped p.lp b.lc-cant{font-size:15px}
+  #view-pedidos .ped-det .mf-abrir{font-size:12px;padding:0 4px;min-height:0}
+  #view-pedidos .ped-det .op-ped .lp-der{flex:1 1 100%;justify-content:flex-start;flex-wrap:wrap;gap:5px}
+  #view-pedidos .ped.abierto .ped-tit .nom{font-size:17px}
+  #view-pedidos .ped-tit .kg-ped.falta small{display:none}
+  #view-pedidos .ped-tit .kg-ped.falta b::after{content:' *';color:var(--warn)}
+  #view-pedidos .ped-det .precio{font-size:12px;gap:4px}
+  #view-pedidos .ped-det .precio input{width:80px;min-height:30px;padding:2px 6px}
+  #view-pedidos .ped-det .btn.chip{min-height:30px;padding:2px 7px;font-size:12px}
+  #view-pedidos .ped-det .op-ped .lp-der>.btn,#view-pedidos .ped-det .op-ped .en .btn{min-height:30px;padding:2px 8px;font-size:12px;margin-left:auto}
+  #view-pedidos .ped-det .op-ped .en{margin-left:auto}
+  #view-pedidos .ped-det .op-ped .en .badge{font-size:11px}
+  #view-pedidos .ped-det .log-nota-mas{font-size:13px;padding:0 4px}
+  #view-pedidos .ped-det .log-nota{font-size:13px;padding:4px 8px}
+  #view-pedidos .ped.abierto .ped-det>.acciones{padding-top:8px;gap:6px}
+  #view-pedidos .ped-det>.acciones .btn{min-height:32px;padding:3px 10px;font-size:13px}
+  #view-pedidos .ped-det>.acciones select{min-height:32px;padding:3px 8px;font-size:14px;max-width:170px}
+}
 /* Logística en el celular (pedido de Renzo): el ⋯ arriba a la derecha de cada cliente (el menú abre hacia adentro),
    todo más chico y alineado: número, nombre, kilos y debajo los cortes con el precio en una línea. */
 @media screen and (max-width:560px){
