@@ -833,19 +833,19 @@ function htmlStock() {
     const est = s.stock == null ? '<span class="est-sin">' + (s.usado ? 'falta contar' : '—') + '</span>' : (s.min > 0 && s.stock < s.min ? '<span class="est-bajo">Bajo el límite</span>' : (s.stock < 0 ? '<span class="est-bajo">Negativo</span>' : '<span class="est-ok">OK</span>'));
     const nom = s.carlos && s.carlos.toLowerCase() !== s.nombre.toLowerCase() ? '<b>' + esc(s.carlos) + '</b><br><small class="muted">' + esc(s.nombre) + ' · ' + esc(s.id) + '</small>' : '<b>' + esc(s.nombre) + '</b> <small class="muted">' + esc(s.id) + '</small>';
     const valor = s.stock != null && s.precio ? s.stock * s.precio : null;
-    return '<tr><td>' + nom + '</td><td style="font-size:12.5px">' + (s.usos.length ? esc(s.usos.join(', ')) : '<span class="muted">—</span>') + (s.manual ? '<br><span class="chip sm info">consumo a mano (clic en el día, en Movimiento)</span>' : s.usado && !s.descuenta ? '<br><span class="chip sm mut">no descuenta (fórmula sin producción asignada)</span>' : '') + '</td><td>' + esc(s.unidad) + '</td>' +
+    return '<tr><td class="ed nom" onclick="dondeSeUsa(\'' + esc(s.id) + '\')" title="Clic para ver en qué productos se usa">' + nom + (s.manual ? '<br><span class="chip sm info">consumo a mano</span>' : s.usado && !s.descuenta ? '<br><span class="chip sm mut">no descuenta</span>' : '') + '</td><td>' + esc(s.unidad) + '</td>' +
       '<td class="num ed" onclick="verConteo(\'' + esc(s.id) + '\')" title="Clic para cambiar o borrar el último conteo" data-v="' + (s.conteo ? r2(s.conteo.cant) : '') + '">' + (s.conteo ? fmtN(s.conteo.cant, 2) + '<br><small class="muted">' + ddmm(s.conteo.fecha) + '</small>' : '<span class="muted">contar</span>') + '</td>' +
       '<td class="num ed" onclick="compraInsumo(\'' + esc(s.id) + '\')" title="Clic para cargar una compra" data-v="' + r2(s.compras) + '">' + (s.compras ? fmtN(s.compras, 2) : '<span class="muted">＋</span>') + '</td><td class="num" data-v="' + r2(s.consumo) + '">' + (s.consumo ? fmtN(s.consumo, 2) : '') + '</td>' +
       '<td class="num sep" data-v="' + (s.stock == null ? '' : r2(s.stock)) + '"><b style="font-size:16px">' + (s.stock == null ? '' : fmtN(s.stock, 2)) + '</b></td><td class="num ed" onclick="editarLimite(\'' + esc(s.id) + '\')" data-v="' + r2(s.min) + '" title="Clic para cambiar el límite">' + (s.min ? fmtN(s.min, 2) : '<span class="muted">poner</span>') + '</td><td>' + est + '</td>' +
       '<td class="num ed' + (s.precioAMano ? ' aj' : '') + '" onclick="editarPrecio(\'' + esc(s.id) + '\')" data-v="' + r2(s.precio) + '" title="' + (s.precioAMano ? 'Precio escrito a mano · sistema: ' + pesos(s.precioSis || 0) : 'Precio del sistema · clic para cambiarlo') + '">' + (s.precio ? pesos(s.precio) : '') + '</td><td class="num" data-v="' + (valor == null ? '' : r2(valor)) + '">' + (valor == null ? '' : pesos(valor)) + '</td>' +
       '<td style="white-space:nowrap"><button class="small" onclick="detalleInsumo(\'' + esc(s.id) + '\')">Detalle</button></td></tr>';
   };
-  const cab = '<thead><tr><th>Insumo</th><th>Se usa en</th><th>Unidad</th><th class="num">Último conteo</th><th class="num">+ Compras</th><th class="num">− Usado (fórmula)</th><th class="num sep">Stock estimado</th><th class="num">Límite</th><th>Estado</th><th class="num">Precio</th><th class="num">Valor stock</th><th></th></tr></thead>';
+  const cab = '<thead><tr><th>Insumo</th><th>Unidad</th><th class="num">Último conteo</th><th class="num">+ Compras</th><th class="num">− Usado (fórmula)</th><th class="num sep">Stock estimado</th><th class="num">Límite</th><th>Estado</th><th class="num">Precio</th><th class="num">Valor stock</th><th></th></tr></thead>';
   const usados = st.filter(s => s.usado), otros = st.filter(s => !s.usado);
   const valorTot = usados.reduce((t, s) => t + (s.stock != null && s.precio ? s.stock * s.precio : 0), 0);
   let h = '<section><h2>Stock de insumos de las fórmulas</h2><p class="sub">Los mismos ingredientes y en el mismo orden que la planilla de fórmulas de Carlos (chorizo, salchicha, morcilla y los especiales). Las compras salen solas de los remitos de compra del sistema y también se pueden cargar a mano. Para arrancar, contá lo que hay y cargalo con un clic en <b>Último conteo</b>; las compras, con un clic en <b>Compras</b>. Desde el conteo el stock baja solo con la producción.</p>' +
     '<div class="tw" style="max-height:none"><table class="planilla xl" data-hoja="Stock insumos">' + cab + '<tbody>' + usados.map(fila).join('') +
-    '<tr class="tot"><td>Total</td><td></td><td></td><td></td><td></td><td></td><td class="sep"></td><td></td><td></td><td></td><td class="num">' + (valorTot ? pesos(valorTot) : '') + '</td><td></td></tr></tbody></table></div>' +
+    '<tr class="tot"><td>Total</td><td></td><td></td><td></td><td></td><td class="sep"></td><td></td><td></td><td></td><td class="num">' + (valorTot ? pesos(valorTot) : '') + '</td><td></td></tr></tbody></table></div>' +
     '<div class="row" style="margin-top:10px"><button class="small" onclick="nuevoInsumo()">＋ Insumo que no está en el sistema</button></div></section>';
   if (otros.length) h += '<section><details><summary style="font-size:15px">Otros insumos de Ciclo III en el sistema (' + otros.length + ') — bolsas, film, hilo, bandejas…</summary><p class="sub" style="margin-top:8px">No están en ninguna fórmula, así que no bajan solos. Para que bajen con la producción, agregalos como "Envase" en la fórmula que corresponda.</p>' +
     '<div class="tw" style="max-height:none"><table class="planilla xl" data-hoja="Otros insumos">' + cab + '<tbody>' + otros.map(fila).join('') + '</tbody></table></div></details></section>';
@@ -912,6 +912,21 @@ function verConteo(id) {
         cerrarDlg(); const y = window.scrollY; await renderInsumos(); window.scrollTo(0, y); toast('Conteo borrado');
       } catch (e) { toast(e.message, true); }
     }, 'danger']]);
+}
+/* En qué productos se usa un insumo (clic en el nombre, en Stock) */
+function dondeSeUsa(id) {
+  const s = stockInsumos().find(x => x.id === id);
+  const usos = [];
+  for (const r of FOR.recetas || []) {
+    const b = baseReceta(r), grupos = GRUPOS.filter(g => (FOR.asignacion || {})[g.id] === r.id).map(g => g.n);
+    for (const l of r.lineas) if (l.ins === id && usaLinea(l)) usos.push('<tr><td><b>' + esc(r.nombre) + '</b>' + (grupos.length ? '<br><small class="muted">descuenta con: ' + esc(grupos.join(', ')) + '</small>' : '<br><small class="muted">no está asignada a ninguna producción</small>') + '</td><td class="num">' +
+      (conRinde(l) ? '1 ' + esc(s.unidad) + ' cada ' + fmtN(l.rinde) + ' kg' : fmtE(l.cant, 3) + ' ' + esc(s.unidad) + ' por pastón de ' + fmtN(b) + ' kg') + '</td></tr>');
+  }
+  abrirDlg('Dónde se usa · ' + esc(s.carlos || s.nombre),
+    (usos.length ? '<table class="lista-ed"><thead><tr><th>Fórmula</th><th class="num">Cantidad</th></tr></thead><tbody>' + usos.join('') + '</tbody></table>'
+      : '<div class="sis">' + (s.manual ? 'No está en ninguna fórmula: el consumo se carga a mano (en Movimiento del mes, clic en el día).' : 'No está en ninguna fórmula, así que no baja solo con la producción.') + '</div>') +
+    '<p class="nota">Para cambiarlo, andá a la pestaña Fórmulas.</p>',
+    [['Ir a Fórmulas', () => { cerrarDlg(); SUBINS = 'formulas'; renderInsumos(); }], ['Cerrar', cerrarDlg, 'primary']]);
 }
 function detalleInsumo(id) {
   const s = stockInsumos().find(x => x.id === id);
