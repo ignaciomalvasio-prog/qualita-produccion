@@ -154,46 +154,38 @@ SELECT 'FR|'||t.tro_numero||'|'||FLOOR(r.rom_kilos)||'|'||COUNT(*)
 #    FE|fecha|tropa|lista|cabezas|número de faena|cabezas de la tropa|patente|cuenta|productor|localidad   (renglones A con 1 cabeza)
 #    FX|ok|tabla|col. lista|col. cabezas|col. fecha|col. número|listas vistas en 60 días   ó   FX|no|lo que se encontró
 function Get-A1 {
+  # Columnas conocidas (consulta de faena, Sabi 02/11): FAE_SERIELISTA (letra: P / A) + FAE_NROLISTA (número), FAE_CABEZAS (del renglón),
+  # FAE_FECHA, FAE_NUMERO, TRO_NROINT. Se prueban la vista V_FAENA y las tablas con esas columnas; se usa la primera que trae renglones.
   $d0 = "DATE '$((Get-Date).Year - 1)-01-01'"
-  $dx = Invoke-Sql @"
-SELECT 'DX|'||c.table_name||'|'||c.column_name||'|'||c.data_type FROM all_tab_columns c
- WHERE c.owner='FRIGO' AND c.table_name IN (SELECT table_name FROM all_tab_columns WHERE owner='FRIGO' AND column_name LIKE '%LISTA%')
-   AND c.table_name IN (SELECT table_name FROM all_tab_columns WHERE owner='FRIGO' AND column_name='TRO_NROINT')
- ORDER BY c.table_name, c.column_id;
-"@
-  $cols = @($dx | Where-Object { $_ -like 'DX|*' } | ForEach-Object { $p = $_.Split('|'); [pscustomobject]@{ t = $p[1].Trim(); c = $p[2].Trim(); ty = $p[3].Trim() } })
-  if (-not $cols.Count) { return @('FX|no|ninguna tabla con columnas LISTA y TRO_NROINT') }
-  $mejor = $null; $pmax = -1
-  foreach ($g in ($cols | Group-Object t)) {
-    $n = $g.Name; $cs = $g.Group; $pt = 0
-    if ($n -like '*FAE*') { $pt += 3 }
-    if ($cs | Where-Object { $_.c -like '*GARR*' }) { $pt += 2 }
-    if ($cs | Where-Object { $_.c -like '*CAB*' }) { $pt += 1 }
-    if ($cs | Where-Object { $_.ty -eq 'DATE' }) { $pt += 1 }
-    if ($pt -gt $pmax) { $pmax = $pt; $mejor = $g }
+  $cand = @(Invoke-Sql @"
+SELECT 'DX|'||c.table_name FROM all_tab_columns c WHERE c.owner='FRIGO' AND c.column_name='FAE_SERIELISTA'
+   AND c.table_name IN (SELECT table_name FROM all_tab_columns WHERE owner='FRIGO' AND column_name='FAE_NROLISTA')
+   AND c.table_name IN (SELECT table_name FROM all_tab_columns WHERE owner='FRIGO' AND column_name='FAE_CABEZAS')
+   AND c.table_name IN (SELECT table_name FROM all_tab_columns WHERE owner='FRIGO' AND column_name='FAE_FECHA')
+   AND c.table_name IN (SELECT table_name FROM all_tab_columns WHERE owner='FRIGO' AND column_name='TRO_NROINT');
+"@ | Where-Object { $_ -like 'DX|*' } | ForEach-Object { $_.Substring(3).Trim() })
+  if (-not $cand.Count) { return @('FX|no|ninguna tabla o vista con FAE_SERIELISTA, FAE_NROLISTA, FAE_CABEZAS, FAE_FECHA y TRO_NROINT') }
+  $cand = @($cand | Sort-Object { if ($_ -like 'V_*') { 1 } else { 0 } }, { $_ })   # primero las tablas, después las vistas
+  $diag = @(); $T = $null
+  foreach ($c in $cand) {
+    try {
+      $n = @(Invoke-Sql "SELECT 'FC|'||COUNT(*)||'|'||TO_CHAR(MAX(FAE_FECHA),'YYYY-MM-DD') FROM $c WHERE FAE_FECHA >= $d0;" | Where-Object { $_ -like 'FC|*' })
+      $p = if ($n.Count) { $n[0].Split('|') } else { @('FC', '0', '') }
+      $diag += ($c + ': ' + $p[1] + ' renglones' + $(if ($p[2]) { ' (último ' + $p[2] + ')' } else { '' }))
+      if (-not $T -and [int]$p[1] -gt 0) { $T = $c }
+    } catch { $diag += ($c + ': error ' + (($_.Exception.Message -replace '[\r\n|]+', ' ').Substring(0, [Math]::Min(80, $_.Exception.Message.Length)))) }
   }
-  $T = $mejor.Name; $cs = $mejor.Group
-  # Lista: en pantalla se ve "P 0" / "A 1" (letra y número). Se juntan las columnas de lista que no son el orden ni la "Lista Dism."
-  # (V_FAENA: FAE_ORDENLISTA es el orden dentro de la lista, no sirve). Cabezas: las del renglón, nunca TRO_CABEZAS (son las de la tropa).
-  $cLs = @($cs | Where-Object { $_.c -like '*LISTA*' -and $_.c -notlike '*ORDEN*' -and $_.c -notlike '*DIS*' })
-  $cL = ($cLs | ForEach-Object { $_.c }) -join '+'
-  $cC = ($cs | Where-Object { $_.c -like '*CAB*' -and $_.c -notlike 'TRO_*' -and $_.c -notlike '*FAE*FAE*' } | Select-Object -First 1).c
-  if (-not $cC) { $cC = ($cs | Where-Object { $_.c -like '*CAB*' -and $_.c -notlike 'TRO_*' } | Select-Object -First 1).c }
-  $cF = ($cs | Where-Object { $_.ty -eq 'DATE' -and $_.c -like '*FEC*' } | Select-Object -First 1).c
-  if (-not $cF) { $cF = ($cs | Where-Object { $_.ty -eq 'DATE' } | Select-Object -First 1).c }
-  $cN = ($cs | Where-Object { $_.c -like '*NUM*' -and $_.c -ne 'TRO_NROINT' -and $_.c -notlike 'TRO_*' } | Select-Object -First 1).c
-  $todas = ($cs | ForEach-Object { $_.c }) -join ','
-  if (-not ($cLs.Count -and $cC -and $cF)) { return @("FX|no|$T|lista=$cL cabezas=$cC fecha=$cF|$todas") }
-  $num = if ($cN) { "f.$cN" } else { "''" }
-  $lis = "UPPER(REPLACE(" + (($cLs | ForEach-Object { "TRIM(TO_CHAR(f." + $_.c + "))" }) -join "||") + ",' ',''))"
+  $dg = $diag -join '; '
+  if (-not $T) { return @("FX|no|ninguna trae renglones desde $($d0 -replace "DATE '|'", '')|$dg") }
+  $lis = "UPPER(TRIM(TO_CHAR(f.FAE_SERIELISTA))||TRIM(TO_CHAR(f.FAE_NROLISTA)))"
   $r = Invoke-Sql @"
-SELECT 'FE|'||TO_CHAR(TRUNC(f.$cF),'YYYY-MM-DD')||'|'||t.tro_numero||'|'||$lis||'|'||f.$cC||'|'||$num||'|'||NVL(t.tro_cabezas,0)||'|'||TRIM(t.tro_patente)||'|'||t.cue_codigo||'|'||TRIM(TRANSLATE(NVL(c.cue_denom,' '),CHR(9)||'|','  '))||'|'||TRIM(NVL(l.loc_denom,' '))
+SELECT 'FE|'||TO_CHAR(TRUNC(f.FAE_FECHA),'YYYY-MM-DD')||'|'||t.tro_numero||'|'||$lis||'|'||f.FAE_CABEZAS||'|'||f.FAE_NUMERO||'|'||NVL(t.tro_cabezas,0)||'|'||TRIM(t.tro_patente)||'|'||t.cue_codigo||'|'||TRIM(TRANSLATE(NVL(c.cue_denom,' '),CHR(9)||'|','  '))||'|'||TRIM(NVL(l.loc_denom,' '))
   FROM $T f JOIN tropas t ON t.tro_nroint=f.tro_nroint LEFT JOIN cuentas c ON c.cue_codigo=t.cue_codigo LEFT JOIN localidades l ON l.loc_codigo=t.loc_codigo
- WHERE f.$cF >= $d0 AND f.$cC = 1 AND INSTR($lis,'A') > 0;
-SELECT DISTINCT 'FV|'||$lis FROM $T f WHERE f.$cF >= SYSDATE-60;
+ WHERE f.FAE_FECHA >= $d0 AND f.FAE_CABEZAS = 1 AND UPPER(TRIM(TO_CHAR(f.FAE_SERIELISTA))) = 'A';
+SELECT 'FV|'||NVL($lis,'(vacía)')||' ('||COUNT(*)||')' FROM $T f WHERE f.FAE_FECHA >= SYSDATE-60 GROUP BY $lis;
 "@
   $vistas = (@($r | Where-Object { $_ -like 'FV|*' } | ForEach-Object { $_.Substring(3) }) | Select-Object -First 12) -join ' '
-  return @("FX|ok|$T|$cL|$cC|$cF|$cN|$vistas|$todas") + @($r | Where-Object { $_ -like 'FE|*' })
+  return @("FX|ok|$T|FAE_SERIELISTA+FAE_NROLISTA|FAE_CABEZAS|FAE_FECHA|FAE_NUMERO|$vistas|$dg") + @($r | Where-Object { $_ -like 'FE|*' })
 }
 
 $Paso = ''

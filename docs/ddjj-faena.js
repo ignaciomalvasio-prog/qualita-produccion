@@ -55,7 +55,7 @@ function avisoA1() {
   const fe = S.anual.fe || [], n = muertosA1().length;
   return '<br><span class="muted" style="font-size:12px;overflow-wrap:anywhere">Muertos A1: tabla ' + esc(x[1]) + ' (lista ' + esc(x[2]) + ', cabezas ' + esc(x[3]) + ', fecha ' + esc(x[4]) + ') · listas vistas: ' + esc(x[6] || '—') +
     ' · renglones "A" de 1 cabeza: ' + fe.length + (fe.length ? ' (' + esc([...new Set(fe.map(e => e.lista))].join(', ')) + ')' : '') + ' · agregados: ' + n +
-    (x[7] ? '<br><span style="overflow-wrap:anywhere">Columnas de ' + esc(x[1]) + ': ' + esc(x[7]).replace(/,/g, ', ') + '</span>' : '') + '</span>';
+    (x[7] ? '<br><span style="overflow-wrap:anywhere">' + (/renglones/.test(x[7]) ? 'Revisado: ' : 'Columnas de ' + esc(x[1]) + ': ') + esc(x[7]).replace(/,/g, ', ') + '</span>' : '') + '</span>';
 }
 function faenaMes(a, i) {
   const m = a + '-' + pad(i + 1), F = (S.anual ? S.anual.fa : []).filter(x => x.mes === m);
