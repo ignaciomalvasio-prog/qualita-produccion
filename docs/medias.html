@@ -199,6 +199,13 @@ input.n{width:76px;text-align:right;font-variant-numeric:tabular-nums}
 table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
 .pl th,.pl td{padding:5px 6px;border-bottom:1px solid var(--line);text-align:right;font-size:15px}
 .pl th:first-child,.pl td:first-child{text-align:left;overflow-wrap:break-word}
+.stk-filtros{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:flex-end;margin:6px 0 10px}
+.stk-filtros .campo{margin:0}.stk-q{flex:1 1 220px}.stk-r{flex:0 1 110px}.stk-d{flex:1 1 200px}
+.stk-tot{margin:4px 0 6px;font-size:15px}
+.pl.stock-t td.stk-n{font-weight:700;width:1%;white-space:nowrap;color:var(--muted)}
+.pl.stock-t th:nth-child(2),.pl.stock-t td.stk-art{text-align:left}
+.pl.stock-t td:nth-child(3),.pl.stock-t td:nth-child(4){white-space:nowrap;width:1%;font-variant-numeric:tabular-nums}
+.stk-dep{display:block;font-size:12px;color:var(--muted);margin-top:2px}
 .pl thead th{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-bottom:2px solid var(--ink)}
 .pl tbody td:first-child{font-weight:600;text-transform:uppercase}
 .pl tfoot th,.pl tfoot td{font-weight:700;background:var(--sunken);border-bottom:0;text-transform:uppercase;font-size:14px}
@@ -1017,6 +1024,7 @@ details[open] > summary{margin-bottom:10px}
       <button class="tab" role="tab" id="tab-logistica" data-tab="logistica" aria-selected="false">Logística</button>
       <button class="tab" role="tab" id="tab-medias" data-tab="medias" aria-selected="false">Medias</button>
       <button class="tab" role="tab" id="tab-rendering" data-tab="rendering" aria-selected="false">Rendering</button>
+      <button class="tab" role="tab" id="tab-stock" data-tab="stock" aria-selected="false" hidden>Stock</button>
       <button class="tab" role="tab" id="tab-clientes" data-tab="clientes" aria-selected="false" hidden>Clientes</button>
       <button class="tab tab-cam" role="tab" id="tab-camara" data-tab="camara" aria-selected="false" hidden>Cámara 🔒</button>
       <button class="tab tab-cam" role="tab" id="tab-tunel" data-tab="tunel" aria-selected="false" hidden>Túnel 🔒</button>
@@ -1030,6 +1038,7 @@ details[open] > summary{margin-bottom:10px}
     <section class="view" id="view-logistica" hidden></section>
     <section class="view" id="view-medias" hidden></section>
     <section class="view" id="view-rendering" hidden></section>
+    <section class="view" id="view-stock" hidden></section>
     <section class="view" id="view-clientes" hidden></section>
     <section class="view" id="view-camara" hidden></section>
     <section class="view" id="view-tunel" hidden></section>

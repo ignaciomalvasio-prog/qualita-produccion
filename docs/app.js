@@ -27,7 +27,7 @@
 
   var SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
   var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-  var TABS = ['inicio', 'pedidos', 'produccion', 'ciclo3', 'logistica', 'medias', 'rendering', 'clientes', 'camara', 'tunel'];
+  var TABS = ['inicio', 'pedidos', 'produccion', 'ciclo3', 'logistica', 'medias', 'rendering', 'stock', 'clientes', 'camara', 'tunel'];
   // Artículos que solo se eligen a mano (no los usa la IA al leer pedidos): "CORTES", para casos eventuales (pedido de Renzo).
   var CORTES_A_MANO = ['CORTES'];
   var CORTES_BASE = ['JAMON', 'PALETA', 'PECHO', 'PANCETA CON CUERO', 'PANCETA SIN CUERO', 'CARRE SIN SOLOMILLO', 'CARRE CON SOLOMILLO', 'SOLOMILLO', 'CINTA DE LOMO', 'MATAMBRE', 'VACIO', 'BONDIOLA', 'RECORTE', 'GRASA BUENA', 'GRASA MALA', 'CUERO', 'TAPA DE PALETA', 'TAPA DE JAMON', 'TORTUGA', 'GARRON', 'TOCINO', 'CHURRASCO', 'PAPADA', 'HUESITOS', 'UNTO', 'CABEZA', 'OREJAS', 'PULMON', 'HIGADO', 'PATAS Y MANOS', 'LENGUA', 'CHINCHULIN', 'RIÑON', 'RABO', 'MENUDENCIAS', 'EMBUTIDOS', 'CHORIZO', 'MORCILLA', 'SALCHICHA'];
@@ -1146,6 +1146,57 @@
     (S.pedidos || []).forEach(function (p) { ver(p.cliente); });
     (S.faena || []).forEach(function (sem) { sem.dias.forEach(function (d) { d.clientes.forEach(function (r) { ver(r.cliente); }); }); });
     return out;
+  }
+  /* ---------- stock ----------
+     Lo sube solo un programa de la notebook (C:\InformeQualita\stock_sync.ps1, cada 30 min de 6 a 22) a privado/stock:
+     filas [{f: depósito, a: artículo, kg, u}], arts {código: nombre}, depositos {código: nombre}. Es el stock del
+     sistema (tabla STOCK, grupos con kilos > 0). Acá solo se mira y se filtra. */
+  function stockFiltro() { return S.stf || (S.stf = { q: '', desde: '', hasta: '', dep: '' }); }
+  function stockFilas() {
+    var st = S.stock || {}, F = stockFiltro(), arts = st.arts || {}, porArt = {};
+    var q = norm(F.q || '').trim(), palabras = q ? q.split(/\s+/) : [], esNum = /^\d+$/.test(q);
+    var d1 = String(F.desde).trim() === '' ? null : +F.desde, d2 = String(F.hasta).trim() === '' ? null : +F.hasta;
+    (st.filas || []).forEach(function (r) {
+      var a = +r.a; if (F.dep && String(r.f) !== String(F.dep)) return;
+      if (d1 != null && a < d1) return; if (d2 != null && a > d2) return;
+      var nom = arts[String(a)] || '';
+      if (q) { if (esNum) { if (String(a).indexOf(q) !== 0 && norm(nom).indexOf(q) < 0) return; } else { var nn = norm(nom) + ' ' + a; if (!palabras.every(function (w) { return nn.indexOf(w) >= 0; })) return; } }
+      var x = porArt[a] || (porArt[a] = { a: a, n: nom, kg: 0, u: 0, deps: [] });
+      x.kg += +r.kg || 0; x.u += +r.u || 0; x.deps.push({ f: r.f, kg: +r.kg || 0, u: +r.u || 0 });
+    });
+    return Object.keys(porArt).map(function (k) { return porArt[k]; }).sort(function (x, y) { return x.a - y.a; });
+  }
+  function nomDep(f) { var d = ((S.stock || {}).depositos || {})[String(f)] || ('Depósito ' + f); return String(d).replace(/\s+/g, ' ').replace(/^Frigorifico Qualita.*$/i, 'Frigorífico').replace(/^Qualita\s+S\.?\s?A\.?\s*-?\s*/i, '').replace(/^\((.*)\)$/, '$1').trim() || d; }
+  function stockResHTML() {
+    var l = stockFiltro(), filas = stockFilas(), tkg = 0, tu = 0, dosDec = function (v) { return new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(v); };
+    filas.forEach(function (x) { tkg += x.kg; tu += x.u; });
+    var h = '<p class="stk-tot"><b>' + n(filas.length) + '</b> ' + plural(filas.length, 'artículo', 'artículos') + ' · <b>' + dosDec(tkg) + '</b> kg · <b>' + n(tu) + '</b> ' + plural(tu, 'unidad', 'unidades') + '</p>';
+    if (!filas.length) return h + '<p class="state">No hay stock que coincida con lo que buscás.</p>';
+    var multi = !l.dep;
+    h += '<table class="pl stock-t"><thead><tr><th>N°</th><th>Artículo</th><th>Kg</th><th>Unid.</th></tr></thead><tbody>' + filas.map(function (x) {
+      var donde = multi && x.deps.length ? '<span class="stk-dep">' + x.deps.sort(function (p, q) { return q.kg - p.kg; }).map(function (d) { return esc(nomDep(d.f)) + ' ' + dosDec(d.kg) + ' kg'; }).join(' · ') + '</span>' : '';
+      return '<tr><td class="stk-n">' + x.a + '</td><td class="stk-art">' + esc(x.n || 'Artículo ' + x.a) + donde + '</td><td>' + dosDec(x.kg) + '</td><td>' + n(x.u) + '</td></tr>';
+    }).join('') + '</tbody></table>';
+    return h;
+  }
+  function renderStock() {
+    var el = $('view-stock');
+    if (!S.editor) { el.innerHTML = '<div class="panel"><p class="state">Para ver el stock hay que ingresar con una cuenta autorizada.</p></div>'; return; }
+    var st = S.stock, F = stockFiltro();
+    if (!st || !(st.filas || []).length) { el.innerHTML = '<div class="panel"><h2>Stock</h2><p class="state">Todavía no llegó el stock del sistema.</p><p class="small muted" style="text-align:center">Lo sube solo la notebook de Igna cada 30 minutos, de 6 a 22.</p></div>'; return; }
+    var horas = st.ts ? (Date.now() - +st.ts) / 3600000 : null, hr = new Date().getHours();
+    var viejo = horas != null && horas > 1.5 && hr >= 7 && hr <= 22;
+    var deps = Object.keys(st.depositos || {}).map(function (k) { return { f: k, n: nomDep(k) }; }).sort(function (a, b) { return (+a.f) - (+b.f); });
+    var h = '<div class="panel"><div class="cam-cab"><h2>Stock</h2><span class="small muted">Según el sistema · actualizado ' + esc(st.actualizado || '') + '</span><button class="btn sm" data-act="imprimir">Imprimir</button></div>'
+      + (viejo ? '<p class="small neg">La última lectura es de hace ' + Math.floor(horas) + ' h. Fijate que la notebook de Igna esté prendida.</p>' : '')
+      + '<div class="stk-filtros">'
+      + '<label class="campo stk-q"><span>Nombre o N° de artículo</span><input type="search" id="st-q" autocomplete="off" placeholder="Ej.: bondiola, 215" value="' + esc(F.q) + '"></label>'
+      + '<label class="campo stk-r"><span>Desde N°</span><input type="number" inputmode="numeric" id="st-desde" value="' + esc(F.desde) + '"></label>'
+      + '<label class="campo stk-r"><span>Hasta N°</span><input type="number" inputmode="numeric" id="st-hasta" value="' + esc(F.hasta) + '"></label>'
+      + '<label class="campo stk-d"><span>Depósito</span><select id="st-dep"><option value="">Todos</option>' + deps.map(function (d) { return '<option value="' + esc(d.f) + '"' + (String(F.dep) === String(d.f) ? ' selected' : '') + '>' + esc(d.f + ' · ' + d.n) + '</option>'; }).join('') + '</select></label>'
+      + ((F.q || F.desde || F.hasta || F.dep) ? '<button class="btn sm" data-act="st-limpiar">Limpiar filtros</button>' : '') + '</div>'
+      + '<div id="st-res">' + stockResHTML() + '</div></div>';
+    el.innerHTML = h;
   }
   function renderClientes() {
     var el = $('view-clientes');
@@ -3643,14 +3694,14 @@
     if (!store || !store.signIn || S.solo) e.innerHTML = '';
     else if (!S.user) e.innerHTML = '<button class="btn sm lnk" data-act="ingresar">Ingresar para cargar</button>';
     else e.innerHTML = '<span>' + esc(S.user.email) + (S.editor ? '' : ' · sin permiso para cargar') + '</span><button class="btn sm lnk" data-act="salir">Salir</button>';
-    $('tab-pedidos').hidden = !S.editor; $('tab-clientes').hidden = !S.editor; $('tab-camara').hidden = !S.camaraOk || !!S.solo; $('tab-tunel').hidden = !S.camaraOk || !!S.solo;
+    $('tab-pedidos').hidden = !S.editor; $('tab-clientes').hidden = !S.editor; $('tab-stock').hidden = !S.editor; $('tab-camara').hidden = !S.camaraOk || !!S.solo; $('tab-tunel').hidden = !S.camaraOk || !!S.solo;
     if (S.tab === 'camara' && (!S.camaraOk || S.solo)) { if (!S.solo) S.volver = 'camara'; S.tab = 'inicio'; }
     if (S.tab === 'tunel' && (!S.camaraOk || S.solo)) { if (!S.solo) S.volver = 'tunel'; S.tab = 'inicio'; }
     $('tabs').classList.toggle('muchas', !!S.editor);
     // Si la página se abrió (o se recargó sola) en Pedidos o Clientes, se vuelve ahí apenas se confirma el permiso.
-    if ((S.tab === 'pedidos' || S.tab === 'clientes') && !S.editor) { S.volver = S.tab; S.tab = 'inicio'; }
+    if ((S.tab === 'pedidos' || S.tab === 'clientes' || S.tab === 'stock') && !S.editor) { S.volver = S.tab; S.tab = 'inicio'; }
     TABS.forEach(function (t) { $('view-' + t).hidden = S.tab !== t; if (S.tab !== t) $('view-' + t).innerHTML = ''; var tb = $('tab-' + t); if (tb) tb.setAttribute('aria-selected', String(S.tab === t)); });
-    if (S.tab === 'medias') renderMedias(); else if (S.tab === 'pedidos') renderPedidos(); else if (S.tab === 'produccion' || S.tab === 'ciclo3') renderProduccion(); else if (S.tab === 'logistica') renderLogistica(); else if (S.tab === 'rendering') renderRendering(); else if (S.tab === 'clientes') renderClientes(); else if (S.tab === 'camara') renderCamara(); else if (S.tab === 'tunel') renderTunel(); else renderInicio();
+    if (S.tab === 'medias') renderMedias(); else if (S.tab === 'pedidos') renderPedidos(); else if (S.tab === 'produccion' || S.tab === 'ciclo3') renderProduccion(); else if (S.tab === 'logistica') renderLogistica(); else if (S.tab === 'rendering') renderRendering(); else if (S.tab === 'clientes') renderClientes(); else if (S.tab === 'stock') renderStock(); else if (S.tab === 'camara') renderCamara(); else if (S.tab === 'tunel') renderTunel(); else renderInicio();
   }
   // Cuando llegan datos nuevos no se redibuja la pantalla en la que se está escribiendo.
   function renderDatos() {
@@ -3692,6 +3743,7 @@
       ponerCuenta(D.id, vi).then(function () { avisar('Cuenta ' + vi + ' guardada para ' + (pg ? pg.cliente : 'el cliente') + '.', 5000); renderPedidos(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); renderPedidos(); });
       return;
     }
+    if (a === 'st-limpiar') { S.stf = null; renderStock(); var sq = $('st-q'); if (sq) sq.focus(); return; }
     if (a === 'cli-agregar' || a === 'cli-pegar' || a === 'cli-traer') {
       var nuevos = a === 'cli-agregar' ? [{ n: $('cli-n').value, c: $('cli-c').value }] : a === 'cli-pegar' ? leerListaClientes($('cli-txt').value) : clientesConocidos();
       nuevos = nuevos.filter(function (x) { return norm(x.n); });
@@ -4104,6 +4156,8 @@
   document.addEventListener('input', function (e) {
     var t = e.target, D = t.dataset;
     if (t.id === 'cli-buscar') { S.cliBuscar = t.value; filtrarClientes(); return; }
+    if (t.id === 'st-q' || t.id === 'st-desde' || t.id === 'st-hasta') { var Fs = stockFiltro(); Fs[{ 'st-q': 'q', 'st-desde': 'desde', 'st-hasta': 'hasta' }[t.id]] = t.value; var rs = $('st-res'); if (rs) rs.innerHTML = stockResHTML(); var lim = document.querySelector('[data-act="st-limpiar"]'); if (!lim && (Fs.q || Fs.desde || Fs.hasta || Fs.dep)) { var sel = t.selectionStart, idq = t.id; renderStock(); var nq = $(idq); if (nq) { nq.focus(); try { nq.setSelectionRange(sel, sel); } catch (err) {} } } return; }
+    if (t.id === 'st-dep') { stockFiltro().dep = t.value; renderStock(); return; }
     if (t.id === 'rep-cli') { var sr = t.selectionStart; S.repCli = t.value; var vp = document.querySelector('.rep-suc'); if (vp) { var tmpr = document.createElement('div'); tmpr.innerHTML = repHTML(); vp.replaceWith(tmpr.firstChild); var nr = $('rep-cli'); if (nr) { nr.focus(); try { nr.setSelectionRange(sr, sr); } catch (err) {} } } return; }
     if (t.id === 'lg-buscar' || t.id === 'lg-cam-buscar') { var sl = t.selectionStart, idl = t.id; if (idl === 'lg-buscar') { S.lgBuscar = t.value; S.lgCamBuscar = ''; } else { S.lgCamBuscar = t.value; S.lgBuscar = ''; } render(); var nl = $(idl); if (nl) { nl.focus(); try { nl.setSelectionRange(sl, sl); } catch (err) {} } return; }
     if (t.id === 'cam-txt') { S.camPrev = t.value.trim() ? leerCamaraPegada(t.value) : null; var pv2 = document.querySelector('.cam-pegar'); if (pv2) { var tmp = document.createElement('div'); tmp.innerHTML = camPegarHTML(!camSemanas().length); var val = t.value; pv2.replaceWith(tmp.firstChild); var nt2 = $('cam-txt'); if (nt2) { nt2.value = val; } } return; }
@@ -4708,6 +4762,8 @@
               if (JSON.stringify(S.clientes) !== antesC) { conciliarLog(); renderDatos(); }
               var pap = l.filter(function (x) { return x.id === 'papelera'; })[0], antesP = JSON.stringify(S.papelera || []); S.papelera = (pap && pap.items) || [];
               if (JSON.stringify(S.papelera) !== antesP && S.tab === 'pedidos' && !ocupado()) renderPedidos();
+              var stk = l.filter(function (x) { return x.id === 'stock'; })[0], antesSt = S.stock ? S.stock.ts : null; S.stock = stk || null;
+              if ((S.stock ? S.stock.ts : null) !== antesSt && S.tab === 'stock' && !escribiendo()) renderStock();
               var chf = l.filter(function (x) { return x.id === 'choferes'; })[0], antesCh = JSON.stringify(S.choferes || null); S.choferes = chf || null;
               if (JSON.stringify(S.choferes || null) !== antesCh && S.tab === 'logistica' && S.resumen && !ocupado()) render();
               var imp = l.filter(function (x) { return x.id === 'impresora'; })[0], antesI = impEstado(); S.impresora = imp || null;
