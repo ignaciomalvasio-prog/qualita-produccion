@@ -7,6 +7,8 @@
  * Cada semana es un bloque de 12 filas (como la planilla original):
  *   fila m: mes · m+1: "Lunes DD" ... · m+2: PROPIOS · m+3: USUARIO · m+5: VENTA · m+7: REMANENTE (con el
  *   desposte del día siguiente al lado) · m+9: medias en cámara (y la nota en la columna P).
+ * Formato nuevo (desde noviembre 2026): bloque de 13 filas, con "LUNES" (fórmula con el feriado) en m+1 y la FECHA
+ *   en m+2; todo lo de abajo queda una fila más abajo (o = 1).
  * Día i (0 = lunes): valor en la columna 3i+2 y, en la fila del remanente, el desposte del día siguiente en 3i+3.
  */
 var HOJA = 'Faena-Desposte', ALTO = 12;
@@ -44,8 +46,14 @@ function num_(v) { if (v === '' || v == null) return null; var n = Number(v); re
 
 // Bloques de la hoja: fila del mes (1-based) y el lunes (AAAA-MM-DD). El año es el más cercano a hoy en que esa fecha cae lunes.
 function bloques_(vals) {
-  var hoy = new Date(), out = [], prev = null;
+  var hoy = new Date(), out = [], prev = null, tz = Session.getScriptTimeZone();
   for (var r = 0; r < vals.length; r++) {
+    // Formato nuevo: "LUNES" (o "LUNES - FERIADO …") y abajo la fecha del lunes.
+    if (/^LUNES( - .*)?$/.test(norm_(vals[r][0])) && r + 1 < vals.length && vals[r + 1][0] instanceof Date) {
+      var ln = Utilities.formatDate(vals[r + 1][0], tz, 'yyyy-MM-dd');
+      if (prev && ln <= prev) continue;
+      out.push({ m: r - 1, lunes: ln, o: 1 }); prev = ln; continue;
+    }
     var m = norm_(vals[r][0]).match(/^LUNES\s*(\d{1,2})$/); if (!m) continue;
     var dia = +m[1], mes = r > 0 ? MESES.indexOf(norm_(vals[r - 1][0])) : -1, lun = null;
     if (mes >= 0) {
@@ -59,7 +67,7 @@ function bloques_(vals) {
     if (lun && prev && lun <= prev) lun = null;   // bloque repetido (copiado sin cambiar la fecha): va como la semana siguiente
     if (!lun && prev) { var pd = new Date(prev + 'T00:00:00Z'); pd.setUTCDate(pd.getUTCDate() + 7); lun = iso_(pd); }
     if (!lun) continue;
-    out.push({ m: r - 1, lunes: lun }); prev = lun;   // m: índice 0-based de la fila del mes (la de arriba de "Lunes")
+    out.push({ m: r - 1, lunes: lun, o: 0 }); prev = lun;   // m: índice 0-based de la fila del mes (la de arriba de "Lunes")
   }
   return out;
 }
@@ -69,7 +77,7 @@ function leer_(sh) {
   var v = function (r, c) { return r < vals.length && c < vals[r].length ? vals[r][c] : ''; };
   var f = function (r, c) { return r < fs.length && c < fs[r].length ? fs[r][c] : ''; };
   bloques_(vals).forEach(function (b) {
-    var m = b.m, dias = [];
+    var m = b.m + (b.o || 0), dias = [];   // con el formato nuevo todo está una fila más abajo
     for (var i = 0; i < 5; i++) {
       var c = 3 * i + 1;   // 0-based: columna del valor del día
       var remF = f(m + 7, c), x = { propios: num_(v(m + 2, c)), usuario: num_(v(m + 3, c)), venta: num_(v(m + 5, c)), despSig: num_(v(m + 7, c + 1)) };
@@ -89,7 +97,8 @@ function escribir_(sh, semanas) {
     var bl = bloques_(sh.getDataRange().getValues()), b = bl.filter(function (x) { return x.lunes === w.lunes; })[0];
     while (!b && bl.length && bl[bl.length - 1].lunes < w.lunes) { b = agregar_(sh, bl[bl.length - 1]); bl.push(b); if (b.lunes !== w.lunes) b = null; }
     if (!b) return;   // semanas anteriores a la primera de la hoja no se agregan
-    var m = b.m + 1;  // 1-based
+    var m = b.m + 1 + (b.o || 0);  // 1-based (formato nuevo: una fila más abajo)
+    var ib = bl.indexOf(b), ant = ib > 0 ? bl[ib - 1] : null;
     (w.dias || []).slice(0, 5).forEach(function (d, i) {
       var c = 3 * i + 2;
       if ('propios' in d) sh.getRange(m + 2, c).setValue(d.propios == null ? '' : d.propios);
@@ -100,18 +109,23 @@ function escribir_(sh, semanas) {
         var cel = sh.getRange(m + 7, c);
         if (d.rem != null) cel.setValue(d.rem);
         else if (i > 0) cel.setFormulaR1C1('=R[1]C[-3]-R[0]C[-2]');          // disponible del día anterior − desposte
-        else if (m > ALTO) cel.setFormulaR1C1('=R[-' + ALTO + ']C[14]');       // lunes: remanente final de la semana anterior (columna P)
+        else if (ant) cel.setFormula('=P' + (ant.m + 1 + (ant.o || 0) + 7));    // lunes: remanente final de la semana anterior (columna P)
       }
     });
     if ('nota' in w) sh.getRange(m + 9, 16).setValue(w.nota || '');
   });
 }
 function agregar_(sh, ult) {
-  var origen = ult.m + 1, destino = origen + ALTO, falta = destino + ALTO - 1 - sh.getMaxRows();
+  var alto = ALTO + (ult.o || 0), origen = ult.m + 1, destino = origen + alto, falta = destino + alto - 1 - sh.getMaxRows();
   if (falta > 0) sh.insertRowsAfter(sh.getMaxRows(), falta);
-  sh.getRange(origen, 1, ALTO, 18).copyTo(sh.getRange(destino, 1, ALTO, 18));
+  sh.getRange(origen, 1, alto, 18).copyTo(sh.getRange(destino, 1, alto, 18));
   var lun = new Date(ult.lunes + 'T00:00:00Z'); lun.setUTCDate(lun.getUTCDate() + 7);
   sh.getRange(destino, 1).setValue(MESES[lun.getUTCMonth()]);
+  if (ult.o) {   // formato nuevo: las fechas de cada día en la fila de abajo de "LUNES" (los nombres y feriados salen solos)
+    for (var k = 0; k < 5; k++) { var dk = new Date(lun); dk.setUTCDate(lun.getUTCDate() + k); sh.getRange(destino + 2, 3 * k + 1).setValue(new Date(dk.getUTCFullYear(), dk.getUTCMonth(), dk.getUTCDate())); }
+    sh.getRange(destino + 10, 16).setValue('');
+    return { m: destino - 1, lunes: iso_(lun), o: 1 };
+  }
   for (var i = 0; i < 5; i++) { var d = new Date(lun); d.setUTCDate(lun.getUTCDate() + i); sh.getRange(destino + 1, 3 * i + 1).setValue(DIAS[i] + ' ' + ('0' + d.getUTCDate()).slice(-2)); }
   sh.getRange(destino + 9, 16).setValue('');
   return { m: destino - 1, lunes: iso_(lun) };
@@ -152,7 +166,7 @@ function traerVenta() {
       for (var i = 0; i < 5; i++) {
         var d = new Date(lun); d.setUTCDate(lun.getUTCDate() + i);
         var v = ventas[iso_(d)]; if (v == null) continue;
-        var r = b.m + 5, c = 3 * i + 1, ant = r < vals.length ? num_(vals[r][c]) : null;
+        var r = b.m + 5 + (b.o || 0), c = 3 * i + 1, ant = r < vals.length ? num_(vals[r][c]) : null;
         if (ant !== v) { sh.getRange(r + 1, c + 1).setValue(v); n++; }
       }
     });
