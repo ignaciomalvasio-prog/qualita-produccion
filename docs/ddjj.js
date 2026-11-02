@@ -130,18 +130,19 @@ function calcular(f) {
     prod[l.n] = { n: l.n, cant, exp: kgExp || null, cons: kgExp && !kgCons ? null : kgCons, dest: (kgExp && l.dest) || 'CONSUMO', re, ing, est: l.cant === 'est' };
   }
   /* FAENA PARCIAL (pedidos de Sabi 29 y 30/10):
-     - tropa faenada en más de un día (renglones FT del romaneo; ej. 261798: 81 el 26/10 y 79 el 27/10) → total de tropa = las cabezas
-       faenadas el día de faena de ese renglón;
-     - tropa con muertos (corral o viaje, del sistema o a mano; ej. 261799: 160 − 1 = 159) → total de tropa = cabezas faenadas;
+     - tropa faenada en más de un día (renglones FT del romaneo; ej. 261808) → en los dos renglones el total de la tropa (200), no las
+       cabezas de cada día (pedido de Sabi 02/11);
+     - tropa con muertos en corral (del sistema, playa de emergencia A1 o a mano; ej. 261799: 160 − 1 = 159) → total de tropa = cabezas faenadas
+       (los muertos en viaje no: llegan muertos, ej. 261807);
      - una tropa que viene en dos renglones el mismo día de desposte (dos fechas de faena) también.
      Sin datos FT (antes de que la notebook los suba) se usa cabezas recibidas − muertos, como antes. */
   const veces = {}; d.tr.forEach(t => { veces[t.tropa] = (veces[t.tropa] || 0) + 1; });
-  const muertosDe = muertosPorTropa(), FT = (S.sis && S.sis.ft) || {};
+  /* solo los muertos en corral marcan FAENA PARCIAL (Sabi 02/11, tropa 261807: el muerto en viaje llega muerto, la faena no es parcial) */
+  const muertosDe = muertosPorTropa('CORRAL'), FT = (S.sis && S.sis.ft) || {};
   const ingreso = d.tr.slice().sort((a, b) => String(a.tropa).localeCompare(String(b.tropa)) || String(a.faena).localeCompare(String(b.faena))).map(t => {
     const mu = muertosDe[String(t.tropa)] || 0, fd = FT[String(t.tropa)] || {}, dias = Object.keys(fd).sort(), dosDias = dias.length > 1;
-    let cab = mu && t.cab ? Math.max(0, t.cab - mu) : t.cab;
-    if (dosDias && fd[t.faena]) cab = fd[t.faena];
-    else if (dias.length === 1 && fd[dias[0]]) cab = fd[dias[0]];
+    /* total de tropa = cabezas de la tropa − muertos en corral; faenada en dos días va el total en los dos renglones (Sabi 02/11, 261808: 200) */
+    const cab = mu && t.cab ? Math.max(0, t.cab - mu) : t.cab;
     return {
       faena: t.faena, tropa: t.tropa, cab, medias: t.medias, prom: t.medias ? Math.round(t.kg / t.medias) : 0,
       kg: t.medias ? t.medias * Math.round(t.kg / t.medias) : 0, obs: veces[t.tropa] > 1 || mu || dosDias ? 'FAENA PARCIAL' : (obsAnterior(t.tropa, f) || 'Consumo'),
@@ -169,9 +170,9 @@ function calcular(f) {
 }
 
 /* Muertos por número de tropa: los del sistema (dj-anual, MU), los de la playa de emergencia (A1) y los cargados a mano en Faena y mortalidad */
-function muertosPorTropa() {
+function muertosPorTropa(lugar) {
   const o = {};
-  const sum = m => { const k = String(m.tropa || '').trim(); if (k) o[k] = (o[k] || 0) + (Number(m.cab) || 0); };
+  const sum = m => { const k = String(m.tropa || '').trim(); if (k && (!lugar || String(m.lugar || '').toUpperCase() === lugar)) o[k] = (o[k] || 0) + (Number(m.cab) || 0); };
   ((S.anual && S.anual.mu) || []).forEach(sum);
   if (typeof muertosA1 === 'function') muertosA1().forEach(sum);   // playa de emergencia (A1)
   ((S.muertos && S.muertos.lista) || []).forEach(sum);
@@ -394,8 +395,8 @@ function renderDia() {
   h += '<section><h2>Ingreso</h2><p class="sub">Tropas que entraron al desposte este día. Los kilos son medias × el peso promedio por media (redondeado), como en la planilla. El total se declara con ' +
     Math.round((1 - (eq().merma || 1)) * 100) + ' % de merma.' + (P.ingEditado ? ' <b>Esta parte está corregida a mano.</b> <a href="#" onclick="ingSistema();return false">Volver a lo del sistema</a>' : '') + '</p>' +
     (P.c.enteras && !P.ingEditado ? '<div class="alerta warn">Se descontaron <b>' + fmt0(P.c.enteras) + ' medias</b> que salieron enteras como 1/2 res sin jamón y sin paleta, de la tropa ' + esc(P.c.descEn.join(', ')) + '. Si iban de otra tropa, corregilo tocando las medias.</div>' : '') +
-    (!P.ingEditado && P.ingreso.some(t => t.muertos && !t.faenaDias) ? '<div class="alerta warn">Tropas con muertos (Faena y mortalidad): ' + P.ingreso.filter(t => t.muertos && !t.faenaDias).map(t => '<b>' + esc(t.tropa) + '</b> ' + fmt0(t.cabTropa) + ' − ' + fmt0(t.muertos) + ' = ' + fmt0(t.cab) + ' faenados').join(' · ') + '. El total de tropa va con las faenadas y como FAENA PARCIAL.</div>' : '') +
-    (!P.ingEditado && P.ingreso.some(t => t.faenaDias) ? '<div class="alerta warn">Tropas faenadas en más de un día: ' + [...new Map(P.ingreso.filter(t => t.faenaDias).map(t => [t.tropa, t])).values()].map(t => '<b>' + esc(t.tropa) + '</b> (' + fmt0(t.cabTropa) + ' cabezas · ' + esc(t.faenaDias) + ')').join(' · ') + '. El total de tropa va con las cabezas faenadas ese día y como FAENA PARCIAL.</div>' : '');
+    (!P.ingEditado && P.ingreso.some(t => t.muertos && !t.faenaDias) ? '<div class="alerta warn">Tropas con muertos en corral (Faena y mortalidad): ' + P.ingreso.filter(t => t.muertos && !t.faenaDias).map(t => '<b>' + esc(t.tropa) + '</b> ' + fmt0(t.cabTropa) + ' − ' + fmt0(t.muertos) + ' = ' + fmt0(t.cab) + ' faenados').join(' · ') + '. El total de tropa va con las faenadas y como FAENA PARCIAL.</div>' : '') +
+    (!P.ingEditado && P.ingreso.some(t => t.faenaDias) ? '<div class="alerta warn">Tropas faenadas en más de un día: ' + [...new Map(P.ingreso.filter(t => t.faenaDias).map(t => [t.tropa, t])).values()].map(t => '<b>' + esc(t.tropa) + '</b> (' + fmt0(t.cabTropa) + ' cabezas · ' + esc(t.faenaDias) + ')').join(' · ') + '. Va como FAENA PARCIAL, con el total de la tropa en cada renglón.</div>' : '');
   h += '<div class="tw"><table class="planilla dj-tab"><thead><tr><th>Fecha de faena</th><th>Nº de tropa</th><th class="num">Total de tropa</th><th class="num">Medias reses</th><th class="num">Kg de ingreso</th><th>Observaciones</th><th></th></tr></thead><tbody>';
   P.ingreso.forEach((t, i) => {
     h += '<tr>' + celdaIng(i, 'faena', ddmmaaaa(t.faena)) + celdaIng(i, 'tropa', esc(t.tropa)) + celdaIng(i, 'cab', fmt0(t.cab), 1) + celdaIng(i, 'medias', fmt0(t.medias), 1) +
