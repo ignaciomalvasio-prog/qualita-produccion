@@ -1151,18 +1151,25 @@
      Lo sube solo un programa de la notebook (C:\InformeQualita\stock_sync.ps1, cada 30 min de 6 a 22) a privado/stock:
      filas [{f: depósito, a: artículo, kg, u}], arts {código: nombre}, depositos {código: nombre}. Es el stock del
      sistema (tabla STOCK, grupos con kilos > 0). Acá solo se mira y se filtra. */
-  function stockFiltro() { return S.stf || (S.stf = { q: '', desde: '', hasta: '', dep: '' }); }
+  function stockFiltro() { return S.stf || (S.stf = { q: '', fd: '', fh: '', dep: '' }); }
+  function fCorta(d) { var m = /^(\d{4})-(\d\d)-(\d\d)/.exec(d || ''); return m ? m[3] + '/' + m[2] + '/' + m[1].slice(2) : ''; }
   function stockFilas() {
     var st = S.stock || {}, F = stockFiltro(), arts = st.arts || {}, porArt = {};
-    var q = norm(F.q || '').trim(), palabras = q ? q.split(/\s+/) : [], esNum = /^\d+$/.test(q);
-    var d1 = String(F.desde).trim() === '' ? null : +F.desde, d2 = String(F.hasta).trim() === '' ? null : +F.hasta;
-    (st.filas || []).forEach(function (r) {
-      var a = +r.a; if (F.dep && String(r.f) !== String(F.dep)) return;
-      if (d1 != null && a < d1) return; if (d2 != null && a > d2) return;
-      var nom = arts[String(a)] || '';
-      if (q) { if (esNum) { if (String(a).indexOf(q) !== 0 && norm(nom).indexOf(q) < 0) return; } else { var nn = norm(nom) + ' ' + a; if (!palabras.every(function (w) { return nn.indexOf(w) >= 0; })) return; } }
-      var x = porArt[a] || (porArt[a] = { a: a, n: nom, kg: 0, u: 0, deps: [] });
-      x.kg += +r.kg || 0; x.u += +r.u || 0; x.deps.push({ f: r.f, kg: +r.kg || 0, u: +r.u || 0 });
+    var q = norm(F.q || '').trim(), palabras = q ? q.split(/\s+/) : [], esNum = /^\d+$/.test(q), conFecha = !!(F.fd || F.fh);
+    function pasa(r) {
+      var a = +r.a; if (F.dep && String(r.f) !== String(F.dep)) return false;
+      if (!q) return true; var nom = arts[String(a)] || '';
+      if (esNum) return String(a).indexOf(q) === 0 || norm(nom).indexOf(q) >= 0;
+      var nn = norm(nom) + ' ' + a; return palabras.every(function (w) { return nn.indexOf(w) >= 0; });
+    }
+    function art(a) { return porArt[a] || (porArt[a] = { a: a, n: arts[String(a)] || '', kg: 0, u: 0, deps: [], dias: {}, dmin: '', dmax: '' }); }
+    function sumDep(x, f, kg, u) { var d = x.deps.filter(function (y) { return String(y.f) === String(f); })[0]; if (!d) x.deps.push(d = { f: f, kg: 0, u: 0 }); d.kg += kg; d.u += u; }
+    if (!conFecha) (st.filas || []).forEach(function (r) { if (!pasa(r)) return; var x = art(+r.a); x.kg += +r.kg || 0; x.u += +r.u || 0; sumDep(x, r.f, +r.kg || 0, +r.u || 0); });
+    (st.fechas || []).forEach(function (r) {
+      if (!pasa(r)) return; var d = String(r.d || '');
+      if (conFecha) { if ((F.fd && d < F.fd) || (F.fh && d > F.fh)) return; var x = art(+r.a); x.kg += +r.kg || 0; x.u += +r.u || 0; sumDep(x, r.f, +r.kg || 0, +r.u || 0); x.dias[d] = (x.dias[d] || 0) + (+r.kg || 0); }
+      else { x = porArt[+r.a]; if (!x) return; }
+      if (!x.dmin || d < x.dmin) x.dmin = d; if (!x.dmax || d > x.dmax) x.dmax = d;
     });
     return Object.keys(porArt).map(function (k) { return porArt[k]; }).sort(function (x, y) { return x.a - y.a; });
   }
@@ -1172,9 +1179,12 @@
     filas.forEach(function (x) { tkg += x.kg; tu += x.u; });
     var h = '<p class="stk-tot"><b>' + n(filas.length) + '</b> ' + plural(filas.length, 'artículo', 'artículos') + ' · <b>' + dosDec(tkg) + '</b> kg · <b>' + n(tu) + '</b> ' + plural(tu, 'unidad', 'unidades') + '</p>';
     if (!filas.length) return h + '<p class="state">No hay stock que coincida con lo que buscás.</p>';
-    var multi = !l.dep;
+    var multi = !l.dep, conFecha = !!(l.fd || l.fh);
+    if (conFecha) h += '<p class="small muted">Con fecha de producción se cuentan las piezas y cajas etiquetadas que están en cámara. Lo que no lleva etiqueta (patitas, cabezas, etc.) no tiene fecha y no aparece.</p>';
     h += '<table class="pl stock-t"><thead><tr><th>N°</th><th>Artículo</th><th>Kg</th><th>Unid.</th></tr></thead><tbody>' + filas.map(function (x) {
       var donde = multi && x.deps.length ? '<span class="stk-dep">' + x.deps.sort(function (p, q) { return q.kg - p.kg; }).map(function (d) { return esc(nomDep(d.f)) + ' ' + dosDec(d.kg) + ' kg'; }).join(' · ') + '</span>' : '';
+      var ds = Object.keys(x.dias).sort(), prod = conFecha && ds.length && ds.length <= 4 ? 'Producción: ' + ds.map(function (d) { return fCorta(d) + ' ' + dosDec(x.dias[d]) + ' kg'; }).join(' · ') : x.dmin ? 'Producción: ' + (x.dmin === x.dmax ? 'del ' + fCorta(x.dmin) : 'del ' + fCorta(x.dmin) + ' al ' + fCorta(x.dmax)) : '';
+      if (prod) donde += '<span class="stk-dep">' + esc(prod) + '</span>';
       return '<tr><td class="stk-n">' + x.a + '</td><td class="stk-art">' + esc(x.n || 'Artículo ' + x.a) + donde + '</td><td>' + dosDec(x.kg) + '</td><td>' + n(x.u) + '</td></tr>';
     }).join('') + '</tbody></table>';
     return h;
@@ -1191,11 +1201,11 @@
       + (viejo ? '<p class="small neg">La última lectura es de hace ' + Math.floor(horas) + ' h. Fijate que la notebook de Igna esté prendida.</p>' : '')
       + '<div class="stk-filtros">'
       + '<label class="campo stk-q"><span>Nombre o N° de artículo</span><input type="search" id="st-q" autocomplete="off" placeholder="Ej.: bondiola, 215" value="' + esc(F.q) + '"></label>'
-      + '<label class="campo stk-r"><span>Desde N°</span><input type="number" inputmode="numeric" id="st-desde" value="' + esc(F.desde) + '"></label>'
-      + '<label class="campo stk-r"><span>Hasta N°</span><input type="number" inputmode="numeric" id="st-hasta" value="' + esc(F.hasta) + '"></label>'
+      + '<label class="campo stk-r"><span>Producción desde</span><input type="date" id="st-fd" value="' + esc(F.fd) + '"></label>'
+      + '<label class="campo stk-r"><span>Producción hasta</span><input type="date" id="st-fh" value="' + esc(F.fh) + '"></label>'
       + '<label class="campo stk-d"><span>Depósito</span><select id="st-dep"><option value="">Todos</option>' + deps.map(function (d) { return '<option value="' + esc(d.f) + '"' + (String(F.dep) === String(d.f) ? ' selected' : '') + '>' + esc(d.f + ' · ' + d.n) + '</option>'; }).join('') + '</select></label>'
-      + ((F.q || F.desde || F.hasta || F.dep) ? '<button class="btn sm" data-act="st-limpiar">Limpiar filtros</button>' : '') + '</div>'
-      + '<div id="st-res">' + stockResHTML() + '</div></div>';
+      + ((F.q || F.fd || F.fh || F.dep) ? '<button class="btn sm" data-act="st-limpiar">Limpiar filtros</button>' : '') + '</div>'
+      + (!(st.fechas || []).length ? '<p class="small muted">Las fechas de producción todavía no llegaron del sistema.</p>' : '') + '<div id="st-res">' + stockResHTML() + '</div></div>';
     el.innerHTML = h;
   }
   function renderClientes() {
@@ -4156,7 +4166,7 @@
   document.addEventListener('input', function (e) {
     var t = e.target, D = t.dataset;
     if (t.id === 'cli-buscar') { S.cliBuscar = t.value; filtrarClientes(); return; }
-    if (t.id === 'st-q' || t.id === 'st-desde' || t.id === 'st-hasta') { var Fs = stockFiltro(); Fs[{ 'st-q': 'q', 'st-desde': 'desde', 'st-hasta': 'hasta' }[t.id]] = t.value; var rs = $('st-res'); if (rs) rs.innerHTML = stockResHTML(); var lim = document.querySelector('[data-act="st-limpiar"]'); if (!lim && (Fs.q || Fs.desde || Fs.hasta || Fs.dep)) { var sel = t.selectionStart, idq = t.id; renderStock(); var nq = $(idq); if (nq) { nq.focus(); try { nq.setSelectionRange(sel, sel); } catch (err) {} } } return; }
+    if (t.id === 'st-q' || t.id === 'st-fd' || t.id === 'st-fh') { var Fs = stockFiltro(); Fs[{ 'st-q': 'q', 'st-fd': 'fd', 'st-fh': 'fh' }[t.id]] = t.value; var rs = $('st-res'); if (rs) rs.innerHTML = stockResHTML(); var lim = document.querySelector('[data-act="st-limpiar"]'); if (!lim && (Fs.q || Fs.fd || Fs.fh || Fs.dep)) { var sel = t.selectionStart, idq = t.id; renderStock(); var nq = $(idq); if (nq) { nq.focus(); try { nq.setSelectionRange(sel, sel); } catch (err) {} } } return; }
     if (t.id === 'st-dep') { stockFiltro().dep = t.value; renderStock(); return; }
     if (t.id === 'rep-cli') { var sr = t.selectionStart; S.repCli = t.value; var vp = document.querySelector('.rep-suc'); if (vp) { var tmpr = document.createElement('div'); tmpr.innerHTML = repHTML(); vp.replaceWith(tmpr.firstChild); var nr = $('rep-cli'); if (nr) { nr.focus(); try { nr.setSelectionRange(sr, sr); } catch (err) {} } } return; }
     if (t.id === 'lg-buscar' || t.id === 'lg-cam-buscar') { var sl = t.selectionStart, idl = t.id; if (idl === 'lg-buscar') { S.lgBuscar = t.value; S.lgCamBuscar = ''; } else { S.lgCamBuscar = t.value; S.lgBuscar = ''; } render(); var nl = $(idl); if (nl) { nl.focus(); try { nl.setSelectionRange(sl, sl); } catch (err) {} } return; }
