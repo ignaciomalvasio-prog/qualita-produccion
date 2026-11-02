@@ -39,7 +39,15 @@ function manejar_(p, cuerpo) {
     return { ok: true, semanas: leer_(sh), estadoVenta: est, version: 2 };
   } finally { lock.releaseLock(); }
 }
-function hoja_() { var ss = SpreadsheetApp.getActive(); return ss.getSheetByName(HOJA) || ss.getSheets()[0]; }
+// La hoja Faena-Desposte. Cuando corre por un cambio en la planilla FAENA, "la activa" es FAENA: ahí se abre FAENA POR DÍA por su id.
+function hoja_() {
+  var pr = PropertiesService.getScriptProperties(), ss = SpreadsheetApp.getActive(), sh = ss && ss.getSheetByName(HOJA);
+  if (sh) { if (pr.getProperty('HOJA_ID') !== ss.getId()) pr.setProperty('HOJA_ID', ss.getId()); return sh; }
+  var id = pr.getProperty('HOJA_ID');
+  if (id && (!ss || ss.getId() !== id)) { var s2 = SpreadsheetApp.openById(id); return s2.getSheetByName(HOJA) || s2.getSheets()[0]; }
+  if (ss && ss.getId() === pr.getProperty('FAENA_ID')) throw new Error('Ejecutá traerVenta una vez a mano desde el editor.');
+  return ss.getSheets()[0];
+}
 
 function norm_(s) { return String(s == null ? '' : s).toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim(); }
 function iso_(d) { return Utilities.formatDate(d, 'GMT', 'yyyy-MM-dd'); }
