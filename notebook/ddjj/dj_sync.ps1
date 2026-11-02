@@ -148,44 +148,25 @@ SELECT 'FR|'||t.tro_numero||'|'||FLOOR(r.rom_kilos)||'|'||COUNT(*)
 "@
 }
 
-# Muertos de la playa de emergencia (pedido de Sabi 30/10): en la consulta de faena, un renglón de lista A1 con 1 sola cabeza,
-# de una tropa que tiene más animales, es un animal muerto en corrales que pasó por la playa de emergencia.
-# La tabla de la consulta de faena se busca sola en el diccionario de Oracle (la que tiene una columna LISTA y TRO_NROINT).
-#    FE|fecha|tropa|lista|cabezas|número de faena|cabezas de la tropa|patente|cuenta|productor|localidad   (renglones A con 1 cabeza)
-#    FX|ok|tabla|col. lista|col. cabezas|col. fecha|col. número|listas vistas en 60 días   ó   FX|no|lo que se encontró
+# Muertos de la playa de emergencia (pedido de Sabi 30/10, Igna 02/11): en la consulta de faena, un renglón de lista "A 1" con 1 sola cabeza
+# es un animal muerto en corrales. La columna "Lista" de esa pantalla es el tipo de faena (TIF_ABREV: P = Programada, A = Aumento)
+# más el orden de lista (FAE_ORDENLISTA): "A 1" = TIF_ABREV 'A' y FAE_ORDENLISTA 1. Si el renglón tiene más de 1 cabeza no cuenta.
+# (FAE_SERIELISTA / FAE_NROLISTA están vacías: no sirven.) Se lee de la vista V_FAENA.
+#    FE|fecha|tropa|lista|cabezas|número de faena|cabezas de la tropa|patente|cuenta|productor|localidad
+#    FX|ok|tabla|col. lista|col. cabezas|col. fecha|col. número|listas vistas en 60 días|revisado   ó   FX|no|motivo
 function Get-A1 {
-  # Columnas conocidas (consulta de faena, Sabi 02/11): FAE_SERIELISTA (letra: P / A) + FAE_NROLISTA (número), FAE_CABEZAS (del renglón),
-  # FAE_FECHA, FAE_NUMERO, TRO_NROINT. Se prueban la vista V_FAENA y las tablas con esas columnas; se usa la primera que trae renglones.
   $d0 = "DATE '$((Get-Date).Year - 1)-01-01'"
-  $cand = @(Invoke-Sql @"
-SELECT 'DX|'||c.table_name FROM all_tab_columns c WHERE c.owner='FRIGO' AND c.column_name='FAE_SERIELISTA'
-   AND c.table_name IN (SELECT table_name FROM all_tab_columns WHERE owner='FRIGO' AND column_name='FAE_NROLISTA')
-   AND c.table_name IN (SELECT table_name FROM all_tab_columns WHERE owner='FRIGO' AND column_name='FAE_CABEZAS')
-   AND c.table_name IN (SELECT table_name FROM all_tab_columns WHERE owner='FRIGO' AND column_name='FAE_FECHA')
-   AND c.table_name IN (SELECT table_name FROM all_tab_columns WHERE owner='FRIGO' AND column_name='TRO_NROINT');
-"@ | Where-Object { $_ -like 'DX|*' } | ForEach-Object { $_.Substring(3).Trim() })
-  if (-not $cand.Count) { return @('FX|no|ninguna tabla o vista con FAE_SERIELISTA, FAE_NROLISTA, FAE_CABEZAS, FAE_FECHA y TRO_NROINT') }
-  $cand = @($cand | Sort-Object { if ($_ -like 'V_*') { 1 } else { 0 } }, { $_ })   # primero las tablas, después las vistas
-  $diag = @(); $T = $null
-  foreach ($c in $cand) {
-    try {
-      $n = @(Invoke-Sql "SELECT 'FC|'||COUNT(*)||'|'||TO_CHAR(MAX(FAE_FECHA),'YYYY-MM-DD') FROM $c WHERE FAE_FECHA >= $d0;" | Where-Object { $_ -like 'FC|*' })
-      $p = if ($n.Count) { $n[0].Split('|') } else { @('FC', '0', '') }
-      $diag += ($c + ': ' + $p[1] + ' renglones' + $(if ($p[2]) { ' (último ' + $p[2] + ')' } else { '' }))
-      if (-not $T -and [int]$p[1] -gt 0) { $T = $c }
-    } catch { $diag += ($c + ': error ' + (($_.Exception.Message -replace '[\r\n|]+', ' ').Substring(0, [Math]::Min(80, $_.Exception.Message.Length)))) }
-  }
-  $dg = $diag -join '; '
-  if (-not $T) { return @("FX|no|ninguna trae renglones desde $($d0 -replace "DATE '|'", '')|$dg") }
-  $lis = "UPPER(TRIM(TO_CHAR(f.FAE_SERIELISTA))||TRIM(TO_CHAR(f.FAE_NROLISTA)))"
+  $lis = "UPPER(TRIM(f.TIF_ABREV))||TO_CHAR(NVL(f.FAE_ORDENLISTA,0))"
   $r = Invoke-Sql @"
-SELECT 'FE|'||TO_CHAR(TRUNC(f.FAE_FECHA),'YYYY-MM-DD')||'|'||t.tro_numero||'|'||$lis||'|'||f.FAE_CABEZAS||'|'||f.FAE_NUMERO||'|'||NVL(t.tro_cabezas,0)||'|'||TRIM(t.tro_patente)||'|'||t.cue_codigo||'|'||TRIM(TRANSLATE(NVL(c.cue_denom,' '),CHR(9)||'|','  '))||'|'||TRIM(NVL(l.loc_denom,' '))
-  FROM $T f JOIN tropas t ON t.tro_nroint=f.tro_nroint LEFT JOIN cuentas c ON c.cue_codigo=t.cue_codigo LEFT JOIN localidades l ON l.loc_codigo=t.loc_codigo
- WHERE f.FAE_FECHA >= $d0 AND f.FAE_CABEZAS = 1 AND UPPER(TRIM(TO_CHAR(f.FAE_SERIELISTA))) = 'A';
-SELECT 'FV|'||NVL($lis,'(vacía)')||' ('||COUNT(*)||')' FROM $T f WHERE f.FAE_FECHA >= SYSDATE-60 GROUP BY $lis;
+SELECT 'FE|'||TO_CHAR(TRUNC(f.FAE_FECHA),'YYYY-MM-DD')||'|'||f.TRO_NUMERO||'|'||$lis||'|'||f.FAE_CABEZAS||'|'||f.FAE_NUMERO||'|'||NVL(f.TRO_CABEZAS,0)||'|'||TRIM(t.tro_patente)||'|'||f.CUE_CODIGO||'|'||TRIM(TRANSLATE(NVL(c.cue_denom,' '),CHR(9)||'|','  '))||'|'||TRIM(NVL(f.LOC_DENOM,' '))
+  FROM v_faena f JOIN tropas t ON t.tro_nroint=f.TRO_NROINT LEFT JOIN cuentas c ON c.cue_codigo=f.CUE_CODIGO
+ WHERE f.FAE_FECHA >= $d0 AND f.FAE_CABEZAS = 1 AND UPPER(TRIM(f.TIF_ABREV)) = 'A' AND f.FAE_ORDENLISTA = 1;
+SELECT 'FV|'||l||' ('||n||')' FROM (SELECT $lis l, COUNT(*) n FROM v_faena f WHERE f.FAE_FECHA >= SYSDATE-60 GROUP BY UPPER(TRIM(f.TIF_ABREV)), NVL(f.FAE_ORDENLISTA,0), $lis);
+SELECT 'FC|'||COUNT(*)||'|'||TO_CHAR(MAX(f.FAE_FECHA),'YYYY-MM-DD') FROM v_faena f WHERE f.FAE_FECHA >= $d0;
 "@
   $vistas = (@($r | Where-Object { $_ -like 'FV|*' } | ForEach-Object { $_.Substring(3) }) | Select-Object -First 12) -join ' '
-  return @("FX|ok|$T|FAE_SERIELISTA+FAE_NROLISTA|FAE_CABEZAS|FAE_FECHA|FAE_NUMERO|$vistas|$dg") + @($r | Where-Object { $_ -like 'FE|*' })
+  $fc = @($r | Where-Object { $_ -like 'FC|*' }); $p = if ($fc.Count) { $fc[0].Split('|') } else { @('FC', '0', '') }
+  return @("FX|ok|V_FAENA|TIF_ABREV+FAE_ORDENLISTA|FAE_CABEZAS|FAE_FECHA|FAE_NUMERO|$vistas|V_FAENA: $($p[1]) renglones (último $($p[2]))") + @($r | Where-Object { $_ -like 'FE|*' })
 }
 
 $Paso = ''
