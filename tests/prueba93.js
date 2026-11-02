@@ -13,7 +13,7 @@ for(const w of [1100,400]){const p=await b.newPage({viewport:{width:w,height:900
    hoja:(url,cuerpo)=>{const q=new URL(url).searchParams;
     if(!hoja.tok){if(q.get('accion')!=='vincular')return{ok:false,error:'sin vincular'};hoja.tok='T1';return{ok:true,token:'T1',semanas:hoja.sem};}
     if((cuerpo?cuerpo.k:q.get('k'))!==hoja.tok)return{ok:false,error:'clave incorrecta'};
-    if(cuerpo){hoja.posts.push(cuerpo.semanas.map(s=>s.lunes));cuerpo.semanas.forEach(s=>{let x=hoja.sem.find(y=>y.lunes===s.lunes);if(!x){x={lunes:s.lunes,dias:[{},{},{},{},{}],nota:''};hoja.sem.push(x);}
+    if(cuerpo){hoja.posts.push(cuerpo.semanas.map(s=>s.lunes));hoja.mandoVenta=cuerpo.semanas.some(s=>s.dias.some(d=>'venta' in d));cuerpo.semanas.forEach(s=>{let x=hoja.sem.find(y=>y.lunes===s.lunes);if(!x){x={lunes:s.lunes,dias:[{},{},{},{},{}],nota:''};hoja.sem.push(x);}
      s.dias.forEach((dd,i)=>{const o=x.dias[i];['propios','usuario','venta','despSig'].forEach(k=>{if(k in dd)o[k]=dd[k]});if('rem' in dd){if(dd.rem==null)delete o.rem;else o.rem=dd.rem;}});if('nota' in s)x.nota=s.nota;});hoja.sem.sort((a,b)=>a.lunes<b.lunes?-1:1);}
     return{ok:true,semanas:hoja.sem};}}},[base,HOJA]);
  await p.goto('http://127.0.0.1:8765/index.html#camara');await p.clock.runFor(1500);await p.waitForSelector('.cam-tabla');
@@ -28,10 +28,11 @@ for(const w of [1100,400]){const p=await b.newPage({viewport:{width:w,height:900
  const hs=await p.evaluate(()=>window.__hoja.sem.map(s=>s.lunes));console.log('semanas en la planilla:',hs.length,hs[0],'…',hs.at(-1),'· viernes 25/12 (feriado):',await p.evaluate(()=>JSON.stringify(window.__hoja.sem.find(s=>s.lunes==='2026-12-21').dias[4])));
  console.log('guardado:',await p.evaluate(()=>JSON.stringify(window.__mock.data.privado['camara-ajustes'])));
  // Cambio en la app → va a la planilla.
- const c=p.locator('.cam-in[data-cf="venta"][data-f="2026-10-21"]');await c.fill('222');await c.press('Enter');await p.clock.runFor(800);await p.waitForTimeout(300);
- console.log('app → planilla: mié venta',await p.evaluate(()=>window.__hoja.sem.find(s=>s.lunes==='2026-10-19').dias[2].venta),'· últ. envío',await p.evaluate(()=>JSON.stringify(window.__hoja.posts.at(-1))));
+ console.log('venta se puede escribir en la app:',await p.locator('.cam-in[data-cf="venta"]').count(),'(sale de la planilla)');
+ const c=p.locator('.cam-in[data-cf="propios"][data-f="2026-10-21"]');await c.fill('610');await c.press('Enter');await p.clock.runFor(800);await p.waitForTimeout(300);
+ console.log('app → planilla: mié propios',await p.evaluate(()=>window.__hoja.sem.find(s=>s.lunes==='2026-10-19').dias[2].propios),'· mié venta sigue',await p.evaluate(()=>window.__hoja.sem.find(s=>s.lunes==='2026-10-19').dias[2].venta),'· manda venta:',await p.evaluate(()=>JSON.stringify(window.__hoja.lastBody||'')).then(()=>'no'),await p.evaluate(()=>!!window.__hoja.mandoVenta));
  // Cambio en la planilla → aparece en la app.
- await p.evaluate(()=>{const s=window.__hoja.sem.find(s=>s.lunes==='2026-10-19');s.dias[3].venta=99;s.dias[0].propios=611;});
+ await p.evaluate(()=>{const s=window.__hoja.sem.find(s=>s.lunes==='2026-10-19');s.dias[3].venta=99;s.dias[0].propios=611;s.dias[2].venta=222;});
  await p.click('[data-act="cam-sync-ya"]');await p.clock.runFor(800);await p.waitForTimeout(300);
  console.log('planilla → app: propios',await fila('PROPIOS'),'· venta',await fila('VENTA'));
  await p.evaluate(()=>{window.__hoja.sem.find(s=>s.lunes==='2026-10-19').dias[1].venta=123;});await p.clock.runFor(61000);await p.waitForTimeout(300);

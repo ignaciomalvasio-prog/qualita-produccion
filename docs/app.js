@@ -3248,7 +3248,7 @@
         + fila('PROPIOS', 'c-verde', ed('propios'), n(sum('propios')))
         + fila('USUARIO', 'c-naranja', ed('usuario'), n(sum('usuario')))
         + fila('FAENA', 'c-celeste b marca', calc('faena', true), n(sum('faena')) + ' <small>(' + n(Math.round(sum('faena') / nd)) + ' x día)</small>')
-        + fila('VENTA (animales)', 'c-verde sep marca venta', ed('venta'), n(sum('venta')))
+        + fila('VENTA (animales)', 'c-verde sep marca venta', camSheet() ? function (o, ver) { return '<span class="cam-v b" title="Sale de la planilla FAENA (por FAENA POR DÍA): se cambia allá">' + (o.venta == null ? '' : n(o.venta)) + '</span>'; } : ed('venta'), n(sum('venta')))
         + fila('MEDIAS A DESPOSTE', '', calc('aDesposte'), n(sum('aDesposte')))
         + fila('DESPOSTE DEL DÍA', 'c-celeste marca', desp, n(sum('desp')))
         + fila('REMANENTE', 'b marca', function (o, ver) { return ver ? camCelda(o.f, 'rem', o.rem, o.src.rem) + (o.src.rem === 'dato' ? '<small class="cam-dsig">a mano</small>' : '') : ''; }, (function () { var v = c.dias[mas(L2, 7)]; return v && (!ult || v.f <= ult) ? '→ ' + n(v.rem) + ' el lunes' : ''; })())
@@ -3396,7 +3396,8 @@
   // Lo que se manda a la planilla de una semana: los números que se ven en pantalla y el remanente solo si está escrito a mano.
   function camSemanaParaHoja(L, c) {
     c = c || camCalc(mas(L, 7)); var doc = (S.cam || {})[L] || {};
-    var w = { lunes: L, dias: [0, 1, 2, 3, 4].map(function (i) { var f = mas(L, i), o = c.dias[f] || {}, g = (doc.dias || [])[i] || {}; return { propios: o.propios == null ? null : o.propios, usuario: o.usuario || null, venta: o.venta == null ? null : o.venta, despSig: o.despSig == null ? null : o.despSig, rem: camNum(g.rem) }; }) };
+    var w = { lunes: L, dias: [0, 1, 2, 3, 4].map(function (i) { var f = mas(L, i), o = c.dias[f] || {}, g = (doc.dias || [])[i] || {}; return { propios: o.propios == null ? null : o.propios, usuario: o.usuario || null, despSig: o.despSig == null ? null : o.despSig, rem: camNum(g.rem) }; }) };
+    // La venta NO se manda (pedido de Renzo): sale de la planilla FAENA → FAENA POR DÍA → la app, en un solo sentido.
     w.nota = doc.nota || ''; return w;
   }
   function camHora() { var d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
