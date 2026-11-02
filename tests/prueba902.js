@@ -28,7 +28,7 @@ ok(r.des<=0,'400 sin desborde');ok(!r.errs.length,'errores: '+(r.errs.join('|')|
 r=await ver(BASE,F);ok(r.ing.includes('261798:160:Consumo'),'sin datos FT: queda como antes ('+r.ing[0]+')');
 // muerto + FT de un solo día: toma las faenadas del romaneo (159) y FAENA PARCIAL
 r=await ver(['OK|x','TR|2026-10-29|261799|160|2026-10-27|318|25440','RE|2026-10-29|101|BONDIOLA|1|60|500|1300'].concat(FT),F,'OK|x\nMU|2026-10-27|261799|1|C|AB|10|P|L| ');
-ok(r.ing.includes('261799:159:FAENA PARCIAL')&&/160 − 1 = 159/.test(r.aviso),'muerto: 159, FAENA PARCIAL y aviso 160 − 1 = 159');
+ok(r.ing.includes('261799:159:Consumo')&&/160 − 1 = 159/.test(r.aviso),'muerto en corral: 159, sin FAENA PARCIAL, aviso 160 − 1 = 159');
 r=await ver(['OK|x','TR|2026-10-30|261807|160|2026-10-29|320|25600','RE|2026-10-30|101|BONDIOLA|1|60|500|1300','FT|261807|2026-10-29|160'],'2026-10-30','OK|x\nMU|2026-10-28|261807|1|V|NJD593|5153|LA QUIMERA|LOS COMETIERRAS| ');
 ok(r.ing.includes('261807:160:Consumo')&&!/261807/.test(r.aviso),'muerto en viaje: sin FAENA PARCIAL ('+r.ing.join(' / ')+')');
 await b.close();console.log(mal?'FALLARON '+mal:'todo bien');process.exit(mal?1:0);})();

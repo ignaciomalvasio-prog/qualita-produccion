@@ -1,4 +1,4 @@
-// Centro de desposte › DDJJ desposte: una tropa con un muerto (tropa 261799, 160 cabezas, 1 muerto) declara 159 y FAENA PARCIAL.
+// Centro de desposte › DDJJ desposte: una tropa con un muerto (tropa 261799, 160 cabezas, 1 muerto) declara 159 (FAENA PARCIAL es solo faena en dos días).
 // Botones Excel del día y del mes.
 // También cuenta un muerto cargado a mano en Faena y mortalidad, y no toca las tropas sin muertos.
 const {chromium}=require('playwright');const SP=process.argv[2];
@@ -16,20 +16,20 @@ await p.evaluate(()=>{const a=document.querySelector('#nav a[data-t="dia"]');if(
 await p.waitForSelector('.dj-tab');
 const ing=await p.evaluate(()=>planilla('2026-10-28').ingreso.map(t=>t.tropa+':'+t.cab+':'+t.obs));
 if(w===1300){console.log('ingreso:',ing.join(' / '));
- ok(ing.includes('261799:159:FAENA PARCIAL'),'261799 → 159 y FAENA PARCIAL');
+ ok(ing.includes('261799:159:Consumo'),'261799 → 159 (muerto en corral), sin FAENA PARCIAL (no se faenó en dos días)');
  ok(ing.includes('261800:150:Consumo'),'261800 sin muertos queda igual');
- ok(ing.includes('261801:78:FAENA PARCIAL'),'261801 con 2 muertos en corral a mano → 78');
+ ok(ing.includes('261801:78:Consumo'),'261801 con 2 muertos en corral a mano → 78');
  const aviso=await p.evaluate(()=>[...document.querySelectorAll('.alerta')].map(a=>a.textContent).join(' '));
  ok(/261799 160 − 1 = 159/.test(aviso),'aviso de muertos en Ingreso');
  await p.evaluate(()=>{document.getElementById('impresion').innerHTML=hojas(S.fecha)});
  const imp=await p.evaluate(()=>document.getElementById('impresion').textContent);
- ok(/261799159318/.test(imp)&&/FAENA PARCIAL/.test(imp),'la hoja impresa lleva 159 y FAENA PARCIAL');
+ ok(/261799159318/.test(imp),'la hoja impresa lleva 159');
  // Excel del día y del mes (con formato, hojas INGRESO y PROD; el .xlsx va sin comprimir, así se lee el XML directo)
  await p.evaluate(()=>{window.__auto={hecho:true};window.__autoOut=[];});
  await p.click('text=Excel del día');await p.click('text=Excel del mes');
  const xl=await p.evaluate(()=>window.__autoOut);const dia=Buffer.from(xl[0].b64,'base64').toString('latin1');
  ok(xl[0].nombre==='DDJJ desposte 28-10-2026.xlsx','nombre del Excel del día: '+xl[0].nombre);
- ok(/<c r="C19"[^>]*><v>261799<\/v>/.test(dia)&&/<c r="D19"[^>]*><v>159<\/v>/.test(dia)&&/<c r="I19"[^>]*><is><t[^>]*>FAENA PARCIAL/.test(dia),'Excel del día: tropa 261799 con 159 y FAENA PARCIAL');
+ ok(/<c r="C19"[^>]*><v>261799<\/v>/.test(dia)&&/<c r="D19"[^>]*><v>159<\/v>/.test(dia)&&/<c r="I19"[^>]*><is><t[^>]*>Consumo/.test(dia),'Excel del día: tropa 261799 con 159');
  ok(/>Bondiola</.test(dia)&&/name="INGRESO"/.test(dia)&&/name="PROD"/.test(dia),'Excel del día: hojas INGRESO y PROD con la producción');
  ok(/name="INGRESO"/.test(Buffer.from(xl[1].b64,'base64').toString('latin1')),'Excel del mes con el mismo formato');
  await p.screenshot({path:SP+'/ddjj-muertos.png',fullPage:true});}

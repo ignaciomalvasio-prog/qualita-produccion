@@ -1,6 +1,6 @@
 // Centro de desposte › Faena y mortalidad: muertos de la playa de emergencia (pedido de Sabi 30/10). En la consulta de faena, un renglón
 // de lista A1 con 1 cabeza de una tropa de más animales es un muerto en corral (marcado "emergencia A1"). A1 con 40 cabezas no; una tropa
-// de un solo animal tampoco. Si ya está en la tabla de muertos del sistema, no se repite. También cuenta en la DDJJ (FAENA PARCIAL).
+// de un solo animal tampoco. Si ya está en la tabla de muertos del sistema, no se repite. También se descuenta en la DDJJ.
 const {chromium}=require('playwright');
 const ANUAL=['OK|2026-10-30 07:00','FA|2026-10|1|4000|400000|20','FX|ok|V_FAENA|FAE_LISTA+FAE_NROLISTA|FAE_CABEZAS|FAE_FECHA|FAE_NUMERO|P0 A1|FAE_NUMERO,FAE_FECHA,FAE_LISTA,FAE_NROLISTA,FAE_ORDENLISTA,TRO_NROINT,FAE_CABEZAS,TRO_CABEZAS',
  'FE|2026-10-09|261756|A1|1|34612|160|AB1|5223|MALVASIO|X','FE|2026-10-21|261787|A1|1|34719|160|AB2|5153|LA QUIMERA|EL RODEO',
@@ -23,7 +23,7 @@ for(const w of [1300,400]){
   ok(filas.some(f=>/261789.*emergencia A1/.test(f)),'261789 (160 cabezas, A1 de 1 el 22/10) entra');ok(!filas.some(f=>/299999/.test(f)),'tropa de un solo animal (299999), no es muerto');
   ok(!filas.some(f=>/261732/.test(f)),'261732: A1 con 40 cabezas (más faena), no es muerto');
   ok(filas.filter(f=>/261770/.test(f)).length===1&&!filas.some(f=>/261770.*emergencia/.test(f)),'261770: ya estaba en el sistema, no se repite');
-  ok(ing==='261787:159:FAENA PARCIAL','DDJJ: la tropa con muerto A1 va 159 y FAENA PARCIAL ('+ing+')');
+  ok(ing==='261787:159:Consumo','DDJJ: la tropa con muerto A1 va 159, sin FAENA PARCIAL ('+ing+')');
   ok(!(await p.locator('.chip.bad').count()),'sin aviso de error');
   // Excel
   await p.evaluate(()=>{window.__xl=[];window.XLSX={utils:{book_new:()=>({h:[]}),aoa_to_sheet:a=>({a}),book_append_sheet:(wb,ws,n)=>wb.h.push([n,ws.a])},writeFile:(wb,n)=>window.__xl.push(wb.h)};excelFaena();});
