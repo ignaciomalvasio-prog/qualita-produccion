@@ -990,7 +990,8 @@ function htmlConsumo() {
   const st = stockInsumos();
   const comprasMes = id => comprasDe(id).filter(x => !x.anulada && x.fecha.slice(0, 7) === M);
   const filas = st.filter(x => x.usado || comprasMes(x.id).length || Object.keys(cons[x.id] || {}).some(f => f.slice(0, 7) === M));
-  const dias = diasDelMes(M).filter(f => totDia('prod', f) > 0 || filas.some(x => (cons[x.id] || {})[f] || comprasMes(x.id).some(c => c.fecha === f)));
+  // todos los días hábiles (lunes a viernes) del mes; un sábado o domingo aparece solo si hubo producción, compra o consumo
+  const dias = diasDelMes(M).filter(f => (diaSem(f) >= 1 && diaSem(f) <= 5) || totDia('prod', f) > 0 || filas.some(x => (cons[x.id] || {})[f] || comprasMes(x.id).some(c => c.fecha === f)));
   const gruposMes = GRUPOS.filter(g => totMes('prod', c => grupoDe(c.art, c.den) === g.id) > 0);
   let h = '<section><h2>Movimiento de insumos del mes</h2><p class="sub">Escribí el <b>saldo inicial</b> de cada insumo (lo que había al empezar el mes). Cada día se descuenta lo usado según la producción y la fórmula. Arriba está la <b>producción de cada día</b>. Haciendo clic en el día de un insumo se carga una <b>compra</b> (queda en verde en esa fila) o se <b>corrige lo usado</b> si no fue lo de la fórmula (queda en naranja). Las compras cargadas en el sistema aparecen solas.</p>' +
     '<div class="tw"><table class="planilla xl mov" data-hoja="Movimiento insumos"><thead><tr><th>Insumo</th><th class="num sep">Saldo inicial</th>' + dias.map(f => '<th class="num">' + diaCorto(f) + '</th>').join('') +
