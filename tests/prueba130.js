@@ -1,7 +1,7 @@
-// Orden de producción: un día nuevo (hoy o adelante) sin orden arranca solo con una copia de la última; los días pasados no.
+// Orden de producción: un día nuevo (hoy o adelante) sin orden arranca solo con una copia de la del último mismo día de la semana (o la última); los pasados no.
 const {chromium}=require('playwright');
 const op=(f,m,t)=>({fecha:f,linea:'op',medias:m,mercado:'CONSUMO',estado:'confirmada',cortes:[{corte:'JAMON',lineas:[{t:t}]},{corte:'PALETA',lineas:[{t:'200KG PALETA INDUSTRIAL'}]}]});
-const data={faena:{},produccion:{'op-2026-10-29':op('2026-10-29',750,'2000KG JAMON CON HUESO "ROVER"'),'op-2026-10-30':op('2026-10-30',720,'1800KG JAMON CON HUESO "ROVER"'),'op-2026-10-23':op('2026-10-23',720,'X')},config:{general:{}},privado:{},pedidos:{}};
+const data={faena:{},produccion:{'op-2026-10-29':op('2026-10-29',750,'2000KG JAMON CON HUESO "ROVER"'),'op-2026-10-30':op('2026-10-30',720,'1800KG JAMON CON HUESO "ROVER"'),'op-2026-10-23':op('2026-10-23',720,'X'),'op-2026-10-26':op('2026-10-26',760,'LUNES: 900KG JAMON "DINO"')},config:{general:{}},privado:{},pedidos:{}};
 (async()=>{const b=await chromium.launch();const errs=[];const p=await b.newPage({viewport:{width:1366,height:900}});p.on('pageerror',e=>errs.push(e.message));
 await p.clock.install({time:new Date('2026-10-30T15:40:00-03:00')});
 await p.addInitScript(d=>{window.__mock={data:d,user:{email:'yo@x.com'},editores:['yo@x.com']}},data);
@@ -9,7 +9,7 @@ await p.goto('http://127.0.0.1:8765/index.html#produccion');await p.clock.runFor
 await p.click('[data-act="pv"][data-v="op"]').catch(()=>{});await p.clock.runFor(800);await p.waitForTimeout(300);
 console.log('día:',await p.locator('#view-produccion .nav .tit').innerText());
 const g=await p.evaluate(()=>window.__mock.data.produccion['op-2026-11-02']);
-console.log('lunes 2/11 guardada:',!!g,'· medias:',g&&g.medias,'(viene del viernes → la habitual)','· jamón:',g&&g.cortes[0].lineas[0].t,'· copiada de:',g&&g.copiadaDe);
+console.log('lunes 2/11 guardada:',!!g,'· medias:',g&&g.medias,'(del lunes anterior)','· jamón:',g&&g.cortes[0].lineas[0].t,'· copiada de:',g&&g.copiadaDe);
 console.log('aviso:',await p.locator('.op-copia').innerText().catch(()=>'(no)'));
 await p.click('[data-act="fecha"][data-d="-1"]');await p.waitForTimeout(200);await p.click('[data-act="fecha"][data-d="-1"]');await p.clock.runFor(800);await p.waitForTimeout(200);
 await p.click('[data-act="pv"][data-v="op"]').catch(()=>{});await p.clock.runFor(500);await p.waitForTimeout(200);

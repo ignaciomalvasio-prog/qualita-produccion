@@ -449,7 +449,13 @@
     'PULMON: FRESCO “RENDERING – QUALITA”', 'HIGADO: FRESCO ALICAN', 'PATAS Y MANOS: NO SACAR'].join('\n\n');
   function opBaseTxt() { return String((S.config && S.config.opBase) || OP_BASE); }
   function opVacia(f) { return { fecha: f, linea: 'op', medias: +S.config.desposteHabitual || 750, mercado: 'CONSUMO', estado: 'borrador', cortes: [] }; }
-  function opAnterior(f) { return (S.prod || []).filter(function (o) { return esOP(o.id) && o.id.slice(3) < f && (o.cortes || []).length; }).sort(function (a, b) { return a.id < b.id ? 1 : -1; })[0] || null; }
+  // La orden de la que se copia un día nuevo: la del último mismo día de la semana (lunes de lunes, martes de martes…;
+  // pedido de Renzo); si todavía no hay ninguna de ese día, la última que haya.
+  function opAnterior(f) {
+    var l = (S.prod || []).filter(function (o) { return esOP(o.id) && o.id.slice(3) < f && (o.cortes || []).length; }).sort(function (a, b) { return a.id < b.id ? 1 : -1; });
+    var g = fecha(f).getDay(), mismo = l.filter(function (o) { return fecha(o.id.slice(3)).getDay() === g; })[0];
+    return mismo || l[0] || null;
+  }
   function opNueva(f, desde) {
     var ant = desde === 'ant' ? opAnterior(f) : null, o = opVacia(f);
     if (ant) { o.medias = ant.medias; o.mercado = ant.mercado || 'CONSUMO'; o.cortes = clone(ant.cortes || []); return o; }

@@ -323,3 +323,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Local · Ventas: columna "Stock inicial" (lo contado al cierre del mes anterior, clic para cambiar; guardado en local-AAAA-MM → mes.stIni) y "Stock final (calc.)". Cargado el cierre de octubre 2026 (18 cortes) para noviembre.
 - Centro de control › Insumos: los números con un decimal (el resto sigue en números redondos; los precios sin decimales).
 - Planilla de frescos (y la de faena y embutidos): cada corte en su bloque con franja de color a la izquierda (azul frescos, verde faena, naranja embutidos) y el nombre del corte más grande, para distinguir mejor qué lleva cada cliente.
+- Orden de producción: el día nuevo se copia de la orden del último mismo día de la semana (lunes de lunes, martes de martes…); si todavía no hay de ese día, de la última. También el botón "Armar desde la orden del …".
