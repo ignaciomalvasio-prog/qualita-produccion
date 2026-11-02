@@ -43,6 +43,7 @@ async function cargar(forzar) {
     if (!FOR || forzar) { FOR = (await leerDoc('formulas')).d; if (!FOR.recetas) FOR = formulasIniciales(); }
     if (forzar) SINS = null;
     try { await migrarTripas(); } catch (e) { console.warn('migrarTripas', e); }
+    try { await migrarStockLocal(); } catch (e) { console.warn('migrarStockLocal', e); }
     armar();
     const hs = S.hora ? ddmm(S.hora.slice(0, 10)) + ' ' + S.hora.slice(11) : '';
     $('st').innerHTML = (S.sinDatos ? '<span class="dot off"></span>Sin datos del sistema para este mes' : '<span class="dot"></span>Sistema al <b>' + esc(hs) + '</b>') +
@@ -493,29 +494,31 @@ function matriz(t, hoja) {
 /* ================= Local · Ventas ================= */
 function controlLocal() {
   const m = {};
-  const row = (base, den) => (m[base] = m[base] || { art: base, den, ing: 0, dev: 0, v1: 0, v1sis: 0, imp1: 0, imp1sis: 0, v2: 0, imp2: 0, st: 0, stSis: 0 });
+  const row = (base, den) => (m[base] = m[base] || { art: base, den, ini: 0, ing: 0, dev: 0, v1: 0, v1sis: 0, imp1: 0, imp1sis: 0, v2: 0, imp2: 0, st: 0, stSis: 0 });
+  const stIni = ((LOC.mes || {}).stIni) || {};
+  for (const [a, x] of Object.entries(stIni)) row(a, x.den || (productosLocal(S).find(p => p.art === a) || {}).den || a).ini = Number(x.kg) || 0;
   for (const t of ['ing', 'emb']) for (const a of artsDe(t)) row(EQUIV[a.art] || a.art, a.den).ing += a.kg;
   for (const a of artsDe('dev')) row(EQUIV[a.art] || a.art, a.den).dev += a.kg;
   for (const v of S.vl) { if (esOtro(v.art)) continue; const r = row(baseLocal(v.art), v.den); r.v1sis += v.kg; r.imp1sis += v.total; }
   for (const f of diasDelMes(M)) for (const i of l2Dia(f).items) { if (!i.art) continue; const r = row(baseLocal(i.art), i.den || i.art); r.v2 += Number(i.kg) || 0; r.imp2 += Number(i.imp) || 0; }
   for (const s of S.st) if (s.fri === 5) { const b = EQUIV[s.art] || s.art; if (m[b]) m[b].stSis += ov('st5|' + s.art, s.kg); }
   for (const r of Object.values(m)) { r.v1 = ov('v1|' + M + '|' + r.art, r.v1sis); r.imp1 = ov('imp1|' + M + '|' + r.art, r.imp1sis); r.st = ov('stc|' + r.art, r.stSis); }
-  return Object.values(m).filter(r => r.ing || r.dev || r.v1 || r.v2).sort((a, b) => Number(a.art) - Number(b.art));
+  return Object.values(m).filter(r => r.ini || r.ing || r.dev || r.v1 || r.v2).sort((a, b) => Number(a.art) - Number(b.art));
 }
 function renderVentas() {
   const rows = controlLocal();
   const vd = ventasDia(), cj = datosCaja();
   let h = cabecera('Local · Ventas', 'Ventas "1" del sistema y "2" cargadas a mano, comparadas con lo que entró al local.', '<button class="primary" onclick="editarL2(hoyIso())">＋ Cargar venta "2"</button>');
-  const T = rows.reduce((a, r) => { for (const k of ['ing', 'dev', 'v1', 'v2', 'imp1', 'imp2']) a[k] += r[k]; return a; }, { ing: 0, dev: 0, v1: 0, v2: 0, imp1: 0, imp2: 0 });
-  h += '<section><h2>Control del mes por producto (kg)</h2><p class="sub">Entró (cortes + embutidos) − devuelto = lo que quedó para vender. Vendido "1" + "2" = lo que salió. La diferencia es lo que quedó en la cámara, merma o algo sin cargar.</p><div class="tw"><table class="planilla xl" data-hoja="Control por producto"><thead><tr><th>Producto</th><th class="num">Entró</th><th class="num">Devuelto</th><th class="num">Para vender</th><th class="num sep">Vendido "1"</th><th class="num">Vendido "2"</th><th class="num">Total vendido</th><th class="num sep">Diferencia</th><th class="num sep">$ "1"</th><th class="num">$ "2"</th></tr></thead><tbody>';
+  const T = rows.reduce((a, r) => { for (const k of ['ini', 'ing', 'dev', 'v1', 'v2', 'imp1', 'imp2']) a[k] += r[k]; return a; }, { ini: 0, ing: 0, dev: 0, v1: 0, v2: 0, imp1: 0, imp2: 0 });
+  h += '<section><h2>Control del mes por producto (kg)</h2><p class="sub">Stock inicial (lo que había al cierre del mes anterior) + entró (cortes + embutidos) − devuelto = lo que hubo para vender. Menos lo vendido "1" + "2" = el <b>stock final calculado</b>; si no coincide con lo que se cuenta, es merma o algo sin cargar. Clic en el stock inicial para cambiarlo.</p><div class="tw"><table class="planilla xl" data-hoja="Control por producto"><thead><tr><th>Producto</th><th class="num">Stock inicial</th><th class="num">Entró</th><th class="num">Devuelto</th><th class="num">Para vender</th><th class="num sep">Vendido "1"</th><th class="num">Vendido "2"</th><th class="num">Total vendido</th><th class="num sep">Stock final (calc.)</th><th class="num sep">$ "1"</th><th class="num">$ "2"</th></tr></thead><tbody>';
   for (const r of rows) {
-    const neto = r.ing - r.dev, tv = r.v1 + r.v2, dif = neto - tv;
-    h += '<tr><td><small class="muted">' + esc(r.art) + '</small> ' + esc(lindo(r.den)) + '</td><td class="num" data-v="' + r2(r.ing) + '">' + kg1(r.ing) + '</td><td class="num" data-v="' + r2(r.dev) + '">' + kg1(r.dev) + '</td><td class="num" data-v="' + r2(neto) + '">' + kg1(neto) + '</td>' +
+    const neto = r.ini + r.ing - r.dev, tv = r.v1 + r.v2, dif = neto - tv;
+    h += '<tr><td><small class="muted">' + esc(r.art) + '</small> ' + esc(lindo(r.den)) + '</td><td class="num ed' + (r.ini ? ' man' : '') + '" onclick="editarStIni(\'' + esc(r.art) + '\')" title="Stock al cierre del mes anterior · clic para cambiar" data-v="' + r2(r.ini) + '">' + (r.ini ? kg1(r.ini) : '<span class="muted">＋</span>') + '</td><td class="num" data-v="' + r2(r.ing) + '">' + kg1(r.ing) + '</td><td class="num" data-v="' + r2(r.dev) + '">' + kg1(r.dev) + '</td><td class="num" data-v="' + r2(neto) + '">' + kg1(neto) + '</td>' +
       tdv('v1|' + M + '|' + r.art, r.v1sis, kg1, 'Vendido "1" en el mes · ' + lindo(r.den) + ' (kg)', 'sep') +
       '<td class="num" data-v="' + r2(r.v2) + '">' + kg1(r.v2) + '</td><td class="num" data-v="' + r2(tv) + '"><b>' + kg1(tv) + '</b></td>' +
       '<td class="num sep' + (dif < -0.5 ? ' neg' : '') + '" data-v="' + r2(dif) + '">' + kg1(dif) + '</td>' + tdv('imp1|' + M + '|' + r.art, r.imp1sis, pesos, 'Vendido "1" en el mes · ' + lindo(r.den) + ' ($)', 'sep') + '<td class="num" data-v="' + r2(r.imp2) + '">' + pesos(r.imp2) + '</td></tr>';
   }
-  h += '<tr class="tot"><td>Total</td><td class="num">' + kg1(T.ing) + '</td><td class="num">' + kg1(T.dev) + '</td><td class="num">' + kg1(T.ing - T.dev) + '</td><td class="num sep">' + kg1(T.v1) + '</td><td class="num">' + kg1(T.v2) + '</td><td class="num">' + kg1(T.v1 + T.v2) + '</td><td class="num sep">' + kg1(T.ing - T.dev - T.v1 - T.v2) + '</td><td class="num sep">' + pesos(T.imp1) + '</td><td class="num">' + pesos(T.imp2) + '</td></tr></tbody></table></div></section>';
+  h += '<tr class="tot"><td>Total</td><td class="num">' + kg1(T.ini) + '</td><td class="num">' + kg1(T.ing) + '</td><td class="num">' + kg1(T.dev) + '</td><td class="num">' + kg1(T.ini + T.ing - T.dev) + '</td><td class="num sep">' + kg1(T.v1) + '</td><td class="num">' + kg1(T.v2) + '</td><td class="num">' + kg1(T.v1 + T.v2) + '</td><td class="num sep">' + kg1(T.ini + T.ing - T.dev - T.v1 - T.v2) + '</td><td class="num sep">' + pesos(T.imp1) + '</td><td class="num">' + pesos(T.imp2) + '</td></tr></tbody></table></div></section>';
 
   // Ventas por día
   const mes = LOC.mes || {};
@@ -540,6 +543,32 @@ function renderVentas() {
   if (ota.length) h += '<section><h2>Otros productos (bebidas, carbón, etc.)</h2><table class="xl" data-hoja="Otros productos" style="max-width:760px"><thead><tr><th>Producto</th><th class="num">Cantidad</th><th class="num">$ con IVA</th></tr></thead><tbody>' +
     ota.map(o => { const k = o.art + '~' + o.den.replace(/[^A-Za-z0-9]/g, '').slice(0, 24); return '<tr><td>' + esc(lindo(o.den)) + ' <small class="muted">' + esc(o.art) + '</small></td>' + tdv('vok|' + M + '|' + k, o.cant, v => fmtN(v, 0), lindo(o.den) + ' (cantidad del mes)') + tdv('vop|' + M + '|' + k, o.total, pesos, lindo(o.den) + ' ($ del mes)') + '</tr>'; }).join('') + '</tbody></table></section>';
   $('main').innerHTML = h;
+}
+/* Stock inicial del local (lo contado al cierre del mes anterior), por producto */
+function editarStIni(art) {
+  const x = (((LOC.mes || {}).stIni) || {})[art], den = (productosLocal(S).find(p => p.art === art) || {}).den || (x && x.den) || art;
+  abrirDlg('Stock inicial · ' + esc(den),
+    '<div class="sis">Lo que había en el local al cierre de ' + nombreMes(mesAnterior(M)) + ' (planilla de stock del local). Vacío = sin stock inicial.</div><div class="campos"><label>Kilos</label><input id="si-v" class="big-num" value="' + (x ? fmtE(x.kg, 2) : '') + '"></div>',
+    [['Cancelar', cerrarDlg], ['Guardar', async () => {
+      const n = leerNum($('si-v').value); if (Number.isNaN(n)) { toast('Número inválido', true); return; }
+      try {
+        LOC = await cambiarDoc('local-' + M, d => { d.mes = d.mes || {}; d.mes.stIni = d.mes.stIni || {}; if (n == null) delete d.mes.stIni[art]; else d.mes.stIni[art] = { kg: n, den, por: quien(), ts: new Date().toISOString() }; },
+          'Stock inicial del local ' + nombreMes(M) + ' · ' + den + ': ' + (n == null ? 'borrado' : kg1(n) + ' kg'));
+        cerrarDlg(); render(); toast('Guardado');
+      } catch (e) { toast(e.message, true); }
+    }, 'primary']]);
+  setTimeout(() => $('si-v') && $('si-v').focus(), 50);
+}
+/* Stock del local al cierre de octubre 2026 (planilla en papel pasada por Igna el 02/11/2026). Se carga una sola vez. */
+const STOCK_LOCAL_OCT = [['101', 'Bondiola', 183], ['211', 'Pechito', 17.96], ['231', 'Matambrito', 82.13], ['241', 'Churrasquito', 134.86], ['281', 'Carré', 38], ['285', 'Solomillo', 34.46], ['320', 'Nalga', 4.99], ['323', 'Cuadril', 35.06], ['325', 'Peceto', 33.85], ['328', 'Bola de lomo', 36.82], ['330', 'Cuadrada', 39.85], ['215', 'Pecho sin vacío', 14.32], ['481', 'Grasa', 5.89], ['333', 'Vacío', 5.56], ['243', 'Bife de churrasco', 43.81], ['208', 'Costilla', 14.87], ['289', 'Cinta de lomo', 51.11], ['308', 'Entrecot', 2.46]];
+async function migrarStockLocal() {
+  if (C3API.rol === 'caja' || M !== '2026-11' || (LOC.mes && LOC.mes.stIniCargado)) return;
+  LOC = await cambiarDoc('local-2026-11', d => {
+    d.mes = d.mes || {}; if (d.mes.stIniCargado) return;
+    d.mes.stIni = d.mes.stIni || {};
+    for (const [a, den, kg] of STOCK_LOCAL_OCT) if (!d.mes.stIni[a]) d.mes.stIni[a] = { kg, den, por: quien(), ts: new Date().toISOString() };
+    d.mes.stIniCargado = '2026-11-02';
+  }, 'Stock inicial del local noviembre 2026 (cierre de octubre, planilla de stock): ' + STOCK_LOCAL_OCT.length + ' cortes');
 }
 async function guardarDonacion() {
   const k = leerNum($('don-kg').value), i = leerNum($('don-imp').value);
