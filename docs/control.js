@@ -42,6 +42,7 @@ async function cargar(forzar) {
     if (!INS || forzar) INS = (await leerDoc('insumos')).d;
     if (!FOR || forzar) { FOR = (await leerDoc('formulas')).d; if (!FOR.recetas) FOR = formulasIniciales(); }
     if (forzar) SINS = null;
+    try { await migrarTripas(); } catch (e) { console.warn('migrarTripas', e); }
     armar();
     const hs = S.hora ? ddmm(S.hora.slice(0, 10)) + ' ' + S.hora.slice(11) : '';
     $('st').innerHTML = (S.sinDatos ? '<span class="dot off"></span>Sin datos del sistema para este mes' : '<span class="dot"></span>Sistema al <b>' + esc(hs) + '</b>') +
@@ -677,6 +678,41 @@ async function completarZetas() {
 
 /* ================= Insumos ================= */
 const UM = { '0': 'unid.', '1': 'kg', '2': 'unid.', '3': 'litro' };
+/* Tripas, hilo y bandejas (pasados por Igna el 02/11/2026): rinde en las fórmulas, unidad y stock inicial. Se aplica una sola vez. */
+const TRIPAS = [
+  { id: '20004', nombre: 'Colágeno (tubos)', unidad: 'tubo', stock: 705, rinde: 5.5, recetas: ['salchicha'] },
+  { id: '20033', nombre: 'Tripa orilla 46 (madejas)', unidad: 'madeja', stock: 310, rinde: 15, recetas: ['morcilla'] },
+  { id: '20036', nombre: 'Tripa chinesca 38/40 (madejas)', unidad: 'madeja', stock: 360, rinde: 55, recetas: ['chorizo', 'roquefort', 'parmesano'] },
+  { id: '20032', nombre: 'Hilo atadora (bobinas)', unidad: 'bobina', stock: 68, rinde: 180, recetas: ['chorizo', 'morcilla', 'roquefort', 'parmesano'] },
+  { id: '20027', nombre: 'Bandejas', unidad: 'unid.', stock: 650, manual: true }
+];
+async function migrarTripas() {
+  if (C3API.rol === 'caja' || (INS && INS.migTripas && FOR && FOR.migTripas)) return;
+  const f0 = '2026-11-02';
+  if (!INS.migTripas) INS = await cambiarDoc('insumos', d => {
+    if (d.migTripas) return;
+    d.lista = d.lista || {}; d.conteos = d.conteos || [];
+    for (const t of TRIPAS) {
+      d.lista[t.id] = Object.assign(d.lista[t.id] || {}, { unidad: t.unidad }, t.manual ? { manual: true, nombre: t.nombre } : {});
+      if (!d.conteos.some(c => c.id === t.id && c.fecha >= '2026-11-01')) d.conteos.push({ id: t.id, fecha: f0, cant: t.stock, nota: 'Stock pasado por Igna', por: quien(), ts: new Date().toISOString() });
+    }
+    d.migTripas = f0;
+  }, 'Tripas, hilo y bandejas: stock al 02/11 (colágeno 705 tubos, orilla 310 madejas, chinesca 360 madejas, hilo 68 bobinas, bandejas 650)');
+  if (!FOR.migTripas) {
+    const base = FOR.inicial ? (() => { const x = JSON.parse(JSON.stringify(FOR)); delete x.inicial; return x; })() : null;
+    FOR = await cambiarDoc('formulas', d => {
+      if (d.migTripas) return;
+      if (!d.recetas && base) Object.assign(d, base);
+      for (const t of TRIPAS) for (const rid of t.recetas || []) {
+        const r = (d.recetas || []).find(x => x.id === rid); if (!r) continue;
+        let l = r.lineas.find(x => x.ins === t.id) || (rid === 'salchicha' && t.id === '20004' ? r.lineas.find(x => x.tipo === 'envase' && !x.ins) : null);
+        if (!l) { l = { nombre: t.nombre, cant: 0, ins: t.id, tipo: 'envase' }; r.lineas.push(l); }
+        Object.assign(l, { nombre: t.nombre, ins: t.id, tipo: 'envase', cant: 0, rinde: t.rinde });
+      }
+      d.migTripas = f0;
+    }, 'Fórmulas: tripas e hilo como 1 cada X kg (colágeno 5,5 · orilla 15 · chinesca 55 · hilo 180)');
+  }
+}
 function formulasIniciales() {
   const L = (nombre, cant, ins, tipo) => ({ nombre, cant, ins: ins || '', tipo: tipo || 'insumo' });
   const chorizo = [L('Recorte', 100, '', 'carne'), L('Pimienta', 0.2, '20016'), L('Nuez moscada', 0.1, '20013'), L('Sal', 2, '20018'), L('Naturfresh', 0.45, '20039'), L('Fosfato', 0.1, '20009'), L('Colorante', 0, '20022'), L('Preservar', 1, '20023'), L('Vino', 3, '20021'), L('Agua', 0, '', 'insumo')];
@@ -694,6 +730,10 @@ function formulasIniciales() {
 }
 const recetaDe = grupo => (FOR.recetas || []).find(r => r.id === (FOR.asignacion || {})[grupo]);
 const baseReceta = r => r.lineas.filter(l => l.tipo !== 'envase').reduce((s, l) => s + (Number(l.cant) || 0), 0);
+/* Tripas, hilo y otros envases se cargan como "1 cada X kg producidos" (rinde); el resto, como cantidad por pastón */
+const conRinde = l => l.tipo === 'envase' && Number(l.rinde) > 0;
+const usaLinea = l => !!l.ins && l.tipo !== 'carne' && (conRinde(l) || !!Number(l.cant));
+const porKg = (l, b) => conRinde(l) ? 1 / Number(l.rinde) : (b ? (Number(l.cant) || 0) / b : 0);
 
 async function asegurarInsumos() {
   const conteos = (INS.conteos || []);
@@ -733,10 +773,10 @@ function consumos(desde, sinCorrecciones) {
   const prod = produccionDesde(desde), out = {};
   for (const f in prod) for (const p of prod[f]) {
     const r = recetaDe(grupoDe(p.art, p.den)); if (!r) continue;
-    const b = baseReceta(r); if (!b) continue;
+    const b = baseReceta(r);
     for (const l of r.lineas) {
-      if (!l.ins || l.tipo === 'carne' || !Number(l.cant)) continue;
-      const q = p.kg * Number(l.cant) / b;
+      if (!usaLinea(l)) continue;
+      const q = p.kg * porKg(l, b); if (!q) continue;
       const x = out[l.ins] = out[l.ins] || {}; x[f] = (x[f] || 0) + q;
     }
   }
@@ -755,7 +795,7 @@ function comprasDe(id) {
 function stockInsumos() {
   const lista = listaInsumos(), ult = ultimosConteos();
   const usados = new Set();
-  for (const g of GRUPOS) { const r = recetaDe(g.id); if (r) for (const l of r.lineas) if (l.ins && l.tipo !== 'carne' && Number(l.cant)) usados.add(l.ins); }
+  for (const g of GRUPOS) { const r = recetaDe(g.id); if (r) for (const l of r.lineas) if (usaLinea(l)) usados.add(l.ins); }
   const desdeMin = SINSdesde;
   const cons = consumos(desdeMin);
   // nombre y orden como en la planilla de fórmulas de Carlos, y en qué fórmulas se usa
@@ -763,7 +803,7 @@ function stockInsumos() {
   for (const r of FOR.recetas || []) for (const l of r.lineas) {
     if (!l.ins || l.tipo === 'carne') continue;
     const x = info[l.ins] = info[l.ins] || { carlos: l.nombre, orden: orden++, usos: [] };
-    if (Number(l.cant) && !x.usos.includes(r.nombre)) x.usos.push(r.nombre);
+    if (usaLinea(l) && !x.usos.includes(r.nombre)) x.usos.push(r.nombre);
   }
   return lista.filter(i => !(INS.lista && INS.lista[i.id] && INS.lista[i.id].oculto)).map(i => {
     const c = ult[i.id];
@@ -771,8 +811,8 @@ function stockInsumos() {
     const compras = comprasDe(i.id).filter(x => !x.anulada && (c ? x.fecha > c.fecha : x.fecha >= desde)).reduce((s, x) => s + x.cant, 0);
     const consumo = Object.entries(cons[i.id] || {}).filter(([f]) => c ? f > c.fecha : f >= desde).reduce((s, [, q]) => s + q, 0);
     const stock = c ? c.cant + compras - consumo : null;
-    const inf = info[i.id] || {};
-    return { ...i, conteo: c, compras, consumo, stock, min: Number((INS.lista && INS.lista[i.id] && INS.lista[i.id].min) || 0), usado: usados.has(i.id) || !!(inf.usos && inf.usos.length), descuenta: usados.has(i.id), carlos: inf.carlos || '', orden: inf.orden == null ? 999 : inf.orden, usos: inf.usos || [] };
+    const inf = info[i.id] || {}, manual = !!(INS.lista && INS.lista[i.id] && INS.lista[i.id].manual);
+    return { ...i, conteo: c, compras, consumo, stock, min: Number((INS.lista && INS.lista[i.id] && INS.lista[i.id].min) || 0), manual, usado: usados.has(i.id) || !!(inf.usos && inf.usos.length) || manual, descuenta: usados.has(i.id), carlos: inf.carlos || '', orden: inf.orden == null ? 999 : inf.orden, usos: inf.usos || [] };
   }).sort((a, b) => (b.usado - a.usado) || (a.orden - b.orden) || a.nombre.localeCompare(b.nombre, 'es'));
 }
 async function renderInsumos() {
@@ -793,7 +833,7 @@ function htmlStock() {
     const est = s.stock == null ? '<span class="est-sin">' + (s.usado ? 'falta contar' : '—') + '</span>' : (s.min > 0 && s.stock < s.min ? '<span class="est-bajo">Bajo el límite</span>' : (s.stock < 0 ? '<span class="est-bajo">Negativo</span>' : '<span class="est-ok">OK</span>'));
     const nom = s.carlos && s.carlos.toLowerCase() !== s.nombre.toLowerCase() ? '<b>' + esc(s.carlos) + '</b><br><small class="muted">' + esc(s.nombre) + ' · ' + esc(s.id) + '</small>' : '<b>' + esc(s.nombre) + '</b> <small class="muted">' + esc(s.id) + '</small>';
     const valor = s.stock != null && s.precio ? s.stock * s.precio : null;
-    return '<tr><td>' + nom + '</td><td style="font-size:12.5px">' + (s.usos.length ? esc(s.usos.join(', ')) : '<span class="muted">—</span>') + (s.usado && !s.descuenta ? '<br><span class="chip sm mut">no descuenta (fórmula sin producción asignada)</span>' : '') + '</td><td>' + esc(s.unidad) + '</td>' +
+    return '<tr><td>' + nom + '</td><td style="font-size:12.5px">' + (s.usos.length ? esc(s.usos.join(', ')) : '<span class="muted">—</span>') + (s.manual ? '<br><span class="chip sm info">consumo a mano (clic en el día, en Movimiento)</span>' : s.usado && !s.descuenta ? '<br><span class="chip sm mut">no descuenta (fórmula sin producción asignada)</span>' : '') + '</td><td>' + esc(s.unidad) + '</td>' +
       '<td class="num ed" onclick="verConteo(\'' + esc(s.id) + '\')" title="Clic para cambiar o borrar el último conteo" data-v="' + (s.conteo ? r2(s.conteo.cant) : '') + '">' + (s.conteo ? fmtN(s.conteo.cant, 2) + '<br><small class="muted">' + ddmm(s.conteo.fecha) + '</small>' : '') + '</td>' +
       '<td class="num" data-v="' + r2(s.compras) + '">' + (s.compras ? fmtN(s.compras, 2) : '') + '</td><td class="num" data-v="' + r2(s.consumo) + '">' + (s.consumo ? fmtN(s.consumo, 2) : '') + '</td>' +
       '<td class="num sep" data-v="' + (s.stock == null ? '' : r2(s.stock)) + '"><b style="font-size:16px">' + (s.stock == null ? '' : fmtN(s.stock, 2)) + '</b></td><td class="num ed" onclick="editarLimite(\'' + esc(s.id) + '\')" data-v="' + r2(s.min) + '" title="Clic para cambiar el límite">' + (s.min ? fmtN(s.min, 2) : '<span class="muted">poner</span>') + '</td><td>' + est + '</td>' +
@@ -830,7 +870,7 @@ function contarInsumo(id) {
   const s = stockInsumos().find(x => x.id === id);
   abrirDlg('Contar stock · ' + esc(s.nombre),
     '<div class="sis">' + (s.stock != null ? 'Según el cálculo debería haber <b>' + fmtN(s.stock, 2) + ' ' + esc(s.unidad) + '</b>.' : 'Todavía no se contó este insumo.') + ' Escribí lo que hay realmente.</div>' +
-    '<div class="campos"><label>Fecha del conteo</label><input type="date" id="ci-f" value="' + hoyIso() + '" style="max-width:180px"><label>Cantidad (' + esc(s.unidad) + ')</label><input id="ci-c" class="big-num"><label>Unidad</label><select id="ci-u" style="max-width:160px">' + ['kg', 'litro', 'unid.', 'madeja', 'metro'].map(u => '<option' + (u === s.unidad ? ' selected' : '') + '>' + u + '</option>').join('') + '</select><label>Límite (avisa cuando queda menos)</label><input id="ci-m" value="' + (s.min ? fmtE(s.min, 2) : '') + '" style="max-width:160px"><label>Nota</label><input id="ci-n"></div>' +
+    '<div class="campos"><label>Fecha del conteo</label><input type="date" id="ci-f" value="' + hoyIso() + '" style="max-width:180px"><label>Cantidad (' + esc(s.unidad) + ')</label><input id="ci-c" class="big-num"><label>Unidad</label><select id="ci-u" style="max-width:160px">' + ['kg', 'litro', 'unid.', 'madeja', 'tubo', 'bobina', 'metro'].map(u => '<option' + (u === s.unidad ? ' selected' : '') + '>' + u + '</option>').join('') + '</select><label>Límite (avisa cuando queda menos)</label><input id="ci-m" value="' + (s.min ? fmtE(s.min, 2) : '') + '" style="max-width:160px"><label>Nota</label><input id="ci-n"></div>' +
     '<p class="nota">El conteo cuenta al final del día: lo producido ese mismo día ya está descontado.</p>',
     [['Cancelar', cerrarDlg], ['Guardar', async () => {
       const c = leerNum($('ci-c').value), mi = leerNum($('ci-m').value), f = $('ci-f').value;
@@ -1096,27 +1136,32 @@ function htmlFormulas() {
   const opIns = sel => '<option value="">— ninguno —</option>' + lista.map(i => '<option value="' + esc(i.id) + '"' + (i.id === sel ? ' selected' : '') + '>' + esc(i.nombre) + ' (' + esc(i.unidad) + ')</option>').join('');
   let h = '<section><h2>Qué fórmula usa cada producto</h2><p class="sub">Los kilos producidos de cada grupo se multiplican por esta fórmula para descontar los insumos.</p><div class="campos" style="grid-template-columns:200px 320px">';
   for (const g of GRUPOS) h += '<label>' + g.n + '</label><select onchange="FORED.asignacion[\'' + g.id + '\']=this.value"><option value="">— no descuenta —</option>' + FORED.recetas.map(r => '<option value="' + esc(r.id) + '"' + ((FORED.asignacion || {})[g.id] === r.id ? ' selected' : '') + '>' + esc(r.nombre) + '</option>').join('') + '</select>';
-  h += '</div></section><section><h2>Fórmulas</h2><p class="sub">Cantidades por pastón (como la planilla: cada 100 kg de carne). <b>Carne</b> no descuenta stock; <b>Insumo</b> descuenta y suma al peso; <b>Envase</b> (tripas, bolsas) descuenta pero no suma al peso.</p>';
+  h += '</div></section><section><h2>Fórmulas</h2><p class="sub">Cantidades por pastón (como la planilla: cada 100 kg de carne). <b>Carne</b> no descuenta stock; <b>Insumo</b> descuenta y suma al peso; <b>Envase</b> (tripas, hilo) descuenta pero no suma al peso y se pone como <b>1 cada X kg producidos</b> (ej.: 1 madeja de chinesca cada 55 kg).</p>';
   FORED.recetas.forEach((r, ri) => {
     const b = baseReceta(r);
     h += '<div class="receta"><h3><input value="' + esc(r.nombre) + '" onchange="FORED.recetas[' + ri + '].nombre=this.value" style="max-width:340px;font-weight:600"> <span class="muted" style="font-weight:400;font-size:13px">pastón de ' + fmtN(b, 2) + ' kg</span> <button class="small danger" style="margin-left:auto" onclick="if(confirm(\'¿Borrar la fórmula?\')){FORED.recetas.splice(' + ri + ',1);renderInsumos()}">Borrar fórmula</button></h3>' +
       '<table><thead><tr><th>Ingrediente</th><th class="num">Cantidad</th><th>Tipo</th><th>Insumo que descuenta</th><th class="num">por kg producido</th><th class="num">Precio</th><th class="num">Costo</th><th></th></tr></thead><tbody>';
     r.lineas.forEach((l, li) => {
       h += '<tr><td><input value="' + esc(l.nombre) + '" onchange="FORED.recetas[' + ri + '].lineas[' + li + '].nombre=this.value"></td>' +
-        '<td><input class="n" value="' + fmtE(l.cant, 3) + '" onchange="setCant(' + ri + ',' + li + ',this)"></td>' +
+        (l.tipo === 'envase' ? '<td style="white-space:nowrap">1 cada <input class="n" style="width:70px" value="' + (Number(l.rinde) ? fmtE(l.rinde, 2) : '') + '" placeholder="kg" onchange="setRinde(' + ri + ',' + li + ',this)"> kg</td>' : '<td><input class="n" value="' + fmtE(l.cant, 3) + '" onchange="setCant(' + ri + ',' + li + ',this)"></td>') +
         '<td><select onchange="FORED.recetas[' + ri + '].lineas[' + li + '].tipo=this.value;renderInsumos()">' + [['carne', 'Carne'], ['insumo', 'Insumo'], ['envase', 'Envase']].map(([k, n]) => '<option value="' + k + '"' + (l.tipo === k ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></td>' +
         '<td>' + (l.tipo === 'carne' ? '<span class="muted">—</span>' : '<select onchange="FORED.recetas[' + ri + '].lineas[' + li + '].ins=this.value">' + opIns(l.ins) + '</select>') + '</td>' +
-        '<td class="num muted">' + (b && l.tipo !== 'carne' && Number(l.cant) ? fmtN(Number(l.cant) / b, 4) : '') + '</td>' +
-        (() => { const pi = l.ins ? precios[l.ins] : null; return '<td class="num' + (l.ins ? ' ed" onclick="editarPrecio(\'' + esc(l.ins) + '\')' : '') + '">' + (pi ? pesos(pi) : '') + '</td><td class="num">' + (pi && Number(l.cant) ? pesos(pi * Number(l.cant)) : '') + '</td>'; })() +
+        '<td class="num muted">' + (usaLinea(l) || (l.tipo !== 'carne' && Number(l.cant)) ? fmtE(porKg(l, b), 4) : '') + '</td>' +
+        (() => { const pi = l.ins ? precios[l.ins] : null; return '<td class="num' + (l.ins ? ' ed" onclick="editarPrecio(\'' + esc(l.ins) + '\')' : '') + '">' + (pi ? pesos(pi) : '') + '</td><td class="num">' + (pi && porKg(l, b) ? pesos(pi * porKg(l, b) * b) : '') + '</td>'; })() +
         '<td><button class="small danger" onclick="FORED.recetas[' + ri + '].lineas.splice(' + li + ',1);renderInsumos()">✕</button></td></tr>';
     });
-    const costo = r.lineas.reduce((t, l) => t + (l.ins && precios[l.ins] ? precios[l.ins] * (Number(l.cant) || 0) : 0), 0);
+    const costo = r.lineas.reduce((t, l) => t + (l.ins && l.tipo !== 'carne' && precios[l.ins] ? precios[l.ins] * porKg(l, b) * b : 0), 0);
     h += '<tr class="tot"><td>Total pastón</td><td class="num">' + fmtN(b, 2) + '</td><td colspan="4"></td><td class="num">' + (costo ? pesos(costo) : '') + '</td><td></td></tr>' +
       (costo && b ? '<tr><td colspan="6" class="muted" style="text-align:right">Costo de insumos por kg producido (sin la carne)</td><td class="num"><b>' + pesos(costo / b) + '</b></td><td></td></tr>' : '');
     h += '</tbody></table><button class="small" style="margin-top:6px" onclick="FORED.recetas[' + ri + '].lineas.push({nombre:\'\',cant:0,ins:\'\',tipo:\'insumo\'});renderInsumos()">＋ Ingrediente</button></div>';
   });
   h += '<div class="row"><button onclick="nuevaReceta()">＋ Nueva fórmula</button><span style="flex:1"></span><button onclick="FORED=null;renderInsumos()">Descartar cambios</button><button class="primary big" onclick="guardarFormulas()">Guardar fórmulas</button></div></section>';
   return h;
+}
+function setRinde(ri, li, inp) {
+  const n = leerNum(inp.value);
+  if (Number.isNaN(n)) { inp.classList.add('bad'); return; }
+  inp.classList.remove('bad'); FORED.recetas[ri].lineas[li].rinde = n || 0; renderInsumos();
 }
 function setCant(ri, li, inp) {
   const n = leerNum(inp.value);
