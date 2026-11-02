@@ -470,7 +470,7 @@
       + '<div class="hoja-dato"><b>' + n(+o.medias || 0) + '½</b><span>' + esc(o.mercado || 'medias') + '</span></div>'
       + (o.estado === 'borrador' ? '<span class="badge warn">Borrador</span>' : '<span class="badge ok">Confirmada</span>') + '</header>';
     if (o.copiadaDe && S.editor && !S.solo) h += '<p class="op-copia">Copiada sola de la orden del ' + esc(diaCorto(o.copiadaDe).toLowerCase()) + '. Si hay que cambiar algo, tocá <b>Editar la orden</b>.</p>';
-    h += '<div class="acciones hoja-acc">' + (S.editor ? '<button class="btn pri" data-act="p-editar" data-id="op-' + f + '">Editar la orden</button>' : '') + '<button class="btn" data-act="copiar" data-t="op">Copiar como texto</button><button class="btn wa" data-act="wa-pdf">PDF por WhatsApp</button><button class="btn" data-act="hoja-pdf">Compartir PDF</button><span class="small muted" id="copiado-op" aria-live="polite"></span></div>';
+    h += '<div class="acciones hoja-acc">' + (S.editor ? '<button class="btn pri" data-act="p-editar" data-id="op-' + f + '">Editar la orden</button>' : '') + '<button class="btn" data-act="copiar" data-t="op">Copiar como texto</button><button class="btn wa" data-act="wa-pdf">PDF por WhatsApp</button><span class="small muted" id="copiado-op" aria-live="polite"></span></div>';
     h += '<div class="op-lista">' + (o.cortes || []).map(function (c) {
       var ls = c.lineas.length ? c.lineas : [{ t: '' }];
       return '<div class="op-c"><p><u class="op-corte">' + esc(c.corte || '') + '</u>: ' + opLineaHTML(ls[0].t) + '</p>' + ls.slice(1).map(function (l) { return '<p class="op-sig">' + opLineaHTML(l.t) + '</p>'; }).join('') + '</div>';
@@ -626,7 +626,7 @@
     var acc = '<div class="acciones hoja-acc">'
       + (S.editor ? '<button class="btn pri" data-act="p-editar" data-id="' + (c3 ? 'c3-' : '') + f + '">' + (c3 ? 'Editar embutidos' : 'Editar') + '</button>' : '')
       + '<button class="btn" data-act="hoja-imprimir">' + (c3 ? 'Imprimir embutidos' : fae ? 'Imprimir faena' : 'Imprimir cortes') + '</button>'
-      + '<button class="btn" data-act="copiar" data-t="' + k + '">Copiar como texto</button><button class="btn wa" data-act="wa-pdf">PDF por WhatsApp</button><button class="btn" data-act="hoja-pdf">Compartir PDF</button>'
+      + '<button class="btn" data-act="copiar" data-t="' + k + '">Copiar como texto</button><button class="btn wa" data-act="wa-pdf">PDF por WhatsApp</button>'
       + (S.editor && !c3 && !fae ? '<button class="btn" data-act="ir-pedidos" data-f="' + f + '">Sumar cortes desde los pedidos</button>' : '')
       + (S.editor && c3 ? '<button class="btn" data-act="link-c3">Copiar link para el Ciclo III</button>' : '')
       + '<span class="small muted" id="copiado-' + k + '" aria-live="polite"></span></div>';
@@ -2243,7 +2243,7 @@
       + '<button class="btn pri' + (S.pegar ? ' activo' : '') + '" data-act="q-pegar"' + (conIA ? '' : ' disabled') + '>Pegar texto</button>'
       + '<button class="btn pri" data-act="' + actMano + '">Cargar a mano</button>'
       + (actMano === 'q-nuevo' ? '<button class="btn pri' + (S.dictando ? ' dictando' : '') + '" data-act="q-dictar"' + (conIA ? '' : ' disabled') + '>' + (S.dictando ? '⏹ Detener dictado' : '🎤 Dictar pedido') + '</button>' : '')
-      + (conIA ? '<span class="small muted pega-tip">o pegá una captura con Ctrl+V</span>' : '') + '<span class="guardado" id="g-fotos"></span></div>'
+      + '<span class="guardado" id="g-fotos"></span></div>'
       + (S.dictando ? '<p class="escuchando">● Escuchando… hablá tranquilo; lo que digas se va escribiendo abajo. Cuando termines tocá "Detener dictado" y después "Leer".</p>' : '');
     if (S.pegar && conIA) h += '<div class="pegar"><label class="campo"><span>Mensaje con los pedidos</span><textarea id="pegar-txt" rows="9">' + esc(S.pegarTxt || '') + '</textarea></label>'
       + '<label class="campo"><span>Cliente, si todo el mensaje es de uno solo con varias sucursales (opcional)</span><input type="text" id="pegar-cli" value="' + esc(S.pegarCli || '') + '"></label>'
@@ -2276,7 +2276,7 @@
   function camChipHTML(p) {
     if (!S.editor || S.solo) return '';
     var cam = nombreCamion(p.entrega, p.camion);
-    return '<span class="frio-chip cam-chip' + (cam ? ' con' : ' nada') + '" data-act="camp-menu" data-id="' + esc(p.id) + '" role="button" tabindex="0" title="Tocá para ' + (cam ? 'cambiar de camión' : 'sumarlo a un camión') + '">' + (cam ? '🚚 ' + esc(cam) : '<span class="chip-lg">+ Sumar a camión</span><span class="chip-co">+ Camión</span>') + ' ▾</span>';
+    return '<span class="frio-chip cam-chip' + (cam ? ' con' : ' nada') + '" data-act="camp-menu" data-id="' + esc(p.id) + '" role="button" tabindex="0" title="Tocá para ' + (cam ? 'cambiar de camión' : 'sumarlo a un camión') + '">' + (cam ? '🚚<span class="chip-cam-nom"> ' + esc(cam) + '</span>' : '<span class="chip-lg">+ Sumar a camión</span><span class="chip-co">+ Camión</span>') + ' ▾</span>';
   }
   // Si el pedido está tildado, el camión que se elige va para todos los tildados de ese día.
   // Botón directo para sacar del camión (pedido de Renzo), al lado del nombre del camión.
@@ -2662,7 +2662,7 @@
       var horaH = S.editor && !S.solo ? (c.hora || S.horaAbierta === c.id ? ' <input type="time" class="cam-hora cam-hora-in" data-hora-cam="' + esc(c.id) + '" value="' + esc(c.hora || '') + '" aria-label="Horario de salida de ' + esc(nomCam(c)) + '" title="Tocá para cambiar el horario">' : ' <button class="btn sm cam-hora-mas" data-act="hora-abrir" data-id="' + esc(c.id) + '">+ Horario</button>') : (c.hora ? ' <span class="cam-hora">' + esc(c.hora) + ' hs</span>' : '');
       h += grupo('<span class="badge cam-ped">' + esc(nomCam(c)) + '</span>' + horaH, l.length ? resumenLog(l) : 'vacío: arrastrá clientes acá', l, l.length ? '' : 'vacio', c.id, tot);
     });
-    return '<p class="small muted arr-tip">Arrastrá cada cliente desde ⠿ para ordenar la bajada de cada camión (el primero baja primero) o para pasarlo a otro camión.</p>' + h;
+    return h;
   }
   // Buscador: en todos los pedidos (desde la semana pasada), por cliente o N° de cuenta.
   function buscarPedidosHTML(q) {
@@ -2926,7 +2926,6 @@
     if (S.resumen) { el.innerHTML = h + resumenDiaHTML(f, cams, peds); pintarMsg('log'); return; }
     var tildL = S.editor && !S.solo && S.selDia === f ? (S.pedidos || []).filter(function (p) { return S.sel[p.id] && p.entrega === f; }) : [];
     if (tildL.length) h += '<div class="log-barra">' + barraCamionHTML(f, tildL) + '</div>';
-    if (S.editor && !S.solo) h += '<p class="small muted log-tip">Tildá clientes (☐ al lado del nombre) para mandarlos juntos a un camión del día, a uno del stock o a uno nuevo.</p>';
     h += '<p class="muted">Para entregar ' + esc(cuandoEs(f)) + ': ' + resumenLog(peds) + (cams.length ? ' · ' + cams.length + (cams.length === 1 ? ' camión' : ' camiones') : '') + '.</p>';
     cams.forEach(function (cam, k) {
       var suyos = peds.filter(function (p) { return p.camion === cam.id; }), ed = S.ec === cam.id;
