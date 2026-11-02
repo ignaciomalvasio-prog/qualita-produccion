@@ -322,3 +322,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Insumos › Movimiento del mes: muestra de entrada todos los días hábiles (lunes a viernes); un sábado o domingo aparece solo si hubo producción, compra o consumo.
 - Local · Ventas: columna "Stock inicial" (lo contado al cierre del mes anterior, clic para cambiar; guardado en local-AAAA-MM → mes.stIni) y "Stock final (calc.)". Cargado el cierre de octubre 2026 (18 cortes) para noviembre.
 - Centro de control › Insumos: los números con un decimal (el resto sigue en números redondos; los precios sin decimales).
+- Planilla de frescos (y la de faena y embutidos): cada corte en su bloque con franja de color a la izquierda (azul frescos, verde faena, naranja embutidos) y el nombre del corte más grande, para distinguir mejor qué lleva cada cliente.

@@ -398,6 +398,20 @@ h1 a{color:inherit;text-decoration:none}
 .hoja-corte:last-child{border-bottom:0}
 .hoja-corte h3{font-size:19px;font-weight:700;color:var(--accent);letter-spacing:.02em;overflow-wrap:anywhere}
 .hoja-nom{display:flex;flex-direction:column;gap:4px;min-width:0}
+/* Corte más marcado (pedido de Renzo, opción 4): cada corte en su bloque con franja de color a la izquierda y el nombre grande. */
+@media screen{
+  .hoja-cortes{gap:8px;padding-top:4px}
+  .hoja-corte,.hoja-corte:nth-child(even){background:#f5f9fb;border:1px solid #e1e8ec;border-left:6px solid var(--accent);border-radius:6px;padding:10px 12px}
+  .hoja-corte:last-child{border-bottom:1px solid #e1e8ec}
+  .hoja-corte h3{font-size:22px;font-weight:800;color:#17364a;line-height:1.1}
+  .hoja-c3 .hoja-corte,.hoja-c3 .hoja-corte:nth-child(even){border-left-color:#c0702f}
+  .hoja-faena .hoja-corte,.hoja-faena .hoja-corte:nth-child(even){border-left-color:#2e9e45}
+}
+@media screen and (max-width:560px){
+  #view-produccion .hoja-cortes{gap:6px}
+  #view-produccion .hoja-corte,#view-produccion .hoja-corte:nth-child(even){padding:8px 8px 8px 10px}
+  #view-produccion .hoja-corte h3{font-size:18px}
+}
 .hoja-tot{margin:0;font:700 20px var(--display);line-height:1.1}
 .hoja-det{display:block;font:600 12px var(--body);color:var(--muted);margin-top:2px;letter-spacing:0}.hoja-tot span{font:700 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:block}
 .hoja-corte ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
