@@ -35,7 +35,8 @@ function manejar_(p, cuerpo) {
   try {
     var sh = hoja_();
     if (cuerpo && cuerpo.semanas && cuerpo.semanas.length) escribir_(sh, cuerpo.semanas);
-    return { ok: true, semanas: leer_(sh) };
+    var est = null; try { est = JSON.parse(pr.getProperty('ESTADO_VENTA') || 'null'); } catch (x) {}
+    return { ok: true, semanas: leer_(sh), estadoVenta: est, version: 2 };
   } finally { lock.releaseLock(); }
 }
 function hoja_() { var ss = SpreadsheetApp.getActive(); return ss.getSheetByName(HOJA) || ss.getSheets()[0]; }
@@ -155,13 +156,26 @@ function activarAlEditar() {
 }
 function traerVentaAhora() { var n = traerVenta(); SpreadsheetApp.getUi().alert(n == null ? 'Primero conectá la planilla FAENA.' : 'Días actualizados: ' + n + '.'); }
 
+// Lunes de la semana de hoy (sábado y domingo: la que pasó).
+function lunesHoy_() {
+  var tz = Session.getScriptTimeZone(), ahora = new Date(), dsem = +Utilities.formatDate(ahora, tz, 'u');
+  var d = new Date(Utilities.formatDate(ahora, tz, 'yyyy-MM-dd') + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() - (dsem - 1));
+  return iso_(d);
+}
+// Deja anotado si la venta pasa bien; la app lo muestra con un cartel grande si algo se rompe (por ejemplo, si se cambia el formato).
+function estadoVenta_(ok, msg) { PropertiesService.getScriptProperties().setProperty('ESTADO_VENTA', JSON.stringify({ ok: ok, msg: msg || '', ts: new Date().getTime() })); }
+var SEM_FAENA = [];   // lunes de las semanas que se encontraron en la planilla FAENA (aunque no tengan clientes)
 function traerVenta() {
   var id = PropertiesService.getScriptProperties().getProperty('FAENA_ID'); if (!id) return null;
-  var ventas = ventasFaena_(SpreadsheetApp.openById(id)), n = 0;
+  SEM_FAENA = [];
+  var ventas = ventasFaena_(SpreadsheetApp.openById(id)), n = 0, lh = lunesHoy_();
   var lock = LockService.getScriptLock(); lock.waitLock(25000);
   try {
-    var sh = hoja_(), vals = sh.getDataRange().getValues();
-    bloques_(vals).forEach(function (b) {
+    var sh = hoja_(), vals = sh.getDataRange().getValues(), bl = bloques_(vals);
+    if (SEM_FAENA.indexOf(lh) < 0) estadoVenta_(false, 'No encuentro la semana del ' + lh.split('-').reverse().slice(0, 2).join('/') + ' en la planilla FAENA. ¿Le cambiaron el formato?');
+    else if (!bl.some(function (b) { return b.lunes === lh; })) estadoVenta_(false, 'No encuentro la semana del ' + lh.split('-').reverse().slice(0, 2).join('/') + ' en FAENA POR DÍA. ¿Le cambiaron el formato?');
+    else estadoVenta_(true, '');
+    bl.forEach(function (b) {
       var lun = new Date(b.lunes + 'T00:00:00Z');
       for (var i = 0; i < 5; i++) {
         var d = new Date(lun); d.setUTCDate(lun.getUTCDate() + i);
@@ -201,6 +215,7 @@ function ventasHoja_(vals, txt, anio, mes) {
     for (var i = 0; i < 5; i++) {
       var c = 4 * i + 1, m = T(r, c).match(/^[A-Z]+\s*(\d{1,2})\b/); if (!m) continue;
       var f = fechaDia_(anio, mes, +m[1], i + 1); if (!f) continue;
+      if (i === 0 && SEM_FAENA.indexOf(f) < 0) SEM_FAENA.push(f);
       var hay = false;   // ¿hay algún cliente cargado ese día?
       for (var q = desde; q < tot && !hay; q++) hay = !!T(q, c) && num_(vals[q][c + 1]) != null;
       var v = num_(vals[tot][c + 3]); if (v == null) v = num_(vals[tot][c + 1]);

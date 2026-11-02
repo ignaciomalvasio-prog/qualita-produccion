@@ -3221,7 +3221,7 @@
     if (!S.camLun) S.camLun = lunesDe(camDiaRef());
     var L = S.camLun, c = camCalc(mas(L, 7 * (CAM_SEM_MAS + 1))), ult = c.ultimo, hy = hoy();
     var vacio = false;
-    var h = '<div class="cam-top"><span class="cam-escudo" aria-hidden="true"></span><div><p class="cam-sup">Semana de faena y desposte · <span class="cam-priv">🔒 Privado, solo con tu cuenta</span></p>'
+    var h = camAlertaHTML() + '<div class="cam-top"><span class="cam-escudo" aria-hidden="true"></span><div><p class="cam-sup">Semana de faena y desposte · <span class="cam-priv">🔒 Privado, solo con tu cuenta</span></p>'
       + '<h2 class="cam-tit">' + esc(etiquetaSemana(L).toUpperCase()) + '</h2></div>'
       + '<span class="cam-acc"><span class="cam-undo"><button class="btn" data-act="cam-deshacer" title="Deshacer el último cambio (Ctrl+Z)" aria-label="Deshacer"' + (camHist.atras.length ? '' : ' disabled') + '>↶</button><button class="btn" data-act="cam-rehacer" title="Rehacer (Ctrl+Y)" aria-label="Rehacer"' + (camHist.adelante.length ? '' : ' disabled') + '>↷</button></span><button class="btn step" data-act="cam-sem" data-d="-7" aria-label="Semana anterior">‹</button>'
       + (L !== lunesDe(camDiaRef()) ? '<button class="btn" data-act="cam-hoy">Esta semana</button>' : '')
@@ -3402,11 +3402,25 @@
   }
   function camHora() { var d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
   function camEstado(txt, mal) { S.camSyncMsg = { t: txt, mal: !!mal }; var e = document.querySelector('.cam-sync-est'); if (e) { e.textContent = txt; e.classList.toggle('neg', !!mal); } }
+  /* Cartel grande si la sincronización se rompe (pedido de Renzo: "la próxima que se modifique algo me avisás"):
+     el programita de la planilla viejo, la semana de hoy que no aparece en FAENA POR DÍA (formato cambiado),
+     o la venta de FAENA que no se puede traer (lo anota el programita en estadoVenta). */
+  function camRevisar(r) {
+    var lh = lunesDe(camDiaRef()), msg = '';
+    if (!r.version) msg = 'Falta poner el código nuevo en la planilla FAENA POR DÍA: Cámara → Opciones → "Copiar el código" y pegarlo en Extensiones → Apps Script.';
+    else if (!(r.semanas || []).some(function (w) { return w.lunes === lh; })) msg = 'No encuentro la semana del ' + diaCorto(lh).toLowerCase() + ' en FAENA POR DÍA. ¿Le cambiaron el formato a la planilla? Mientras tanto no se sincroniza.';
+    else if (r.estadoVenta && !r.estadoVenta.ok) msg = 'La venta no está pasando de FAENA a FAENA POR DÍA: ' + (r.estadoVenta.msg || 'hubo un problema.');
+    else if (r.estadoVenta && Date.now() - (+r.estadoVenta.ts || 0) > 3 * 3600000 && new Date().getHours() >= 7 && new Date().getHours() < 22) msg = 'La venta de FAENA no se revisa desde hace más de 3 horas (el reloj de la planilla se paró). Hay que volver a ejecutar activarAlEditar / conectar FAENA.';
+    var antes = S.camAlerta || ''; S.camAlerta = msg;
+    if (antes !== msg && (S.tab === 'camara' || S.tab === 'inicio') && !escribiendo()) render();
+  }
+  function camAlertaHTML() { return S.camAlerta && S.camaraOk ? '<div class="cam-alerta" role="alert"><b>⚠ La planilla dejó de sincronizar</b><span>' + esc(S.camAlerta) + '</span><span class="small">Avisale a Claude con una captura de la planilla.</span></div>' : ''; }
   function camTraer(forzar) {
     var sh = camSheet(); if (!sh || S.camEnv || (!forzar && S.camTraido && Date.now() - S.camTraido < 45000)) return Promise.resolve();
     S.camTraido = Date.now(); var gen = S.camGen || 0;
     return camPedir(sh.url + (sh.url.indexOf('?') < 0 ? '?' : '&') + 'k=' + encodeURIComponent(sh.k)).then(function (r) {
       if (!r || !r.ok) { camEstado('No pude leer tu Google Sheet' + (r && r.error ? ' (' + r.error + ')' : '') + '.', true); return; }
+      camRevisar(r);
       if ((S.camGen || 0) !== gen || S.camEnv) return;   // mientras tanto se cambió algo acá: vale lo de acá
       return camAplicarHoja(r.semanas).then(function (k) { camEstado('Sincronizado con tu Google Sheet · ' + camHora()); if (k && S.tab === 'camara' && !escribiendo() && !S.camPegar) renderCamara(); });
     }, function () { camEstado('No pude conectarme con tu Google Sheet. Revisá internet.', true); });
@@ -3501,7 +3515,7 @@
   function renderInicio() {
     var el = $('view-inicio');
     if (cargando(el, S.prod && S.faena)) return;
-    var h = hoy(), f = fechaProdInicial(), sig = habilSiguiente(f), html = '<div class="dash">';
+    var h = hoy(), f = fechaProdInicial(), sig = habilSiguiente(f), html = camAlertaHTML() + '<div class="dash">';
     var rot = function (d) { return (d === h ? 'Hoy · ' : d === mas(h, 1) ? 'Mañana · ' : '') + tituloDe(d); };
     var neg = function (k, uno, muchos) { return '<strong>' + n(k) + '</strong> ' + plural(k, uno, muchos); };
     var pie = function (txt) { return '<span class="t-dia">' + esc(rot(sig)) + '</span><span>' + txt + '</span>'; };
@@ -4825,6 +4839,9 @@
     setInterval(aplicarVersion, 20 * 1000);
     document.addEventListener('visibilitychange', function () { if (!document.hidden) revisarVersion(); });
     setInterval(function () { if (S.tab === 'camara' && S.camaraOk && !document.hidden && !escribiendo()) camTraer(); }, 60000);
+    // Fuera de Cámara también se revisa cada 10 minutos (y al abrir), para que el cartel aparezca aunque no esté en esa pestaña.
+    setInterval(function () { if (S.camaraOk && S.editor && !document.hidden && S.tab !== 'camara') camTraer(true); }, 600000);
+    setTimeout(function () { if (S.camaraOk && S.editor) camTraer(true); }, 4000);
     document.addEventListener('visibilitychange', function () { if (!document.hidden && S.tab === 'camara' && S.camaraOk) camTraer(); });
   }
 
