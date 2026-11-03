@@ -123,26 +123,45 @@ function renderFaena() {
   h += '<div class="tw" style="max-height:520px"><table class="planilla dj-rm"><thead><tr><th>Fecha</th><th>Tropa</th><th class="num">Cant.</th><th>Lugar</th><th>Jaula</th><th>Productor</th><th>Granja</th><th>Observación</th><th></th></tr></thead><tbody>' +
     MU.slice().reverse().map(m => '<tr><td>' + ddmm(m.fecha) + '</td><td>' + esc(m.tropa) + '</td><td class="num">' + z0(m.cab) + '</td><td>' + esc(m.lugar) + '</td><td>' + esc(m.patente || '') + '</td><td>' + esc(titulo(m.prod)) + '</td><td>' + esc(titulo(m.loc)) + '</td><td class="muted">' + esc(m.obs || '') + '</td><td>' +
       (m.a1 ? '<span class="chip sm info" title="Renglón A1 de la consulta de faena: animal muerto en corrales que pasó por la playa de emergencia">emergencia A1</span>' : '') +
-      (m.man ? '<span class="chip sm warn">a mano</span>' + (soloVer() ? '' : ' <button class="small danger" onclick="borrarMuerto(\'' + esc(m.id) + '\')">✕</button>') : '') + '</td></tr>').join('') + '</tbody></table></div></section>';
+      (m.man && m.emerg ? '<span class="chip sm info" title="Pasó por la playa de emergencia">emergencia</span>' : '') +
+      (m.man ? '<span class="chip sm warn">a mano</span>' + (soloVer() ? '' : ' <button class="small" title="Editar" onclick="agregarMuerto(\'' + esc(m.id) + '\')">✎</button> <button class="small danger" title="Borrar" onclick="borrarMuerto(\'' + esc(m.id) + '\')">✕</button>') : '') + '</td></tr>').join('') + '</tbody></table></div></section>';
   $('main').innerHTML = h;
 }
 
 /* ---------- muertos a mano ---------- */
-function agregarMuerto() {
-  $('dlg-h').textContent = 'Agregar un muerto que no está en el sistema';
+/* agregar un muerto a mano, o editar uno ya cargado (id) — pedido de Sabi 03/11: corregir la observación (ej. playa de emergencia) */
+function agregarMuerto(id) {
+  const ed = id ? ((S.muertos && S.muertos.lista) || []).find(m => m.id === id) : null;
+  if (id && !ed) return;
+  $('dlg-h').textContent = ed ? 'Editar el muerto cargado a mano (tropa ' + ed.tropa + ')' : 'Agregar un muerto que no está en el sistema';
   const tropas = [...new Set((S.anual.mu || []).map(m => m.tropa))];
   $('dlg-b').innerHTML = '<div class="campos dj-campos"><label>Fecha<input type="date" id="mu-f" value="' + hoyIso() + '"></label><label>Nº de tropa<input id="mu-t" inputmode="numeric"></label><label>Cantidad<input id="mu-c" value="1" inputmode="numeric"></label>' +
-    '<label>Lugar<select id="mu-l"><option>CORRAL</option><option>VIAJE</option></select></label><label>Jaula (patente)<input id="mu-p"></label><label>Productor<input id="mu-pr" value="LA QUIMERA S.A."></label><label>Granja<input id="mu-g" placeholder="Candelaria Sud, El Rodeo…"></label><label>Observación<input id="mu-o"></label></div>' +
+    '<label>Lugar<select id="mu-l"><option>CORRAL</option><option>VIAJE</option></select></label><label>Jaula (patente)<input id="mu-p"></label><label>Productor<input id="mu-pr" value="LA QUIMERA S.A."></label><label>Granja<input id="mu-g" placeholder="Candelaria Sud, El Rodeo…"></label><label>Observación<input id="mu-o"></label><label style="display:flex;flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="mu-e" style="width:auto;margin:0"> Pasó por la playa de emergencia</label></div>' +
     '<p class="sub">Si la tropa ya tiene otros muertos en el sistema, la jaula, el productor y la granja se completan solos.</p>';
-  $('dlg-f').innerHTML = '<button onclick="cerrarDlg()">Cancelar</button><button class="primary" id="mu-ok">Agregar</button>';
+  $('dlg-f').innerHTML = '<button onclick="cerrarDlg()">Cancelar</button><button class="primary" id="mu-ok">' + (ed ? 'Guardar' : 'Agregar') + '</button>';
+  if (ed) {
+    $('mu-f').value = ed.fecha || ''; $('mu-t').value = ed.tropa || ''; $('mu-c').value = ed.cab || 1; $('mu-l').value = ed.lugar === 'VIAJE' ? 'VIAJE' : 'CORRAL';
+    $('mu-p').value = ed.patente || ''; $('mu-pr').value = ed.prod || ''; $('mu-g').value = ed.loc || ''; $('mu-o').value = ed.obs || ''; $('mu-e').checked = !!ed.emerg;
+  }
+  $('mu-e').onchange = () => { if ($('mu-e').checked) $('mu-l').value = 'CORRAL'; };
   $('mu-t').onchange = () => { const x = (S.anual.mu || []).find(m => m.tropa === $('mu-t').value.trim()) || (S.muertos.lista || []).find(m => m.tropa === $('mu-t').value.trim()); if (x) { $('mu-p').value = x.patente || ''; $('mu-pr').value = x.prod || ''; $('mu-g').value = x.loc || ''; } };
   $('mu-ok').onclick = async () => {
-    const m = { id: Date.now().toString(36), fecha: $('mu-f').value, tropa: $('mu-t').value.trim(), cab: leerNum($('mu-c').value) || 1, lugar: $('mu-l').value, patente: $('mu-p').value.trim().toUpperCase(), prod: $('mu-pr').value.trim().toUpperCase(), loc: $('mu-g').value.trim().toUpperCase(), obs: $('mu-o').value.trim(), por: quien(), ts: new Date().toISOString() };
+    const m = { id: ed ? ed.id : Date.now().toString(36), fecha: $('mu-f').value, tropa: $('mu-t').value.trim(), cab: leerNum($('mu-c').value) || 1, lugar: $('mu-l').value, patente: $('mu-p').value.trim().toUpperCase(), prod: $('mu-pr').value.trim().toUpperCase(), loc: $('mu-g').value.trim().toUpperCase(), obs: $('mu-o').value.trim(), por: quien(), ts: new Date().toISOString() };
     if (!/^\d{4}-\d{2}-\d{2}$/.test(m.fecha) || !m.tropa) { toast('Falta la fecha o la tropa', true); return; }
     const ref = (S.anual.mu || []).find(x => x.tropa === m.tropa); if (ref) m.cue = ref.cue;
     m.lq = /QUIMERA|CONSULTORES/.test(m.prod);
+    m.emerg = $('mu-e').checked;
+    if (m.emerg && !/emergencia/i.test(m.obs)) m.obs = ('Playa de emergencia' + (m.obs ? ' · ' + m.obs : '')).slice(0, 200);
+    if (ed) m.ts0 = ed.ts0 || ed.ts;
     cerrarDlg();
-    try { S.muertos = await cambiarDoc('ddjj-muertos', d => { d.lista = d.lista || []; d.lista.push(m); }, 'Muerto agregado a mano: tropa ' + m.tropa + ' ' + m.fecha + ' ' + m.lugar); render(); toast('Agregado'); }
+    try {
+      S.muertos = await cambiarDoc('ddjj-muertos', d => {
+        d.lista = d.lista || [];
+        const i = ed ? d.lista.findIndex(x => x.id === ed.id) : -1;
+        if (i >= 0) d.lista[i] = Object.assign({}, d.lista[i], m); else d.lista.push(m);
+      }, (ed ? 'Muerto a mano editado: ' : 'Muerto agregado a mano: ') + 'tropa ' + m.tropa + ' ' + m.fecha + ' ' + m.lugar + (m.obs ? ' · ' + m.obs : ''));
+      render(); toast(ed ? 'Guardado' : 'Agregado');
+    }
     catch (e) { toast(e.message, true); }
   };
   $('dlg').showModal();
