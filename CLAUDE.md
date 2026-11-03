@@ -49,4 +49,5 @@ En vivo: https://qualita-produccion.web.app (links para compartir: `/logistica`,
 - Lecturas de la base (cupo): la app escucha `config` por rangos (`subRangos`: general, rendering2, log-* de los últimos 45 días, rend-* de los últimos 150). No volver a suscribirse a colecciones enteras que crecen todos los días; cada apertura de la app (incluidos los links públicos y las recargas automáticas después de cada publicación) las vuelve a leer completas. El proyecto está en plan Blaze desde el 27/10/2026.
 
 ## Pedidos para más adelante (todavía no se hacen)
-- (Hecho 02/11/2026, opción 1 elegida por Renzo) Propuesta de camiones en Pedidos (`propuestaDe`/`propuestaHTML`): según los últimos 4 días iguales. Si Renzo dice "VUELVE COMO ANTES", es volver a como estaba antes del último cambio que se le hizo.
+- (Renzo, 02/11/2026) Propuesta de camiones en Pedidos según los últimos días iguales: se hizo (commit 7bf9d55, opción 1) y Renzo pidió sacarla. No volver a ponerla sin que lo pida.
+- Si Renzo escribe "VUELVE COMO ANTES", es volver a como estaba antes del último cambio que se le hizo.
