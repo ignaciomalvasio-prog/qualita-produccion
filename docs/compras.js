@@ -9,6 +9,7 @@
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const DESDE_MES = '2026-01';
+const HORA_GRABA = '18:30';   // la tarea "Compras: grabar cambios" de la notebook de Igna graba los cambios una vez por día a esta hora
 /* Fuera del centro (pedido de Igna 03/11/2026): cajas y bolsas. Familias "Cajas y envases" (21) y "Bolsas" (17),
    más las bolsas cristal sin familia y los octobins de cartón (bin y tapa). */
 const FAM_FUERA = new Set(['17', '21']);
@@ -125,7 +126,7 @@ async function guardarCambios(nuevos, desc) {
       }
     }, desc);
     CAMB = (d && d.lista) || []; reconstruir(); refrescar(); cerrarDlg();
-    toast('Guardado. Se graba en el sistema en unos minutos.');
+    toast('Guardado. Se graba en el sistema hoy a las ' + HORA_GRABA + ' h.');
   } catch (e) { console.error(e); toast('No se pudo guardar: ' + (e.message || e), true); }
 }
 async function anularCambio(id) {
@@ -135,7 +136,7 @@ async function anularCambio(id) {
   } catch (e) { toast('No se pudo anular: ' + (e.message || e), true); }
 }
 window.anularCambio = anularCambio;
-function chipPend(o, campo) { const c = o.pend && o.pend[campo]; return c ? ' <span class="chip warn" title="Lo cambió ' + esc(c.por) + '; en el sistema figura ' + esc(txtValor(campo, c.antes)) + '. Se graba en unos minutos.">por grabar</span>' : ''; }
+function chipPend(o, campo) { const c = o.pend && o.pend[campo]; return c ? ' <span class="chip warn" title="Lo cambió ' + esc(c.por) + '; en el sistema figura ' + esc(txtValor(campo, c.antes)) + '. Se graba en el sistema a las ' + HORA_GRABA + ' h.">por grabar</span>' : ''; }
 function selOpc(obj, sel, orden) { const ks = Object.keys(obj).sort(orden || ((a, b) => String(obj[a]).localeCompare(String(obj[b]), 'es'))); return ks.map(k => '<option value="' + esc(k) + '"' + (String(k) === String(sel) ? ' selected' : '') + '>' + esc(obj[k]) + '</option>').join(''); }
 
 /* editar un renglón de vale: precio, sector, motivo */
@@ -147,7 +148,7 @@ function dlgRenglon(v) {
       '<small class="muted">En el sistema: ' + (v.sis.precio > 0 ? pesos2(v.sis.precio) : '<b>sin precio</b>') + (v.oc ? ' · última compra ' + pesos2(v.oc.precio) + ' (OC ' + v.oc.oc + ', ' + fec(v.oc.fecha) + ')' : '') + '</small></div>' +
     '<label>Sector</label><div><select id="e-sec">' + selOpc(D.sec, v.sec) + '</select><small class="muted">En el sistema: ' + esc(nomSec(v.sis.sec)) + '</small></div>' +
     '<label>Motivo</label><div><select id="e-mot">' + selOpc(D.mot, v.mot) + '</select><small class="muted">En el sistema: ' + esc(nomMot(v.sis.mot)) + '</small></div>' +
-    '</div><p class="nota-ed">Al guardar, el cambio se graba en el sistema de gestión en unos minutos (lo hace la notebook de Igna). Queda registrado quién lo hizo y el valor anterior. Mientras tanto se ve marcado "por grabar".</p>';
+    '</div><p class="nota-ed">Al guardar, el cambio queda <b>"por grabar"</b>: se pasa al sistema de gestión <b>una vez por día, a las ' + HORA_GRABA + ' h</b> (lo hace la notebook de Igna). Hasta esa hora se puede anular en la pestaña Cambios. Queda registrado quién lo hizo y el valor anterior.</p>';
   abrirDlg('Editar renglón del vale', h, '<button class="primary" id="e-ok">Guardar</button>');
   $('e-ok').onclick = () => {
     const pr = parseFloat(String($('e-precio').value).replace(',', '.'));
@@ -166,7 +167,7 @@ function dlgEditarArticulo(ins) {
   const h = '<p class="sub">' + esc(i.den) + ' · cód. ' + esc(ins) + '</p><div class="ed-grid">' +
     '<label>Familia</label><div><select id="e-fam">' + selOpc(D.fam, i.fam) + '</select><small class="muted">En el sistema: ' + esc(nomFam(i.sis.fam)) + '</small></div>' +
     '<label>Tipo de costo</label><div><select id="e-cos">' + selOpc(D.cos, i.cos, (a, b) => +a - +b) + '</select><small class="muted">En el sistema: ' + esc(nomCos(i.sis.cos)) + '</small></div>' +
-    '</div><p class="nota-ed">Cambia el artículo en el sistema (vale para todos sus vales, los de antes y los que vengan). Se graba en unos minutos.</p>';
+    '</div><p class="nota-ed">Cambia el artículo en el sistema (vale para todos sus vales, los de antes y los que vengan). Se graba una vez por día, a las ' + HORA_GRABA + ' h.</p>';
   abrirDlg('Editar artículo', h, '<button class="primary" id="e-ok">Guardar</button>');
   $('e-ok').onclick = () => {
     const n = [], base = { tipo: 'ins', ins, desc: 'Artículo ' + ins + ' · ' + i.den };
@@ -190,7 +191,7 @@ function vCambios() {
   const l = CAMB.slice().reverse();
   const pend = l.filter(c => c.estado === 'pendiente').length;
   const est = c => c.estado === 'pendiente' ? '<span class="chip warn">por grabar</span>' : c.estado === 'aplicado' ? '<span class="chip ok">grabado</span>' : c.estado === 'error' ? '<span class="chip bad" title="' + esc(c.msg || '') + '">no se grabó</span>' : '<span class="chip mut">anulado</span>';
-  return cab('Cambios', 'Lo que se cambió desde el centro. Los cambios "por grabar" los pasa al sistema la notebook de Igna cada 10 minutos; hasta ese momento se pueden anular.', botonXl('camb', 'Cambios')) +
+  return cab('Cambios', 'Lo que se cambió desde el centro. Los cambios "por grabar" se pasan al sistema <b>una vez por día, a las ' + HORA_GRABA + ' h</b> (lo hace la notebook de Igna, tiene que estar prendida); hasta ese momento se pueden anular.', botonXl('camb', 'Cambios')) +
     (pend ? '<div class="ok-box" style="background:var(--warn-soft);color:var(--warn)">' + pend + ' cambio' + (pend > 1 ? 's' : '') + ' por grabar en el sistema.</div>' : '') +
     '<section>' + tabla('camb', [
       { t: 'Cuándo', v: c => c.ts, f: t => t ? fec(t.slice(0, 10)) + ' ' + new Date(t).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '' },
@@ -386,7 +387,8 @@ function refrescar() {
   guardarFiltros(); barraFiltros();
   document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.t === TAB));
   const fn = { resumen: vResumen, personas: vPersonas, articulos: vArticulos, sectores: vSectores, precios: vPrecios, compras: vCompras, vales: vVales, cambios: vCambios }[TAB] || vResumen;
-  $('main').innerHTML = fn();
+  const np = CAMB.filter(c => c.estado === 'pendiente').length;
+  $('main').innerHTML = (np && TAB !== 'cambios' ? '<div class="aviso-graba">✎ Hay <b>' + np + ' cambio' + (np > 1 ? 's' : '') + ' por grabar</b>. Los cambios se pasan al sistema <b>una vez por día, a las ' + HORA_GRABA + ' h</b>; hasta entonces se ven marcados "por grabar" y se pueden anular en <a href="#" data-ir="cambios">Cambios</a>.</div>' : '') + fn();
 }
 
 function vResumen() {
@@ -646,7 +648,7 @@ function dlgArticulo(ins) {
   const sinP = vs.filter(v => v.sis.precio <= 0 && !v.pend.precio), ult = precioOC(ins, F.hasta);
   if (sinP.length) h = '<div class="ponerp"><b>' + sinP.length + ' renglones sin precio</b> en el período (' + cant(sinP.reduce((a, v) => a + v.cant, 0)) + ' unidades). Ponerles precio: ' +
     '<input id="e-pa" type="number" min="0" step="0.01" value="' + (ult ? Math.round(ult.precio * 100) / 100 : '') + '"> <button class="small primary" onclick="ponerPrecioArticulo(\'' + esc(ins) + '\')">Poner precio</button>' +
-    (ult ? '<br><small class="muted">Propuesto: última compra (OC ' + ult.oc + ', ' + fec(ult.fecha) + '). Se graba en el sistema en cada renglón.</small>' : '') + '</div>' + h;
+    (ult ? '<br><small class="muted">Propuesto: última compra (OC ' + ult.oc + ', ' + fec(ult.fecha) + '). Se graba en el sistema a las ' + HORA_GRABA + ' h.</small>' : '') + '</div>' + h;
   abrirDlg(esc(i.den) + ' <small class="muted">· cód. ' + esc(ins) + '</small>' + chipPend(i, 'fam') + chipPend(i, 'cos'), h,
     (D.ins[ins] ? '<button onclick="dlgEditarArticulo(\'' + esc(ins) + '\')">✎ Familia / tipo de costo</button>' : '') +
     '<button class="primary" data-ir="vales" data-f=\'' + esc(JSON.stringify({ art: ins, per: '' })) + '\'>Ver los vales</button>');

@@ -97,3 +97,5 @@ section .sub,h2 + .sub{margin-left:0}
 .ponerp input{width:130px;display:inline-block;margin:0 6px}
 .tb tr.clic .chip{cursor:pointer}
 @media (max-width:560px){.ed-grid{grid-template-columns:1fr}.ed-grid label{padding-top:0}}
+.aviso-graba{background:var(--warn-soft);border:1px solid #ecd9b4;color:#6b4a0f;border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:13.5px}
+.aviso-graba a{color:inherit;font-weight:600}
