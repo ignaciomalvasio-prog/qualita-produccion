@@ -1241,7 +1241,7 @@ async function renderCambios() {
 /* Usuarios: quién puede entrar al Centro de control y a la planilla de caja (solo lo ven los editores) */
 function renderUsuarios() {
   if (!C3API.editor) { $('main').innerHTML = cabecera('Usuarios', '', '') + '<div class="empty">Solo Igna puede habilitar usuarios.</div>'; return; }
-  $('main').innerHTML = cabecera('Usuarios', 'Agregá el mail de la persona, su nombre y qué puede ver, y tocá Agregar. Después le pasás el link y entra con ese mail.', '') + '<section id="sec-usr"><h2>Usuarios</h2><p class="sub">Quién puede entrar. <b>Todo</b>: tablero completo (Carlos). <b>Solo caja</b>: la planilla de caja del local (Gastón). <b>Solo Centro de desposte</b>: rendimiento, faena y DDJJ (S. Saavedra). Los editores de la app de producción entran siempre.</p><div id="usr" class="cargando"><span class="spin"></span></div><p class="nota" style="font-size:14px">Links para pasar: <b>qualita-produccion.web.app/control</b> (tablero, Carlos) · <b>qualita-produccion.web.app/caja</b> (planilla de caja, Gastón) · <b>qualita-produccion.web.app/ddjj</b> (Centro de desposte) · <b>qualita-produccion.web.app/faena</b> (faena y mortalidad, solo lectura).</p></section>';
+  $('main').innerHTML = cabecera('Usuarios', 'Agregá el mail de la persona, su nombre y qué puede ver, y tocá Agregar. Después le pasás el link y entra con ese mail.', '') + '<section id="sec-usr"><h2>Usuarios</h2><p class="sub">Quién puede entrar. <b>Todo</b>: tablero completo (Carlos). <b>Solo caja</b>: la planilla de caja del local (Gastón). <b>Solo Centro de desposte</b>: rendimiento, faena y DDJJ (S. Saavedra). <b>Solo Centro de compras</b>: vales de consumo y precios (Claudia); con <b>Todo</b> también se entra a compras. Los editores de la app de producción entran siempre.</p><div id="usr" class="cargando"><span class="spin"></span></div><p class="nota" style="font-size:14px">Links para pasar: <b>qualita-produccion.web.app/control</b> (tablero, Carlos) · <b>qualita-produccion.web.app/caja</b> (planilla de caja, Gastón) · <b>qualita-produccion.web.app/ddjj</b> (Centro de desposte) · <b>qualita-produccion.web.app/compras</b> (Centro de compras) · <b>qualita-produccion.web.app/faena</b> (faena y mortalidad, solo lectura).</p></section>';
   dibujarUsuarios();
 }
 C3API.listo.then(a => { if (a.editor) $('nav-usr').style.display = ''; });
@@ -1251,15 +1251,15 @@ async function dibujarUsuarios() {
   us.sort((a, b) => a.email.localeCompare(b.email));
   $('usr').className = '';
   $('usr').innerHTML = '<div style="overflow-x:auto"><table style="max-width:820px;min-width:560px"><thead><tr><th>Mail</th><th>Nombre</th><th>Puede ver</th><th></th></tr></thead><tbody>' +
-    us.map(u => '<tr><td>' + esc(u.email) + '</td><td>' + esc(u.nombre || '') + '</td><td>' + (u.rol === 'caja' ? 'Solo caja' : u.rol === 'ddjj' ? 'Solo Centro de desposte' : u.rol === 'faena' ? 'Solo ver faena y mortalidad' : 'Todo') + '</td><td><button class="small danger" onclick="sacarUsuario(\'' + esc(u.email) + '\')">Sacar</button></td></tr>').join('') +
-    '<tr><td><input id="nu-mail" placeholder="mail con el que ingresa (Google o el que use)"></td><td><input id="nu-nom" placeholder="Nombre (ej: Carlos)"></td><td><select id="nu-rol"><option value="todo">Todo</option><option value="caja">Solo caja</option><option value="ddjj">Solo Centro de desposte</option><option value="faena">Solo ver faena y mortalidad</option></select></td><td><button class="small primary" onclick="agregarUsuario()">Agregar</button></td></tr></tbody></table></div>';
+    us.map(u => '<tr><td>' + esc(u.email) + '</td><td>' + esc(u.nombre || '') + '</td><td>' + (u.rol === 'caja' ? 'Solo caja' : u.rol === 'ddjj' ? 'Solo Centro de desposte' : u.rol === 'faena' ? 'Solo ver faena y mortalidad' : u.rol === 'compras' ? 'Solo Centro de compras' : 'Todo') + '</td><td><button class="small danger" onclick="sacarUsuario(\'' + esc(u.email) + '\')">Sacar</button></td></tr>').join('') +
+    '<tr><td><input id="nu-mail" placeholder="mail con el que ingresa (Google o el que use)"></td><td><input id="nu-nom" placeholder="Nombre (ej: Carlos)"></td><td><select id="nu-rol"><option value="todo">Todo</option><option value="caja">Solo caja</option><option value="ddjj">Solo Centro de desposte</option><option value="faena">Solo ver faena y mortalidad</option><option value="compras">Solo Centro de compras</option></select></td><td><button class="small primary" onclick="agregarUsuario()">Agregar</button></td></tr></tbody></table></div>';
 }
 async function agregarUsuario() {
   const mail = $('nu-mail').value.trim().toLowerCase(), nombre = $('nu-nom').value.trim(), rol = $('nu-rol').value;
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) { toast('Revisá el mail', true); return; }
   try {
     await C3API.ponerUsuario(mail, { nombre, rol, por: quien(), ts: new Date().toISOString() });
-    await C3API.cambiarDoc('usuarios-log', d => { d.n = (d.n || 0) + 1; }, 'Usuario agregado: ' + mail + ' (' + (rol === 'caja' ? 'solo caja' : rol === 'ddjj' ? 'solo Centro de desposte' : rol === 'faena' ? 'solo ver faena y mortalidad' : 'todo') + ')');
+    await C3API.cambiarDoc('usuarios-log', d => { d.n = (d.n || 0) + 1; }, 'Usuario agregado: ' + mail + ' (' + (rol === 'caja' ? 'solo caja' : rol === 'ddjj' ? 'solo Centro de desposte' : rol === 'faena' ? 'solo ver faena y mortalidad' : rol === 'compras' ? 'solo Centro de compras' : 'todo') + ')');
     toast('Listo: ' + mail + ' ya puede entrar'); dibujarUsuarios();
   } catch (e) { toast('No se pudo agregar: ' + (e.message || e), true); }
 }
@@ -1341,4 +1341,4 @@ function aoaVentasMensual() {
 
 /* ================= inicio ================= */
 $('mes').value = M;
-C3API.listo.then(api => { if (api.rol === 'caja') location.replace('/caja'); else if (api.rol === 'ddjj') location.replace('/ddjj'); else if (api.rol === 'faena') location.replace('/faena'); else cargar(false); });
+C3API.listo.then(api => { if (api.rol === 'caja') location.replace('/caja'); else if (api.rol === 'ddjj') location.replace('/ddjj'); else if (api.rol === 'faena') location.replace('/faena'); else if (api.rol === 'compras') location.replace('/compras'); else cargar(false); });

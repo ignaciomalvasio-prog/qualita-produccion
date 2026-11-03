@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Centro de compras · Qualitá</title>
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="manifest" href="/compras.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Compras">
+<meta name="theme-color" content="#0b5d75">
+<link rel="icon" type="image/png" href="/icon-192.png">
+<meta name="robots" content="noindex">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+<link rel="stylesheet" href="/control-estilo.css">
+<link rel="stylesheet" href="/control.css">
+<link rel="stylesheet" href="/compras.css">
+</head>
+<body>
+<header>
+  <div class="brand"><img src="/logo.png" alt="Qualitá"><div><div class="t">Centro de compras</div><div class="s">Vales de consumo y precios</div></div></div>
+  <nav id="nav">
+    <a href="#" data-t="resumen" class="on">Resumen</a>
+    <a href="#" data-t="personas">Personas</a>
+    <a href="#" data-t="articulos">Artículos</a>
+    <a href="#" data-t="sectores">Sectores</a>
+    <a href="#" data-t="precios">Precios</a>
+    <a href="#" data-t="compras">Órdenes de compra</a>
+    <a href="#" data-t="vales">Vales</a>
+  </nav>
+  <div class="stat" id="st"><span id="st-user"></span></div>
+</header>
+<div id="filtros" class="filtros"></div>
+<main id="main"><div class="cargando"><span class="spin"></span> Conectando…</div></main>
+
+<dialog id="dlg" class="ancho">
+  <div class="dlg-h" id="dlg-h"></div>
+  <div class="dlg-b" id="dlg-b"></div>
+  <div class="dlg-f" id="dlg-f"></div>
+</dialog>
+<div class="toast" id="toast"></div>
+
+<script>window.C3_TITULO = 'Centro de compras';</script>
+<script src="/acceso.js"></script>
+<script src="/control-base.js"></script>
+<script src="/compras.js"></script>
+</body>
+</html>
