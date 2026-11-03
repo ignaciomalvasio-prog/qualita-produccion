@@ -20,6 +20,7 @@ const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'o
 function n0(v) { v = +v || 0; if (Math.abs(v) < 1 && v !== 0) return v.toLocaleString('es-AR', { maximumFractionDigits: 1 }); return Math.round(v).toLocaleString('es-AR'); }
 function cant(v) { v = +v || 0; return Number.isInteger(v) ? v.toLocaleString('es-AR') : v.toLocaleString('es-AR', { maximumFractionDigits: 2 }); }
 function pesos(v) { return '$ ' + n0(v); }
+function pesos2(v) { return '$ ' + (+v || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function pct(v, dec) { if (v == null || !isFinite(v)) return '—'; return (v > 0 ? '+' : '') + v.toLocaleString('es-AR', { maximumFractionDigits: dec == null ? 0 : dec }) + '%'; }
 function fec(s) { if (!s) return ''; const p = s.split('-'); return p[2] + '/' + p[1] + '/' + p[0].slice(2); }
 function mesTxt(m) { return MESES[+m.slice(5) - 1] + ' ' + m.slice(2, 4); }
@@ -36,7 +37,7 @@ function num(s) { const v = parseFloat(s); return isFinite(v) ? v : 0; }
 function parseMaestro(txt) {
   for (const p of lineas(txt)) {
     const t = p[0];
-    if (t === 'I') D.ins[p[1]] = { cod: p[1], den: p[2], fam: p[3], cos: p[4], lista: num(p[5]), stock: num(p[6]), min: num(p[7]) };
+    if (t === 'I') D.ins[p[1]] = { cod: p[1], den: p[2], fam: p[3], cos: p[4], lista: num(p[5]), stock: num(p[6]), min: num(p[7]), sis: { fam: p[3], cos: p[4] }, pend: {} };
     else if (t === 'F') D.fam[p[1]] = lindo(p[2]);
     else if (t === 'K') D.cos[p[1]] = p[2];
     else if (t === 'S') D.sec[p[1]] = p[2];
@@ -46,6 +47,8 @@ function parseMaestro(txt) {
     else if (t === 'P') D.per[p[1]] = lindo(p[2]);
     else if (t === 'OK') D.act = p[1];
   }
+  // cambios cargados en la web que todavía no se grabaron en el sistema
+  for (const c of CAMB) if (c.estado === 'pendiente' && c.tipo === 'ins' && D.ins[c.ins]) { D.ins[c.ins][c.campo] = String(c.despues); D.ins[c.ins].pend[c.campo] = c; }
 }
 function parseCompras(txt) {
   for (const p of lineas(txt)) {
@@ -80,6 +83,8 @@ function parseVales(txt) {
       solic: num(p[7]), cant: num(p[8]), precio: num(p[9]), sec: p[10], mot: p[11], pan: p[12], afact: p[13] === '1',
       fecent: p[14], dev: p[15] !== '0' && p[15] !== '', obs: [p[16], p[17]].filter(Boolean).join(' · ')
     };
+    v.sis = { precio: v.precio, sec: v.sec, mot: v.mot }; v.pend = {};
+    for (const c of PEND_V[v.vale + '|' + v.item] || []) { v[c.campo] = c.campo === 'precio' ? num(c.despues) : String(c.despues); v.pend[c.campo] = c; }
     const oc = precioOC(v.ins, v.fecha);
     v.oc = oc;
     if (v.precio > 0) { v.pu = v.precio; v.est = false; }
@@ -90,6 +95,115 @@ function parseVales(txt) {
     D.vales.push(v);
   }
 }
+/* ---------- cambios (se cargan en la web y la notebook los graba en el sistema) ---------- */
+let CAMB = [], PEND_V = {}, RAW = null;
+function indexarCambios() {
+  PEND_V = {};
+  CAMB.sort((a, b) => a.ts < b.ts ? -1 : 1);
+  for (const c of CAMB) if (c.tipo === 'vale' && c.estado === 'pendiente') (PEND_V[c.vale + '|' + c.item] = PEND_V[c.vale + '|' + c.item] || []).push(c);
+}
+function reconstruir() {
+  for (const k of ['ins', 'fam', 'cos', 'sec', 'mot', 'pan', 'est', 'per', 'prov', 'ocPorIns']) D[k] = {};
+  D.vales = []; D.oc = [];
+  indexarCambios();
+  parseMaestro(RAW.ma.txt); if (RAW.co) parseCompras(RAW.co.txt);
+  RAW.vs.forEach(x => { if (x) parseVales(x.txt); });
+}
+const CAMPO_TXT = { precio: 'Precio', sec: 'Sector', mot: 'Motivo', fam: 'Familia', cos: 'Tipo de costo' };
+function txtValor(campo, v) { return campo === 'precio' ? (+v ? pesos2(v) : 'sin precio') : campo === 'sec' ? nomSec(v) : campo === 'mot' ? nomMot(v) : campo === 'fam' ? nomFam(v) : campo === 'cos' ? nomCos(v) : String(v); }
+function claveC(c) { return c.tipo === 'vale' ? 'v|' + c.vale + '|' + c.item + '|' + c.campo : 'i|' + c.ins + '|' + c.campo; }
+async function guardarCambios(nuevos, desc) {
+  if (!nuevos.length) { toast('No cambiaste nada'); return; }
+  const quien = (C3API.usuario && C3API.usuario.nombre) || 'sin nombre', ts = new Date().toISOString();
+  try {
+    const d = await C3API.cambiarDoc('cm-cambios', d => {
+      d.lista = Array.isArray(d.lista) ? d.lista : (d.lista ? [d.lista] : []);
+      for (const n of nuevos) {
+        const ya = d.lista.find(c => c.estado === 'pendiente' && claveC(c) === claveC(n));
+        if (ya) { if (String(n.despues) === String(ya.antes)) { ya.estado = 'anulado'; ya.msg = 'Se volvió al valor del sistema'; } else { ya.despues = n.despues; ya.ts = ts; ya.por = quien; } }
+        else if (String(n.despues) !== String(n.antes)) d.lista.push(Object.assign({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), por: quien, ts, estado: 'pendiente' }, n));
+      }
+    }, desc);
+    CAMB = (d && d.lista) || []; reconstruir(); refrescar(); cerrarDlg();
+    toast('Guardado. Se graba en el sistema en unos minutos.');
+  } catch (e) { console.error(e); toast('No se pudo guardar: ' + (e.message || e), true); }
+}
+async function anularCambio(id) {
+  try {
+    const d = await C3API.cambiarDoc('cm-cambios', d => { for (const c of (d.lista || [])) if (c.id === id && c.estado === 'pendiente') { c.estado = 'anulado'; c.msg = 'Anulado antes de grabarse'; } }, 'Cambio anulado ' + id);
+    CAMB = (d && d.lista) || []; reconstruir(); refrescar(); toast('Cambio anulado');
+  } catch (e) { toast('No se pudo anular: ' + (e.message || e), true); }
+}
+window.anularCambio = anularCambio;
+function chipPend(o, campo) { const c = o.pend && o.pend[campo]; return c ? ' <span class="chip warn" title="Lo cambió ' + esc(c.por) + '; en el sistema figura ' + esc(txtValor(campo, c.antes)) + '. Se graba en unos minutos.">por grabar</span>' : ''; }
+function selOpc(obj, sel, orden) { const ks = Object.keys(obj).sort(orden || ((a, b) => String(obj[a]).localeCompare(String(obj[b]), 'es'))); return ks.map(k => '<option value="' + esc(k) + '"' + (String(k) === String(sel) ? ' selected' : '') + '>' + esc(obj[k]) + '</option>').join(''); }
+
+/* editar un renglón de vale: precio, sector, motivo */
+function dlgRenglon(v) {
+  const sug = v.precio > 0 ? v.precio : v.oc ? Math.round(v.oc.precio * 100) / 100 : '';
+  const h = '<p class="sub">Vale <b>' + v.vale + '</b> del ' + fec(v.fecha) + ' · ' + esc(nomPer(v.per)) + ' · ' + cant(v.cant) + ' × ' + esc(v.den) + '</p>' +
+    '<div class="ed-grid">' +
+    '<label>Precio unitario (sin IVA)</label><div><input id="e-precio" type="number" min="0" step="0.01" value="' + sug + '">' +
+      '<small class="muted">En el sistema: ' + (v.sis.precio > 0 ? pesos2(v.sis.precio) : '<b>sin precio</b>') + (v.oc ? ' · última compra ' + pesos2(v.oc.precio) + ' (OC ' + v.oc.oc + ', ' + fec(v.oc.fecha) + ')' : '') + '</small></div>' +
+    '<label>Sector</label><div><select id="e-sec">' + selOpc(D.sec, v.sec) + '</select><small class="muted">En el sistema: ' + esc(nomSec(v.sis.sec)) + '</small></div>' +
+    '<label>Motivo</label><div><select id="e-mot">' + selOpc(D.mot, v.mot) + '</select><small class="muted">En el sistema: ' + esc(nomMot(v.sis.mot)) + '</small></div>' +
+    '</div><p class="nota-ed">Al guardar, el cambio se graba en el sistema de gestión en unos minutos (lo hace la notebook de Igna). Queda registrado quién lo hizo y el valor anterior. Mientras tanto se ve marcado "por grabar".</p>';
+  abrirDlg('Editar renglón del vale', h, '<button class="primary" id="e-ok">Guardar</button>');
+  $('e-ok').onclick = () => {
+    const pr = parseFloat(String($('e-precio').value).replace(',', '.'));
+    const base = { tipo: 'vale', vale: v.vale, item: v.item, ins: v.ins, fecha: v.fecha };
+    const n = [];
+    if (isFinite(pr) && pr >= 0 && Math.abs(pr - v.precio) > 0.0001) n.push(Object.assign({ campo: 'precio', antes: v.sis.precio, despues: Math.round(pr * 100) / 100, desc: 'Vale ' + v.vale + ' · ' + v.den }, base));
+    else if (v.pend.precio && Math.abs(pr - v.sis.precio) < 0.0001) n.push(Object.assign({ campo: 'precio', antes: v.sis.precio, despues: v.sis.precio, desc: '' }, base));
+    if ($('e-sec').value !== v.sec) n.push(Object.assign({ campo: 'sec', antes: v.sis.sec, despues: $('e-sec').value, desc: 'Vale ' + v.vale + ' · ' + v.den }, base));
+    if ($('e-mot').value !== v.mot) n.push(Object.assign({ campo: 'mot', antes: v.sis.mot, despues: $('e-mot').value, desc: 'Vale ' + v.vale + ' · ' + v.den }, base));
+    guardarCambios(n, 'Vale ' + v.vale + ' renglón ' + v.item + ': ' + n.map(c => CAMPO_TXT[c.campo] + ' → ' + txtValor(c.campo, c.despues)).join(', '));
+  };
+}
+/* editar un artículo: familia y tipo de costo */
+function dlgEditarArticulo(ins) {
+  const i = D.ins[ins]; if (!i) return;
+  const h = '<p class="sub">' + esc(i.den) + ' · cód. ' + esc(ins) + '</p><div class="ed-grid">' +
+    '<label>Familia</label><div><select id="e-fam">' + selOpc(D.fam, i.fam) + '</select><small class="muted">En el sistema: ' + esc(nomFam(i.sis.fam)) + '</small></div>' +
+    '<label>Tipo de costo</label><div><select id="e-cos">' + selOpc(D.cos, i.cos, (a, b) => +a - +b) + '</select><small class="muted">En el sistema: ' + esc(nomCos(i.sis.cos)) + '</small></div>' +
+    '</div><p class="nota-ed">Cambia el artículo en el sistema (vale para todos sus vales, los de antes y los que vengan). Se graba en unos minutos.</p>';
+  abrirDlg('Editar artículo', h, '<button class="primary" id="e-ok">Guardar</button>');
+  $('e-ok').onclick = () => {
+    const n = [], base = { tipo: 'ins', ins, desc: 'Artículo ' + ins + ' · ' + i.den };
+    if ($('e-fam').value !== i.fam) n.push(Object.assign({ campo: 'fam', antes: i.sis.fam, despues: $('e-fam').value }, base));
+    if ($('e-cos').value !== i.cos) n.push(Object.assign({ campo: 'cos', antes: i.sis.cos, despues: $('e-cos').value }, base));
+    guardarCambios(n, 'Artículo ' + ins + ': ' + n.map(c => CAMPO_TXT[c.campo] + ' → ' + txtValor(c.campo, c.despues)).join(', '));
+  };
+}
+/* poner precio a todos los renglones sin precio de un artículo (en el período) */
+function ponerPrecioArticulo(ins) {
+  const vs = valesFiltrados({ per: 1, art: 1 }).filter(v => v.ins === ins && v.sis.precio <= 0 && !v.pend.precio);
+  const pr = parseFloat(String($('e-pa').value).replace(',', '.'));
+  if (!vs.length) { toast('No hay renglones sin precio en el período'); return; }
+  if (!isFinite(pr) || pr <= 0) { toast('Poné un precio mayor a cero', true); return; }
+  guardarCambios(vs.map(v => ({ tipo: 'vale', vale: v.vale, item: v.item, ins: v.ins, fecha: v.fecha, campo: 'precio', antes: 0, despues: Math.round(pr * 100) / 100, desc: 'Vale ' + v.vale + ' · ' + v.den })),
+    'Precio ' + pesos(pr) + ' a ' + vs.length + ' renglones sin precio de ' + (D.ins[ins] || {}).den);
+}
+window.ponerPrecioArticulo = ponerPrecioArticulo;
+
+function vCambios() {
+  const l = CAMB.slice().reverse();
+  const pend = l.filter(c => c.estado === 'pendiente').length;
+  const est = c => c.estado === 'pendiente' ? '<span class="chip warn">por grabar</span>' : c.estado === 'aplicado' ? '<span class="chip ok">grabado</span>' : c.estado === 'error' ? '<span class="chip bad" title="' + esc(c.msg || '') + '">no se grabó</span>' : '<span class="chip mut">anulado</span>';
+  return cab('Cambios', 'Lo que se cambió desde el centro. Los cambios "por grabar" los pasa al sistema la notebook de Igna cada 10 minutos; hasta ese momento se pueden anular.', botonXl('camb', 'Cambios')) +
+    (pend ? '<div class="ok-box" style="background:var(--warn-soft);color:var(--warn)">' + pend + ' cambio' + (pend > 1 ? 's' : '') + ' por grabar en el sistema.</div>' : '') +
+    '<section>' + tabla('camb', [
+      { t: 'Cuándo', v: c => c.ts, f: t => t ? fec(t.slice(0, 10)) + ' ' + new Date(t).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '' },
+      { t: 'Quién', v: c => c.por },
+      { t: 'Qué', v: c => c.desc || '' },
+      { t: 'Campo', v: c => CAMPO_TXT[c.campo] || c.campo },
+      { t: 'Antes', v: c => txtValor(c.campo, c.antes) },
+      { t: 'Después', v: c => txtValor(c.campo, c.despues), h: c => '<b>' + esc(txtValor(c.campo, c.despues)) + '</b>' },
+      { t: 'Estado', v: c => c.estado, h: c => est(c) + (c.estado === 'error' && c.msg ? '<br><small class="muted">' + esc(c.msg) + '</small>' : '') },
+      { t: '', h: c => c.estado === 'pendiente' ? '<button class="small danger" onclick="event.stopPropagation();anularCambio(\'' + esc(c.id) + '\')">Anular</button>' : '', x: () => '' }
+    ], l, { orden: 0, limite: 100, clase: 'compacta' }) + '</section>';
+}
+
 const nomPer = c => c === '0' || !c ? 'Sin persona' : (D.per[c] || 'Cuenta ' + c);
 const nomSec = c => D.sec[c] || 'Sector ' + c;
 const nomMot = c => D.mot[c] || 'Motivo ' + c;
@@ -271,7 +385,7 @@ function refrescar() {
   if (F.desde > F.hasta) { const x = F.desde; F.desde = F.hasta; F.hasta = x; }
   guardarFiltros(); barraFiltros();
   document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.t === TAB));
-  const fn = { resumen: vResumen, personas: vPersonas, articulos: vArticulos, sectores: vSectores, precios: vPrecios, compras: vCompras, vales: vVales }[TAB] || vResumen;
+  const fn = { resumen: vResumen, personas: vPersonas, articulos: vArticulos, sectores: vSectores, precios: vPrecios, compras: vCompras, vales: vVales, cambios: vCambios }[TAB] || vResumen;
   $('main').innerHTML = fn();
 }
 
@@ -341,7 +455,7 @@ function vArticulos() {
     '<section>' + tabla('art', [
       { t: 'Cód.', k: 'k', num: 1, v: x => +x.k },
       { t: 'Artículo', v: x => x.items[0].den },
-      { t: 'Familia', v: x => nomFam(x.items[0].fam) },
+      { t: 'Familia', v: x => nomFam(x.items[0].fam), h: x => esc(nomFam(x.items[0].fam)) + chipPend(D.ins[x.k] || {}, 'fam') },
       { t: 'Cantidad', num: 1, v: x => x.cant, f: cant },
       { t: 'Vales', num: 1, v: x => x.vales.size },
       { t: 'Personas', num: 1, v: x => x.pers.size },
@@ -404,7 +518,7 @@ function vPrecios() {
     multi.push({ k, barato: arr[0], caro: arr[arr.length - 1], dif: (arr[arr.length - 1].precio / arr[0].precio - 1) * 100, n: ks.length });
   }
   // 4) sin precio en el vale
-  const sinP = agrupar(vs.filter(v => v.precio <= 0), v => v.ins);
+  const sinP = agrupar(vs.filter(v => v.sis.precio <= 0 && !v.pend.precio), v => v.ins);
   let h = cab('Precios', 'Dónde hay diferencias de precio que conviene mirar. Las comparaciones usan el precio de las órdenes de compra (sin IVA, igual que el vale).',
     '<label class="umb">Marcar diferencias desde <input type="number" id="umbral" min="0" max="500" value="' + u + '"> %</label>');
   h += '<section><div class="cab"><div><h2>Aumentos en las compras</h2><p class="sub">Artículos comprados en el período: precio de la compra anterior al período contra la última. <b>Por mes</b> es el aumento promedio mensual, para comparar con la inflación. Los saltos marcados son compras que subieron o bajaron ' + u + '% o más contra la anterior. Clic para ver la historia del precio.</p></div>' + botonXl('aum', 'Aumentos en compras') + '</div>' +
@@ -438,7 +552,7 @@ function vPrecios() {
       { t: 'Efecto', num: 1, v: x => x.efecto, f: pesos },
       { t: 'Período', v: x => x.g.items[0].fecha, h: x => fec(x.g.items.reduce((a, v) => v.fecha < a ? v.fecha : a, '9')) + ' a ' + fec(x.g.ult) }
     ], dif, { orden: 6, limite: 20, click: x => dlgArticulo(x.v.ins) }) + '</section>';
-  h += '<section><div class="cab"><div><h2>Renglones sin precio en el vale</h2><p class="sub">Se valorizaron con la última orden de compra (o el precio de lista si nunca se compró). Si son muchos, conviene que el sistema cargue el precio al hacer el vale.</p></div>' + botonXl('sinp', 'Sin precio en el vale') + '</div>' +
+  h += '<section><div class="cab"><div><h2>Renglones sin precio en el vale</h2><p class="sub">Se valorizaron con la última orden de compra (o el precio de lista si nunca se compró). <b>Clic en un artículo para ponerle precio</b> en el sistema a todos sus renglones sin precio.</p></div>' + botonXl('sinp', 'Sin precio en el vale') + '</div>' +
     tabla('sinp', [
       { t: 'Artículo', v: x => x.items[0].den }, { t: 'Familia', v: x => nomFam(x.items[0].fam) },
       { t: 'Renglones', num: 1, v: x => x.ren }, { t: 'Cantidad', num: 1, v: x => x.cant, f: cant },
@@ -479,18 +593,18 @@ function vCompras() {
 function vVales() {
   const vs = valesFiltrados();
   const tot = vs.reduce((a, v) => a + v.imp, 0);
-  return cab('Vales', 'Todos los renglones de los vales con los filtros elegidos. Clic en los títulos para ordenar.', botonXl('val', 'Vales de consumo')) +
+  return cab('Vales', 'Todos los renglones de los vales con los filtros elegidos. Clic en los títulos para ordenar; <b>clic en un renglón para cambiar precio, sector o motivo</b>.', botonXl('val', 'Vales de consumo')) +
     '<section>' + tabla('val', [
       { t: 'Vale', num: 1, v: v => +v.vale }, { t: 'Fecha', v: v => v.fecha, f: fec },
       { t: 'Persona', v: v => nomPer(v.per) }, { t: 'Cód.', num: 1, v: v => +v.ins }, { t: 'Artículo', v: v => v.den },
-      { t: 'Sector', v: v => nomSec(v.sec) }, { t: 'Motivo', v: v => nomMot(v.mot) },
+      { t: 'Sector', v: v => nomSec(v.sec), h: v => esc(nomSec(v.sec)) + chipPend(v, 'sec') }, { t: 'Motivo', v: v => nomMot(v.mot), h: v => esc(nomMot(v.mot)) + chipPend(v, 'mot') },
       { t: 'Pedido', num: 1, v: v => v.solic, f: cant },
       { t: 'Entregado', num: 1, v: v => v.cant, h: v => v.cant !== v.solic ? '<span class="chip warn" title="Se pidió ' + cant(v.solic) + '">' + cant(v.cant) + '</span>' : cant(v.cant), x: v => v.cant },
-      { t: 'Precio', num: 1, v: v => v.pu, h: v => v.est ? '<span class="muted" title="El vale no tiene precio: se usa la última compra">' + pesos(v.pu) + ' *</span>' : pesos(v.pu), x: v => Math.round(v.pu * 100) / 100 },
+      { t: 'Precio', num: 1, v: v => v.pu, h: v => (v.est ? '<span class="muted" title="El vale no tiene precio: se usa la última compra">' + pesos(v.pu) + ' *</span>' : pesos(v.pu)) + chipPend(v, 'precio'), x: v => Math.round(v.pu * 100) / 100 },
       { t: 'Importe', num: 1, v: v => v.imp, f: pesos },
       { t: 'Pañol', v: v => nomPan(v.pan) },
       { t: 'Obs.', v: v => v.obs + (v.afact ? ' [a facturar]' : ''), h: v => (v.afact ? '<span class="chip info">a facturar</span> ' : '') + esc(v.obs) }
-    ], vs, { orden: 0, limite: 200, clase: 'compacta', total: ['', '', vs.length + ' renglones', '', '', '', '', '', '', '', pesos(tot), '', ''] }) +
+    ], vs, { orden: 0, limite: 200, clase: 'compacta', click: v => dlgRenglon(v), total: ['', '', vs.length + ' renglones', '', '', '', '', '', '', '', pesos(tot), '', ''] }) +
     '<p class="mini muted">* El vale no tiene precio cargado: se valoriza con la última orden de compra.</p></section>';
 }
 
@@ -498,6 +612,7 @@ function vVales() {
 function abrirDlg(tit, cuerpo, pie) { $('dlg-h').innerHTML = tit; $('dlg-b').innerHTML = cuerpo; $('dlg-f').innerHTML = (pie || '') + '<button onclick="cerrarDlg()">Cerrar</button>'; const d = $('dlg'); if (!d.open) d.showModal(); d.querySelector('.dlg-b').scrollTop = 0; }
 function cerrarDlg() { const d = $('dlg'); if (d.open) d.close(); }
 window.cerrarDlg = cerrarDlg;
+window.dlgEditarArticulo = dlgEditarArticulo;
 
 function dlgPersona(per, ins) {
   const vs = valesFiltrados({ per: 1, art: 1 }).filter(v => v.per === per);
@@ -528,7 +643,12 @@ function dlgArticulo(ins) {
   } else h += '<p class="muted">No hay órdenes de compra de este artículo desde enero de 2025.</p>';
   if (gp.length) h += '<h3>Quiénes lo retiraron</h3><table class="tb"><thead><tr><th>Persona</th><th class="num">Veces</th><th class="num">Cantidad</th><th class="num">Importe</th><th>Último</th></tr></thead><tbody>' +
     gp.map(x => '<tr><td>' + esc(nomPer(x.k)) + '</td><td class="num">' + x.vales.size + '</td><td class="num">' + cant(x.cant) + '</td><td class="num">' + pesos(x.imp) + '</td><td>' + fec(x.ult) + '</td></tr>').join('') + '</tbody></table>';
-  abrirDlg(esc(i.den) + ' <small class="muted">· cód. ' + esc(ins) + '</small>', h,
+  const sinP = vs.filter(v => v.sis.precio <= 0 && !v.pend.precio), ult = precioOC(ins, F.hasta);
+  if (sinP.length) h = '<div class="ponerp"><b>' + sinP.length + ' renglones sin precio</b> en el período (' + cant(sinP.reduce((a, v) => a + v.cant, 0)) + ' unidades). Ponerles precio: ' +
+    '<input id="e-pa" type="number" min="0" step="0.01" value="' + (ult ? Math.round(ult.precio * 100) / 100 : '') + '"> <button class="small primary" onclick="ponerPrecioArticulo(\'' + esc(ins) + '\')">Poner precio</button>' +
+    (ult ? '<br><small class="muted">Propuesto: última compra (OC ' + ult.oc + ', ' + fec(ult.fecha) + '). Se graba en el sistema en cada renglón.</small>' : '') + '</div>' + h;
+  abrirDlg(esc(i.den) + ' <small class="muted">· cód. ' + esc(ins) + '</small>' + chipPend(i, 'fam') + chipPend(i, 'cos'), h,
+    (D.ins[ins] ? '<button onclick="dlgEditarArticulo(\'' + esc(ins) + '\')">✎ Familia / tipo de costo</button>' : '') +
     '<button class="primary" data-ir="vales" data-f=\'' + esc(JSON.stringify({ art: ins, per: '' })) + '\'>Ver los vales</button>');
 }
 
@@ -539,10 +659,10 @@ async function cargar() {
   let y = +DESDE_MES.slice(0, 4), m = +DESDE_MES.slice(5);
   while (true) { const k = y + '-' + String(m).padStart(2, '0'); if (k > hoy) break; ids.push(k); m++; if (m > 12) { m = 1; y++; } }
   try {
-    const [ma, co, ...vs] = await Promise.all([C3API.sis('cm-maestro'), C3API.sis('cm-compras')].concat(ids.map(k => C3API.sis('cm-v-' + k))));
+    const [cb, ma, co, ...vs] = await Promise.all([C3API.leerDoc('cm-cambios'), C3API.sis('cm-maestro'), C3API.sis('cm-compras')].concat(ids.map(k => C3API.sis('cm-v-' + k))));
     if (!ma) { $('main').innerHTML = '<section class="empty">Todavía no llegaron los datos del sistema. Los sube la notebook de Igna todos los días.</section>'; return; }
-    parseMaestro(ma.txt); if (co) parseCompras(co.txt);
-    vs.forEach(x => { if (x) parseVales(x.txt); });
+    CAMB = Array.isArray(cb.d.lista) ? cb.d.lista : (cb.d.lista ? [cb.d.lista] : []);
+    RAW = { ma, co, vs }; reconstruir();
     const act = [ma, co].concat(vs).filter(Boolean).map(x => x.actualizado || x.hora || '').sort().pop();
     $('st').innerHTML = '<span class="dot"></span>Datos del sistema al <b>' + esc(act ? (/^\d{4}-\d{2}-\d{2}/.test(act) ? fec(act.slice(0, 10)) + ' ' + act.slice(11, 16) : act) : '—') + '</b><br><span id="st-user"></span>';
     if (C3API.usuario) $('st-user').innerHTML = esc(C3API.usuario.nombre) + ' · <a href="#" onclick="C3API.salir();return false">Salir</a>';

@@ -24,10 +24,20 @@ if(w===1400){
  await p.click('#dlg-f button.primary');await p.waitForTimeout(300);console.log('vales de esa persona:',await p.locator('main table tbody tr').count(),'· filtro',await p.inputValue('#f-per'));
  await p.click('#f-limpiar');await p.waitForTimeout(200);
  await p.click('#nav a[data-t="precios"]');await p.waitForTimeout(200);await p.locator('#tw-aum tr.clic').first().click();await p.waitForTimeout(300);
- console.log('diálogo artículo:',await p.innerText('#dlg-h'));await p.screenshot({path:SP+'/compras-dlg-art.png'});await p.click('#dlg-f button:not(.primary)');
+ console.log('diálogo artículo:',await p.innerText('#dlg-h'));await p.screenshot({path:SP+'/compras-dlg-art.png'});await p.click('#dlg-f button:has-text("Cerrar")');
  // ordenar y excel
  await p.click('#nav a[data-t="articulos"]');await p.waitForTimeout(200);await p.click('#tw-art th[data-col="3"]');await p.waitForTimeout(200);
  const [dl]=await Promise.all([p.waitForEvent('download',{timeout:5000}).catch(()=>null),p.click('[data-xl="art"]')]);console.log('excel:',dl?dl.suggestedFilename():'no (sin internet para la librería)');
+ // editar: precio y sector de un renglón, familia de un artículo, poner precio a los sin precio, anular
+ await p.click('#nav a[data-t="vales"]');await p.waitForTimeout(200);await p.locator('#tw-val tr.clic').first().click();await p.waitForTimeout(200);
+ await p.fill('#e-precio','1234.5');await p.selectOption('#e-sec',{index:2});await p.screenshot({path:SP+'/compras-editar.png'});await p.click('#e-ok');await p.waitForTimeout(300);
+ console.log('cambios:',await p.evaluate(()=>JSON.stringify(window.__mock.docs['cm-cambios'].lista.map(c=>c.campo+':'+c.antes+'>'+c.despues+':'+c.estado))),'· marcas',await p.locator('#tw-val .chip.warn:has-text("por grabar")').count());
+ await p.click('#nav a[data-t="precios"]');await p.waitForTimeout(200);await p.locator('#tw-sinp tr.clic').first().click();await p.waitForTimeout(300);
+ if(await p.locator('#e-pa').count()){await p.click('.ponerp button');await p.waitForTimeout(300);}
+ console.log('después de poner precio:',await p.evaluate(()=>window.__mock.docs['cm-cambios'].lista.length));
+ await p.locator('#tw-sinp tr.clic').first().click();await p.waitForTimeout(300);await p.click('#dlg-f button:has-text("Familia")');await p.waitForTimeout(200);await p.selectOption('#e-cos','1');await p.click('#e-ok');await p.waitForTimeout(300);
+ await p.click('#nav a[data-t="cambios"]');await p.waitForTimeout(200);console.log('pestaña cambios filas',await p.locator('#tw-camb tbody tr').count());await p.screenshot({path:SP+'/compras-cambios.png',fullPage:true});
+ await p.locator('#tw-camb button.danger').first().click();await p.waitForTimeout(300);console.log('anulados',await p.evaluate(()=>window.__mock.docs['cm-cambios'].lista.filter(c=>c.estado==='anulado').length));
  await p.click('a[data-r="mes"]');await p.waitForTimeout(200);console.log('este mes:',await p.inputValue('#f-desde'),await p.inputValue('#f-hasta'));
 }
 console.log(w,'desborde',await p.evaluate(()=>document.documentElement.scrollWidth-innerWidth),'· errores',errs.join('|')||'ninguno');
