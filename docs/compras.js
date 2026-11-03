@@ -9,7 +9,11 @@
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const DESDE_MES = '2026-01';
-const FAM_CAJAS = '21';   // familia "Cajas y envases": son miles de unidades por vale y tapan todo lo demás
+/* Fuera del centro (pedido de Igna 03/11/2026): cajas y bolsas. Familias "Cajas y envases" (21) y "Bolsas" (17),
+   más las bolsas cristal sin familia y los octobins de cartón (bin y tapa). */
+const FAM_FUERA = new Set(['17', '21']);
+const INS_FUERA = new Set(['9025', '9026', '9027', '10009', '10010']);
+function fuera(ins) { const i = D.ins[ins]; return INS_FUERA.has(ins) || (i && FAM_FUERA.has(i.fam)); }
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
 /* ---------- formato ---------- */
@@ -49,6 +53,7 @@ function parseCompras(txt) {
     else if (p[0] === 'OC') {
       const bruto = num(p[7]);
       const neto = bruto * (1 - num(p[8]) / 100) * (1 - num(p[9]) / 100) * (1 - num(p[10]) / 100) * (1 - num(p[11]) / 100);
+      if (fuera(p[5])) continue;
       const o = { fecha: p[1], oc: p[2], prov: p[3], item: p[4], ins: p[5], cant: num(p[6]), precio: neto, saldo: num(p[12]), aut: p[13] === '1', libre: p[14] || '' };
       D.oc.push(o);
       (D.ocPorIns[o.ins] = D.ocPorIns[o.ins] || []).push(o);
@@ -68,7 +73,7 @@ function precioOC(ins, fecha) {
 }
 function parseVales(txt) {
   for (const p of lineas(txt)) {
-    if (p[0] !== 'V') continue;
+    if (p[0] !== 'V' || fuera(p[6])) continue;
     const ins = D.ins[p[6]] || { cod: p[6], den: 'Artículo ' + p[6], fam: '0', cos: '0', lista: 0 };
     const v = {
       vale: p[1], item: p[2], fecha: p[3], estado: p[4], per: p[5], ins: p[6], den: ins.den, fam: ins.fam, cos: ins.cos,
@@ -94,7 +99,7 @@ const nomProv = c => D.prov[c] || 'Proveedor ' + c;
 const nomCos = c => ({ '1': 'Productivo', '2': 'No productivo' })[c] || 'No definido';
 
 /* ---------- filtros ---------- */
-const F = { desde: '2026-01-01', hasta: hoyISO(), per: '', art: '', fam: '', sec: '', mot: '', pan: '', cos: '', prov: '', afact: false, sinCajas: false, umbral: 10 };
+const F = { desde: '2026-01-01', hasta: hoyISO(), per: '', art: '', fam: '', sec: '', mot: '', pan: '', cos: '', prov: '', afact: false, umbral: 10 };
 let TAB = 'resumen';
 function guardarFiltros() { try { localStorage.setItem('cm-filtros', JSON.stringify({ F, TAB })); } catch (e) {} }
 function leerFiltros() { try { const x = JSON.parse(localStorage.getItem('cm-filtros') || 'null'); if (x && x.F) { Object.assign(F, x.F); F.hasta = F.hasta > hoyISO() ? hoyISO() : F.hasta; } if (x && x.TAB) TAB = x.TAB; } catch (e) {} }
@@ -111,13 +116,13 @@ function valesFiltrados(ignorar) {
     && (ignorar.per || !F.per || v.per === F.per)
     && (ignorar.art || coincideArt(v.ins, v.den))
     && (!F.fam || v.fam === F.fam) && (!F.sec || v.sec === F.sec) && (!F.mot || v.mot === F.mot)
-    && (!F.pan || v.pan === F.pan) && (!F.cos || v.cos === F.cos) && (!F.afact || v.afact) && (!F.sinCajas || v.fam !== FAM_CAJAS));
+    && (!F.pan || v.pan === F.pan) && (!F.cos || v.cos === F.cos) && (!F.afact || v.afact));
 }
 function ocFiltradas() {
   return D.oc.filter(o => {
     if (o.fecha < F.desde || o.fecha > F.hasta) return false;
     const ins = D.ins[o.ins] || { den: o.libre || ('Artículo ' + o.ins), fam: '0', cos: '0' };
-    return (!F.sinCajas || ins.fam !== FAM_CAJAS) && coincideArt(o.ins, ins.den) && (!F.fam || ins.fam === F.fam) && (!F.cos || ins.cos === F.cos) && (!F.prov || o.prov === F.prov);
+    return coincideArt(o.ins, ins.den) && (!F.fam || ins.fam === F.fam) && (!F.cos || ins.cos === F.cos) && (!F.prov || o.prov === F.prov);
   });
 }
 function denIns(c, libre) { return D.ins[c] ? D.ins[c].den : (libre || 'Artículo ' + c); }
@@ -134,7 +139,7 @@ function barraFiltros() {
   const fam = {}; for (const c of famU) fam[c] = nomFam(c);
   const prov = {}; for (const o of D.oc) prov[o.prov] = nomProv(o.prov);
   const artList = {}; for (const v of D.vales) artList[v.ins] = v.den; for (const o of D.oc) if (!artList[o.ins]) artList[o.ins] = denIns(o.ins, o.libre);
-  const activos = ['per', 'art', 'fam', 'sec', 'mot', 'pan', 'cos', 'prov'].filter(k => F[k]).length + (F.afact ? 1 : 0) + (F.sinCajas ? 1 : 0);
+  const activos = ['per', 'art', 'fam', 'sec', 'mot', 'pan', 'cos', 'prov'].filter(k => F[k]).length + (F.afact ? 1 : 0);
   $('filtros').innerHTML =
     '<div class="fl-per"><label>Período</label><div class="row nw"><input type="date" id="f-desde" value="' + F.desde + '"><span class="muted">a</span><input type="date" id="f-hasta" value="' + F.hasta + '"></div>' +
     '<div class="rap"><a href="#" data-r="mes">Este mes</a><a href="#" data-r="ant">Mes anterior</a><a href="#" data-r="3m">Últimos 3 meses</a><a href="#" data-r="anio">Todo el año</a></div></div>' +
@@ -146,12 +151,12 @@ function barraFiltros() {
     '<div><label>Pañol</label><select id="f-pan">' + opciones(pan, F.pan, 'Todos') + '</select></div>' +
     '<div><label>Tipo de costo</label><select id="f-cos"><option value="">Todos</option><option value="1"' + (F.cos === '1' ? ' selected' : '') + '>Productivo</option><option value="2"' + (F.cos === '2' ? ' selected' : '') + '>No productivo</option><option value="0"' + (F.cos === '0' ? ' selected' : '') + '>No definido</option></select></div>' +
     '<div><label>Proveedor <small class="muted">(compras)</small></label><select id="f-prov">' + opciones(prov, F.prov, 'Todos') + '</select></div>' +
-    '<div class="fl-fin"><label class="chk" title="Las cajas, tapas y fondos salen del pañol de a miles y son la mayor parte del importe"><input type="checkbox" id="f-cajas"' + (F.sinCajas ? ' checked' : '') + '> Sin cajas y envases</label><label class="chk"><input type="checkbox" id="f-afact"' + (F.afact ? ' checked' : '') + '> Solo "a facturar"</label>' +
+    '<div class="fl-fin"><label class="chk"><input type="checkbox" id="f-afact"' + (F.afact ? ' checked' : '') + '> Solo "a facturar"</label>' +
     (activos ? '<button class="small" id="f-limpiar">Limpiar filtros (' + activos + ')</button>' : '') + '</div>';
   const ch = (id, k) => { const el = $(id); el.onchange = () => { F[k] = el.type === 'checkbox' ? el.checked : el.value; refrescar(); }; };
-  ch('f-desde', 'desde'); ch('f-hasta', 'hasta'); ch('f-per', 'per'); ch('f-fam', 'fam'); ch('f-sec', 'sec'); ch('f-mot', 'mot'); ch('f-pan', 'pan'); ch('f-cos', 'cos'); ch('f-prov', 'prov'); ch('f-afact', 'afact'); ch('f-cajas', 'sinCajas');
+  ch('f-desde', 'desde'); ch('f-hasta', 'hasta'); ch('f-per', 'per'); ch('f-fam', 'fam'); ch('f-sec', 'sec'); ch('f-mot', 'mot'); ch('f-pan', 'pan'); ch('f-cos', 'cos'); ch('f-prov', 'prov'); ch('f-afact', 'afact');
   $('f-art').onchange = e => { F.art = e.target.value.trim(); refrescar(); };
-  if ($('f-limpiar')) $('f-limpiar').onclick = () => { Object.assign(F, { per: '', art: '', fam: '', sec: '', mot: '', pan: '', cos: '', prov: '', afact: false, sinCajas: false }); refrescar(); };
+  if ($('f-limpiar')) $('f-limpiar').onclick = () => { Object.assign(F, { per: '', art: '', fam: '', sec: '', mot: '', pan: '', cos: '', prov: '', afact: false }); refrescar(); };
   document.querySelectorAll('#filtros .rap a').forEach(a => a.onclick = e => { e.preventDefault(); rapido(a.dataset.r); });
 }
 function rapido(r) {
