@@ -330,3 +330,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Planilla FAENA POR DÍA: cuando se edita la planilla FAENA, el programita ahora abre bien FAENA POR DÍA (antes saltaba el cartel rojo de sincronización).
 - Cámara → Opciones (con la planilla conectada): botón "Copiar el código" para actualizar el programita de la planilla.
 - Pedidos: se sacó la propuesta de camiones (Renzo: "VUELVE COMO ANTES"). El código queda en el commit 7bf9d55 por si se quiere retomar.
+- Logística: el menú ⋯ del camión ya no queda cortado (se ve y se puede tocar "Borrar camión" aunque el camión esté vacío).
