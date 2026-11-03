@@ -334,3 +334,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Stock: los kg de PECHO 30216, CARRE 30276, MATAMBRE 30236, BONDIOLA 30105, CHURRASCO 30245 y SOLOMILLO 30287 (depósito 1) se escriben solos en el renglón STOCK INICIAL de la planilla "Stock de Cortes" de Renzo, con fecha y hora, cada vez que llega el stock (vía el programita de FAENA POR DÍA, accion 'stock'; prueba134).
 - Stock → planilla: CHURRASCO es el artículo 30246.
 - Faena y mortalidad: a pedido de Igna (03/11) se deshace el cambio de los muertos A1 del 02/11 (vuelve la versión anterior de ddjj-faena.js y de dj_sync.ps1).
+- COSTILLA (costillar, costillita) se toma como PECHO: la IA la carga en PECHO y los pedidos/planillas que la tengan se pasan solos (el texto no cambia; prueba135).
