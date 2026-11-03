@@ -49,4 +49,4 @@ En vivo: https://qualita-produccion.web.app (links para compartir: `/logistica`,
 - Lecturas de la base (cupo): la app escucha `config` por rangos (`subRangos`: general, rendering2, log-* de los últimos 45 días, rend-* de los últimos 150). No volver a suscribirse a colecciones enteras que crecen todos los días; cada apertura de la app (incluidos los links públicos y las recargas automáticas después de cada publicación) las vuelve a leer completas. El proyecto está en plan Blaze desde el 27/10/2026.
 
 ## Pedidos para más adelante (todavía no se hacen)
-- (Renzo, 25/10/2026) Ir agrupando pedidos y clientes según cómo salen todas las semanas (qué clientes van juntos, qué día, en qué camión), para armar las cargas más rápido. Antes de construirlo, preguntarle bien qué agrupación quiere.
+- (Hecho 02/11/2026, opción 1 elegida por Renzo) Propuesta de camiones en Pedidos (`propuestaDe`/`propuestaHTML`): según los últimos 4 días iguales. Si Renzo dice "VUELVE COMO ANTES", es volver a como estaba antes del último cambio que se le hizo.
