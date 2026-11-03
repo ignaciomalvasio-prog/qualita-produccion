@@ -41,7 +41,7 @@ async function cargar(forzar) {
     S.sinDatos = !txt;
     if (!INS || forzar) INS = (await leerDoc('insumos')).d;
     if (!FOR || forzar) { FOR = (await leerDoc('formulas')).d; if (!FOR.recetas) FOR = formulasIniciales(); }
-    if (forzar) SINS = null;
+    if (forzar) { SINS = null; STC = null; STMAP = null; }
     try { await migrarTripas(); } catch (e) { console.warn('migrarTripas', e); }
     try { await migrarStockLocal(); } catch (e) { console.warn('migrarStockLocal', e); }
     armar();
@@ -110,7 +110,7 @@ function fijarCabeceras() {
 new MutationObserver(() => { clearTimeout(window._fc); window._fc = setTimeout(fijarCabeceras, 30); }).observe(document.getElementById('main'), { childList: true, subtree: false });
 function render() {
   if (!S) return;
-  const f = { inicio: renderInicio, c3: renderC3, insumos: renderInsumos, merc: renderMerc, ventas: renderVentas, caja: renderCaja, cambios: renderCambios, usuarios: renderUsuarios }[TAB];
+  const f = { inicio: renderInicio, c3: renderC3, insumos: renderInsumos, merc: renderMerc, ventas: renderVentas, caja: renderCaja, cambios: renderCambios, usuarios: renderUsuarios, stockc3: renderStockC3 }[TAB];
   f();
 }
 function cabecera(titulo, sub, botones) {
@@ -489,6 +489,151 @@ function matriz(t, hoja) {
   h += '<tr class="tot"><td>Total</td>' + fs.map(f => '<td class="num" data-v="' + r2(totDia(t, f)) + '">' + kg1(totDia(t, f)) + '</td>').join('') + '<td class="num sep" data-v="' + r2(totMes(t)) + '">' + kg1(totMes(t)) + '</td></tr></tbody></table></div>' +
     '<div style="margin-top:8px"><button class="small" onclick="agregarDato(\'' + t + '\')">＋ Agregar a mano</button></div>';
   return h;
+}
+
+/* ================= Ciclo III · Stock de materia prima y productos =================
+   Materia prima: stock inicial + entró (remitos 1→3) − usado (producción × carne de la fórmula) = saldo.
+   Productos: stock inicial + producido − vendido por Ciclo III − enviado al local (remitos 3→5) = saldo.
+   Mes: c3docs/stockc3-AAAA-MM = { ini: { 'mp|Tipo' | 'pt|art': {kg, por, ts} }, usado: { 'mp|Tipo': {kg, sis, por, ts} } }
+   General: c3docs/stockc3-mapa = { map: { art: 'Tipo de carne' } } (qué carne de la fórmula es cada artículo que llega) */
+let STC = null, STCm = '', STMAP = null;
+const MAPA_CARNE = { '361': 'Recorte', '362': 'Recorte', '411': 'Cuero', '600': 'Sangre', '441': 'Carne cabezas' };
+const normT = t => String(t || '').trim().toLowerCase();
+async function asegurarStockC3() {
+  if (!STMAP) STMAP = (await leerDoc('stockc3-mapa')).d;
+  if (!STC || STCm !== M) { STC = (await leerDoc('stockc3-' + M)).d; STCm = M; }
+}
+const mapaCarne = () => Object.assign({}, MAPA_CARNE, STMAP.map || {});
+function tiposCarne() {   // nombres de las carnes de las fórmulas que se usan
+  const t = {};
+  for (const g of GRUPOS) { const r = recetaDe(g.id); if (r) for (const l of r.lineas) if (l.tipo === 'carne' && l.nombre) t[normT(l.nombre)] = t[normT(l.nombre)] || l.nombre; }
+  return t;
+}
+function stockC3() {
+  const mapa = mapaCarne(), tipos = tiposCarne(), ini = STC.ini || {}, uso = STC.usado || {};
+  // materia prima
+  const mp = {};
+  const fila = (k, n) => (mp[k] = mp[k] || { k, nombre: n, arts: [], ini: 0, ent: 0, usoSis: 0, usado: 0, enFormula: false });
+  for (const [k, n] of Object.entries(tipos)) fila(k, n).enFormula = true;
+  for (const a of artsDe('mp')) {
+    const t = mapa[a.art], k = t ? normT(t) : 'art:' + a.art;
+    const x = fila(k, t ? (tipos[normT(t)] || t) : lindo(a.den));
+    x.ent += a.kg; if (!x.arts.includes(a.art)) x.arts.push(a.art);
+  }
+  for (const p of artsDe('prod')) {
+    const r = recetaDe(grupoDe(p.art, p.den)); if (!r) continue;
+    const b = baseReceta(r); if (!b) continue;
+    for (const l of r.lineas) if (l.tipo === 'carne' && Number(l.cant)) fila(normT(l.nombre), l.nombre).usoSis += p.kg * Number(l.cant) / b;
+  }
+  for (const x of Object.values(mp)) {
+    const i = ini['mp|' + x.k]; x.ini = i ? Number(i.kg) || 0 : 0; x.iniCargado = !!i;
+    const u = uso['mp|' + x.k]; x.usadoAj = u; x.usado = u ? Number(u.kg) || 0 : x.usoSis;
+    x.saldo = x.ini + x.ent - x.usado;
+  }
+  // productos
+  const pt = {};
+  const prod = (art, den) => (pt[art] = pt[art] || { art, den, ini: 0, prod: 0, venta: 0, local: 0 });
+  for (const a of artsDe('prod')) prod(a.art, a.den).prod += a.kg;
+  for (const v of ventasC3()) prod(v.art, v.den).venta += v.kg;
+  for (const a of artsDe('emb')) prod(a.art, a.den).local += a.kg;
+  for (const [k, i] of Object.entries(ini)) if (k.startsWith('pt|')) { const x = prod(k.slice(3), i.den || k.slice(3)); x.ini = Number(i.kg) || 0; x.iniCargado = true; }
+  for (const x of Object.values(pt)) x.saldo = x.ini + x.prod - x.venta - x.local;
+  return { mp: Object.values(mp).filter(x => x.enFormula || x.ent || x.ini || x.usado).sort((a, b) => (b.enFormula - a.enFormula) || (b.ent - a.ent)), pt: Object.values(pt) };
+}
+async function renderStockC3() {
+  $('main').innerHTML = cabecera('Ciclo III · Stock', '', '') + '<div class="cargando"><span class="spin"></span> Leyendo…</div>';
+  try { await asegurarStockC3(); } catch (e) { $('main').innerHTML += '<div class="alerta bad">' + esc(e.message) + '</div>'; return; }
+  if (TAB !== 'stockc3') return;
+  const st = stockC3();
+  const kgc = v => (Math.abs(v) < 0.05 ? '' : kg1(v));
+  const sal = v => '<b' + (v < -0.5 ? ' style="color:var(--bad)"' : '') + '>' + kg1(v) + '</b>';
+  let h = cabecera('Ciclo III · Stock', 'Stock inicial + lo que entra − lo que sale = saldo. Clic en el stock inicial para cargarlo (lo que había al empezar el mes).', '');
+  // materia prima
+  const T = st.mp.reduce((a, x) => (a.ini += x.ini, a.ent += x.ent, a.usado += x.usado, a.saldo += x.saldo, a), { ini: 0, ent: 0, usado: 0, saldo: 0 });
+  h += '<section><h2>Materia prima (carne)</h2><p class="sub">Entró = remitos del frigorífico a Ciclo III. Usado = kilos producidos × la carne de cada fórmula (pestaña Insumos › Fórmulas); clic para corregirlo. Clic en el nombre para ver qué artículos suma.</p>' +
+    '<div class="tw" style="max-height:none"><table class="planilla xl" data-hoja="Stock materia prima"><thead><tr><th>Carne</th><th class="num">Stock inicial</th><th class="num">+ Entró</th><th class="num">− Usado</th><th class="num sep">Saldo final</th></tr></thead><tbody>' +
+    st.mp.map(x => '<tr><td class="ed nom" onclick="verCarne(\'' + esc(x.k) + '\')"><b>' + esc(x.nombre) + '</b>' + (x.arts.length ? ' <small class="muted">' + esc(x.arts.join(', ')) + '</small>' : '') + (!x.enFormula ? '<br><span class="chip sm mut">no está en ninguna fórmula</span>' : '') + '</td>' +
+      '<td class="num ed' + (x.iniCargado ? ' man' : '') + '" onclick="editarIniC3(\'mp|' + esc(x.k) + '\',\'' + esc(x.nombre) + '\')" data-v="' + r2(x.ini) + '">' + (x.iniCargado ? kg1(x.ini) : '<span class="muted">＋</span>') + '</td>' +
+      '<td class="num" data-v="' + r2(x.ent) + '">' + kgc(x.ent) + '</td>' +
+      '<td class="num ed' + (x.usadoAj ? ' aj' : '') + '" onclick="editarUsoC3(\'' + esc(x.k) + '\',\'' + esc(x.nombre) + '\',' + r2(x.usoSis) + ')" data-v="' + r2(x.usado) + '" title="' + (x.usadoAj ? 'Escrito a mano · según fórmula: ' + kg1(x.usoSis) : 'Según la producción y la fórmula · clic para corregir') + '">' + kgc(x.usado) + (x.usadoAj ? '<span class="sisn">fórmula ' + (kg1(x.usoSis) || '0') + '</span>' : '') + '</td>' +
+      '<td class="num sep" data-v="' + r2(x.saldo) + '">' + sal(x.saldo) + '</td></tr>').join('') +
+    '<tr class="tot"><td>Total</td><td class="num">' + kg1(T.ini) + '</td><td class="num">' + kg1(T.ent) + '</td><td class="num">' + kg1(T.usado) + '</td><td class="num sep">' + kg1(T.saldo) + '</td></tr></tbody></table></div></section>';
+  // productos agrupados
+  let hp = '';
+  const TP = { ini: 0, prod: 0, venta: 0, local: 0, saldo: 0 };
+  for (const [gid, gn] of G3) {
+    const it = st.pt.filter(x => g3De(x.art, x.den) === gid).sort((a, b) => Number(a.art) - Number(b.art)); if (!it.length) continue;
+    const t = it.reduce((a, x) => { for (const k in TP) a[k] += x[k]; return a; }, { ini: 0, prod: 0, venta: 0, local: 0, saldo: 0 });
+    for (const k in TP) TP[k] += t[k];
+    hp += '<tr class="grp" onclick="toggleGrp(this)" data-g="s-' + gid + '"><td><span class="flecha">▸</span> <b>' + gn + '</b> <small class="muted">' + it.length + (it.length > 1 ? ' productos' : ' producto') + '</small></td>' +
+      ['ini', 'prod', 'venta', 'local'].map(k => '<td class="num"><b>' + kgc(t[k]) + '</b></td>').join('') + '<td class="num sep">' + sal(t.saldo) + '</td></tr>' +
+      it.map(x => '<tr class="hijo" data-p="s-' + gid + '" hidden><td>' + esc(lindo(x.den)) + ' <small class="muted">' + esc(x.art) + '</small></td>' +
+        '<td class="num ed' + (x.iniCargado ? ' man' : '') + '" onclick="editarIniC3(\'pt|' + esc(x.art) + '\',\'' + esc(lindo(x.den)) + '\')" data-v="' + r2(x.ini) + '">' + (x.iniCargado ? kg1(x.ini) : '<span class="muted">＋</span>') + '</td>' +
+        '<td class="num" data-v="' + r2(x.prod) + '">' + kgc(x.prod) + '</td><td class="num" data-v="' + r2(x.venta) + '">' + kgc(x.venta) + '</td><td class="num" data-v="' + r2(x.local) + '">' + kgc(x.local) + '</td>' +
+        '<td class="num sep" data-v="' + r2(x.saldo) + '">' + sal(x.saldo) + '</td></tr>').join('');
+  }
+  h += '<section><h2>Productos (embutidos)</h2><p class="sub">Producido = parte de producción del sistema. Vendido = facturado por Ciclo III. Al local = remitos 3→5. Clic en Chorizo, Morcilla o Salchicha para ver cada producto y cargar su stock inicial.</p>' +
+    '<div class="tw" style="max-height:none"><table class="planilla xl" data-hoja="Stock productos"><thead><tr><th>Producto</th><th class="num">Stock inicial</th><th class="num">+ Producido</th><th class="num">− Vendido</th><th class="num">− Al local</th><th class="num sep">Saldo final</th></tr></thead><tbody>' + hp +
+    '<tr class="tot"><td>Total</td><td class="num">' + kg1(TP.ini) + '</td><td class="num">' + kg1(TP.prod) + '</td><td class="num">' + kg1(TP.venta) + '</td><td class="num">' + kg1(TP.local) + '</td><td class="num sep">' + kg1(TP.saldo) + '</td></tr></tbody></table></div>' +
+    '<div style="margin-top:8px"><button class="small" onclick="agregarIniPt()">＋ Stock inicial de otro producto</button></div></section>';
+  h += '<p class="nota">El saldo final de un mes es el stock inicial del siguiente: a fin de mes, contá y cargalo como stock inicial del mes nuevo.</p>';
+  $('main').innerHTML = h;
+}
+function editarIniC3(k, nombre) {
+  const x = (STC.ini || {})[k];
+  abrirDlg('Stock inicial · ' + esc(nombre),
+    '<div class="sis">Lo que había al empezar ' + nombreMes(M) + ' (kg). Vacío = sin stock inicial.</div><div class="campos"><label>Kilos</label><input id="sc-v" class="big-num" value="' + (x ? fmtE(x.kg, 2) : '') + '"></div>',
+    [['Cancelar', cerrarDlg], ['Guardar', async () => {
+      const n = leerNum($('sc-v').value); if (Number.isNaN(n)) { toast('Número inválido', true); return; }
+      try {
+        STC = await cambiarDoc('stockc3-' + M, d => { d.ini = d.ini || {}; if (n == null) delete d.ini[k]; else d.ini[k] = { kg: n, den: nombre, por: quien(), ts: new Date().toISOString() }; },
+          'Stock inicial Ciclo III ' + nombreMes(M) + ' · ' + nombre + ': ' + (n == null ? 'borrado' : kg1(n) + ' kg'));
+        cerrarDlg(); renderStockC3(); toast('Guardado');
+      } catch (e) { toast(e.message, true); }
+    }, 'primary']]);
+  setTimeout(() => $('sc-v') && $('sc-v').focus(), 50);
+}
+function editarUsoC3(k, nombre, sis) {
+  const x = (STC.usado || {})['mp|' + k];
+  abrirDlg('Usado en el mes · ' + esc(nombre),
+    '<div class="sis">Según la producción y la fórmula: <b>' + (kg1(sis) || '0') + ' kg</b>. Si se usó otra cantidad, escribila. Vacío = vuelve a la fórmula.</div><div class="campos"><label>Kilos usados</label><input id="su-v" class="big-num" value="' + (x ? fmtE(x.kg, 2) : '') + '" placeholder="' + fmtE(sis, 1) + '"></div>',
+    [['Cancelar', cerrarDlg], ['Guardar', async () => {
+      const n = leerNum($('su-v').value); if (Number.isNaN(n)) { toast('Número inválido', true); return; }
+      try {
+        STC = await cambiarDoc('stockc3-' + M, d => { d.usado = d.usado || {}; if (n == null) delete d.usado['mp|' + k]; else d.usado['mp|' + k] = { kg: n, sis: r2(sis), por: quien(), ts: new Date().toISOString() }; },
+          'Carne usada Ciclo III ' + nombreMes(M) + ' · ' + nombre + ': ' + (n == null ? 'vuelve a la fórmula (' + kg1(sis) + ')' : kg1(sis) + ' → ' + kg1(n) + ' kg'));
+        cerrarDlg(); renderStockC3(); toast('Guardado');
+      } catch (e) { toast(e.message, true); }
+    }, 'primary']]);
+  setTimeout(() => $('su-v') && $('su-v').focus(), 50);
+}
+/* Qué artículos de carne suma cada renglón y a qué carne de la fórmula van */
+function verCarne(k) {
+  const tipos = tiposCarne(), mapa = mapaCarne();
+  const arts = {}; for (const a of artsDe('mp')) arts[a.art] = lindo(a.den);
+  for (const a of Object.keys(mapa)) arts[a] = arts[a] || a;
+  const ops = a => '<option value="">— ninguna (renglón aparte) —</option>' + Object.values(tipos).map(t => '<option' + (normT(mapa[a]) === normT(t) ? ' selected' : '') + '>' + esc(t) + '</option>').join('');
+  abrirDlg('Carnes que llegan a Ciclo III',
+    '<p class="sub">Elegí a qué carne de las fórmulas corresponde cada artículo que llega por remito. Así lo que entra se descuenta con lo que pide la fórmula.</p><table class="lista-ed"><thead><tr><th>Artículo</th><th>Carne de la fórmula</th></tr></thead><tbody>' +
+    Object.entries(arts).sort((a, b) => Number(a[0]) - Number(b[0])).map(([a, d]) => '<tr><td>' + esc(d) + ' <small class="muted">' + esc(a) + '</small></td><td><select data-art="' + esc(a) + '">' + ops(a) + '</select></td></tr>').join('') + '</tbody></table>',
+    [['Cancelar', cerrarDlg], ['Guardar', async () => {
+      const nuevo = {}; document.querySelectorAll('#dlg-b select[data-art]').forEach(s => nuevo[s.dataset.art] = s.value);
+      try {
+        STMAP = await cambiarDoc('stockc3-mapa', d => { d.map = nuevo; }, 'Carnes de Ciclo III: ' + Object.entries(nuevo).map(([a, t]) => a + '→' + (t || 'aparte')).join(', '));
+        cerrarDlg(); renderStockC3(); toast('Guardado');
+      } catch (e) { toast(e.message, true); }
+    }, 'primary']]);
+}
+function agregarIniPt() {
+  const ops = {}; for (const a of artsDe('prod').concat(artsDe('emb'))) ops[a.art] = lindo(a.den);
+  for (const g of GRUPOS) for (const a of g.arts || []) ops[a] = ops[a] || a;
+  abrirDlg('Stock inicial de un producto', '<div class="campos"><label>Código del producto</label><input id="ap-a" list="ap-l" placeholder="ej: 2000"><datalist id="ap-l">' + Object.entries(ops).map(([a, d]) => '<option value="' + esc(a) + '">' + esc(d) + '</option>').join('') + '</datalist><label>Nombre</label><input id="ap-n"><label>Kilos</label><input id="ap-k" class="big-num"></div>',
+    [['Cancelar', cerrarDlg], ['Guardar', async () => {
+      const a = $('ap-a').value.trim(), n = leerNum($('ap-k').value), nom = $('ap-n').value.trim() || ops[a] || a;
+      if (!a || n == null || Number.isNaN(n)) { toast('Falta el código o los kilos', true); return; }
+      try { STC = await cambiarDoc('stockc3-' + M, d => { d.ini = d.ini || {}; d.ini['pt|' + a] = { kg: n, den: nom, por: quien(), ts: new Date().toISOString() }; }, 'Stock inicial Ciclo III ' + nombreMes(M) + ' · ' + nom + ': ' + kg1(n) + ' kg'); cerrarDlg(); renderStockC3(); toast('Guardado'); }
+      catch (e) { toast(e.message, true); }
+    }, 'primary']]);
 }
 
 /* ================= Local · Ventas ================= */
