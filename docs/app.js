@@ -1195,6 +1195,42 @@
     }).join('') + '</tbody></table>';
     return h;
   }
+
+  /* Stock → planilla "Stock de Cortes" de Renzo (renglón STOCK INICIAL): kg del depósito 1 · Frigorífico de estos artículos.
+     Va por el mismo programita de la planilla FAENA POR DÍA (accion 'stock'); el id de la planilla queda en privado/camara-ajustes. */
+  var STK_CORTES = [['PECHO', [30216]], ['CARRE', [30276]], ['MATAMBRE', [30236]], ['BONDIOLA', [30105]], ['CHURRASCO', [30245]], ['SOLOMILLO', [30287]]];
+  function stkHoja() { var a = (S.cam || {}).ajustes, x = a && a.stockSheet; return x && x.id ? x : null; }
+  function stkValores() {
+    var st = S.stock || {}, out = {}, hay = {};
+    STK_CORTES.forEach(function (c) { out[c[0]] = 0; });
+    (st.filas || []).forEach(function (r) { if (String(r.f) !== '1') return; STK_CORTES.forEach(function (c) { if (c[1].indexOf(+r.a) >= 0) { out[c[0]] += +r.kg || 0; hay[c[0]] = true; } }); });
+    return { v: out, hay: hay };
+  }
+  function stkMandar(forzar) {
+    var sh = camSheet(), x = stkHoja(), st = S.stock;
+    if (!S.camaraOk || !sh || !x || !st || !st.ts || S._stkEnv) return Promise.resolve();
+    if (!forzar && (x.ts === st.ts)) return Promise.resolve();
+    S._stkEnv = st.ts; var ts = st.ts, sv = stkValores(), val = {};
+    // Un corte que no aparece en el stock ni en la lista de artículos no se toca (puede ser un N° mal puesto): mejor no pisar con 0.
+    STK_CORTES.forEach(function (c) { if (sv.hay[c[0]] || c[1].some(function (a) { return (st.arts || {})[String(a)]; })) val[c[0]] = sv.v[c[0]]; });
+    var dt = new Date(+ts > 1e12 ? +ts : +ts * 1000), fe = +ts > 1e9 ? dt.getDate() + '/' + (dt.getMonth() + 1) + ' ' + ('0' + dt.getHours()).slice(-2) + ':' + ('0' + dt.getMinutes()).slice(-2) : String(st.actualizado || '');
+    return camPedir(sh.url, { k: sh.k, accion: 'stock', id: x.id, fecha: fe, valores: val }).then(function (r) {
+      S._stkEnv = null;
+      if (r && r.ok && r.stock) { S.stkErr = ''; return camAjustes({ stockSheet: { id: x.id, ts: ts, cuando: String(st.actualizado || '') } }).then(function () { if (S.tab === 'stock' && !escribiendo()) renderStock(); }); }
+      S.stkErr = r && r.ok ? 'Falta poner el código nuevo en la planilla FAENA POR DÍA (Cámara → Opciones → "Copiar el código") y hacer una versión nueva en Implementar.' : 'La planilla no respondió bien' + (r && r.error ? ': ' + r.error : '.');
+      if (S.tab === 'stock' && !escribiendo()) renderStock();
+    }, function () { S._stkEnv = null; S.stkErr = 'No pude conectarme con la planilla. Revisá internet.'; if (S.tab === 'stock' && !escribiendo()) renderStock(); });
+  }
+  function stkPanelHTML() {
+    if (!S.camaraOk) return '';
+    var x = stkHoja(), sv = stkValores(), dosDec = function (v) { return n(Math.round(v)); };
+    var h = '<div class="panel stk-hoja"><div class="cam-cab"><h3>Planilla "Stock de Cortes"</h3><span class="small muted">🔒 Solo vos · depósito 1 · Frigorífico</span></div>';
+    if (!camSheet()) return h + '<p class="small">Primero hay que tener conectada la planilla de Cámara (FAENA POR DÍA): el stock pasa por el mismo programita.</p></div>';
+    h += '<p class="stk-cortes">' + STK_CORTES.map(function (c) { return '<span><b>' + esc(c[0]) + '</b> ' + (sv.hay[c[0]] ? dosDec(sv.v[c[0]]) + ' kg' : '<span class="neg">no está en el stock (art. ' + c[1].join(', ') + ')</span>') + '</span>'; }).join('') + '</p>';
+    if (!x) return h + '<div class="stk-con"><input type="url" id="stk-url" placeholder="Pegá el link de la planilla Stock de Cortes" autocomplete="off"><button class="btn pri" data-act="stk-conectar">Conectar</button></div>' + (S.stkErr ? '<p class="small neg">' + esc(S.stkErr) + '</p>' : '') + '</div>';
+    return h + '<p class="small">' + (S.stkErr ? '<span class="neg">' + esc(S.stkErr) + '</span>' : x.ts ? '⇄ Se actualiza sola en el renglón STOCK INICIAL cada vez que llega el stock. Última: ' + esc(x.cuando || '') + '.' : 'Conectada. Todavía no se mandó.') + '</p>'
+      + '<div class="acciones"><button class="btn sm" data-act="stk-ya">Mandar ahora</button><button class="btn sm" data-act="stk-quitar">' + (S._c2 === 'stk-quitar' ? '¿Seguro? Tocá de nuevo' : 'Desconectar') + '</button></div></div>';
+  }
   function renderStock() {
     var el = $('view-stock');
     if (!S.editor) { el.innerHTML = '<div class="panel"><p class="state">Para ver el stock hay que ingresar con una cuenta autorizada.</p></div>'; return; }
@@ -1212,7 +1248,7 @@
       + '<label class="campo stk-d"><span>Depósito</span><select id="st-dep"><option value="">Todos</option>' + deps.map(function (d) { return '<option value="' + esc(d.f) + '"' + (String(F.dep) === String(d.f) ? ' selected' : '') + '>' + esc(d.f + ' · ' + d.n) + '</option>'; }).join('') + '</select></label>'
       + ((F.q || F.fd || F.fh || F.dep) ? '<button class="btn sm" data-act="st-limpiar">Limpiar filtros</button>' : '') + '</div>'
       + (!(st.fechas || []).length ? '<p class="small muted">Las fechas de producción todavía no llegaron del sistema.</p>' : '') + '<div id="st-res">' + stockResHTML() + '</div></div>';
-    el.innerHTML = h;
+    el.innerHTML = stkPanelHTML() + h;
   }
   function renderClientes() {
     var el = $('view-clientes');
@@ -4000,6 +4036,9 @@
     else if (a === 'cam-sheet-conectar') { var cu2 = $('cam-sheet-url'); S.camSheetUrl = cu2 ? cu2.value : ''; camConectar(S.camSheetUrl); }
     else if (a === 'cam-sync-ya') { camEstado('Trayendo tu Google Sheet…'); camTraer(true); }
     else if (a === 'cam-sheet-subir') { camMandar([S.camLun || lunesDe(camDiaRef())]); S.camSheetAbierto = false; renderCamara(); }
+    else if (a === 'stk-conectar') { var mu = String(($('stk-url') || {}).value || '').match(/\/d\/([a-zA-Z0-9_-]{20,})/); if (!mu) { S.stkErr = 'Ese link no parece el de una planilla de Google. Copialo completo desde la barra de arriba.'; renderStock(); return; } S.stkErr = ''; camAjustes({ stockSheet: { id: mu[1] } }).then(function () { renderStock(); return stkMandar(true); }); }
+    else if (a === 'stk-ya') { stkMandar(true); }
+    else if (a === 'stk-quitar') { if (!confirma('stk-quitar')) { renderStock(); return; } S.stkErr = ''; camAjustes({ stockSheet: null }).then(renderStock); }
     else if (a === 'cam-sheet-quitar') { if (!confirma('cam-sheet-quitar')) { renderCamara(); return; } camAjustes({ sheet: null }).then(function () { S.camSheetAbierto = false; S.camSyncMsg = null; renderCamara(); }); }
     else if (a === 'cam-sem') { S.camLun = mas(S.camLun || lunesDe(camDiaRef()), +D.d); render(); }
     else if (a === 'cam-hoy') { S.camLun = lunesDe(camDiaRef()); render(); }
@@ -4655,6 +4694,7 @@
 
   function mockStore(m) {
     var subs = {}, authCb = null;
+    m.emitir = function (c) { emit(c); };   // para las pruebas: avisar un cambio de la base
     function emit(c) { var docs = Object.keys(m.data[c] || {}).map(function (id) { var o = clone(m.data[c][id]); o.id = id; return o; }); (subs[c] || []).forEach(function (f) { f(docs); }); }
     return {
       sub: function (c, cb) { (subs[c] = subs[c] || []).push(cb); setTimeout(function () { emit(c); }, 0); },
@@ -4787,14 +4827,14 @@
               var tn = {}, antesTn = JSON.stringify(S.tun || {});
               l.forEach(function (x) { var k = String(x.id); if (k.indexOf('tunel-') === 0) { var o = clone(x); o.id = k.slice(6); tn[o.id] = o; } });
               S.tun = tn; if (JSON.stringify(tn) !== antesTn && S.tab === 'tunel' && !S.tuEd && !escribiendo()) renderTunel();
-              S.cam = cm; S.camListo = true; if (JSON.stringify(cm) !== antesCm && S.camaraOk && (S.tab === 'camara' || S.tab === 'inicio') && !escribiendo() && !S.camPegar) render();
+              S.cam = cm; S.camListo = true; setTimeout(function () { stkMandar(); }, 0); if (JSON.stringify(cm) !== antesCm && S.camaraOk && (S.tab === 'camara' || S.tab === 'inicio') && !escribiendo() && !S.camPegar) render();
               var cl = l.filter(function (x) { return x.id === 'clientes'; })[0], antesC = JSON.stringify(clientes());
               S.clientes = (cl && cl.lista) || [];
               if (JSON.stringify(S.clientes) !== antesC) { conciliarLog(); renderDatos(); }
               var pap = l.filter(function (x) { return x.id === 'papelera'; })[0], antesP = JSON.stringify(S.papelera || []); S.papelera = (pap && pap.items) || [];
               if (JSON.stringify(S.papelera) !== antesP && S.tab === 'pedidos' && !ocupado()) renderPedidos();
               var stk = l.filter(function (x) { return x.id === 'stock'; })[0], antesSt = S.stock ? S.stock.ts : null; S.stock = stk || null;
-              if ((S.stock ? S.stock.ts : null) !== antesSt && S.tab === 'stock' && !escribiendo()) renderStock();
+              if ((S.stock ? S.stock.ts : null) !== antesSt && S.tab === 'stock' && !escribiendo()) renderStock(); stkMandar();
               var chf = l.filter(function (x) { return x.id === 'choferes'; })[0], antesCh = JSON.stringify(S.choferes || null); S.choferes = chf || null;
               if (JSON.stringify(S.choferes || null) !== antesCh && S.tab === 'logistica' && S.resumen && !ocupado()) render();
               var imp = l.filter(function (x) { return x.id === 'impresora'; })[0], antesI = impEstado(); S.impresora = imp || null;

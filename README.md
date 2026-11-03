@@ -331,3 +331,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Cámara → Opciones (con la planilla conectada): botón "Copiar el código" para actualizar el programita de la planilla.
 - Pedidos: se sacó la propuesta de camiones (Renzo: "VUELVE COMO ANTES"). El código queda en el commit 7bf9d55 por si se quiere retomar.
 - Logística: el menú ⋯ del camión ya no queda cortado (se ve y se puede tocar "Borrar camión" aunque el camión esté vacío).
+- Stock: los kg de PECHO 30216, CARRE 30276, MATAMBRE 30236, BONDIOLA 30105, CHURRASCO 30245 y SOLOMILLO 30287 (depósito 1) se escriben solos en el renglón STOCK INICIAL de la planilla "Stock de Cortes" de Renzo, con fecha y hora, cada vez que llega el stock (vía el programita de FAENA POR DÍA, accion 'stock'; prueba134).

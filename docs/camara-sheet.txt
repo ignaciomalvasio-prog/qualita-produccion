@@ -31,12 +31,13 @@ function manejar_(p, cuerpo) {
     return { ok: true, token: tk, semanas: leer_(hoja_()) };
   }
   if (p.k !== tk) return { ok: false, error: 'clave incorrecta' };
+  if (cuerpo && cuerpo.accion === 'stock') return stockCortes_(cuerpo);
   var lock = LockService.getScriptLock(); lock.waitLock(25000);
   try {
     var sh = hoja_();
     if (cuerpo && cuerpo.semanas && cuerpo.semanas.length) escribir_(sh, cuerpo.semanas);
     var est = null; try { est = JSON.parse(pr.getProperty('ESTADO_VENTA') || 'null'); } catch (x) {}
-    return { ok: true, semanas: leer_(sh), estadoVenta: est, version: 2 };
+    return { ok: true, semanas: leer_(sh), estadoVenta: est, version: 3 };
   } finally { lock.releaseLock(); }
 }
 // La hoja Faena-Desposte. Cuando corre por un cambio en la planilla FAENA, "la activa" es FAENA: ahí se abre FAENA POR DÍA por su id.
@@ -261,4 +262,22 @@ function onOpen() {
   sh.setActiveRange(sh.getRange(Math.min(sh.getMaxRows(), fila + 60), 1));   // primero abajo, así al volver la semana queda arriba
   SpreadsheetApp.flush();
   sh.setActiveRange(sh.getRange(fila + 1, col));
+}
+
+// ---------- STOCK de la app → planilla "Stock de Cortes" (renglón STOCK INICIAL) ----------
+// La app manda los kg de cada corte (depósito 1 · Frigorífico); acá se escriben debajo del encabezado de cada corte.
+function stockCortes_(b) {
+  var ss; try { ss = SpreadsheetApp.openById(String(b.id || '')); } catch (e) { return { ok: false, error: 'No pude abrir la planilla Stock de Cortes: ' + e.message }; }
+  var sh = ss.getSheetByName('Stock de Cortes') || ss.getSheets()[0], n = Math.min(sh.getLastRow(), 40), txt = sh.getRange(1, 1, n, sh.getLastColumn()).getDisplayValues();
+  var fCab = -1, fIni = -1, cIni = -1;
+  for (var r = 0; r < n; r++) for (var c = 0; c < txt[r].length; c++) {
+    var t = norm_(txt[r][c]);
+    if (fCab < 0 && t === 'PECHO') fCab = r;
+    if (fIni < 0 && t.indexOf('STOCK INICIAL') === 0) { fIni = r; cIni = c; }
+  }
+  if (fCab < 0 || fIni < 0) return { ok: false, error: 'No encuentro el encabezado (PECHO…) o el renglón STOCK INICIAL en la planilla.' };
+  var escritos = 0, v = b.valores || {};
+  txt[fCab].forEach(function (cel, c) { var k = norm_(cel); if (k && v[k] != null && !isNaN(+v[k])) { sh.getRange(fIni + 1, c + 1).setValue(Math.round(+v[k])); escritos++; } });
+  if (b.fecha) sh.getRange(fIni + 1, cIni + 1).setValue('STOCK INICIAL (' + b.fecha + ')');
+  return { ok: true, stock: true, escritos: escritos };
 }
