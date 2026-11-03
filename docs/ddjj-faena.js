@@ -31,6 +31,9 @@ function parseAnual(txt) {
 /* Muertos de la playa de emergencia (pedido de Sabi 30/10): en la consulta de faena, un renglón de lista A1 con 1 sola cabeza
    de una tropa de más de un animal es un animal muerto en corrales (si la tropa es solo ese animal, no cuenta). Renglones FE de dj_sync.ps1.
    Si el mismo muerto ya está en la tabla de muertos del sistema o cargado a mano (misma tropa y fecha, en corral), no se repite. */
+/* Muertos por mes de años cerrados, tomados de la planilla RESUMEN PRODUCCIÓN.xlsx (hoja MUERTOS; pedido de Sabi 03/11): incluyen los de la
+   playa de emergencia, que los datos del sistema de esos años no tienen. Se usan para la comparación con el año anterior. */
+const MU_PLANILLA = { 2025: [38, 18, 37, 30, 24, 16, 28, 20, 23, 41, 44, 26] };
 function muertosA1() {
   if (!S.anual || !S.anual.fe) return [];
   const otros = (S.anual.mu || []).concat((S.muertos && S.muertos.lista) || []);
@@ -70,6 +73,8 @@ function renderFaena() {
   const fa = meses.map(i => faenaMes(A, i)), fb = meses.map(i => faenaMes(Ant, i));
   const MU = muertosAnio(A), MUb = muertosAnio(Ant);
   const muMes = (L, i, lugar) => L.filter(m => Number(m.fecha.slice(5, 7)) === i + 1 && (!lugar || m.lugar === lugar)).reduce((t, m) => t + m.cab, 0);
+  /* año con totales por mes de la planilla (incluyen la playa de emergencia, que el sistema no tiene): se usan esos en lugar de los del sistema */
+  const PLm = y => MU_PLANILLA[y] || null, muAnt = i => PLm(Ant) ? PLm(Ant)[i] : muMes(MUb, i), totAnt = () => PLm(Ant) ? PLm(Ant).reduce((a, x) => a + x, 0) : sum(MUb, 'cab');
   const sum = (L, k) => L.reduce((t, x) => t + (x[k] || 0), 0);
 
   /* ---- faena ---- */
@@ -87,16 +92,16 @@ function renderFaena() {
     '<p class="muted" style="font-size:12.5px;margin-top:6px">"Dif." compara contra el mismo mes de ' + Ant + '. El total del año anterior es el año completo; la diferencia del total compara solo los meses con faena de ' + A + '.</p></section>';
 
   /* ---- mortalidad ---- */
-  h += '<section><h2>Mortalidad ' + A + '</h2><p class="sub">Muertos en viaje y en corral sobre las cabezas faenadas. Salen de la tabla de muertos del sistema; los que no estén cargados se agregan abajo (quedan marcados "a mano").</p>';
-  h += grafBarras(meses.map(i => ({ n: MESES3[i], a: muMes(MUb, i), b: muMes(MU, i) })), String(Ant), String(A));
+  h += '<section><h2>Mortalidad ' + A + '</h2><p class="sub">Muertos en viaje y en corral sobre las cabezas faenadas. Salen de la tabla de muertos del sistema; los que no estén cargados se agregan abajo (quedan marcados "a mano").' + (PLm(Ant) ? ' Los de ' + Ant + ' son los de la planilla RESUMEN PRODUCCIÓN (incluyen la playa de emergencia).' : '') + '</p>';
+  h += grafBarras(meses.map(i => ({ n: MESES3[i], a: muAnt(i), b: muMes(MU, i) })), String(Ant), String(A));
   h += '<div class="tw"><table class="planilla dj-rm"><thead><tr><th>Mes</th><th class="num">Muertos ' + Ant + '</th><th class="num">Muertos ' + A + '</th><th class="num">Corral</th><th class="num">Viaje</th><th class="num">Faena</th><th class="num">% mortalidad</th></tr></thead><tbody>';
   meses.forEach(i => {
-    const b = muMes(MU, i), a = muMes(MUb, i);
+    const b = muMes(MU, i), a = muAnt(i);
     if (!a && !b && !fa[i].cab) return;
     h += '<tr><td><b>' + MESES[i] + '</b></td><td class="num">' + z0(a) + '</td><td class="num">' + z0(b) + '</td><td class="num">' + z0(muMes(MU, i, 'CORRAL')) + '</td><td class="num">' + z0(muMes(MU, i, 'VIAJE')) + '</td><td class="num">' + z0(fa[i].cab) + '</td><td class="num">' + (fa[i].cab ? pct2(b / fa[i].cab) : '') + '</td></tr>';
   });
   const tm = sum(MU, 'cab');
-  h += '<tr class="tot"><td>Total</td><td class="num">' + z0(sum(MUb, 'cab')) + '</td><td class="num">' + z0(tm) + '</td><td class="num">' + z0(sum(MU.filter(m => m.lugar === 'CORRAL'), 'cab')) + '</td><td class="num">' + z0(sum(MU.filter(m => m.lugar === 'VIAJE'), 'cab')) + '</td><td class="num">' + z0(T('cab')) + '</td><td class="num">' + (T('cab') ? pct2(tm / T('cab')) : '') + '</td></tr></tbody></table></div></section>';
+  h += '<tr class="tot"><td>Total</td><td class="num">' + z0(totAnt()) + '</td><td class="num">' + z0(tm) + '</td><td class="num">' + z0(sum(MU.filter(m => m.lugar === 'CORRAL'), 'cab')) + '</td><td class="num">' + z0(sum(MU.filter(m => m.lugar === 'VIAJE'), 'cab')) + '</td><td class="num">' + z0(T('cab')) + '</td><td class="num">' + (T('cab') ? pct2(tm / T('cab')) : '') + '</td></tr></tbody></table></div></section>';
 
   /* ---- informe por granja (La Quimera) ---- */
   const lq = eqF().lq, TQ = (S.anual.tq || []).filter(t => t.mes.startsWith(String(A)) && lq.includes(t.cue)), MQ = MU.filter(m => lq.includes(m.cue) || (m.man && m.lq));
