@@ -329,3 +329,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Sincronización de planillas con aviso: el programita de FAENA POR DÍA anota si la venta de FAENA pasa bien (semana de hoy encontrada en las dos planillas); la app muestra un cartel rojo grande en Inicio y Cámara si el código está viejo, si no encuentra la semana de hoy (formato cambiado) o si la venta dejó de pasar. Se revisa al abrir y cada 10 minutos.
 - Planilla FAENA POR DÍA: cuando se edita la planilla FAENA, el programita ahora abre bien FAENA POR DÍA (antes saltaba el cartel rojo de sincronización).
 - Cámara → Opciones (con la planilla conectada): botón "Copiar el código" para actualizar el programita de la planilla.
+- Pedidos: propuesta de camiones arriba de la lista según cómo salieron los últimos días iguales (martes con martes); se sacan o suman clientes y se arma con un toque (prueba134). Para volver atrás: "VUELVE COMO ANTES" = sacar propuestaHTML.

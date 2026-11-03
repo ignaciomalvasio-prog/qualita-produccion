@@ -2713,6 +2713,61 @@
   // Cuándo se cargó un pedido (para mostrar arriba los últimos): el campo "alta" o, en los viejos, la hora que va en su id.
   function altaDe(p) { if (+p.alta > 0) return +p.alta; var mm = /^[a-z]([0-9a-z]{8})/.exec(String(p.id || '')), t = mm ? parseInt(mm[1], 36) : 0; return t > 1.6e12 && t < 4e12 ? t : 0; }
   function ultimosArriba(l) { return l.map(function (p, i) { return [p, i]; }).sort(function (a, b) { return altaDe(b[0]) - altaDe(a[0]) || a[1] - b[1]; }).map(function (x) { return x[0]; }); }
+  /* Propuesta de camiones (pedido de Renzo, 02/11/2026): mira cómo salieron los camiones los últimos días iguales
+     (miércoles con miércoles) y propone armar los de hoy con los clientes sin camión. Se puede sacar o sumar clientes antes de armar. */
+  function propCli(p) { var c = String(p.cuenta || '').trim(), k = []; if (c) k.push('#' + c); if (p.cliente) k.push(norm(p.cliente)); return k; }
+  function propuestaDe(f, lista) {
+    var g = fecha(f).getDay(), todos = logsTodos(), dias = Object.keys(todos).filter(function (d) { return d < f && d >= mas(f, -60) && fecha(d).getDay() === g && ((todos[d] || {}).camiones || []).length; }).sort().reverse().slice(0, 4);
+    if (!dias.length) return null;
+    var votos = {}, camInfo = {}, ordenCam = [];
+    dias.forEach(function (d, k) {
+      var lg = todos[d], peso = 4 - k, cams = {};
+      (lg.camiones || []).forEach(function (c) { var key = norm(nomCam(c)); cams[c.id] = key; if (!camInfo[key]) camInfo[key] = { nombre: nomCam(c), kg: +c.kg || 0, orden: {} }; if (ordenCam.indexOf(key) < 0) ordenCam.push(key); });
+      (lg.pedidos || []).forEach(function (p) {
+        var key = cams[p.camion]; if (!key) return;
+        var c = (lg.camiones || []).filter(function (x) { return x.id === p.camion; })[0], pos = c ? (c.orden || []).indexOf(p.id) : -1;
+        propCli(p).forEach(function (ck) { var v = votos[ck] = votos[ck] || {}; v[key] = (v[key] || 0) + peso + (k === 0 ? 0.5 : 0); if (pos >= 0 && camInfo[key].orden[ck] == null) camInfo[key].orden[ck] = k * 1000 + pos; });
+      });
+    });
+    var hayHoy = {}; camionesDe(f).forEach(function (c) { hayHoy[c.id] = true; });
+    var sin = lista.filter(function (p) { return !(p.camion && hayHoy[p.camion]); }), grupos = {}, quit = S.propQuit || {}, extra = S.propExtra || {};
+    sin.forEach(function (p) {
+      var key = extra[p.id];
+      if (!key && !quit[p.id]) { var mejor = null, mv = 0; propCli(p).forEach(function (ck) { var v = votos[ck] || {}; Object.keys(v).forEach(function (t) { if (v[t] > mv) { mv = v[t]; mejor = t; } }); }); key = mejor; }
+      if (!key || !camInfo[key]) return;
+      (grupos[key] = grupos[key] || []).push(p);
+    });
+    var l = ordenCam.filter(function (k) { return grupos[k]; }).map(function (k) {
+      var o = camInfo[k].orden, pos = function (p) { var i = 1e6; propCli(p).forEach(function (ck) { var j = o[ck]; if (j != null && j < i) i = j; }); return i; };
+      return { key: k, nombre: camInfo[k].nombre, kg: camInfo[k].kg, peds: grupos[k].sort(function (a, b) { return pos(a) - pos(b); }) };
+    });
+    return l.length ? { dias: dias, grupos: l, sueltos: sin } : null;
+  }
+  function propuestaHTML(f, lista) {
+    if (!S.editor || S.solo || (S.propOcul || {})[f]) return '';
+    var pr = propuestaDe(f, lista); if (!pr) return '';
+    var dn = diaDe(f).toLowerCase(), plural = { 'sábado': 'sábados', 'domingo': 'domingos' }[dn] || dn + (/s$/.test(dn) ? '' : 's');
+    var h = '<div class="prop-cam"><div class="prop-top"><span class="t">💡 <b>Propuesta para el ' + esc(diaCorto(f).toLowerCase()) + '</b> — según cómo salieron los últimos ' + esc(plural) + ' (' + pr.dias.map(function (d) { var x = d.split('-'); return +x[2] + '/' + +x[1]; }).join(', ') + ').</span>'
+      + '<button class="btn ok" data-act="prop-todos" data-f="' + esc(f) + '">✓ Armar ' + (pr.grupos.length === 1 ? 'el camión' : 'los ' + pr.grupos.length + ' camiones') + '</button><button class="btn" data-act="prop-ocultar" data-f="' + esc(f) + '">Ocultar</button></div>';
+    pr.grupos.forEach(function (g) {
+      var kg = 0; g.peds.forEach(function (p) { kg += kgPedido(p).kg; });
+      var ya = camionesDe(f).filter(function (c) { return norm(nomCam(c)) === g.key; })[0];
+      var otros = pr.sueltos.filter(function (p) { return g.peds.indexOf(p) < 0; });
+      h += '<div class="prop-g"><div class="prop-cab"><b>🚚 ' + esc(g.nombre) + '</b><span class="small muted">' + g.peds.length + (g.peds.length === 1 ? ' cliente' : ' clientes') + ' · ≈ ' + n(Math.round(kg)) + ' kg' + (g.kg ? ' de ' + n(g.kg) : '') + (ya ? ' · ya armado hoy: se suman' : '') + '</span><span class="sp"></span>'
+        + (otros.length ? '<select class="prop-sumar" data-prop-sumar="' + esc(g.key) + '" aria-label="Sumar un cliente a ' + esc(g.nombre) + '"><option value="">+ Sumar cliente</option>' + otros.map(function (p) { return '<option value="' + esc(p.id) + '">' + esc(p.cliente) + '</option>'; }).join('') + '</select>' : '')
+        + '<button class="btn sm pri" data-act="prop-armar" data-f="' + esc(f) + '" data-k="' + esc(g.key) + '">Armar este</button></div>'
+        + g.peds.map(function (p) { var k = kgPedido(p).kg; return '<div class="prop-f"><span class="nom">' + esc(p.cliente) + '</span><span class="small muted">' + esc(pedidoResumen(p)) + '</span><span class="kg-b">≈ ' + n(Math.round(k)) + ' kg</span><button class="btn sm prop-x" data-act="prop-quitar" data-id="' + esc(p.id) + '" aria-label="Sacar a ' + esc(p.cliente) + ' de la propuesta" title="Sacar de la propuesta">✕</button></div>'; }).join('') + '</div>';
+    });
+    return h + '<p class="small muted">Los que no aparecen acá siguen en "Sin camión". Sacar un cliente de la propuesta no cambia su pedido.</p></div>';
+  }
+  function propArmar(f, g) {
+    var ids = g.peds.map(function (p) { return p.id; }), ya = camionesDe(f).filter(function (c) { return norm(nomCam(c)) === g.key; })[0];
+    if (ya) return asignarCamion(f, ids, ya.id);
+    var fl = flota().filter(function (c) { return norm(nomLimpio(c.nombre)) === g.key && !camionesDe(f).some(function (d) { return d.id === 'f' + c.id; }); })[0];
+    if (fl) return usarDeFlota(f, fl.id, ids);
+    return crearCamion(f, g.nombre, '', ids, g.kg);
+  }
+  function pedidoResumen(p) { var cs = cortesDe(p).filter(function (c) { return c.texto; }), r = []; if (+p.medias) r.push(n(+p.medias) + (+p.medias === 1 ? ' media' : ' medias')); if (cs.length) r.push(cs.length + (cs.length === 1 ? ' corte' : ' cortes')); return r.join(' · '); }
   // Pedidos del día agrupados: primero los que no tienen camión (los últimos cargados arriba), después cada camión en su orden.
   function pedidosAgrupadosHTML(f, lista, m) {
     var cams = camionesDe(f), hay = {}; cams.forEach(function (c) { hay[c.id] = c; });
@@ -2843,6 +2898,7 @@
     if (ko.length) h += '<p class="otros-dias"><span class="small muted">Otros días con pedidos:</span>' + ko.map(function (d) { return '<button class="btn sm" data-act="pd-ir" data-f="' + d + '">' + esc(diaCorto(d)) + ' <b>' + otros[d] + '</b></button>'; }).join('') + '</p>';
     h += deshacerHTML();
     if (tild.length) h += barraCamionHTML(f, tild);
+    if (lista.length) h += propuestaHTML(f, lista);
     h += lista.length ? pedidosAgrupadosHTML(f, lista, m) : '<p class="muted sin">Sin pedidos para este día.</p>';
     h += '</section>';
     }
@@ -4063,6 +4119,17 @@
     }
     else if (a === 'camp-menu') { e.preventDefault(); e.stopPropagation(); S.camMenu = S.camMenu === D.id ? null : D.id; S.frioMenu = null; renderPedidos(); }
     else if (a === 'camp-otro') { e.preventDefault(); e.stopPropagation(); var po = pedidoDe(D.id); S.camMenu = null; if (po) { if (!(S.sel[po.id] && S.selDia === po.entrega)) S.sel = {}; S.sel[po.id] = true; S.selDia = po.entrega; S.camOtro = true; } renderPedidos(); var fco = $('cam-nombre'); if (fco) fco.focus(); }
+    else if (a === 'prop-ocultar') { S.propOcul = S.propOcul || {}; S.propOcul[D.f] = true; renderPedidos(); }
+    else if (a === 'prop-quitar') { S.propQuit = S.propQuit || {}; S.propQuit[D.id] = true; if (S.propExtra) delete S.propExtra[D.id]; renderPedidos(); }
+    else if (a === 'prop-armar' || a === 'prop-todos') {
+      var fp3 = D.f, lp3 = (S.pedidos || []).filter(function (p) { return p.entrega === fp3 && pasaFiltro(p.vendedor); }), pr3 = propuestaDe(fp3, lp3);
+      if (!pr3) { renderPedidos(); return; }
+      var gs3 = a === 'prop-todos' ? pr3.grupos : pr3.grupos.filter(function (g) { return g.key === D.k; }), cuantos3 = 0;
+      gs3.forEach(function (g) { cuantos3 += g.peds.length; });
+      b.disabled = true;
+      gs3.reduce(function (pm, g) { return pm.then(function () { return propArmar(fp3, g); }); }, Promise.resolve())
+        .then(function () { avisar(gs3.length === 1 ? cuantos3 + (cuantos3 === 1 ? ' cliente' : ' clientes') + ' en ' + gs3[0].nombre + '.' : gs3.length + ' camiones armados con ' + cuantos3 + ' clientes.', 5000); renderPedidos(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); renderPedidos(); });
+    }
     else if (a === 'camp-crear') {
       // Camión nuevo con el nombre escrito ahí mismo, y el pedido (o los tildados) adentro.
       e.preventDefault(); e.stopPropagation(); var pn2 = pedidoDe(D.id), inn = $('camp-nombre-' + D.id), nom2 = String((inn && inn.value) || '').trim().toUpperCase();
@@ -4331,6 +4398,7 @@
   });
   document.addEventListener('change', function (e) {
     var t = e.target, D = t.dataset;
+    if (D.propSumar != null && t.value) { S.propExtra = S.propExtra || {}; S.propExtra[t.value] = D.propSumar; if (S.propQuit) delete S.propQuit[t.value]; renderPedidos(); return; }
     if (D.tel != null && t.matches('input[data-tel]')) { var ch = clone(S.choferes || {}); delete ch.id; ch.tel = ch.tel || {}; var tv = String(t.value || '').trim(); if (tv) ch.tel[D.tel] = tv; else delete ch.tel[D.tel]; var ch2 = clone(ch); ch2.id = 'choferes'; S.choferes = ch2; store.set('privado', 'choferes', ch).then(function () { avisar(tv ? 'Guardado el celular de ' + D.tel + '.' : 'Borrado el celular de ' + D.tel + '.', 3000); }, function () { avisar('!No se pudo guardar el celular.', 5000); }); return; }
     if (t.id === 'wa-saludo' || t.id === 'wa-despedida') { S.config = S.config || {}; S.config[t.id === 'wa-saludo' ? 'waSaludo' : 'waDespedida'] = t.value.trim(); guardarConfig(); return; }
     if (D.resSel) { var fr = S.fl, kr = fr + '|' + D.resSel; S.resSel = S.resSel || {}; if (t.checked) S.resSel[kr] = true; else delete S.resSel[kr]; render(); return; }
