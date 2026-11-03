@@ -290,7 +290,7 @@ function irA(tab, filtro) { if (filtro) Object.assign(F, filtro); TAB = tab; cer
 const TABLAS = {};
 function tabla(id, cols, rows, opt) {
   opt = opt || {};
-  const t = TABLAS[id] = TABLAS[id] || { orden: opt.orden || null, dir: opt.dir || -1 };
+  const t = TABLAS[id] = TABLAS[id] || { orden: opt.orden != null ? opt.orden : null, dir: opt.dir || -1 };
   t.cols = cols; t.rows = rows; t.opt = opt;
   return '<div class="tw" id="tw-' + id + '">' + cuerpoTabla(id) + '</div>';
 }
@@ -621,7 +621,7 @@ function dlgPersona(per, ins) {
   const g = agrupar(vs, v => v.ins).sort((a, b) => b.imp - a.imp), tot = vs.reduce((a, v) => a + v.imp, 0);
   let h = '<div class="kpis sm"><div class="kpi"><span>Consumo</span><b>' + pesos(tot) + '</b></div><div class="kpi"><span>Vales</span><b>' + new Set(vs.map(v => v.vale)).size + '</b></div><div class="kpi"><span>Sector</span><b class="t">' + esc(nomSec(principal(vs, 'sec'))) + '</b></div></div>';
   h += '<table class="tb"><thead><tr><th>Artículo</th><th class="num">Veces</th><th class="num">Cantidad</th><th class="num">Importe</th><th>Fechas</th></tr></thead><tbody>' +
-    g.map(x => '<tr' + (x.k === ins ? ' class="sel"' : '') + '><td>' + esc(x.items[0].den) + '</td><td class="num">' + x.vales.size + '</td><td class="num">' + cant(x.cant) + '</td><td class="num">' + pesos(x.imp) + '</td><td class="fechas">' + [...new Set(x.items.map(v => v.fecha))].sort().map(fec).join(', ') + '</td></tr>').join('') + '</tbody></table>';
+    g.map(x => '<tr' + (x.k === ins ? ' class="sel"' : '') + '><td>' + esc(x.items[0].den) + '</td><td class="num">' + x.vales.size + '</td><td class="num">' + cant(x.cant) + '</td><td class="num">' + pesos(x.imp) + '</td><td class="fechas">' + [...new Set(x.items.map(v => v.fecha))].sort().reverse().map(fec).join(', ') + '</td></tr>').join('') + '</tbody></table>';
   abrirDlg(esc(nomPer(per)) + ' <small class="muted">· ' + fec(F.desde) + ' a ' + fec(F.hasta) + '</small>', h,
     '<button class="primary" data-ir="vales" data-f=\'' + esc(JSON.stringify({ per, art: '' })) + '\'>Ver sus vales</button>');
 }
