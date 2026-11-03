@@ -1198,7 +1198,7 @@
 
   /* Stock → planilla "Stock de Cortes" de Renzo (renglón STOCK INICIAL): kg del depósito 1 · Frigorífico de estos artículos.
      Va por el mismo programita de la planilla FAENA POR DÍA (accion 'stock'); el id de la planilla queda en privado/camara-ajustes. */
-  var STK_CORTES = [['PECHO', [30216]], ['CARRE', [30276]], ['MATAMBRE', [30236]], ['BONDIOLA', [30105]], ['CHURRASCO', [30245]], ['SOLOMILLO', [30287]]];
+  var STK_CORTES = [['PECHO', [30216]], ['CARRE', [30276]], ['MATAMBRE', [30236]], ['BONDIOLA', [30105]], ['CHURRASCO', [30246]], ['SOLOMILLO', [30287]]];
   function stkHoja() { var a = (S.cam || {}).ajustes, x = a && a.stockSheet; return x && x.id ? x : null; }
   function stkValores() {
     var st = S.stock || {}, out = {}, hay = {};
