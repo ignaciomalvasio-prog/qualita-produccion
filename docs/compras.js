@@ -9,7 +9,7 @@
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const DESDE_MES = '2026-01';
-const HORA_GRABA = '18:30';   // la tarea "Compras: grabar cambios" de la notebook de Igna graba los cambios una vez por día a esta hora
+const HORA_GRABA = '18:30';   // la tarea "Compras - grabar cambios" de la notebook de Igna graba los cambios una vez por día a esta hora
 /* Fuera del centro (pedido de Igna 03/11/2026): cajas y bolsas. Familias "Cajas y envases" (21) y "Bolsas" (17),
    más las bolsas cristal sin familia y los octobins de cartón (bin y tapa). */
 const FAM_FUERA = new Set(['17', '21']);
