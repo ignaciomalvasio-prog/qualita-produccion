@@ -28,14 +28,14 @@ function parseAnual(txt) {
   return o;
 }
 
-/* Muertos de la playa de emergencia (pedido de Sabi 30/10 e Igna 02/11): en la consulta de faena, un renglón de lista "A 1"
-   (tipo de faena Aumento + orden de lista 1) con 1 sola cabeza es un animal muerto en corrales. Si tiene más de 1 cabeza no cuenta. Renglones FE de dj_sync.ps1.
+/* Muertos de la playa de emergencia (pedido de Sabi 30/10): en la consulta de faena, un renglón de lista A1 con 1 sola cabeza
+   de una tropa de más de un animal es un animal muerto en corrales (si la tropa es solo ese animal, no cuenta). Renglones FE de dj_sync.ps1.
    Si el mismo muerto ya está en la tabla de muertos del sistema o cargado a mano (misma tropa y fecha, en corral), no se repite. */
 function muertosA1() {
   if (!S.anual || !S.anual.fe) return [];
   const otros = (S.anual.mu || []).concat((S.muertos && S.muertos.lista) || []);
   const usados = {};
-  return S.anual.fe.filter(e => String(e.lista || '').replace(/\s/g, '').toUpperCase() === 'A1' && e.cab === 1).filter(e => {
+  return S.anual.fe.filter(e => /^(A1?|1A)$/.test(String(e.lista || '').replace(/\s/g, '').toUpperCase()) && e.cab === 1 && e.cabTropa > 1).filter(e => {
     const k = e.tropa + '|' + e.fecha, ya = otros.filter(m => String(m.tropa) === e.tropa && m.fecha === e.fecha && m.lugar === 'CORRAL').reduce((a, m) => a + (Number(m.cab) || 0), 0);
     usados[k] = (usados[k] || 0) + 1;
     return usados[k] > ya;
@@ -69,8 +69,6 @@ function renderFaena() {
   const meses = [...Array(12).keys()];
   const fa = meses.map(i => faenaMes(A, i)), fb = meses.map(i => faenaMes(Ant, i));
   const MU = muertosAnio(A), MUb = muertosAnio(Ant);
-  const nA1 = L => L.filter(m => m.a1).reduce((t, m) => t + m.cab, 0);
-  const corralA1 = L => { const c = L.filter(m => m.lugar === 'CORRAL'), a = nA1(c); return z0(c.reduce((t, m) => t + m.cab, 0)) + (a ? ' <span class="muted" title="De la playa de emergencia (renglones A1 de la consulta de faena)">(' + a + ' A1)</span>' : ''); };
   const muMes = (L, i, lugar) => L.filter(m => Number(m.fecha.slice(5, 7)) === i + 1 && (!lugar || m.lugar === lugar)).reduce((t, m) => t + m.cab, 0);
   const sum = (L, k) => L.reduce((t, x) => t + (x[k] || 0), 0);
 
@@ -95,18 +93,17 @@ function renderFaena() {
   meses.forEach(i => {
     const b = muMes(MU, i), a = muMes(MUb, i);
     if (!a && !b && !fa[i].cab) return;
-    h += '<tr><td><b>' + MESES[i] + '</b></td><td class="num">' + z0(a) + '</td><td class="num">' + z0(b) + '</td><td class="num">' + corralA1(MU.filter(m => Number(m.fecha.slice(5, 7)) === i + 1)) + '</td><td class="num">' + z0(muMes(MU, i, 'VIAJE')) + '</td><td class="num">' + z0(fa[i].cab) + '</td><td class="num">' + (fa[i].cab ? pct2(b / fa[i].cab) : '') + '</td></tr>';
+    h += '<tr><td><b>' + MESES[i] + '</b></td><td class="num">' + z0(a) + '</td><td class="num">' + z0(b) + '</td><td class="num">' + z0(muMes(MU, i, 'CORRAL')) + '</td><td class="num">' + z0(muMes(MU, i, 'VIAJE')) + '</td><td class="num">' + z0(fa[i].cab) + '</td><td class="num">' + (fa[i].cab ? pct2(b / fa[i].cab) : '') + '</td></tr>';
   });
   const tm = sum(MU, 'cab');
-  h += '<tr class="tot"><td>Total</td><td class="num">' + z0(sum(MUb, 'cab')) + '</td><td class="num">' + z0(tm) + '</td><td class="num">' + corralA1(MU) + '</td><td class="num">' + z0(sum(MU.filter(m => m.lugar === 'VIAJE'), 'cab')) + '</td><td class="num">' + z0(T('cab')) + '</td><td class="num">' + (T('cab') ? pct2(tm / T('cab')) : '') + '</td></tr></tbody></table></div>' +
-    '<p class="muted" style="font-size:12.5px;margin-top:6px">Corral incluye los <b>muertos A1</b>: animales muertos en corrales que pasaron por la playa de emergencia (renglones "A 1" de un solo animal en la consulta de faena). Van entre paréntesis en la columna Corral y con la marca <span class="chip sm info">emergencia A1</span> en el listado; los demás muertos en corral salen de la tabla de muertos del sistema o se cargaron a mano.</p></section>';
+  h += '<tr class="tot"><td>Total</td><td class="num">' + z0(sum(MUb, 'cab')) + '</td><td class="num">' + z0(tm) + '</td><td class="num">' + z0(sum(MU.filter(m => m.lugar === 'CORRAL'), 'cab')) + '</td><td class="num">' + z0(sum(MU.filter(m => m.lugar === 'VIAJE'), 'cab')) + '</td><td class="num">' + z0(T('cab')) + '</td><td class="num">' + (T('cab') ? pct2(tm / T('cab')) : '') + '</td></tr></tbody></table></div></section>';
 
   /* ---- informe por granja (La Quimera) ---- */
   const lq = eqF().lq, TQ = (S.anual.tq || []).filter(t => t.mes.startsWith(String(A)) && lq.includes(t.cue)), MQ = MU.filter(m => lq.includes(m.cue) || (m.man && m.lq));
   const granjas = [...new Set(TQ.map(t => t.loc).concat(MQ.map(m => m.loc)).filter(Boolean))].sort();
   const fila = (nom, tq, mq) => {
-    const cab = sum(tq, 'cab'), c = sum(mq.filter(m => m.lugar === 'CORRAL'), 'cab'), v = sum(mq.filter(m => m.lugar === 'VIAJE'), 'cab'), c1 = nA1(mq.filter(m => m.lugar === 'CORRAL'));
-    return '<td class="num">' + z0(sum(tq, 'tropas')) + '</td><td class="num">' + z0(cab) + '</td><td class="num">' + z0(c) + (c1 ? ' <span class="muted">(' + c1 + ' A1)</span>' : '') + '</td><td class="num">' + z0(v) + '</td><td class="num"><b>' + z0(c + v) + '</b></td><td class="num">' + (cab ? pct2(c / cab) : '') + '</td><td class="num">' + (cab ? pct2(v / cab) : '') + '</td><td class="num"><b>' + (cab ? pct2((c + v) / cab) : '') + '</b></td>';
+    const cab = sum(tq, 'cab'), c = sum(mq.filter(m => m.lugar === 'CORRAL'), 'cab'), v = sum(mq.filter(m => m.lugar === 'VIAJE'), 'cab');
+    return '<td class="num">' + z0(sum(tq, 'tropas')) + '</td><td class="num">' + z0(cab) + '</td><td class="num">' + z0(c) + '</td><td class="num">' + z0(v) + '</td><td class="num"><b>' + z0(c + v) + '</b></td><td class="num">' + (cab ? pct2(c / cab) : '') + '</td><td class="num">' + (cab ? pct2(v / cab) : '') + '</td><td class="num"><b>' + (cab ? pct2((c + v) / cab) : '') + '</b></td>';
   };
   const cab = '<th class="num">Tropas</th><th class="num">Cabezas</th><th class="num">Corral</th><th class="num">Viaje</th><th class="num">Total muertos</th><th class="num">% corral</th><th class="num">% viaje</th><th class="num">% mortalidad</th>';
   h += '<section><h2>Mortalidad ' + esc(eqF().lqNombre) + ' por granja · ' + A + '</h2><p class="sub">Tropas recibidas de ' + esc(lq.join(', ')) + ' (cuentas del sistema) y sus muertos en corral y en viaje.' + (soloVer() ? '' : ' <a href="#" onclick="cambiarLq();return false">Cambiar productores</a>') + '</p>';
@@ -119,7 +116,7 @@ function renderFaena() {
   /* ---- listado ---- */
   h += '<section><div class="dj-top"><div><h2>Muertos ' + A + ' (' + z0(tm) + ')</h2><p class="sub" style="margin:0">Del sistema, de la playa de emergencia (renglones A1 de la consulta de faena, marcados) y cargados a mano.' + avisoA1() + '</p></div>' + (soloVer() ? '' : '<button class="primary" onclick="agregarMuerto()">+ Agregar un muerto que no está en el sistema</button>') + '</div>';
   h += '<div class="tw" style="max-height:520px"><table class="planilla dj-rm"><thead><tr><th>Fecha</th><th>Tropa</th><th class="num">Cant.</th><th>Lugar</th><th>Jaula</th><th>Productor</th><th>Granja</th><th>Observación</th><th></th></tr></thead><tbody>' +
-    MU.slice().reverse().map(m => '<tr><td>' + ddmm(m.fecha) + '</td><td>' + esc(m.tropa) + '</td><td class="num">' + z0(m.cab) + '</td><td>' + esc(m.lugar) + (m.a1 ? ' A1' : '') + '</td><td>' + esc(m.patente || '') + '</td><td>' + esc(titulo(m.prod)) + '</td><td>' + esc(titulo(m.loc)) + '</td><td class="muted">' + esc(m.obs || '') + '</td><td>' +
+    MU.slice().reverse().map(m => '<tr><td>' + ddmm(m.fecha) + '</td><td>' + esc(m.tropa) + '</td><td class="num">' + z0(m.cab) + '</td><td>' + esc(m.lugar) + '</td><td>' + esc(m.patente || '') + '</td><td>' + esc(titulo(m.prod)) + '</td><td>' + esc(titulo(m.loc)) + '</td><td class="muted">' + esc(m.obs || '') + '</td><td>' +
       (m.a1 ? '<span class="chip sm info" title="Renglón A1 de la consulta de faena: animal muerto en corrales que pasó por la playa de emergencia">emergencia A1</span>' : '') +
       (m.man ? '<span class="chip sm warn">a mano</span>' + (soloVer() ? '' : ' <button class="small danger" onclick="borrarMuerto(\'' + esc(m.id) + '\')">✕</button>') : '') + '</td></tr>').join('') + '</tbody></table></div></section>';
   $('main').innerHTML = h;
