@@ -1607,6 +1607,19 @@
   }
   /* Una vez por sesión, al entrar un editor: en las semanas de ahora en adelante, si un cliente de la planilla
      quedó repetido con el renglón que vino de su pedido (mismo cliente y misma cantidad), se deja solo el del pedido. */
+  // Medias de pedidos que quedaron en un día sin actividad (feriado): pasan al día en que se faenan (una vez por sesión).
+  var mediasReubicadas = false;
+  function reubicarMedias() {
+    if (mediasReubicadas || !S.editor || !S.faena || !S.pedidos) return;
+    mediasReubicadas = true;
+    var t = [];
+    (S.pedidos || []).forEach(function (p) {
+      if (!(+p.medias > 0) || !p.entrega || p.entrega < hoy()) return;
+      var dias = []; (S.faena || []).forEach(function (sem) { (sem.dias || []).forEach(function (d, k) { if ((d.clientes || []).some(function (r) { return r.pedido === p.id; })) dias.push(mas(sem.id, k)); }); });
+      if (dias.length && dias.every(function (d) { return esFeriado(d); })) t.push(p);
+    });
+    t.reduce(function (pm, p) { return pm.then(function () { return aplicarMedias(p); }); }, Promise.resolve()).then(function () { if (t.length && !escribiendo()) render(); }, function () {});
+  }
   var mediasConciliadas = false;
   function conciliarMedias() {
     if (mediasConciliadas || !S.editor || !S.faena || !S.pedidos) return;
@@ -2481,9 +2494,10 @@
     var fa = faenaDe(p), id = esc(p.id);
     if (p.faenaFija) return ' <span class="mf-chip fija" title="Estas medias no se vuelven a faenar: ya están en cámara">Ya en cámara · faenadas el ' + esc(diaCorto(fa).toLowerCase()) + '</span> <button class="btn sm lnk" data-act="mf-set" data-id="' + id + '" data-f="">Faenar de nuevo</button>';
     if (S.mfAbierto !== p.id) return ' <button class="btn sm lnk mf-abrir" data-act="mf-abrir" data-id="' + id + '" title="Si las medias ya están faenadas de otro día (por ejemplo, el cliente no las pudo recibir y se pasó la entrega)">¿Ya están en cámara?</button>';
-    var ops = [], d = hoy(); if (!esHabil(d)) d = habilAnterior(d);
-    while (ops.length < 6) { if (d < p.entrega) ops.push(d); d = habilAnterior(d); }
-    return '<span class="mf-menu"><span class="small muted">Faenadas el:</span>' + ops.map(function (x) { return '<button class="btn sm" data-act="mf-set" data-id="' + id + '" data-f="' + x + '">' + esc(diaCorto(x)) + '</button>'; }).join('') + '<button class="btn sm lnk" data-act="mf-abrir" data-id="' + id + '">Cancelar</button></span>';
+    // Desde el día anterior a la entrega para atrás (también días que todavía no llegaron: "las dejo el viernes"); los feriados en rojo.
+    var ops = [], d = habilAnterior(p.entrega), nt = 0;
+    while (nt < 6) { ops.push(d); if (!esFeriado(d)) nt++; d = habilAnterior(d); }
+    return '<span class="mf-menu"><span class="small muted">Son faena del:</span>' + ops.map(function (x) { return esFeriado(x) ? '<span class="mf-fer" title="Feriado: no hay actividad">' + esc(diaCorto(x)) + ' · feriado</span>' : '<button class="btn sm' + (x === fa ? ' pri' : '') + '" data-act="mf-set" data-id="' + id + '" data-f="' + x + '">' + esc(diaCorto(x)) + '</button>'; }).join('') + '<button class="btn sm lnk" data-act="mf-abrir" data-id="' + id + '">Cancelar</button></span>';
   }
   function frioMenuHTML(p) {
     var b = function (v, t) { return '<button class="btn sm' + ((p.frio || '') === v ? ' pri' : '') + '" data-act="frio-set" data-id="' + esc(p.id) + '" data-v="' + v + '">' + t + '</button>'; };
@@ -3601,7 +3615,7 @@
   /* ---------- inicio ----------
      Una tarjeta por pestaña, todas con el mismo orden: el día, los números del día y qué hay para el día siguiente. */
   // La fecha del día en el título: en rojo si ya pasó, en verde si es hoy; los días que vienen, como siempre.
-  function fechaTit(f) { var h = hoy(), c = f < h ? 'pasado' : f === h ? 'hoy' : ''; return c ? '<span class="tit-dia ' + c + '" title="' + (c === 'hoy' ? 'Es hoy' : 'Este día ya pasó') + '">' + esc(tituloDe(f)) + '</span>' : esc(tituloDe(f)); }
+  function fechaTit(f) { var h = hoy(), c = f < h ? 'pasado' : f === h ? 'hoy' : '', fe = esFeriado(f) ? ' <span class="tag-feriado" title="Feriado: no hay actividad">FERIADO</span>' : ''; return (c ? '<span class="tit-dia ' + c + '" title="' + (c === 'hoy' ? 'Es hoy' : 'Este día ya pasó') + '">' + esc(tituloDe(f)) + '</span>' : esc(tituloDe(f))) + fe; }
   function plural(k, uno, muchos) { return k === 1 ? uno : muchos; }
   /* ---------- inicio ----------
      Arriba, el día con el que se está trabajando y sus números clave; después los avisos de lo que falta
@@ -4240,7 +4254,7 @@
     else if (a === 'cam-nuevo') { crearCamion(S.fl, '', '', []).then(function (cam) { S.ec = cam.id; S.ecNum = ''; S.ecHora = ''; S.ecNombre = ''; S.ecNota = ''; S.ecKg = ''; render(); var fn = $('cam-e-nombre'); if (fn) fn.focus(); }, function () { S.msg.log = '!No se pudo crear el camión.'; pintarMsg('log'); }); }
     else if (a === 'cam-editar') { var ce = camionesDe(S.fl).filter(function (c) { return c.id === D.id; })[0]; if (ce) { S.ec = ce.id; S.ecNum = ce.num || ''; S.ecHora = ce.hora || ''; S.ecNombre = nomLimpio(ce.nombre); if (!S.ecNombre && /[A-ZÁÉÍÓÚÑ]/i.test(ce.num || '')) { S.ecNombre = String(ce.num).trim(); S.ecNum = ''; } S.ecNota = ce.nota || ''; S.ecKg = ce.kg || ''; render(); var fn2 = $('cam-e-nombre'); if (fn2) fn2.focus(); } }
     else if (a === 'cam-cancelar') { S.ec = null; render(); }
-    else if (a === 'fer-agregar') { var fn3 = ($('fer-nueva') || {}).value || ''; if (!/^\d{4}-\d{2}-\d{2}$/.test(fn3)) { avisar('!Elegí la fecha del feriado.', 3000); return; } var lf = feriados().slice(); if (lf.indexOf(fn3) < 0) lf.push(fn3); S.config = S.config || {}; S.config.feriados = lf.sort(); S._conf = true; guardarConfig(true); avisar('Feriado: ' + diaCorto(fn3) + '.', 3000); render(); }
+    else if (a === 'fer-agregar') { var fn3 = ($('fer-nueva') || {}).value || ''; if (!/^\d{4}-\d{2}-\d{2}$/.test(fn3)) { avisar('!Elegí la fecha del feriado.', 3000); return; } var lf = feriados().slice(); if (lf.indexOf(fn3) < 0) lf.push(fn3); S.config = S.config || {}; S.config.feriados = lf.sort(); S._conf = true; guardarConfig(true); mediasReubicadas = false; reubicarMedias(); moviendoFer = {}; moverPorFeriado(); avisar('Feriado: ' + diaCorto(fn3) + '.', 3000); render(); }
     else if (a === 'fer-quitar') { S.config = S.config || {}; S.config.feriados = feriados().filter(function (x) { return x !== D.f; }); S._conf = true; guardarConfig(true); render(); }
     else if (a === 'pcam-editar') { var pce = camionesDe(S.pd).filter(function (c) { return c.id === D.id; })[0]; if (pce) { S.pec = pce.id; S.ecNombre = nomCam(pce) === 'Sin nombre' ? '' : nomCam(pce); S.ecNota = pce.nota || ''; S.ecKg = pce.kg || ''; renderPedidos(); var fpn = $('cam-e-nombre'); if (fpn) { fpn.focus(); fpn.select(); } } }
     else if (a === 'pcam-cancelar') { S.pec = null; renderPedidos(); }
@@ -4878,7 +4892,7 @@
       renderDatos();
     }
     var fallo = function () { if (!got.faena || !got.prod) { var c = cache(true); if (c && c.produccion) aplicar(c, 'cache'); else S.status = 'error'; render(); } };
-    store.sub('faena', function (l) { if (S.fuente === 'respaldo' && !l.length) return; S.faena = ordenar(l.map(function (x) { x.desde = x.desde || x.id; return x; })); llego('faena'); conciliarMedias(); }, fallo);
+    store.sub('faena', function (l) { if (S.fuente === 'respaldo' && !l.length) return; S.faena = ordenar(l.map(function (x) { x.desde = x.desde || x.id; return x; })); llego('faena'); conciliarMedias(); reubicarMedias(); }, fallo);
     store.sub('produccion', function (l) { if (S.fuente === 'respaldo' && !l.length) return; S.prod = ordenar(l.map(function (x) { x.fecha = x.fecha || x.id; return x; })); llego('prod'); migrarPecho(); moverPorFeriado(); }, fallo);
     // config: 'general', 'rendering2', la logística de los últimos 45 días (y lo que viene) y el rendering de los últimos 150 días.
     var hace = function (n) { var d = new Date(); d.setDate(d.getDate() - n); return iso(d); };
@@ -4913,7 +4927,7 @@
           if (S.fuente === 'respaldo' || vacia) traer();
           if (!suscripto) {
             suscripto = true;
-            store.sub('pedidos', function (l) { S.pedidos = ordenar(l.filter(function (x) { return !pedidoVacio2(x); })); conciliarLog(); renderDatos(); conciliarMedias(); migrarPecho(); moverPorFeriado(); });
+            store.sub('pedidos', function (l) { S.pedidos = ordenar(l.filter(function (x) { return !pedidoVacio2(x); })); conciliarLog(); renderDatos(); conciliarMedias(); reubicarMedias(); migrarPecho(); moverPorFeriado(); });
             store.sub('ventas', function (l) { var antes = ventasPendientes(true).length; S.ventas = l; if (antes !== ventasPendientes(true).length && (S.tab === 'pedidos' || S.tab === 'inicio')) renderDatos(); });
             store.sub('privado', function (l) {
               var fl = {}, antesF = JSON.stringify(S.fletes || {});
