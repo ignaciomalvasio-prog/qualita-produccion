@@ -1484,6 +1484,26 @@
     S.pedidos = poner(S.pedidos, id, doc);
     return store.set('pedidos', id, doc).then(function () { return revincularProduccion(nuevo, antes); }).then(function () { return publicarLog(doc.entrega); });
   }
+  // La descripción de cada renglón (lo que va después de la cantidad) se escribe ahí mismo, como la nota (pedido de Renzo, 04/11/2026).
+  function cantEdHTML(t, sel, pid, k) {
+    var s = String(t || ''), m = s.match(RE_CANT), resto = m ? s.slice(m[0].length).trim() : s, cab = '';
+    if (m) { var pal = (m[2] || '').trim(); cab = '<b class="lc-cant">' + (sel && !/^MEDIA|^CANAST/i.test(pal) ? esc(m[1]) + ' ' + sel + (pal ? '<span class="solo-print">' + esc(pal) + '</span>' : '') : esc(m[1] + (pal ? ' ' + pal : ''))) + '</b> '; }
+    return cab + '<input type="text" class="lc-desc-ed" data-desc="' + esc(pid) + '" data-k="' + esc(k) + '" value="' + esc(resto) + '" placeholder="+ detalle" aria-label="Detalle del corte" title="Tocá para escribir" autocomplete="off"><span class="solo-print">' + esc(resto) + '</span>';
+  }
+  function guardarDesc(id, k, v) {
+    var p = pedidoDe(id); if (!p) return Promise.resolve();
+    var antes = clone(p), doc = clone(p), cambio = false; delete doc.id; v = String(v || '').toUpperCase().replace(/\s+/g, ' ').trim();
+    doc.cortes = cortesDe(doc).map(function (c) {
+      if (c.k !== k) return c;
+      var s = String(c.texto || ''), m = s.match(RE_CANT), nuevo = m ? (m[0].trim() + (v ? ' ' + v : '')) : v;
+      if (nuevo && nuevo !== s) { c.texto = nuevo; cambio = true; }
+      return c;
+    });
+    if (!cambio) return Promise.resolve();
+    var nu = clone(doc); nu.id = id;
+    S.pedidos = poner(S.pedidos, id, doc);
+    return store.set('pedidos', id, doc).then(function () { return revincularProduccion(nu, antes); }).then(function () { return publicarLog(doc.entrega); });
+  }
   // El rubro de cada corte se cambia tocándolo, sin apretar Editar (pedido de Renzo, 04/11/2026).
   function rubroSelHTML(pid, c) {
     var l = CORTES_BASE.concat(CORTES_A_MANO), act = norm(c.corte); if (act && l.indexOf(act) < 0) l = [act].concat(l);
@@ -2474,7 +2494,7 @@
     if (+p.medias) h += '<p class="lp"><span class="lp-izq"><span class="lc-corte">Medias</span><span class="lc-txt">' + cantHTML(mediasCorto(p)) + mediasFaenaHTML(p) + '</span></span><span class="lp-der">' + precioHTML(p.id, 'm', p.precioMedias, 'las medias', p.ivaMedias) + '</span></p>';
     cs.forEach(function (c) {
       var f = fechaProdDe(m, p, c);
-      h += '<p class="lp"><span class="lp-izq">' + (S.editor && !S.solo && c.k ? rubroSelHTML(p.id, c) : '<span class="lc-corte">' + esc(c.corte) + '</span>') + '<span class="lc-txt">' + cantHTML(sinCorteTxt(sinCliente(c.texto, p.cliente), c.corte), unidadSelHTML(p.id, c)) + (c.frio && c.frio !== p.frio ? ' ' + frioBadge(c.frio) : '') + '</span></span><span class="lp-der">' + precioHTML(p.id, c.k, c.precio, c.corte, c.iva) + (f
+      h += '<p class="lp"><span class="lp-izq">' + (S.editor && !S.solo && c.k ? rubroSelHTML(p.id, c) : '<span class="lc-corte">' + esc(c.corte) + '</span>') + '<span class="lc-txt">' + (S.editor && !S.solo && c.k ? cantEdHTML(sinCorteTxt(sinCliente(c.texto, p.cliente), c.corte), unidadSelHTML(p.id, c), p.id, c.k) : cantHTML(sinCorteTxt(sinCliente(c.texto, p.cliente), c.corte), unidadSelHTML(p.id, c))) + (c.frio && c.frio !== p.frio ? ' ' + frioBadge(c.frio) : '') + '</span></span><span class="lp-der">' + precioHTML(p.id, c.k, c.precio, c.corte, c.iva) + (f
         ? '<span class="en"><span class="badge ok">' + (esC3(f) ? 'En producción · embutidos' : 'En producción') + '</span><button class="btn sm" data-act="c-quitar" data-id="' + id + '" data-k="' + esc(c.k) + '">Quitar</button></span>'
         : '<button class="btn sm pri" data-act="c-sumar" data-id="' + id + '" data-k="' + esc(c.k) + '">' + 'Sumar a producción' + '</button>') + '</span></p>';
     });
@@ -4219,6 +4239,7 @@
 
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && S.menuAb) cerrarMenus(); });
   document.addEventListener('keydown', function (e) { var t = e.target; if ((e.key === 'Enter' || e.key === ' ') && t && t.classList && t.classList.contains('busq-f') && t.dataset.act) { e.preventDefault(); t.click(); } });
+  document.addEventListener('keydown', function (e) { var t = e.target; if (e.key === 'Enter' && t && t.matches && t.matches('input.lc-desc-ed')) { e.preventDefault(); t.blur(); } });
   document.addEventListener('keydown', function (e) { var t = e.target; if (e.key === 'Enter' && t && t.dataset && t.dataset.campNuevo) { e.preventDefault(); var bt = document.querySelector('[data-act="camp-crear"][data-id="' + t.dataset.campNuevo + '"]'); if (bt) bt.click(); } });
   // Ctrl+Z / Ctrl+Y en Cámara (cuando no se está escribiendo en una casilla, que tiene su propio deshacer).
   document.addEventListener('keydown', function (e) {
@@ -4467,6 +4488,9 @@
       if (t.value === 'otra') { S.ctaOtro = D.cta; renderPedidos(); var ci2 = document.querySelector('[data-cta-in="' + D.cta + '"]'); if (ci2) ci2.focus(); return; }
       var pq = pedidoDe(D.cta), nq = t.value;
       ponerCuenta(D.cta, nq).then(function () { avisar('Cuenta ' + nq + ' guardada para ' + (pq ? pq.cliente : 'el cliente') + '.', 5000); renderPedidos(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); renderPedidos(); });
+    }
+    else if (D.desc != null && t.matches('input.lc-desc-ed')) {
+      guardarDesc(D.desc, D.k, t.value).then(function () { render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); render(); });
     }
     else if (D.rubro && t.value) {
       guardarRubro(D.rubro, D.k, t.value).then(function () { avisar('Corte cambiado a ' + t.value + '.', 2500); render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); render(); });

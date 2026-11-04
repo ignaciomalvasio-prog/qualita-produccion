@@ -349,3 +349,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Pedidos: cada camión tiene ⋯ en su título para editarlo (nombre, capacidad, nota) o borrarlo, igual que en Logística (prueba137).
 - Pedidos: el menú ⋯ del camión ya no queda cortado cuando el camión tiene un solo cliente.
 - Pedidos: en el pedido abierto, el corte de cada renglón (PECHO, JAMON…) se cambia tocándolo, sin Editar (prueba138).
+- Pedidos: el detalle de cada renglón (lo que va después de la cantidad, ej. PECHITO CON MANTA) se escribe ahí mismo, sin Editar; se guarda al salir o con Enter (prueba138).

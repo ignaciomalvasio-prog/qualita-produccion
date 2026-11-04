@@ -1,4 +1,4 @@
-// Pedidos: el corte (rubro) de cada renglón se cambia tocándolo, sin Editar.
+// Pedidos: el corte (rubro) y el detalle de cada renglón se cambia tocándolo, sin Editar.
 const {chromium}=require('playwright');const F='2026-11-05';
 const ped={a:{cliente:'DINO',entrega:F,medias:0,peso:'',nota:'',origen:'manual',kg:'',camion:'',cuenta:'',cortes:[{k:'1',corte:'PECHO',texto:'450KG COSTELETA DE CERDO'},{k:'2',corte:'MATAMBRE',texto:'300KG'}]}};
 const data={faena:{},produccion:{},privado:{},config:{general:{}},pedidos:ped};
@@ -12,5 +12,7 @@ console.log(w,'selects:',await p.locator('select[data-rubro="a"]').count(),await
 await p.selectOption('select[data-rubro="a"][data-k="1"]','CARRE CON SOLOMILLO');await p.clock.runFor(800);await p.waitForTimeout(250);
 console.log(w,'guardado:',await p.evaluate(()=>window.__mock.data.pedidos.a.cortes.map(c=>c.corte+'='+c.texto).join(', ')));
 await p.waitForTimeout(400);if(w===1366)await p.screenshot({path:'/tmp/claude-0/-home-claude/d55ee530-b6ab-5c24-b297-7bd58dddd042/scratchpad/p138.png'});
+await p.fill('input.lc-desc-ed[data-k="2"]','matambrito de cerdo');await p.locator('input.lc-desc-ed[data-k="2"]').press('Enter');await p.clock.runFor(800);await p.waitForTimeout(250);
+console.log(w,'detalle:',await p.evaluate(()=>window.__mock.data.pedidos.a.cortes.map(c=>c.texto).join(', ')));
 console.log(w,'desborde',await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth));await p.close();}
 console.log('errores:',errs.join('|')||'ninguno');await b.close();})();
