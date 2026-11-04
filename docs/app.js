@@ -60,8 +60,10 @@
   var FERIADOS_PLANTA = ['2026-11-09', '2026-11-10'];
   function feriados() { var c = (S.config || {}).feriados; return Array.isArray(c) ? c : Object.keys(CAM_FERIADOS || {}).concat(FERIADOS_PLANTA).sort(); }
   function esFeriado(s) { return feriados().indexOf(s) >= 0; }
-  function esHabil(s) { var g = fecha(s).getDay(); return g >= 1 && g <= 5 && !esFeriado(s); }
-  function diaProdPara(f) { return esFeriado(mas(f, -1)) ? habilAnterior(f) : f; }
+  function esHabil(s) { var g = fecha(s).getDay(); return g >= 1 && g <= 5; }   // los feriados siguen apareciendo en las listas de días (pedido de Renzo)
+  function trabaja(s) { return esHabil(s) && !esFeriado(s); }
+  function trabajoAnterior(s) { var x = mas(s, -1); while (!trabaja(x)) x = mas(x, -1); return x; }
+  function diaProdPara(f) { return esFeriado(mas(f, -1)) ? trabajoAnterior(f) : f; }
   function habilSiguiente(s) { var x = mas(s, 1); while (!esHabil(x)) x = mas(x, 1); return x; }
   function habilAnterior(s) { var x = mas(s, -1); while (!esHabil(x)) x = mas(x, -1); return x; }
   function lunesDe(s) { var g = fecha(s).getDay(); return mas(s, g === 0 ? -6 : 1 - g); }
@@ -1583,7 +1585,7 @@
   // Las medias del pedido van solas a la planilla semanal, en el día de faena anterior a la entrega.
   /* Día de faena de las medias de un pedido: el día hábil anterior a la entrega, salvo que ya estén faenadas
      (en cámara) de otro día: p.faenaFija. Pasa cuando un cliente no pudo recibir y el pedido se corre de día. */
-  function faenaDe(p) { return p.faenaFija && p.faenaFija < p.entrega ? p.faenaFija : habilAnterior(p.entrega); }
+  function faenaDe(p) { return p.faenaFija && p.faenaFija < p.entrega ? p.faenaFija : trabajoAnterior(p.entrega); }
   function aplicarMedias(p) {
     var medias = +p.medias || 0, va = !!p.entrega && (medias > 0 || !(p.cortes || []).some(function (c) { return c.texto; }));
     var fa = va ? faenaDe(p) : null, lunes = fa ? lunesDe(fa) : null, i = fa ? Math.round((fecha(fa) - fecha(lunes)) / 86400000) : -1, cambios = {};
@@ -2279,7 +2281,7 @@
       S.msg.fotos = m; avisar(m, 10000);
       if (aca) {
         if (fs.length) S.entrega = fs[0];
-        if (ctx.tab === 'medias' && fs.length) { S.mv = null; S.fm = habilAnterior(fs[0]); S.sem = lunesDe(S.fm); S.dia = Math.round((fecha(S.fm) - fecha(S.sem)) / 86400000); }
+        if (ctx.tab === 'medias' && fs.length) { S.mv = null; S.fm = trabajoAnterior(fs[0]); S.sem = lunesDe(S.fm); S.dia = Math.round((fecha(S.fm) - fecha(S.sem)) / 86400000); }
         if (faltan && S.tab !== 'pedidos') { irA('pedidos'); return; }
         if (hechas.length && !ok.length && !faltan) { S.sem = hechas[hechas.length - 1].lunes; S.dia = null; S.mv = null; S.msg.medias = partes[0] + ' Revisala y tocá Editar para corregir lo que haga falta.'; S.msg.fotos = ''; irA('medias'); return; }
       }
@@ -4179,7 +4181,7 @@
     else if (a === 'mf-set') {
       e.preventDefault(); e.stopPropagation(); var pm2 = pedidoDe(D.id); S.mfAbierto = null; if (!pm2) { renderPedidos(); return; }
       guardarPropuesta({ editaId: pm2.id, faenaFija: D.f || '', cliente: pm2.cliente, entrega: pm2.entrega, medias: pm2.medias, peso: pm2.peso, frio: pm2.frio || '', cuenta: pm2.cuenta || '', nota: pm2.nota, kg: pm2.kg, origen: pm2.origen, cortes: clone(cortesDe(pm2)) }, true)
-        .then(function () { avisar(D.f ? pm2.cliente + ': medias ya en cámara (faenadas el ' + diaCorto(D.f).toLowerCase() + '). No se suman a la faena del ' + diaCorto(habilAnterior(pm2.entrega)).toLowerCase() + '.' : pm2.cliente + ': las medias vuelven a la faena del ' + diaCorto(habilAnterior(pm2.entrega)).toLowerCase() + '.', 7000); renderPedidos(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); renderPedidos(); });
+        .then(function () { avisar(D.f ? pm2.cliente + ': medias ya en cámara (faenadas el ' + diaCorto(D.f).toLowerCase() + '). No se suman a la faena del ' + diaCorto(trabajoAnterior(pm2.entrega)).toLowerCase() + '.' : pm2.cliente + ': las medias vuelven a la faena del ' + diaCorto(trabajoAnterior(pm2.entrega)).toLowerCase() + '.', 7000); renderPedidos(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); renderPedidos(); });
     }
     else if (a === 'camp-menu') { e.preventDefault(); e.stopPropagation(); S.camMenu = S.camMenu === D.id ? null : D.id; S.frioMenu = null; renderPedidos(); }
     else if (a === 'camp-otro') { e.preventDefault(); e.stopPropagation(); var po = pedidoDe(D.id); S.camMenu = null; if (po) { if (!(S.sel[po.id] && S.selDia === po.entrega)) S.sel = {}; S.sel[po.id] = true; S.selDia = po.entrega; S.camOtro = true; } renderPedidos(); var fco = $('cam-nombre'); if (fco) fco.focus(); }
@@ -4258,7 +4260,7 @@
 
     // saltos entre pantallas
     else if (a === 'ir-pedidos') { S.pedDia = D.f || null; S.sel = {}; irA('pedidos'); }
-    else if (a === 'ir-medias') { S.em = null; S.mv = null; S.fm = habilAnterior(S.entrega); S.sem = lunesDe(S.fm); S.dia = Math.round((fecha(S.fm) - fecha(S.sem)) / 86400000); irA('medias'); }
+    else if (a === 'ir-medias') { S.em = null; S.mv = null; S.fm = trabajoAnterior(S.entrega); S.sem = lunesDe(S.fm); S.dia = Math.round((fecha(S.fm) - fecha(S.sem)) / 86400000); irA('medias'); }
     else if (a === 'ir-orden') { S.ep = null; S.fechaFija = true; S.fecha = S.entrega; irA('produccion'); }
     else if (a === 'ir-log') { S.fl = S.entrega; S.ec = null; irA('logistica'); }
     else if (a === 'cfg-guardar') {

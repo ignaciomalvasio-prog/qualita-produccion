@@ -1,4 +1,4 @@
-// Feriados: lunes 9 y martes 10/11. Lo del miércoles 11 se deja listo el viernes 6 (cortes en esa planilla); los días feriados no se ofrecen.
+// Feriados: lunes 9 y martes 10/11. Lo del miércoles 11 se deja listo el viernes 6 (cortes en esa planilla); los feriados siguen apareciendo en las listas.
 const {chromium}=require('playwright');const W='2026-11-11';
 const ped={a:{cliente:'ZANOTTI',entrega:W,medias:10,peso:'',nota:'',origen:'manual',kg:'',camion:'',cuenta:'',cortes:[{k:'1',corte:'PECHO',texto:'100KG'},{k:'2',corte:'BONDIOLA',texto:'50KG'}]},
  b:{cliente:'JUEVES',entrega:'2026-11-12',medias:0,peso:'',nota:'',origen:'manual',kg:'',camion:'',cuenta:'',cortes:[{k:'1',corte:'PECHO',texto:'10KG'}]}};
