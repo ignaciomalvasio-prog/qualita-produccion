@@ -2756,11 +2756,18 @@
   // Cuándo se cargó un pedido (para mostrar arriba los últimos): el campo "alta" o, en los viejos, la hora que va en su id.
   function altaDe(p) { if (+p.alta > 0) return +p.alta; var mm = /^[a-z]([0-9a-z]{8})/.exec(String(p.id || '')), t = mm ? parseInt(mm[1], 36) : 0; return t > 1.6e12 && t < 4e12 ? t : 0; }
   function ultimosArriba(l) { return l.map(function (p, i) { return [p, i]; }).sort(function (a, b) { return altaDe(b[0]) - altaDe(a[0]) || a[1] - b[1]; }).map(function (x) { return x[0]; }); }
+  // Editar el camión desde Pedidos (pedido de Renzo, 04/11/2026): nombre, capacidad y nota (el horario ya se cambia en el título).
+  function pcamEdHTML() {
+    return '<div class="pcam-ed campos"><label class="campo"><span>Nombre del camión</span><input type="text" id="cam-e-nombre" value="' + esc(S.ecNombre || '') + '" placeholder="Ej. LUCAS HEREDIA" style="text-transform:uppercase"></label>'
+      + '<label class="campo"><span>Capacidad kg</span><input type="number" inputmode="numeric" id="cam-e-kg" value="' + esc(S.ecKg || '') + '"></label>'
+      + '<label class="campo"><span>Nota (chofer, hora…)</span><input type="text" id="cam-e-nota" value="' + esc(S.ecNota || '') + '"></label>'
+      + '<div class="acciones"><button class="btn pri" data-act="pcam-guardar">Guardar</button><button class="btn" data-act="pcam-cancelar">Cancelar</button></div></div>';
+  }
   // Pedidos del día agrupados: primero los que no tienen camión (los últimos cargados arriba), después cada camión en su orden.
   function pedidosAgrupadosHTML(f, lista, m) {
     var cams = camionesDe(f), hay = {}; cams.forEach(function (c) { hay[c.id] = c; });
     if (!cams.length) return '<div class="peds">' + ultimosArriba(lista).map(function (p) { return pedidoHTML(p, m); }).join('') + '</div>';
-    var grupo = function (tit, extra, l, cls, camId, tot) { return '<div class="grupo-cam' + (cls ? ' ' + cls : '') + '" data-gcam="' + esc(camId || '') + '"><h3 class="grupo-tit">' + tit + ' <span class="small muted">' + esc(extra) + '</span>' + (tot || '') + '</h3><div class="peds">' + l.map(function (p) { return pedidoHTML(p, m, true); }).join('') + '</div></div>'; };
+    var grupo = function (tit, extra, l, cls, camId, tot) { return '<div class="grupo-cam' + (cls ? ' ' + cls : '') + '" data-gcam="' + esc(camId || '') + '"><h3 class="grupo-tit">' + tit + ' <span class="small muted">' + esc(extra) + '</span>' + (tot || '') + (camId && S.editor && !S.solo ? '<span class="pcam-acc">' + menuHTML('pcam-' + camId, '⋯', '<button class="btn sm" data-act="pcam-editar" data-id="' + esc(camId) + '">Editar camión</button>' + botonBorrar('pcam-borrar', camId, 'Borrar camión'), 'Opciones del camión') + '</span>' : '') + '</h3>' + (camId && S.pec === camId ? pcamEdHTML() : '') + '<div class="peds">' + l.map(function (p) { return pedidoHTML(p, m, true); }).join('') + '</div></div>'; };
     var h = '', sin = ultimosArriba(lista.filter(function (p) { return !(p.camion && hay[p.camion]); }));
     if (sin.length) h += grupo('Sin camión', resumenLog(sin), sin, 'sin-cam', '');
     cams.forEach(function (c) {
@@ -3793,7 +3800,7 @@
   document.querySelector('.top').addEventListener('click', function (e) { var b = e.target.closest('[data-tab]'); if (!b) return; e.preventDefault(); if (b.dataset.tab === 'inicio') alInicio(); if (S.ep) { asentarEdicion(); S.ep = null; } S.ec = null; S.msg.fotos = ''; S.msg.log = ''; S.pegar = false; if (!S.leyendo) { S.pegarTxt = ''; S.pegarCli = ''; S.pegarDia = ''; } irA(b.dataset.tab); });
 
   document.addEventListener('click', function (e) {
-    if (S.menuAb && !e.target.closest('.mas-btn')) { var keep = e.target.closest('[data-act="cam-borrar"]'); if (!keep || S._c2 === 'cam-borrar' + keep.dataset.i) cerrarMenus(); }
+    if (S.menuAb && !e.target.closest('.mas-btn')) { var keep = e.target.closest('[data-act="cam-borrar"],[data-act="pcam-borrar"]'); if (!keep || S._c2 === keep.dataset.act + keep.dataset.i) cerrarMenus(); }
     var b = e.target.closest('[data-act]'); if (!b) return;
     var a = b.dataset.act, D = b.dataset, o, c;
     if (a === 'menu') { S.menuAb = S.menuAb === D.k ? null : D.k; render(); return; }
@@ -4164,6 +4171,11 @@
     else if (a === 'cam-nuevo') { crearCamion(S.fl, '', '', []).then(function (cam) { S.ec = cam.id; S.ecNum = ''; S.ecHora = ''; S.ecNombre = ''; S.ecNota = ''; S.ecKg = ''; render(); var fn = $('cam-e-nombre'); if (fn) fn.focus(); }, function () { S.msg.log = '!No se pudo crear el camión.'; pintarMsg('log'); }); }
     else if (a === 'cam-editar') { var ce = camionesDe(S.fl).filter(function (c) { return c.id === D.id; })[0]; if (ce) { S.ec = ce.id; S.ecNum = ce.num || ''; S.ecHora = ce.hora || ''; S.ecNombre = nomLimpio(ce.nombre); if (!S.ecNombre && /[A-ZÁÉÍÓÚÑ]/i.test(ce.num || '')) { S.ecNombre = String(ce.num).trim(); S.ecNum = ''; } S.ecNota = ce.nota || ''; S.ecKg = ce.kg || ''; render(); var fn2 = $('cam-e-nombre'); if (fn2) fn2.focus(); } }
     else if (a === 'cam-cancelar') { S.ec = null; render(); }
+    else if (a === 'pcam-editar') { var pce = camionesDe(S.pd).filter(function (c) { return c.id === D.id; })[0]; if (pce) { S.pec = pce.id; S.ecNombre = nomCam(pce) === 'Sin nombre' ? '' : nomCam(pce); S.ecNota = pce.nota || ''; S.ecKg = pce.kg || ''; renderPedidos(); var fpn = $('cam-e-nombre'); if (fpn) { fpn.focus(); fpn.select(); } } }
+    else if (a === 'pcam-cancelar') { S.pec = null; renderPedidos(); }
+    else if (a === 'pcam-guardar') { var idp = S.pec, cp = camionesDe(S.pd).filter(function (c) { return c.id === idp; })[0]; S.pec = null; if (!cp) { renderPedidos(); return; } cambiarCamion(S.pd, idp, String(S.ecNombre || '').toUpperCase(), S.ecNota, S.ecKg, nomLimpio(cp.nombre) ? cp.num || '' : '', cp.hora || '').then(function () { avisar('Camión guardado.', 3000); renderPedidos(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); renderPedidos(); }); renderPedidos(); }
+    else if (a === 'pcam-borrar') { if (!confirma('pcam-borrar' + D.i)) { renderPedidos(); return; } S.pec = null; borrarCamion(S.pd, D.i).then(function () { avisar('Camión borrado. Sus clientes quedaron sin camión.', 4000); renderPedidos(); }, function () { avisar('!No se pudo borrar. Revisá la conexión.', 6000); renderPedidos(); }); }
+
     else if (a === 'cam-por-hora') { publicarLog(S.fl, porHorario(clone(camionesDe(S.fl)))).then(function () { tocar(); render(); }, function () { S.msg.log = '!No se pudo guardar.'; render(); }); }
     else if (a === 'camion-subir' || a === 'camion-bajar') { moverCamion(S.fl, D.id, a === 'camion-subir' ? -1 : 1).then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); }
     else if (a === 'cam-guardar') { var idc = S.ec; S.ec = null; cambiarCamion(S.fl, idc, S.ecNombre, S.ecNota, S.ecKg, S.ecNum || '', S.ecHora || '').then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); render(); }
