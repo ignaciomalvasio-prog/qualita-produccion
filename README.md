@@ -350,3 +350,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Pedidos: el menú ⋯ del camión ya no queda cortado cuando el camión tiene un solo cliente.
 - Pedidos: en el pedido abierto, el corte de cada renglón (PECHO, JAMON…) se cambia tocándolo, sin Editar (prueba138).
 - Pedidos: el detalle de cada renglón (lo que va después de la cantidad, ej. PECHITO CON MANTA) se escribe ahí mismo, sin Editar; se guarda al salir o con Enter (prueba138).
+- Feriados (Pedidos → Configuración; base: nacionales + 9 y 10/11 de la planta): no son días hábiles. Lo que se entrega el día después de un feriado se deja listo el día hábil anterior: medias en esa faena y cortes en esa planilla de producción (lo ya sumado se mueve solo; prueba139).

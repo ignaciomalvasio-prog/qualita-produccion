@@ -54,7 +54,14 @@
   function hoy() { return iso(new Date()); }
   function mas(s, dias) { var d = fecha(s); d.setDate(d.getDate() + dias); return iso(d); }
   function diaDe(s) { return SEMANA[fecha(s).getDay()]; }
-  function esHabil(s) { var g = fecha(s).getDay(); return g >= 1 && g <= 5; }
+  /* Feriados (pedido de Renzo, 04/11/2026): esos días no hay faena ni producción. Lo que se entrega el día hábil siguiente
+     a un feriado se deja listo el último día hábil antes: las medias en esa faena y los cortes en esa planilla de producción.
+     La lista se cambia en Pedidos → Configuración (config/general.feriados); si nunca se tocó, vale la de base. */
+  var FERIADOS_PLANTA = ['2026-11-09', '2026-11-10'];
+  function feriados() { var c = (S.config || {}).feriados; return Array.isArray(c) ? c : Object.keys(CAM_FERIADOS || {}).concat(FERIADOS_PLANTA).sort(); }
+  function esFeriado(s) { return feriados().indexOf(s) >= 0; }
+  function esHabil(s) { var g = fecha(s).getDay(); return g >= 1 && g <= 5 && !esFeriado(s); }
+  function diaProdPara(f) { return esFeriado(mas(f, -1)) ? habilAnterior(f) : f; }
   function habilSiguiente(s) { var x = mas(s, 1); while (!esHabil(x)) x = mas(x, 1); return x; }
   function habilAnterior(s) { var x = mas(s, -1); while (!esHabil(x)) x = mas(x, -1); return x; }
   function lunesDe(s) { var g = fecha(s).getDay(); return mas(s, g === 0 ? -6 : 1 - g); }
@@ -423,6 +430,26 @@
     if (!t.length) return;
     Promise.all(t).then(function () { return Promise.all(Object.keys(fechas).filter(function (f) { return logDe(f); }).map(function (f) { return publicarLog(f); })); }).then(function () { tocar(); if (!escribiendo()) render(); }, function () {});
   }
+  // Renglones de pedidos que quedaron en la planilla de un día que viene después de un feriado: van al día hábil anterior.
+  var moviendoFer = {};
+  function moverPorFeriado() {
+    if (!S.editor || !S.prod || !S.pedidos) return;
+    var docs = {}, t = [];
+    (S.prod || []).forEach(function (o) {
+      var d = diaProd(o.id), pre = esC3(o.id) ? 'c3-' : ''; if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || d < hoy() || diaProdPara(d) === d || moviendoFer[o.id]) return;
+      var pasan = []; (o.cortes || []).forEach(function (c) { (c.lineas || []).forEach(function (l) { var pp = l.p && pedidoDe(l.p); if (pp && pp.entrega === d) pasan.push({ c: c.corte, l: l }); }); });
+      if (!pasan.length) return;
+      moviendoFer[o.id] = 1;
+      var desde = docs[o.id] || (docs[o.id] = clone(o)), hid = pre + diaProdPara(d), hacia = docs[hid] || (docs[hid] = clone(prodGuardada(hid) || prodVacia(hid)));
+      pasan.forEach(function (x) {
+        desde.cortes.forEach(function (c) { if (c.corte === x.c) c.lineas = c.lineas.filter(function (l) { return !(l.p === x.l.p && l.ck === x.l.ck && l.t === x.l.t); }); });
+        insertarLinea(hacia, x.c, x.l.t, x.l.p, x.l.ck, x.l.f);
+      });
+      desde.cortes = desde.cortes.filter(function (c) { return (c.lineas || []).length; });
+    });
+    Object.keys(docs).forEach(function (id) { var x = docs[id]; delete x.id; t.push(guardarOrden(id, x)); });
+    if (t.length) Promise.all(t).then(function () { tocar(); if (!escribiendo()) render(); }, function () {});
+  }
   function unirPecho(o) {
     var md = (o.cortes || []).filter(function (c) { return norm(c.corte) === 'PECHO MANTA DOBLE'; })[0]; if (!md) return o;
     var pasan = md.lineas.filter(function (l) { return !/DOBLE/.test(norm(l.t)); }); if (!pasan.length) return o;
@@ -494,7 +521,7 @@
   function diaProd(id) { return String(id || '').replace(/^c3-/, ''); }
   function idActual() { return (S.solo === 'ciclo3' ? 'c3-' : '') + S.fecha; }
   function esEmbutido(c) { var t = norm((c.corte || '') + ' ' + (c.texto || '')); return norm(c.corte) === 'EMBUTIDOS' || /CHORIZ|MORCILL|SALCHICH/.test(t); }
-  function idPara(p, c) { return (esEmbutido(c) ? 'c3-' : '') + p.entrega; }
+  function idPara(p, c) { return (esEmbutido(c) ? 'c3-' : '') + diaProdPara(p.entrega); }
   // En Ciclo III los renglones se agrupan por producto: chorizo, morcilla o salchicha.
   function corteC3(c) { var t = norm((c.texto || '') + ' ' + (c.corte || '')); return /CHORIZ/.test(t) ? 'CHORIZO' : /MORCILL/.test(t) ? 'MORCILLA' : /SALCHICH/.test(t) ? 'SALCHICHA' : 'EMBUTIDOS'; }
   function prodGuardada(f) { return (S.prod || []).filter(function (o) { return o.id === f; })[0] || null; }
@@ -1897,6 +1924,12 @@
     return publicarLog(f, cams).then(tocar);
   }
   var tFlota = null;
+  function feriadosHTML() {
+    var l = feriados().filter(function (f) { return f >= mas(hoy(), -7); });
+    return '<div class="fer-cfg"><p><b>Feriados</b> <span class="small muted">— no hay faena ni producción. Lo que se entrega el día después de un feriado se deja listo el día hábil anterior (medias y cortes).</span></p><p class="fer-l">'
+      + (l.length ? l.map(function (f) { return '<span class="fer-chip">' + esc(diaCorto(f)) + (CAM_FERIADOS[f] ? ' <small>' + esc(CAM_FERIADOS[f]) + '</small>' : '') + ' <button class="btn sm lnk" data-act="fer-quitar" data-f="' + f + '" aria-label="Sacar el feriado del ' + esc(diaCorto(f)) + '">✕</button></span>'; }).join('') : '<span class="small muted">No hay feriados cargados.</span>')
+      + '</p><p class="fer-add"><input type="date" id="fer-nueva" aria-label="Fecha del feriado"> <button class="btn sm" data-act="fer-agregar">+ Agregar feriado</button></p></div>';
+  }
   function guardarConfig(ya) {
     S.msg.flota = 'Guardando…'; pintarMsg('flota'); clearTimeout(tFlota);
     tFlota = setTimeout(function () {
@@ -2372,7 +2405,7 @@
   // En Pedidos el día de carga es el mismo día que se está viendo (para no confundirse): elegir un día lo muestra abajo,
   // y pasar de día con ‹ › cambia también el día de carga. "Según el pedido" deja que mande el mensaje.
   function cargaDiaActual() { if (S.tab === 'pedidos') return S.cargaSegun ? '' : (S.pd || habilSiguiente(hoy())); return S.cargaDia || ''; }
-  function diasCarga() { var l = [], f = hoy(); while (l.length < 6) { f = mas(f, 1); var g = fecha(f).getDay(); if (g >= 1 && g <= 5) l.push(f); } return l; }
+  function diasCarga() { var l = [], f = hoy(); while (l.length < 6) { f = mas(f, 1); if (esHabil(f)) l.push(f); } return l; }
   function cargaDiaHTML() {
     var sel = cargaDiaActual(), dias = diasCarga();
     if (sel && dias.indexOf(sel) < 0) dias.push(sel);
@@ -2932,6 +2965,7 @@
 
     h += papeleraHTML();
     h += '<div class="panel"><details' + (S._conf ? ' open' : '') + '><summary>Configuración</summary>'
+      + feriadosHTML()
       + '<div class="imp-cfg">' + (esCelu() ? '' : '<label class="chk"><input type="checkbox" data-act="imp-esta"' + (esImpresora() ? ' checked' : '') + '> <b>Esta compu imprime lo que mande desde el celular</b></label>')
       + (esImpresora() ? ' <label class="campo" style="display:inline-flex;max-width:260px"><span>Nombre de esta compu</span><input type="text" id="imp-nombre" value="' + esc(nombreImpresora()) + '"></label>' : '')
       + '<p class="small"><b>Estado:</b> ' + impEstadoTxt() + '</p>'
@@ -4204,6 +4238,8 @@
     else if (a === 'cam-nuevo') { crearCamion(S.fl, '', '', []).then(function (cam) { S.ec = cam.id; S.ecNum = ''; S.ecHora = ''; S.ecNombre = ''; S.ecNota = ''; S.ecKg = ''; render(); var fn = $('cam-e-nombre'); if (fn) fn.focus(); }, function () { S.msg.log = '!No se pudo crear el camión.'; pintarMsg('log'); }); }
     else if (a === 'cam-editar') { var ce = camionesDe(S.fl).filter(function (c) { return c.id === D.id; })[0]; if (ce) { S.ec = ce.id; S.ecNum = ce.num || ''; S.ecHora = ce.hora || ''; S.ecNombre = nomLimpio(ce.nombre); if (!S.ecNombre && /[A-ZÁÉÍÓÚÑ]/i.test(ce.num || '')) { S.ecNombre = String(ce.num).trim(); S.ecNum = ''; } S.ecNota = ce.nota || ''; S.ecKg = ce.kg || ''; render(); var fn2 = $('cam-e-nombre'); if (fn2) fn2.focus(); } }
     else if (a === 'cam-cancelar') { S.ec = null; render(); }
+    else if (a === 'fer-agregar') { var fn3 = ($('fer-nueva') || {}).value || ''; if (!/^\d{4}-\d{2}-\d{2}$/.test(fn3)) { avisar('!Elegí la fecha del feriado.', 3000); return; } var lf = feriados().slice(); if (lf.indexOf(fn3) < 0) lf.push(fn3); S.config = S.config || {}; S.config.feriados = lf.sort(); S._conf = true; guardarConfig(true); avisar('Feriado: ' + diaCorto(fn3) + '.', 3000); render(); }
+    else if (a === 'fer-quitar') { S.config = S.config || {}; S.config.feriados = feriados().filter(function (x) { return x !== D.f; }); S._conf = true; guardarConfig(true); render(); }
     else if (a === 'pcam-editar') { var pce = camionesDe(S.pd).filter(function (c) { return c.id === D.id; })[0]; if (pce) { S.pec = pce.id; S.ecNombre = nomCam(pce) === 'Sin nombre' ? '' : nomCam(pce); S.ecNota = pce.nota || ''; S.ecKg = pce.kg || ''; renderPedidos(); var fpn = $('cam-e-nombre'); if (fpn) { fpn.focus(); fpn.select(); } } }
     else if (a === 'pcam-cancelar') { S.pec = null; renderPedidos(); }
     else if (a === 'pcam-guardar') { var idp = S.pec, cp = camionesDe(S.pd).filter(function (c) { return c.id === idp; })[0]; S.pec = null; if (!cp) { renderPedidos(); return; } cambiarCamion(S.pd, idp, String(S.ecNombre || '').toUpperCase(), S.ecNota, S.ecKg, nomLimpio(cp.nombre) ? cp.num || '' : '', cp.hora || '').then(function () { avisar('Camión guardado.', 3000); renderPedidos(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); renderPedidos(); }); renderPedidos(); }
@@ -4841,7 +4877,7 @@
     }
     var fallo = function () { if (!got.faena || !got.prod) { var c = cache(true); if (c && c.produccion) aplicar(c, 'cache'); else S.status = 'error'; render(); } };
     store.sub('faena', function (l) { if (S.fuente === 'respaldo' && !l.length) return; S.faena = ordenar(l.map(function (x) { x.desde = x.desde || x.id; return x; })); llego('faena'); conciliarMedias(); }, fallo);
-    store.sub('produccion', function (l) { if (S.fuente === 'respaldo' && !l.length) return; S.prod = ordenar(l.map(function (x) { x.fecha = x.fecha || x.id; return x; })); llego('prod'); migrarPecho(); }, fallo);
+    store.sub('produccion', function (l) { if (S.fuente === 'respaldo' && !l.length) return; S.prod = ordenar(l.map(function (x) { x.fecha = x.fecha || x.id; return x; })); llego('prod'); migrarPecho(); moverPorFeriado(); }, fallo);
     // config: 'general', 'rendering2', la logística de los últimos 45 días (y lo que viene) y el rendering de los últimos 150 días.
     var hace = function (n) { var d = new Date(); d.setDate(d.getDate() - n); return iso(d); };
     var rangosConfig = ['general', 'rendering2', ['log-' + hace(45), 'log-~'], ['rend-' + hace(150), 'rend-~']];
@@ -4875,7 +4911,7 @@
           if (S.fuente === 'respaldo' || vacia) traer();
           if (!suscripto) {
             suscripto = true;
-            store.sub('pedidos', function (l) { S.pedidos = ordenar(l.filter(function (x) { return !pedidoVacio2(x); })); conciliarLog(); renderDatos(); conciliarMedias(); migrarPecho(); });
+            store.sub('pedidos', function (l) { S.pedidos = ordenar(l.filter(function (x) { return !pedidoVacio2(x); })); conciliarLog(); renderDatos(); conciliarMedias(); migrarPecho(); moverPorFeriado(); });
             store.sub('ventas', function (l) { var antes = ventasPendientes(true).length; S.ventas = l; if (antes !== ventasPendientes(true).length && (S.tab === 'pedidos' || S.tab === 'inicio')) renderDatos(); });
             store.sub('privado', function (l) {
               var fl = {}, antesF = JSON.stringify(S.fletes || {});
