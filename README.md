@@ -347,3 +347,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Centro de desposte › Tropas (pedido de Sabi 04/11): sin las columnas Jaula y Faenadas (en pantalla y en el Excel). Prueba: tests/prueba907.js.
 - Centro de desposte › Tropas (pedido de Sabi 04/11): rangos de peso del romaneo menos de 80, de 80 a 110 y más de 110 kg (los límites cuentan en el del medio), con cantidad de animales y porcentaje (en pantalla, total del mes y Excel). "Cambiar rangos" guarda en ddjj-equiv → tropasRangos2.
 - Pedidos: cada camión tiene ⋯ en su título para editarlo (nombre, capacidad, nota) o borrarlo, igual que en Logística (prueba137).
+- Pedidos: el menú ⋯ del camión ya no queda cortado cuando el camión tiene un solo cliente.

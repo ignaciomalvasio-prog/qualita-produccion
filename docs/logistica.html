@@ -689,6 +689,7 @@ button.cam-num{background:none;color:inherit;cursor:pointer}
 .grupo-kg.pasa{background:var(--crit-soft);border-color:var(--crit);color:var(--crit)}
 @media print{ .grupo-kg{background:none!important;border-color:#000} }
 .grupo-cam:not([data-gcam=""]){border:3px solid #1b1b1b;border-radius:8px;background:var(--surface);margin-top:16px;overflow:hidden}
+.grupo-cam:not([data-gcam=""]):has(.mas-btn[aria-expanded="true"]){overflow:visible;position:relative;z-index:6}   /* el menú ⋯ del camión no queda cortado */
 .grupo-cam:not([data-gcam=""])>.grupo-tit{margin:0;padding:8px 12px;background:var(--suave,var(--accent-soft));border-bottom:2px solid #1b1b1b}
 .grupo-cam:not([data-gcam=""]) .peds{border-top:0;padding:0 8px 4px}
 .grupo-cam.vacio:not([data-gcam=""]) .peds{border:0;min-height:44px}
