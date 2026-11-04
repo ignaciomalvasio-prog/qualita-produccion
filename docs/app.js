@@ -1484,6 +1484,19 @@
     S.pedidos = poner(S.pedidos, id, doc);
     return store.set('pedidos', id, doc).then(function () { return revincularProduccion(nuevo, antes); }).then(function () { return publicarLog(doc.entrega); });
   }
+  // El rubro de cada corte se cambia tocándolo, sin apretar Editar (pedido de Renzo, 04/11/2026).
+  function rubroSelHTML(pid, c) {
+    var l = CORTES_BASE.concat(CORTES_A_MANO), act = norm(c.corte); if (act && l.indexOf(act) < 0) l = [act].concat(l);
+    return '<select class="lc-corte lc-corte-sel" data-rubro="' + esc(pid) + '" data-k="' + esc(c.k) + '" aria-label="Cambiar el corte" title="Tocá para cambiar el corte">' + l.map(function (x) { return '<option value="' + esc(x) + '"' + (x === act ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select>';
+  }
+  function guardarRubro(id, k, v) {
+    var p = pedidoDe(id); if (!p) return Promise.resolve();
+    var antes = clone(p), doc = clone(p); delete doc.id;
+    doc.cortes = cortesDe(doc).map(function (c) { if (c.k === k) c.corte = norm(v); return c; });
+    var nuevo = clone(doc); nuevo.id = id;
+    S.pedidos = poner(S.pedidos, id, doc);
+    return store.set('pedidos', id, doc).then(function () { return revincularProduccion(nuevo, antes); }).then(function () { return publicarLog(doc.entrega); });
+  }
   function unidadSelHTML(pid, c) {
     var u = unidadDe(c.texto);
     if (u === null || !c.k) return '';
@@ -2461,7 +2474,7 @@
     if (+p.medias) h += '<p class="lp"><span class="lp-izq"><span class="lc-corte">Medias</span><span class="lc-txt">' + cantHTML(mediasCorto(p)) + mediasFaenaHTML(p) + '</span></span><span class="lp-der">' + precioHTML(p.id, 'm', p.precioMedias, 'las medias', p.ivaMedias) + '</span></p>';
     cs.forEach(function (c) {
       var f = fechaProdDe(m, p, c);
-      h += '<p class="lp"><span class="lp-izq"><span class="lc-corte">' + esc(c.corte) + '</span><span class="lc-txt">' + cantHTML(sinCorteTxt(sinCliente(c.texto, p.cliente), c.corte), unidadSelHTML(p.id, c)) + (c.frio && c.frio !== p.frio ? ' ' + frioBadge(c.frio) : '') + '</span></span><span class="lp-der">' + precioHTML(p.id, c.k, c.precio, c.corte, c.iva) + (f
+      h += '<p class="lp"><span class="lp-izq">' + (S.editor && !S.solo && c.k ? rubroSelHTML(p.id, c) : '<span class="lc-corte">' + esc(c.corte) + '</span>') + '<span class="lc-txt">' + cantHTML(sinCorteTxt(sinCliente(c.texto, p.cliente), c.corte), unidadSelHTML(p.id, c)) + (c.frio && c.frio !== p.frio ? ' ' + frioBadge(c.frio) : '') + '</span></span><span class="lp-der">' + precioHTML(p.id, c.k, c.precio, c.corte, c.iva) + (f
         ? '<span class="en"><span class="badge ok">' + (esC3(f) ? 'En producción · embutidos' : 'En producción') + '</span><button class="btn sm" data-act="c-quitar" data-id="' + id + '" data-k="' + esc(c.k) + '">Quitar</button></span>'
         : '<button class="btn sm pri" data-act="c-sumar" data-id="' + id + '" data-k="' + esc(c.k) + '">' + 'Sumar a producción' + '</button>') + '</span></p>';
     });
@@ -4454,6 +4467,9 @@
       if (t.value === 'otra') { S.ctaOtro = D.cta; renderPedidos(); var ci2 = document.querySelector('[data-cta-in="' + D.cta + '"]'); if (ci2) ci2.focus(); return; }
       var pq = pedidoDe(D.cta), nq = t.value;
       ponerCuenta(D.cta, nq).then(function () { avisar('Cuenta ' + nq + ' guardada para ' + (pq ? pq.cliente : 'el cliente') + '.', 5000); renderPedidos(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); renderPedidos(); });
+    }
+    else if (D.rubro && t.value) {
+      guardarRubro(D.rubro, D.k, t.value).then(function () { avisar('Corte cambiado a ' + t.value + '.', 2500); render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); render(); });
     }
     else if (D.uni && t.value) {
       guardarUnidad(D.uni, D.k, t.value).then(function () { avisar('Unidad guardada.', 2500); render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); render(); });
