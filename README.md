@@ -354,4 +354,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Feriados: los días feriados siguen apareciendo en las listas y flechas de días (pedido de Renzo); solo cambia dónde van las medias y los cortes del día siguiente.
 - Feriados: las medias de pedidos que habían quedado en un feriado pasan solas al día de faena (viernes 6 para el miércoles 11); el título del día dice FERIADO en rojo; en el pedido, "¿Ya están en cámara?" ahora ofrece "Son faena del:" desde el día anterior a la entrega (también días que vienen), con los feriados en rojo (prueba139).
 - Búsquedas (Pedidos y Logística, clientes y camiones): lo que ya salió (entrega hasta hoy) en rojo con "Ya salió"; lo que está por salir en verde con "Por salir" (solo editores).
-- Logística: el título de cada camión se distingue más (franja oscura con línea amarilla, 🚚, nombre más grande y más espacio entre camiones).
+- Logística: el título del camión vuelve a como estaba; lo que se marca más es el nombre de cada cliente (más grande y subrayado, solo en pantalla; impreso igual que antes).
