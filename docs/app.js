@@ -2864,6 +2864,9 @@
     return h;
   }
   // Buscador: en todos los pedidos (desde la semana pasada), por cliente o N° de cuenta.
+  // En las búsquedas: lo que ya salió (entrega hasta hoy) en rojo y lo que está por salir en verde (pedido de Renzo).
+  function busqEst(f) { return f <= hoy() ? ' salio' : ' sale'; }
+  function busqEstTag(f) { return f <= hoy() ? '<span class="busq-est salio">Ya salió</span>' : '<span class="busq-est sale">Por salir</span>'; }
   function buscarPedidosHTML(q) {
     var t = norm(q).trim(), desde = mas(hoy(), -7);
     var l = (S.pedidos || []).filter(function (p) { return p.entrega >= desde && (norm(p.cliente).indexOf(t) >= 0 || (cuentaPedido(p) && String(cuentaPedido(p)).indexOf(t) === 0)); })
@@ -2872,7 +2875,7 @@
     return '<p class="small muted">' + l.length + (l.length === 1 ? ' pedido encontrado' : ' pedidos encontrados') + ':</p><div class="busq">' + l.map(function (p) {
       var cam = nombreCamion(p.entrega, p.camion), res = [];
       if (+p.medias) res.push(n(+p.medias) + ' medias'); if ((p.cortes || []).length) res.push(p.cortes.length + ((p.cortes.length === 1) ? ' corte' : ' cortes'));
-      return '<div class="busq-f ir" data-act="busq-ver" data-id="' + esc(p.id) + '" role="button" tabindex="0" title="Tocá para ir a ese día"><span class="busq-dia">' + esc(diaCorto(p.entrega)) + '</span><span class="nom">' + esc(p.cliente) + '</span>' + ctaHTML(cuentaPedido(p)) + '<span class="small muted">' + res.join(' · ') + '</span>'
+      return '<div class="busq-f ir' + busqEst(p.entrega) + '" data-act="busq-ver" data-id="' + esc(p.id) + '" role="button" tabindex="0" title="Tocá para ir a ese día"><span class="busq-dia">' + esc(diaCorto(p.entrega)) + '</span>' + busqEstTag(p.entrega) + '<span class="nom">' + esc(p.cliente) + '</span>' + ctaHTML(cuentaPedido(p)) + '<span class="small muted">' + res.join(' · ') + '</span>'
         + (cam ? '<span class="badge cam-ped">' + esc(cam) + '</span>' : '<span class="badge warn">Sin camión</span>')
         + '<span class="busq-ir" aria-hidden="true">›</span></div>';
     }).join('') + '</div>';
@@ -2911,7 +2914,7 @@
     if (!l.length) return '<p class="muted sin">No hay camiones con clientes que se llamen "' + esc(q) + '".</p>' + busqPie();
     return '<p class="small muted">' + l.length + (l.length === 1 ? ' viaje encontrado' : ' viajes encontrados') + ' (del más nuevo al más viejo):</p>' + busqPie() + '<div class="busq">' + l.map(function (x) {
       var kg = x.ps.reduce(function (t, p) { return t + (+p.kg || kgPedido(p).kg || 0); }, 0);
-      return '<div class="busq-f busq-cam ir" data-act="busq-cam" data-f="' + esc(x.f) + '" data-cam="' + esc(x.c.id) + '" role="button" tabindex="0" title="Tocá para ir a ese día"><span class="busq-dia">' + esc(diaCorto(x.f)) + '</span><span class="badge cam-ped">' + esc(nomCam(x.c)) + '</span>' + (x.c.hora ? '<span class="cam-hora">' + esc(x.c.hora) + ' hs</span>' : '')
+      return '<div class="busq-f busq-cam ir' + busqEst(x.f) + '" data-act="busq-cam" data-f="' + esc(x.f) + '" data-cam="' + esc(x.c.id) + '" role="button" tabindex="0" title="Tocá para ir a ese día"><span class="busq-dia">' + esc(diaCorto(x.f)) + '</span>' + busqEstTag(x.f) + '<span class="badge cam-ped">' + esc(nomCam(x.c)) + '</span>' + (x.c.hora ? '<span class="cam-hora">' + esc(x.c.hora) + ' hs</span>' : '')
         + '<span class="small muted">' + x.ps.length + (x.ps.length === 1 ? ' cliente' : ' clientes') + (kg ? ' · ≈ ' + n(Math.round(kg)) + ' kg' : '') + '</span>'
         + '<span class="busq-ir" aria-hidden="true">›</span>'
         + '<span class="busq-clis">' + x.ps.map(function (p, i) { return '<span>' + (i + 1) + '. ' + esc(p.cliente) + '</span>'; }).join('') + '</span></div>';
@@ -3090,7 +3093,7 @@
       var cb = x.c ? '<span class="badge cam-ped">' + esc(nomCam(x.c)) + '</span>' + (x.c.hora ? '<span class="cam-hora">' + esc(x.c.hora) + ' hs</span>' : '') : '<span class="badge warn">Sin camión</span>';
       if (camion) {
         var kg = x.ps.reduce(function (t, p) { return t + (+p.kg || 0); }, 0);
-        return '<div class="busq-f busq-cam ir" data-act="lbusq-ver" data-f="' + esc(x.f) + '" data-cam="' + esc(x.c.id) + '" role="button" tabindex="0" title="Tocá para ir a ese día"><span class="busq-dia">' + esc(diaCorto(x.f)) + '</span>' + cb
+        return '<div class="busq-f busq-cam ir' + (S.editor ? busqEst(x.f) : '') + '" data-act="lbusq-ver" data-f="' + esc(x.f) + '" data-cam="' + esc(x.c.id) + '" role="button" tabindex="0" title="Tocá para ir a ese día"><span class="busq-dia">' + esc(diaCorto(x.f)) + '</span>' + (S.editor ? busqEstTag(x.f) : '') + '' + cb
           + '<span class="small muted">' + x.ps.length + (x.ps.length === 1 ? ' cliente' : ' clientes') + (kg ? ' · ≈ ' + n(Math.round(kg)) + ' kg' : '') + '</span>'
           + '<span class="busq-ir" aria-hidden="true">›</span>'
           + '<span class="busq-clis">' + x.ps.map(function (p, i) { return '<span>' + (i + 1) + '. ' + esc(p.cliente) + '</span>'; }).join('') + '</span></div>';
@@ -3098,7 +3101,7 @@
       var p = x.p, res = [];
       if (+p.medias) res.push(n(+p.medias) + ' medias'); if ((p.cortes || []).length) res.push(p.cortes.length + (p.cortes.length === 1 ? ' corte' : ' cortes'));
       var lugar = x.c ? (x.c.orden || []).indexOf(p.id) : -1;
-      return '<div class="busq-f ir" data-act="lbusq-ver" data-f="' + esc(x.f) + '" data-ped="' + esc(p.id) + '" role="button" tabindex="0" title="Tocá para ir a ese día"><span class="busq-dia">' + esc(diaCorto(x.f)) + '</span><span class="nom">' + esc(p.cliente) + '</span>' + ctaHTML(p.cuenta) + '<span class="small muted">' + res.join(' · ') + '</span>' + cb
+      return '<div class="busq-f ir' + (S.editor ? busqEst(x.f) : '') + '" data-act="lbusq-ver" data-f="' + esc(x.f) + '" data-ped="' + esc(p.id) + '" role="button" tabindex="0" title="Tocá para ir a ese día"><span class="busq-dia">' + esc(diaCorto(x.f)) + '</span>' + (S.editor ? busqEstTag(x.f) : '') + '<span class="nom">' + esc(p.cliente) + '</span>' + ctaHTML(p.cuenta) + '<span class="small muted">' + res.join(' · ') + '</span>' + cb
         + (lugar >= 0 ? '<span class="small muted">lugar ' + (lugar + 1) + '</span>' : '')
         + '<span class="busq-ir" aria-hidden="true">›</span></div>';
     }).join('') + '</div>';
