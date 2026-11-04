@@ -2,18 +2,23 @@
    N° de tropa, ingreso, productor, granja, cabezas recibidas, muertos, kg vivos, peso promedio vivo (sin jaula ni faenadas: Sabi 04/11)
    y el porcentaje de animales del romaneo en cada rango de peso (rangos editables, se guardan en ddjj-equiv → tropasRangos).
    Datos: renglones TP / FD / FR de c3sis/dj-AAAA-MM (dj_sync.ps1, Get-Tropas). Muertos: sistema + playa de emergencia (A1) + a mano. */
-const RANGOS_DEF = [60, 70, 80, 90, 100];
-const rangosT = () => ((S.eq && S.eq.tropasRangos) || RANGOS_DEF).slice().sort((a, b) => a - b);
+const RANGOS_DEF = [80, 110];   // menos de 80, de 80 a 110 y más de 110 kg (Sabi 04/11)
+const rangosT = () => ((S.eq && S.eq.tropasRangos2) || RANGOS_DEF).slice().sort((a, b) => a - b);
 function nombresRangos(L) {
-  const n = ['hasta ' + L[0]];
-  for (let i = 1; i < L.length; i++) n.push(L[i - 1] + '–' + L[i]);
+  const n = ['menos de ' + L[0]];
+  for (let i = 1; i < L.length; i++) n.push(L[i - 1] + ' a ' + L[i]);
   n.push('más de ' + L[L.length - 1]);
   return n.map(x => x + ' kg');
 }
-/* cantidad de animales en cada rango: hasta L0 (incl.), L0 a L1 (incl.), …, más de Ln */
+/* cantidad de animales en cada rango: menos de L0, de L0 a L1 (los dos incluidos), …, más de Ln */
 function enRangos(hist, L) {
   const c = new Array(L.length + 1).fill(0);
-  for (const [kg, n] of hist || []) { let i = L.findIndex(x => kg < x); if (i < 0) i = L.length; c[i] += n; }
+  for (const [kg, n] of hist || []) {
+    let i;
+    if (kg < L[0]) i = 0;
+    else { i = L.findIndex(x => kg <= x); i = i < 0 ? L.length : Math.max(i, 1); }
+    c[i] += n;
+  }
   return c;
 }
 function filasTropas() {
@@ -27,7 +32,7 @@ function filasTropas() {
 function renderTropas() {
   const F = filasTropas(), L = rangosT(), NR = nombresRangos(L), pct = (n, t) => t ? (n / t * 100).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' %' : '';
   let h = '<section><div class="dj-top"><div><h2>Tropas · ' + esc(nombreMes(S.mes)) + ' (' + F.length + ')</h2><p class="sub" style="margin:0">Tropas que ingresaron en el mes. Muertos: del sistema, de la playa de emergencia (A1) y cargados a mano. ' +
-    'Kg vivos: los kilos de la tropa (Consulta de Tropa, "Cab. Kilos")' + (S.sis && S.sis.tk ? ' <span class="muted" style="font-size:12px">(columna ' + esc(S.sis.tk) + ')</span>' : '') + '. Rangos de peso: porcentaje de los animales faenados de la tropa según el peso del romaneo.' + (soloVer() ? '' : ' <a href="#" onclick="cambiarRangos();return false">Cambiar rangos</a>') + '</p></div>' +
+    'Kg vivos: los kilos de la tropa (Consulta de Tropa, "Cab. Kilos")' + (S.sis && S.sis.tk ? ' <span class="muted" style="font-size:12px">(columna ' + esc(S.sis.tk) + ')</span>' : '') + '. Rangos de peso: animales faenados de la tropa según el peso del romaneo (cantidad · porcentaje).' + (soloVer() ? '' : ' <a href="#" onclick="cambiarRangos();return false">Cambiar rangos</a>') + '</p></div>' +
     (F.length ? '<div class="row"><button onclick="excelTropas()">⬇ Bajar Excel</button></div>' : '') + '</div>';
   if (!F.length) {
     h += '<div class="alerta warn">' + ((S.sis && S.sis.tk != null) ? 'No ingresaron tropas en ' + esc(nombreMes(S.mes)) + '.' : 'Todavía no llegaron los datos de las tropas: se suben con el programa de la PC (se actualiza solo dentro de la hora). Después tocá "Traer datos nuevos".') + '</div></section>';
@@ -39,27 +44,27 @@ function renderTropas() {
   for (const r of F) {
     h += '<tr><td><b>' + esc(r.tropa) + '</b></td><td>' + ddmm(r.fecha) + '</td><td>' + esc(titulo(r.prod)) + '</td><td>' + esc(titulo(r.loc)) + '</td><td class="num">' + fmt0(r.cab) + '</td>' +
       '<td class="num">' + (r.mu ? fmt0(r.mu) : '') + '</td><td class="num">' + (r.kg ? fmt0(r.kg) : '') + '</td><td class="num">' + (r.prom ? fmt2(r.prom) : '') + '</td>' +
-      r.rangos.map(n => '<td class="num">' + pct(n, r.totR) + '</td>').join('') + '</tr>';
+      r.rangos.map(n => '<td class="num">' + (r.totR ? '<b>' + fmt0(n) + '</b> <span class="muted">· ' + pct(n, r.totR) + '</span>' : '') + '</td>').join('') + '</tr>';
   }
   h += '<tr class="tot"><td colspan="4">Total del mes</td><td class="num">' + fmt0(T('cab')) + '</td><td class="num">' + fmt0(T('mu')) + '</td><td class="num">' + fmt0(T('kg')) + '</td><td class="num">' + (T('cab') && T('kg') ? fmt2(T('kg') / T('cab')) : '') + '</td>' +
-    TR.map(n => '<td class="num">' + pct(n, TT) + '</td>').join('') + '</tr></tbody></table></div></section>';
+    TR.map(n => '<td class="num">' + (TT ? fmt0(n) + ' · ' + pct(n, TT) : '') + '</td>').join('') + '</tr></tbody></table></div></section>';
   $('main').innerHTML = h;
 }
 function cambiarRangos() {
-  pedir('Rangos de peso del romaneo (kg)', rangosT().join(', '), 'Los límites separados por coma. Ej.: 60, 70, 80, 90, 100 → hasta 60, 60–70, 70–80, 80–90, 90–100 y más de 100 kg.', v => {
+  pedir('Rangos de peso del romaneo (kg)', rangosT().join(', '), 'Los límites separados por coma. Ej.: 80, 110 → menos de 80, de 80 a 110 y más de 110 kg.', v => {
     const L = [...new Set(String(v || '').split(/[,;\s]+/).map(x => Number(x.replace(',', '.'))).filter(x => x > 0))].sort((a, b) => a - b);
     if (!L.length) { toast('Poné al menos un límite.', true); return; }
-    cambiarEq(d => { d.tropasRangos = L; }, 'Tropas: rangos de peso ' + L.join(', '));
+    cambiarEq(d => { d.tropasRangos2 = L; }, 'Tropas: rangos de peso ' + L.join(', '));
   }, 'txt');
 }
 function excelTropas() {
   if (!window.XLSX) { toast('No se pudo cargar el Excel. Revisá internet.', true); return; }
   const F = filasTropas(), NR = nombresRangos(rangosT());
-  const filas = [['Tropa', 'Ingreso', 'Productor', 'Granja', 'Cabezas', 'Muertos', 'Kg vivos', 'Peso prom. vivo'].concat(NR.map(n => '% ' + n))];
+  const filas = [['Tropa', 'Ingreso', 'Productor', 'Granja', 'Cabezas', 'Muertos', 'Kg vivos', 'Peso prom. vivo'].concat(...NR.map(n => ['Animales ' + n, '% ' + n]))];
   for (const r of F) filas.push([/^\d+$/.test(r.tropa) ? Number(r.tropa) : r.tropa, fechaDe(r.fecha), titulo(r.prod), titulo(r.loc), r.cab, r.mu || '', r.kg || '', r.prom ? Math.round(r.prom * 100) / 100 : '']
-    .concat(r.rangos.map(n => r.totR ? Math.round(n / r.totR * 1000) / 1000 : '')));
+    .concat(...r.rangos.map(n => r.totR ? [n, Math.round(n / r.totR * 1000) / 1000] : ['', ''])));
   const ws = XLSX.utils.aoa_to_sheet(filas, { cellDates: true }), wb = XLSX.utils.book_new();
-  ws['!cols'] = [{ wch: 10 }, { wch: 11 }, { wch: 28 }, { wch: 18 }, { wch: 9 }, { wch: 8 }, { wch: 10 }, { wch: 12 }].concat(NR.map(() => ({ wch: 13 })));
+  ws['!cols'] = [{ wch: 10 }, { wch: 11 }, { wch: 28 }, { wch: 18 }, { wch: 9 }, { wch: 8 }, { wch: 10 }, { wch: 12 }].concat(...NR.map(() => [{ wch: 12 }, { wch: 10 }]));
   XLSX.utils.book_append_sheet(wb, ws, 'TROPAS');
   guardarXlsx(wb, 'Tropas ' + S.mes + '.xlsx');
 }

@@ -345,3 +345,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Centro de compras: Vales, Órdenes de compra y Cambios arrancan ordenados del más nuevo al más viejo (antes quedaban en el orden del sistema); las fechas del detalle de una persona también.
 - Jamón 5 músculos: bola de lomo, nalga, cuadril, cuadrada y peceto van en JAMON (no en TAPA DE JAMON); la IA lo sabe y lo ya cargado se corrige solo (prueba135).
 - Centro de desposte › Tropas (pedido de Sabi 04/11): sin las columnas Jaula y Faenadas (en pantalla y en el Excel). Prueba: tests/prueba907.js.
+- Centro de desposte › Tropas (pedido de Sabi 04/11): rangos de peso del romaneo menos de 80, de 80 a 110 y más de 110 kg (los límites cuentan en el del medio), con cantidad de animales y porcentaje (en pantalla, total del mes y Excel). "Cambiar rangos" guarda en ddjj-equiv → tropasRangos2.
