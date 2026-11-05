@@ -1004,6 +1004,8 @@
     var ab = S.menuAb === k;
     return '<span class="mas-menu"><button class="btn sm mas-btn" data-act="menu" data-k="' + esc(k) + '" aria-expanded="' + ab + '" aria-haspopup="true" title="' + esc(titulo || 'Más opciones') + '" aria-label="' + esc(titulo || 'Más opciones') + '">' + label + '</button>' + (ab ? '<span class="menu-pop" role="menu">' + items + '</span>' : '') + '</span>';
   }
+  // Que el menú ⋯ no quede afuera de la pantalla (en el celu el botón a veces queda a la izquierda).
+  function ajustarMenus() { document.querySelectorAll('.menu-pop').forEach(function (m) { var r = m.getBoundingClientRect(); if (r.left < 6) { m.style.right = 'auto'; m.style.left = '0'; } r = m.getBoundingClientRect(); if (r.right > innerWidth - 6) { m.style.left = 'auto'; m.style.right = '0'; } }); }
   function cerrarMenus() { S.menuAb = null; document.querySelectorAll('.menu-pop').forEach(function (x) { x.remove(); }); document.querySelectorAll('.mas-btn[aria-expanded="true"]').forEach(function (x) { x.setAttribute('aria-expanded', 'false'); }); }
   function botonBorrar(act, i, texto, cls) {
     var k = act + (i == null ? '' : i);
@@ -3998,7 +4000,7 @@
     if (S.menuAb && !e.target.closest('.mas-btn')) { var keep = e.target.closest('[data-act="cam-borrar"],[data-act="pcam-borrar"]'); if (!keep || S._c2 === keep.dataset.act + keep.dataset.i) cerrarMenus(); }
     var b = e.target.closest('[data-act]'); if (!b) return;
     var a = b.dataset.act, D = b.dataset, o, c;
-    if (a === 'menu') { S.menuAb = S.menuAb === D.k ? null : D.k; render(); return; }
+    if (a === 'menu') { S.menuAb = S.menuAb === D.k ? null : D.k; render(); ajustarMenus(); return; }
     if (S._c2 && S._c2 !== a + (D.i == null ? '' : D.i)) S._c2 = null;
 
     if (a === 'actualizar') { recargar(); return; }
