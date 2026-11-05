@@ -1975,6 +1975,16 @@
       + (l.length ? l.map(function (f) { return '<span class="fer-chip">' + esc(diaCorto(f)) + (CAM_FERIADOS[f] ? ' <small>' + esc(CAM_FERIADOS[f]) + '</small>' : '') + ' <button class="btn sm lnk" data-act="fer-quitar" data-f="' + f + '" aria-label="Sacar el feriado del ' + esc(diaCorto(f)) + '">✕</button></span>'; }).join('') : '<span class="small muted">No hay feriados cargados.</span>')
       + '</p><p class="fer-add"><input type="date" id="fer-nueva" aria-label="Fecha del feriado"> <button class="btn sm" data-act="fer-agregar">+ Agregar feriado</button></p></div>';
   }
+  // Horarios en 24 h (pedido de Renzo): "230" → 02:30, "1430" → 14:30, "14" → 14:00, "2:5" → 02:05.
+  function h24(v) {
+    var t = String(v || '').trim(); if (!t) return '';
+    var m = t.match(/^(\d{1,2})\s*[:.hH ]\s*(\d{1,2})?/), hh, mm;
+    if (m) { hh = +m[1]; mm = +(m[2] || 0); }
+    else { var d = t.replace(/\D/g, ''); if (!d) return ''; if (d.length <= 2) { hh = +d; mm = 0; } else { hh = +d.slice(0, d.length - 2); mm = +d.slice(-2); } }
+    if (hh > 23 || mm > 59 || isNaN(hh) || isNaN(mm)) return '';
+    return ('0' + hh).slice(-2) + ':' + ('0' + mm).slice(-2);
+  }
+  ['focusout', 'change'].forEach(function (ev) { document.addEventListener(ev, function (e) { var t = e.target; if (t && t.dataset && t.dataset.h24 && t.value) { var v = h24(t.value); if (!v) { avisar('!Hora no válida: escribila como 14:30.', 3500); t.value = ''; } else t.value = v; } }, true); });
   function guardarConfig(ya) {
     S.msg.flota = 'Guardando…'; pintarMsg('flota'); clearTimeout(tFlota);
     tFlota = setTimeout(function () {
@@ -2904,7 +2914,7 @@
     var bloque = function (tit, hora, lista, nota, id) {
       var nomT = String(tit || '').replace(/^N° [^·]*· /, '');
       var fijo = id === '_sin';   // "Sin camión": se puede tildar y compartir, pero no tiene hora ni se arrastra
-      var hh = ed && id && !fijo ? ' <input type="time" class="res-hora" data-hora="' + esc(id) + '" value="' + esc(hora || '') + '" aria-label="Hora de salida de ' + esc(tit) + '">' + (hora ? '<span class="solo-print">' + esc(hora) + ' hs</span>' : '') : hora ? ' ' + esc(hora) + ' hs' : '';
+      var hh = ed && id && !fijo ? ' <input type="text" inputmode="numeric" maxlength="5" placeholder="hh:mm" autocomplete="off" data-h24="1" class="res-hora" data-hora="' + esc(id) + '" value="' + esc(hora || '') + '" aria-label="Hora de salida de ' + esc(tit) + '">' + (hora ? '<span class="solo-print">' + esc(hora) + ' hs</span>' : '') : hora ? ' ' + esc(hora) + ' hs' : '';
       return '<div class="res-cam' + (ed && id && !fijo ? ' movible' : '') + '"' + (id && !fijo ? ' data-cam="' + esc(id) + '"' : '') + '><p class="res-tit">' + (ed && id && !fijo ? '<button class="res-mover" data-arr="' + esc(id) + '" aria-label="Arrastrar para cambiar el orden de ' + esc(tit) + ' (o usar las flechas del teclado)" title="Arrastrar para ordenar">⠿</button>' : '') + (id ? '<label class="res-sel" title="Elegir para compartir"><input type="checkbox" data-res-sel="' + esc(id) + '"' + ((S.resSel || {})[f + '|' + id] ? ' checked' : '') + ' aria-label="Elegir ' + esc(tit) + ' para compartir"></label>' : '') + '<mark># ' + esc(tit) + hh + '</mark>' + (id && !nSel ? '<button class="btn sm wa res-wa-uno" data-act="res-wa" data-f="' + esc(f) + '" data-cual="' + esc(id) + '" title="' + (telChofer(nomT) ? 'Abre el chat de ' + esc(choferKey(nomT)) + ' con el mensaje escrito' : 'Mandar solo este camión por WhatsApp') + '">' + (telChofer(nomT) ? 'WhatsApp a ' + esc(choferKey(nomT)) : 'WhatsApp') + '</button>' : '') + '</p>'
         + '<p class="res-lista">' + (lista.length ? lista.map(cli).join(' – ') : '<span class="muted">Sin pedidos</span>') + '</p>'
         + (nota ? '<p class="res-nota">' + esc(nota) + '</p>' : '') + '</div>';
@@ -2948,7 +2958,7 @@
       var pasa = +c.kg > 0 && kgT > +c.kg;
       var tot = l.length ? '<span class="grupo-kg' + (pasa ? ' pasa' : '') + '" title="Kilos que lleva el camión' + (faltaT ? ' (hay renglones sin peso)' : '') + '">≈ ' + n(Math.round(kgT)) + ' kg' + (+c.kg > 0 ? ' <small>de ' + n(+c.kg) + '</small>' : '') + (faltaT ? ' <small>+ sin peso</small>' : '') + '</span>' : '';
       // El horario se pone o se cambia ahí mismo (se guarda al salir del recuadro o con Enter).
-      var horaH = S.editor && !S.solo ? (c.hora || S.horaAbierta === c.id ? ' <input type="time" class="cam-hora cam-hora-in" data-hora-cam="' + esc(c.id) + '" value="' + esc(c.hora || '') + '" aria-label="Horario de salida de ' + esc(nomCam(c)) + '" title="Tocá para cambiar el horario">' : ' <button class="btn sm cam-hora-mas" data-act="hora-abrir" data-id="' + esc(c.id) + '">+ Horario</button>') : (c.hora ? ' <span class="cam-hora">' + esc(c.hora) + ' hs</span>' : '');
+      var horaH = S.editor && !S.solo ? (c.hora || S.horaAbierta === c.id ? ' <input type="text" inputmode="numeric" maxlength="5" placeholder="hh:mm" autocomplete="off" data-h24="1" class="cam-hora cam-hora-in" data-hora-cam="' + esc(c.id) + '" value="' + esc(c.hora || '') + '" aria-label="Horario de salida de ' + esc(nomCam(c)) + '" title="Tocá para cambiar el horario">' : ' <button class="btn sm cam-hora-mas" data-act="hora-abrir" data-id="' + esc(c.id) + '">+ Horario</button>') : (c.hora ? ' <span class="cam-hora">' + esc(c.hora) + ' hs</span>' : '');
       h += grupo('<span class="cam-n" title="Camión ' + (kc + 1) + ' de ' + cams.length + '">' + (kc + 1) + '</span><span class="badge cam-ped">' + esc(nomCam(c)) + '</span>' + horaH, l.length ? resumenLog(l) : 'vacío: arrastrá clientes acá', l, l.length ? '' : 'vacio', c.id, tot);
     });
     return h;
@@ -3225,7 +3235,7 @@
       var suyos = peds.filter(function (p) { return p.camion === cam.id; }), ed = S.ec === cam.id;
       var car = cargaDe(peds, cam.id), ct = capTxt(cam, car), pasa = +cam.kg > 0 && car > +cam.kg;
       h += '<section class="cam' + (pasa ? ' pasa' : '') + '" data-cam="' + esc(cam.id) + '"><header class="cam-cab">'
-        + '<span class="cam-n" title="Camión ' + (k + 1) + ' de ' + cams.length + '">' + (k + 1) + '</span><h2>' + esc(nomCam(cam)) + '</h2>' + (S.editor && !S.solo && !ed ? (cam.hora || S.horaAbierta === cam.id ? '<input type="time" class="cam-hora cam-hora-in" data-hora-cam="' + esc(cam.id) + '" value="' + esc(cam.hora || '') + '" aria-label="Horario de salida de ' + esc(nomCam(cam)) + '" title="Tocá para cambiar el horario">' + (cam.hora ? '<span class="cam-hora solo-print">' + esc(cam.hora) + ' hs</span>' : '') : '<button class="btn sm cam-hora-mas" data-act="hora-abrir" data-id="' + esc(cam.id) + '">+ Horario</button>') : cam.hora ? '<span class="cam-hora">' + esc(cam.hora) + ' hs</span>' : '')
+        + '<span class="cam-n" title="Camión ' + (k + 1) + ' de ' + cams.length + '">' + (k + 1) + '</span><h2>' + esc(nomCam(cam)) + '</h2>' + (S.editor && !S.solo && !ed ? (cam.hora || S.horaAbierta === cam.id ? '<input type="text" inputmode="numeric" maxlength="5" placeholder="hh:mm" autocomplete="off" data-h24="1" class="cam-hora cam-hora-in" data-hora-cam="' + esc(cam.id) + '" value="' + esc(cam.hora || '') + '" aria-label="Horario de salida de ' + esc(nomCam(cam)) + '" title="Tocá para cambiar el horario">' + (cam.hora ? '<span class="cam-hora solo-print">' + esc(cam.hora) + ' hs</span>' : '') : '<button class="btn sm cam-hora-mas" data-act="hora-abrir" data-id="' + esc(cam.id) + '">+ Horario</button>') : cam.hora ? '<span class="cam-hora">' + esc(cam.hora) + ' hs</span>' : '')
         + (cam.nota && !ed ? '<span class="cam-nota">' + esc(cam.nota) + '</span>' : '')
         + (!ed ? '<span class="log-acc">' + menuHTML('cam-' + cam.id, '⋯', (S.editor && cams.length > 1 ? '<button class="btn sm" data-act="camion-subir" data-id="' + esc(cam.id) + '"' + (k === 0 ? ' disabled' : '') + '>↑ Subir el camión</button><button class="btn sm" data-act="camion-bajar" data-id="' + esc(cam.id) + '"' + (k === cams.length - 1 ? ' disabled' : '') + '>↓ Bajar el camión</button>' : '') + '<button class="btn sm" data-act="cam-imprimir" data-id="' + esc(cam.id) + '">Imprimir este camión</button>'
           + (S.editor ? '<button class="btn sm" data-act="cam-editar" data-id="' + esc(cam.id) + '">Editar camión</button>' + botonBorrar('cam-borrar', cam.id, 'Borrar camión') : ''), 'Opciones del camión ' + nomCam(cam)) + '</span>' : '') + '</header>';
@@ -3237,7 +3247,7 @@
         + (ct ? '<div class="cam-carga"><p class="cam-cap' + (pasa ? ' neg' : '') + '">' + esc(ct) + '</p>' + (+cam.kg > 0 ? '<div class="medidor' + (pasa ? ' pasa' : '') + '" role="img" aria-label="' + esc(ct) + '"><i style="width:' + Math.min(100, Math.round(car / +cam.kg * 100)) + '%"></i></div>' : '') + '</div>' : '') + '</div>';
       // El costo del flete ya no se muestra (lo pidió Renzo para ganar espacio); lo cargado sigue en privado/fletes-*.
       h += '<div class="cam-cuerpo">';
-      if (ed) h += '<div class="campos"><label class="campo"><span>Nombre del camión</span><input type="text" id="cam-e-nombre" value="' + esc(S.ecNombre || '') + '" placeholder="Ej. LUCAS HEREDIA"></label><label class="campo"><span>Hora de salida</span><input type="time" id="cam-e-hora" value="' + esc(S.ecHora || '') + '"></label><label class="campo"><span>Capacidad kg</span><input type="number" inputmode="numeric" id="cam-e-kg" value="' + esc(S.ecKg || '') + '"></label><label class="campo"><span>Nota (chofer, hora…)</span><input type="text" id="cam-e-nota" value="' + esc(S.ecNota || '') + '"></label></div>'
+      if (ed) h += '<div class="campos"><label class="campo"><span>Nombre del camión</span><input type="text" id="cam-e-nombre" value="' + esc(S.ecNombre || '') + '" placeholder="Ej. LUCAS HEREDIA"></label><label class="campo"><span>Hora de salida</span><input type="text" inputmode="numeric" maxlength="5" placeholder="hh:mm" autocomplete="off" data-h24="1" id="cam-e-hora" value="' + esc(S.ecHora || '') + '"></label><label class="campo"><span>Capacidad kg</span><input type="number" inputmode="numeric" id="cam-e-kg" value="' + esc(S.ecKg || '') + '"></label><label class="campo"><span>Nota (chofer, hora…)</span><input type="text" id="cam-e-nota" value="' + esc(S.ecNota || '') + '"></label></div>'
         + '<div class="acciones"><button class="btn pri" data-act="cam-guardar">Guardar</button><button class="btn" data-act="cam-cancelar">Cancelar</button></div>';
       h += suyos.length ? '<div class="log-lista">' + suyos.map(function (p, i) { return logPedidoHTML(p, cam, cams, i, suyos.length); }).join('') + '</div>' : '<p class="muted">Sin pedidos.</p>';
       h += '</div></section>';
@@ -4360,7 +4370,7 @@
 
     else if (a === 'cam-por-hora') { publicarLog(S.fl, porHorario(clone(camionesDe(S.fl)))).then(function () { tocar(); render(); }, function () { S.msg.log = '!No se pudo guardar.'; render(); }); }
     else if (a === 'camion-subir' || a === 'camion-bajar') { moverCamion(S.fl, D.id, a === 'camion-subir' ? -1 : 1).then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); }
-    else if (a === 'cam-guardar') { var idc = S.ec; S.ec = null; cambiarCamion(S.fl, idc, S.ecNombre, S.ecNota, S.ecKg, S.ecNum || '', S.ecHora || '').then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); render(); }
+    else if (a === 'cam-guardar') { var idc = S.ec; S.ec = null; cambiarCamion(S.fl, idc, S.ecNombre, S.ecNota, S.ecKg, S.ecNum || '', h24(S.ecHora)).then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); render(); }
     else if (a === 'cam-borrar') { if (!confirma('cam-borrar' + D.i)) { render(); return; } S.ec = null; borrarCamion(S.fl, D.i).then(render, function () { S.msg.log = '!No se pudo borrar.'; render(); }); render(); }
     else if (a === 'cam-quitar-ped') { asignarCamion(S.fl, [D.id], '').then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); }
 

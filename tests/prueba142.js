@@ -1,4 +1,4 @@
-// Logística: el horario de cada camión se pone o se cambia ahí mismo (como en Pedidos).
+// Logística: el horario (en 24 h, se puede escribir 330 o 1715) de cada camión se pone o se cambia ahí mismo (como en Pedidos).
 const {chromium}=require('playwright');const F='2026-11-05';
 const P=(c,cam)=>({cliente:c,entrega:F,medias:14,peso:'',nota:'',origen:'manual',kg:'',camion:cam,cuenta:'',cortes:[]});
 const ped={a:P('LOPEZ','c1'),b:P('EMERIC','c2')};
@@ -10,8 +10,8 @@ await p.addInitScript(d=>{window.__mock={data:JSON.parse(JSON.stringify(d)),user
 await p.goto('http://127.0.0.1:8765/index.html#logistica');await p.clock.runFor(1500);await p.waitForTimeout(300);
 await p.evaluate(()=>{const i=document.getElementById('l-fecha');i.value='2026-11-05';i.dispatchEvent(new Event('change',{bubbles:true}));});await p.waitForTimeout(300);
 await p.click('section.cam[data-cam="c2"] [data-act="hora-abrir"]');await p.waitForTimeout(150);
-await p.fill('input[data-hora-cam="c2"]','03:30');await p.locator('input[data-hora-cam="c2"]').press('Enter');await p.clock.runFor(800);await p.waitForTimeout(300);
-await p.fill('input[data-hora-cam="c1"]','05:15');await p.locator('input[data-hora-cam="c1"]').press('Enter');await p.clock.runFor(800);await p.waitForTimeout(300);
+await p.fill('input[data-hora-cam="c2"]','330');await p.locator('input[data-hora-cam="c2"]').press('Enter');await p.clock.runFor(800);await p.waitForTimeout(300);
+await p.fill('input[data-hora-cam="c1"]','1715');await p.locator('input[data-hora-cam="c1"]').press('Enter');await p.clock.runFor(800);await p.waitForTimeout(300);
 console.log(w,'horarios:',await p.evaluate(F=>window.__mock.data.config['log-'+F].camiones.map(c=>c.nombre+' '+(c.hora||'-')).join(' | '),F));
 console.log(w,'desborde',await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth));await p.close();}
 console.log('errores:',errs.join('|')||'ninguno');await b.close();})();
