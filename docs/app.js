@@ -393,7 +393,7 @@
   function esPedido(t) { return /^\s*\d/.test(t || ''); }
   function sinResto(t) { return String(t || '').replace(/^\s*RESTO\s*:?\s*/i, ''); }
   function corteDe(o, nombre) { var k = norm(nombre); return (o.cortes || []).filter(function (c) { return norm(c.corte) === k; })[0] || null; }
-  function ordenCorte(nombre) { var x = norm(nombre), i = CORTES_BASE.map(norm).indexOf(x === 'CARRE' ? 'CARRE SIN SOLOMILLO' : x); return i < 0 ? 999 : i; }
+  function ordenCorte(nombre) { var x = norm(nombre), i = CORTES_BASE.map(norm).indexOf(x === 'CARRE' ? 'CARRE SIN SOLOMILLO' : /^GRASA (BUENA|MALA)$/.test(x) ? 'GRASA' : x); return i < 0 ? 999 : i + (x === 'GRASA BUENA' ? 0.1 : x === 'GRASA MALA' ? 0.2 : 0); }
   // Achuras y frescos que salen de FAENA (pedido de Renzo): van en una planilla aparte, con su propio título.
   var CORTES_FAENA = ['CABEZA', 'OREJAS', 'PULMON', 'HIGADO', 'PATAS Y MANOS', 'LENGUA', 'CHINCHULIN', 'RIÑON', 'RABO', 'MENUDENCIAS'].map(norm);
   function esFaena(corte) { var x = norm(corte); return CORTES_FAENA.indexOf(x) >= 0 || /^(PATAS?|MANOS?|CABEZAS?|OREJAS?|RIÑON|RINON|RIÑONES|RINONES|LENGUAS?|CHINCHULIN(ES)?|RABOS?)\b/.test(x); }
@@ -404,7 +404,7 @@
   // COSTILLA también es PECHO (pedido de Renzo, 03/11/2026): lo que llegue como costilla se pasa a PECHO (el texto del pedido no cambia).
   var PECHOS_VIEJOS = ['PECHO MANTA DOBLE', 'PECHO MANTA DOBLE CON CUERO', 'COSTILLA', 'COSTILLAS', 'COSTILLAR', 'COSTILLARES', 'COSTILLITA', 'COSTILLITAS'];
   function esPechoViejo(c) { return PECHOS_VIEJOS.indexOf(norm(c || '')) >= 0; }
-  // GRASA BUENA y GRASA MALA ahora son un solo rubro: GRASA (pedido de Renzo, 05/11/2026).
+  // En los pedidos hay un solo rubro GRASA (pedido de Renzo, 05/11/2026); en la planilla de producción Renzo decide si es GRASA BUENA o GRASA MALA.
   var GRASAS_VIEJAS = ['GRASA BUENA', 'GRASA MALA'];
   function esGrasaVieja(c) { return GRASAS_VIEJAS.indexOf(norm(c || '')) >= 0; }
   // Jamón 5 músculos (pedido de Renzo, 03/11/2026): bola de lomo, nalga, cuadril, cuadrada y peceto van en JAMON, no en TAPA DE JAMON.
@@ -423,15 +423,13 @@
       S.pedidos = poner(S.pedidos, id, doc); t.push(store.set('pedidos', id, doc)); if (doc.entrega) fechas[doc.entrega] = 1;
     });
     (S.prod || []).forEach(function (o) {
-      if (migrandoPecho['o' + o.id] || !(o.cortes || []).some(function (c) { return esPechoViejo(c.corte) || esGrasaVieja(c.corte) || (c.lineas || []).some(function (l) { return esDeJamon5(c.corte, l.t); }); })) return;
+      if (migrandoPecho['o' + o.id] || !(o.cortes || []).some(function (c) { return esPechoViejo(c.corte) || (c.lineas || []).some(function (l) { return esDeJamon5(c.corte, l.t); }); })) return;
       migrandoPecho['o' + o.id] = 1;
       var x = clone(o), id = x.id, pe = x.cortes.filter(function (c) { return norm(c.corte) === 'PECHO'; })[0];
       x.cortes.forEach(function (c) { if (!esPechoViejo(c.corte)) return; if (pe) { pe.lineas = pe.lineas.concat(c.lineas); c.lineas = []; } else { c.corte = 'PECHO'; pe = c; } });
-      var gr = x.cortes.filter(function (c) { return norm(c.corte) === 'GRASA'; })[0];
-      x.cortes.forEach(function (c) { if (!esGrasaVieja(c.corte)) return; if (gr) { gr.lineas = gr.lineas.concat(c.lineas); c.lineas = []; } else { c.corte = 'GRASA'; gr = c; } });
       var tj = x.cortes.filter(function (c) { return norm(c.corte) === 'TAPA DE JAMON'; })[0];
       if (tj) { var pasan = tj.lineas.filter(function (l) { return esDeJamon5(tj.corte, l.t); }); if (pasan.length) { var ja = x.cortes.filter(function (c) { return norm(c.corte) === 'JAMON'; })[0]; if (!ja) { ja = { corte: 'JAMON', lineas: [] }; x.cortes.unshift(ja); } ja.lineas = ja.lineas.concat(pasan); tj.lineas = tj.lineas.filter(function (l) { return pasan.indexOf(l) < 0; }); } }
-      x.cortes = x.cortes.filter(function (c) { return !(esPechoViejo(c.corte) || esGrasaVieja(c.corte) || norm(c.corte) === 'TAPA DE JAMON') || c.lineas.length; });
+      x.cortes = x.cortes.filter(function (c) { return !(esPechoViejo(c.corte) || norm(c.corte) === 'TAPA DE JAMON') || c.lineas.length; });
       var dl = limpiarOrden(x); S.prod = poner(S.prod, id, dl); t.push(store.set('produccion', id, dl));
     });
     if (!t.length) return;
@@ -940,7 +938,7 @@
   // Del texto escrito a mano a la planilla. Los renglones que venían de un pedido conservan el vínculo.
   function parsearOrden(texto, base) {
     var o = clone(base), conocidos = {}, cortes = [], cur = null, cab = false;
-    CORTES_BASE.forEach(function (x) { conocidos[x] = 1; });
+    CORTES_BASE.concat(GRASAS_VIEJAS).forEach(function (x) { conocidos[x] = 1; });
     (base.cortes || []).forEach(function (c) { if (c.corte) conocidos[norm(c.corte)] = 1; });
     String(texto || '').replace(/\r/g, '').split('\n').forEach(function (raw) {
       var l = raw.replace(/\s+/g, ' ').trim();

@@ -1,4 +1,4 @@
-// COSTILLA se toma como PECHO; GRASA BUENA/MALA → GRASA; nalga/peceto/cuadril/cuadrada/bola de lomo van en JAMON (no en TAPA DE JAMON): pedidos y planillas que la tengan se pasan a PECHO solos (el texto no cambia).
+// COSTILLA se toma como PECHO; en pedidos GRASA BUENA/MALA → GRASA (en la planilla quedan como están); nalga/peceto/cuadril/cuadrada/bola de lomo van en JAMON (no en TAPA DE JAMON): pedidos y planillas que la tengan se pasan a PECHO solos (el texto no cambia).
 const {chromium}=require('playwright');const F='2026-11-04';
 const C=(c,ls)=>({corte:c,lineas:ls.map(t=>({t}))});
 const data={faena:{},privado:{},config:{general:{}},
