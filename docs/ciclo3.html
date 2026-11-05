@@ -1039,7 +1039,7 @@ details[open] > summary{margin-bottom:10px}
 
 /* Stock → planilla Stock de Cortes */
 .stk-hoja .cam-cab h3{margin:0}
-.stk-cortes{display:flex;flex-wrap:wrap;gap:6px 18px;margin:8px 0}
+.stk-cortes{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin:10px 0}
 .stk-con{display:flex;gap:8px;flex-wrap:wrap}.stk-con input{flex:1;min-width:200px}
 
 /* Feriados (Pedidos → Configuración) */
@@ -1089,6 +1089,27 @@ details[open] > summary{margin-bottom:10px}
 @media (max-width:560px){ .cam-n{min-width:30px;height:30px;font-size:18px} .cam-cuenta{font-size:17px} .cam-cuenta b{font-size:23px} }
 @media print{ .cam-cuenta{background:none;color:#000;border:2px solid #000;padding:2px 10px} .cam-cuenta b{color:#000} .cam-n{background:none;border:2px solid #000;color:#000;box-shadow:none;min-width:26px;height:26px;font-size:16px} }
 input[data-h24]{width:6.2ch!important;min-width:6.2ch;text-align:center;font-variant-numeric:tabular-nums;box-sizing:content-box}
+
+/* Stock con más color (pedido de Renzo, 05/11/2026) */
+@media screen{
+  .pl.stock-t tbody tr:nth-child(even) td{background:#f1f8fc}
+  .pl.stock-t tbody tr:hover td{background:#e3f2f9}
+  .pl.stock-t td.stk-kg{font-weight:800;font-size:17px;color:#17364a}
+  .pl.stock-t td.stk-u{color:#2c7a97;font-weight:600}
+  .dep-c{font-weight:700}.dep-c::before{content:'';display:inline-block;width:8px;height:8px;border-radius:50%;background:currentColor;margin-right:4px;vertical-align:1px}
+  .dep-frigo{color:#1f5fbf}.dep-local{color:#1f8a4c}.dep-c3{color:#d9730d}.dep-arg{color:#7b3fbf}.dep-otro{color:#6b7f8f}
+  .stk-frio{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.05em;padding:1px 6px;border-radius:4px;vertical-align:2px;margin-left:4px}
+  .stk-frio.cong{background:#dff1fb;color:#1c6ea4;border:1px solid #9fd0ee}.stk-frio.fres{background:#e3f6ea;color:#1f8a4c;border:1px solid #a6dcb8}
+  .stk-dep.prod-30{color:#d9730d;font-weight:700}.stk-dep.prod-60{color:#c62828;font-weight:700}
+  .stk-card{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-radius:10px;border:1px solid transparent;border-left-width:5px}
+  .stk-card .t{font:700 15px var(--display);letter-spacing:.05em;text-transform:uppercase}.stk-card b{font:800 24px var(--display);line-height:1.1}.stk-card .u{font-size:12px;opacity:.75;margin-top:-2px}.stk-card .a{font-size:11px;opacity:.6}
+  .stk-card.c0{background:#fdecef;border-color:#f3c2cc;border-left-color:#c2185b;color:#7a0f39}
+  .stk-card.c1{background:#e8f1fd;border-color:#bcd5f5;border-left-color:#1f5fbf;color:#123a74}
+  .stk-card.c2{background:#fff3e3;border-color:#f6d3a5;border-left-color:#d9730d;color:#7a3f05}
+  .stk-card.c3{background:#f1eafb;border-color:#d6c3f1;border-left-color:#7b3fbf;color:#45207a}
+  .stk-card.c4{background:#e7f6ec;border-color:#b7e1c4;border-left-color:#1f8a4c;color:#11532d}
+  .stk-card.c5{background:#e6f6f8;border-color:#b3e0e7;border-left-color:#0f8a9c;color:#0a4e58}
+}
 </style>
 </head>
 <body>

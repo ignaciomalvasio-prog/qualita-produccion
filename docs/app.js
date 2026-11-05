@@ -1219,6 +1219,8 @@
     return Object.keys(porArt).map(function (k) { return porArt[k]; }).sort(function (x, y) { return x.a - y.a; });
   }
   function nomDep(f) { var d = ((S.stock || {}).depositos || {})[String(f)] || ('Depósito ' + f); return String(d).replace(/\s+/g, ' ').replace(/^Frigorifico Qualita.*$/i, 'Frigorífico').replace(/^Qualita\s+S\.?\s?A\.?\s*-?\s*/i, '').replace(/^\((.*)\)$/, '$1').trim() || d; }
+  // Color de cada depósito en la lista de Stock.
+  function depColor(f) { var t = norm(nomDep(f)); return /FRIGOR/.test(t) ? 'dep-frigo' : /LOCAL|COMERCIAL/.test(t) ? 'dep-local' : /CICLO/.test(t) ? 'dep-c3' : /ARGENCARNES/.test(t) ? 'dep-arg' : 'dep-otro'; }
   function stockResHTML() {
     var l = stockFiltro(), filas = stockFilas(), tkg = 0, tu = 0, dosDec = function (v) { return new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(v); };
     filas.forEach(function (x) { tkg += x.kg; tu += x.u; });
@@ -1227,10 +1229,13 @@
     var multi = !l.dep, conFecha = !!(l.fd || l.fh);
     if (conFecha) h += '<p class="small muted">Con fecha de producción se cuentan las piezas y cajas etiquetadas que están en cámara. Lo que no lleva etiqueta (patitas, cabezas, etc.) no tiene fecha y no aparece.</p>';
     h += '<table class="pl stock-t"><thead><tr><th>N°</th><th>Artículo</th><th>Kg</th><th>Unid.</th></tr></thead><tbody>' + filas.map(function (x) {
-      var donde = multi && x.deps.length ? '<span class="stk-dep">' + x.deps.sort(function (p, q) { return q.kg - p.kg; }).map(function (d) { return esc(nomDep(d.f)) + ' ' + dosDec(d.kg) + ' kg'; }).join(' · ') + '</span>' : '';
+      var donde = multi && x.deps.length ? '<span class="stk-dep">' + x.deps.sort(function (p, q) { return q.kg - p.kg; }).map(function (d) { return '<span class="dep-c ' + depColor(d.f) + '">' + esc(nomDep(d.f)) + ' ' + dosDec(d.kg) + ' kg</span>'; }).join(' · ') + '</span>' : '';
       var ds = Object.keys(x.dias).sort(), prod = conFecha && ds.length && ds.length <= 4 ? 'Producción: ' + ds.map(function (d) { return fCorta(d) + ' ' + dosDec(x.dias[d]) + ' kg'; }).join(' · ') : x.dmin ? 'Producción: ' + (x.dmin === x.dmax ? 'del ' + fCorta(x.dmin) : 'del ' + fCorta(x.dmin) + ' al ' + fCorta(x.dmax)) : '';
-      if (prod) donde += '<span class="stk-dep">' + esc(prod) + '</span>';
-      return '<tr><td class="stk-n">' + x.a + '</td><td class="stk-art">' + esc(x.n || 'Artículo ' + x.a) + donde + '</td><td>' + dosDec(x.kg) + '</td><td>' + n(x.u) + '</td></tr>';
+      // Producción vieja (pedido de Renzo): más de 30 días en naranja, más de 60 en rojo (según la fecha más nueva).
+      var dias = x.dmax ? Math.floor((fecha(hoy()) - fecha(x.dmax)) / 86400000) : 0, vieja = dias > 60 ? ' prod-60' : dias > 30 ? ' prod-30' : '';
+      if (prod) donde += '<span class="stk-dep' + vieja + '"' + (vieja ? ' title="Producción de hace ' + dias + ' días"' : '') + '>' + esc(prod) + (vieja ? ' · ' + dias + ' días' : '') + '</span>';
+      var cong = /\bCONG/.test(norm(x.n || '')), tag = '<span class="stk-frio ' + (cong ? 'cong">CONGELADO' : 'fres">FRESCO') + '</span>';
+      return '<tr><td class="stk-n">' + x.a + '</td><td class="stk-art">' + esc(x.n || 'Artículo ' + x.a) + ' ' + tag + donde + '</td><td class="stk-kg">' + dosDec(x.kg) + '</td><td class="stk-u">' + n(x.u) + '</td></tr>';
     }).join('') + '</tbody></table>';
     return h;
   }
@@ -1265,7 +1270,7 @@
     var x = stkHoja(), sv = stkValores(), dosDec = function (v) { return n(Math.round(v)); };
     var h = '<div class="panel stk-hoja"><div class="cam-cab"><h3>Planilla "Stock de Cortes"</h3><span class="small muted">🔒 Solo vos · depósito 1 · Frigorífico</span></div>';
     if (!camSheet()) return h + '<p class="small">Primero hay que tener conectada la planilla de Cámara (FAENA POR DÍA): el stock pasa por el mismo programita.</p></div>';
-    h += '<p class="stk-cortes">' + STK_CORTES.map(function (c) { return '<span><b>' + esc(c[0]) + '</b> ' + (sv.hay[c[0]] ? dosDec(sv.v[c[0]]) + ' kg' : '<span class="neg">no está en el stock (art. ' + c[1].join(', ') + ')</span>') + '</span>'; }).join('') + '</p>';
+    h += '<div class="stk-cortes">' + STK_CORTES.map(function (c, i) { return '<div class="stk-card c' + i + '"><span class="t">' + esc(c[0]) + '</span>' + (sv.hay[c[0]] ? '<b>' + dosDec(sv.v[c[0]]) + '</b><span class="u">kg</span>' : '<span class="neg small">no está en el stock</span>') + '<span class="a">art. ' + c[1].join(', ') + '</span></div>'; }).join('') + '</div>';
     if (!x) return h + '<div class="stk-con"><input type="url" id="stk-url" placeholder="Pegá el link de la planilla Stock de Cortes" autocomplete="off"><button class="btn pri" data-act="stk-conectar">Conectar</button></div>' + (S.stkErr ? '<p class="small neg">' + esc(S.stkErr) + '</p>' : '') + '</div>';
     return h + '<p class="small">' + (S.stkErr ? '<span class="neg">' + esc(S.stkErr) + '</span>' : x.ts ? '⇄ Se actualiza sola en el renglón STOCK INICIAL cada vez que llega el stock. Última: ' + esc(x.cuando || '') + '.' : 'Conectada. Todavía no se mandó.') + '</p>'
       + '<div class="acciones"><button class="btn sm" data-act="stk-ya">Mandar ahora</button><button class="btn sm" data-act="stk-quitar">' + (S._c2 === 'stk-quitar' ? '¿Seguro? Tocá de nuevo' : 'Desconectar') + '</button></div></div>';
