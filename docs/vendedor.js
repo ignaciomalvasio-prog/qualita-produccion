@@ -55,7 +55,7 @@
     [441, "Recorte de cabezas", "CABEZA"],
     [461, "Tocino – Cajas x 20 kgs.", "TOCINO"],
     [471, "Unto – Boneles x 20 kgs.", "UNTO"],
-    [481, "Grasa – Cajas x 20 kgs.", "GRASA BUENA"],
+    [481, "Grasa – Cajas x 20 kgs.", "GRASA"],
     [501, "Lengua – Cajas x 10 kgs.", "MENUDENCIAS"],
     [502, "Higado – Cajas x 20 kgs.", "HIGADO"],
     [503, "Corazon – Cajas x 20 kgs.", "MENUDENCIAS"],

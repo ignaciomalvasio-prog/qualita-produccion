@@ -364,3 +364,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Clientes → Kilos por sucursal, más simple: 1) Total por corte y sucursal (semana, con botones por día); 2) Total por semana (kilos de cada sucursal, Córdoba y Mendoza aparte); 3) Total por mes (igual, por mes). Se sacaron el cuadro por día, los cortes de cada sucursal y el total por corte de 4 semanas.
 - Pedidos y Logística: cartel grande con la cantidad de camiones del día y cada camión con su número (1, 2, 3…) en un círculo amarillo.
 - Logística: el horario de cada camión se pone ("+ Horario") o se cambia tocándolo, ahí mismo, como en Pedidos (prueba142).
+- GRASA BUENA y GRASA MALA pasan a ser un solo corte: GRASA (en la lista de cortes, en el portal de vendedores y en lo ya cargado; prueba135).
