@@ -366,3 +366,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Logística: el horario de cada camión se pone ("+ Horario") o se cambia tocándolo, ahí mismo, como en Pedidos (prueba142).
 - GRASA BUENA y GRASA MALA pasan a ser un solo corte: GRASA (en la lista de cortes, en el portal de vendedores y en lo ya cargado; prueba135).
 - Grasa: en los pedidos es un solo corte GRASA; en la planilla de producción se puede seguir escribiendo GRASA BUENA o GRASA MALA (no se juntan).
+- Cámara: los feriados de la lista de Pedidos → Configuración (incluidos 9 y 10/11) se marcan en rojo y no proyectan faena ni desposte.
