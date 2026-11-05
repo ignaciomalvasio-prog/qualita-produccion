@@ -2552,7 +2552,8 @@
   function prodBadgeHTML(enP, tot) {
     if (!tot) return '<span class="pr-ic nada" title="Solo medias: no hay cortes para mandar a producción" aria-label="Solo medias">–</span>';
     return enP >= tot ? '<span class="pr-ic si" title="En producción" aria-label="En producción">✓</span>'
-      : '<span class="pr-ic no" title="' + (enP ? 'Falta pasar a producción: ' + enP + ' de ' + tot + ' cortes' : 'Sin producción') + '" aria-label="Sin producción">✗</span>';
+      : enP ? '<span class="pr-ic parte" title="Sumados a producción: ' + enP + ' de ' + tot + ' cortes (falta ' + (tot - enP) + ')" aria-label="Sumados ' + enP + ' de ' + tot + '">' + enP + '/' + tot + '</span>'
+      : '<span class="pr-ic no" title="Sin producción" aria-label="Sin producción">✗</span>';
   }
   // Kilos totales del pedido (medias, cajas y unidades pasadas a kilos, o los que se cargaron a mano).
   function kgPedHTML(p) {

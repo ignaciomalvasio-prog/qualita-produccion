@@ -372,3 +372,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Stock con más color: filas alternadas, cada depósito con su color (Frigorífico azul, Local Comercial verde, CICLO III naranja, ARGENCARNES violeta), etiqueta FRESCO/CONGELADO, producción de más de 30 días en naranja y de más de 60 en rojo, kilos en negrita y unidades en celeste; el recuadro Stock de Cortes con una tarjeta de color por corte.
 - Nuevo corte CORAZON (achura de faena: va en la planilla de faena; también en el portal de vendedores).
 - Pedidos: al mandar a un camión un solo cliente tildado (menú del renglón o camión nuevo con Enter) queda destildado, igual que cuando son varios (prueba143).
+- Pedidos: si un pedido tiene solo algunos cortes sumados a producción, en vez de la cruz roja muestra en naranja cuántos van (ej. 3/4).
