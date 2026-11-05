@@ -3222,7 +3222,7 @@
       var suyos = peds.filter(function (p) { return p.camion === cam.id; }), ed = S.ec === cam.id;
       var car = cargaDe(peds, cam.id), ct = capTxt(cam, car), pasa = +cam.kg > 0 && car > +cam.kg;
       h += '<section class="cam' + (pasa ? ' pasa' : '') + '" data-cam="' + esc(cam.id) + '"><header class="cam-cab">'
-        + '<span class="cam-n" title="Camión ' + (k + 1) + ' de ' + cams.length + '">' + (k + 1) + '</span><h2>' + esc(nomCam(cam)) + '</h2>' + (cam.hora ? '<span class="cam-hora">' + esc(cam.hora) + ' hs</span>' : '')
+        + '<span class="cam-n" title="Camión ' + (k + 1) + ' de ' + cams.length + '">' + (k + 1) + '</span><h2>' + esc(nomCam(cam)) + '</h2>' + (S.editor && !S.solo && !ed ? (cam.hora || S.horaAbierta === cam.id ? '<input type="time" class="cam-hora cam-hora-in" data-hora-cam="' + esc(cam.id) + '" value="' + esc(cam.hora || '') + '" aria-label="Horario de salida de ' + esc(nomCam(cam)) + '" title="Tocá para cambiar el horario">' + (cam.hora ? '<span class="cam-hora solo-print">' + esc(cam.hora) + ' hs</span>' : '') : '<button class="btn sm cam-hora-mas" data-act="hora-abrir" data-id="' + esc(cam.id) + '">+ Horario</button>') : cam.hora ? '<span class="cam-hora">' + esc(cam.hora) + ' hs</span>' : '')
         + (cam.nota && !ed ? '<span class="cam-nota">' + esc(cam.nota) + '</span>' : '')
         + (!ed ? '<span class="log-acc">' + menuHTML('cam-' + cam.id, '⋯', (S.editor && cams.length > 1 ? '<button class="btn sm" data-act="camion-subir" data-id="' + esc(cam.id) + '"' + (k === 0 ? ' disabled' : '') + '>↑ Subir el camión</button><button class="btn sm" data-act="camion-bajar" data-id="' + esc(cam.id) + '"' + (k === cams.length - 1 ? ' disabled' : '') + '>↓ Bajar el camión</button>' : '') + '<button class="btn sm" data-act="cam-imprimir" data-id="' + esc(cam.id) + '">Imprimir este camión</button>'
           + (S.editor ? '<button class="btn sm" data-act="cam-editar" data-id="' + esc(cam.id) + '">Editar camión</button>' + botonBorrar('cam-borrar', cam.id, 'Borrar camión') : ''), 'Opciones del camión ' + nomCam(cam)) + '</span>' : '') + '</header>';
@@ -4219,7 +4219,7 @@
       var lv = D.ped ? document.querySelector('#view-logistica .log-ped[data-lp="' + D.ped + '"]') : document.querySelector('#view-logistica section.cam[data-cam="' + D.cam + '"]');
       if (lv) { lv.scrollIntoView({ block: D.ped ? 'center' : 'start', behavior: 'smooth' }); lv.classList.add('destello'); setTimeout(function () { lv.classList.remove('destello'); }, 2200); }
     }
-    else if (a === 'hora-abrir') { S.horaAbierta = D.id; renderPedidos(); var ha = document.querySelector('input[data-hora-cam="' + D.id + '"]'); if (ha) ha.focus(); }
+    else if (a === 'hora-abrir') { S.horaAbierta = D.id; render(); var ha = document.querySelector('input[data-hora-cam="' + D.id + '"]'); if (ha) ha.focus(); }
     else if (a === 'cam-sheet') { S.camSheetAbierto = !S.camSheetAbierto; S.camSheetErr = ''; renderCamara(); var cu = $('cam-sheet-url'); if (cu) cu.focus(); }
     else if (a === 'cam-sheet-copiar') { fetch('camara-sheet.txt', { cache: 'no-store' }).then(function (r) { return r.text(); }).then(function (t) { return navigator.clipboard.writeText(t); }).then(function () { S.camCopiado = true; renderCamara(); }, function () { window.open('camara-sheet.txt', '_blank'); }); }
     else if (a === 'cam-sheet-conectar') { var cu2 = $('cam-sheet-url'); S.camSheetUrl = cu2 ? cu2.value : ''; camConectar(S.camSheetUrl); }
@@ -4405,10 +4405,10 @@
   document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey && e.target && e.target.dataset && e.target.dataset.notaPed) { e.preventDefault(); e.target.blur(); } });
   document.addEventListener('focusout', function (e) {
     var t = e.target; if (!t || !t.dataset || !t.dataset.horaCam) return;
-    var idh = t.dataset.horaCam, f = S.pd, c = camionesDe(f).filter(function (x) { return x.id === idh; })[0], v = t.value || '';
+    var idh = t.dataset.horaCam, f = S.tab === 'logistica' ? S.fl : S.pd, c = camionesDe(f).filter(function (x) { return x.id === idh; })[0], v = t.value || '';
     if (S.horaAbierta === idh) S.horaAbierta = null;
-    if (!c || v === (c.hora || '')) { if (!v) setTimeout(renderPedidos, 0); return; }
-    cambiarCamion(f, idh, c.nombre, c.nota, c.kg, null, v).then(function () { avisar(v ? nomCam(c) + ': sale a las ' + v + ' hs.' : nomCam(c) + ': sin horario.', 2500); renderPedidos(); }, function () { avisar('!No se pudo guardar el horario. Revisá la conexión.', 6000); renderPedidos(); });
+    if (!c || v === (c.hora || '')) { if (!v) setTimeout(render, 0); return; }
+    cambiarCamion(f, idh, c.nombre, c.nota, c.kg, null, v).then(function () { avisar(v ? nomCam(c) + ': sale a las ' + v + ' hs.' : nomCam(c) + ': sin horario.', 2500); render(); }, function () { avisar('!No se pudo guardar el horario. Revisá la conexión.', 6000); render(); });
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target && e.target.dataset && e.target.dataset.horaCam) { e.preventDefault(); e.target.blur(); } });
   function guardarResHora(t) {
