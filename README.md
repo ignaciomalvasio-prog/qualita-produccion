@@ -362,3 +362,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Clientes → Total por corte y sucursal: botones "Toda la semana" / "Solo martes 3/11"… para ver los kilos de una sola entrega (el PDF sale igual que lo que se ve).
 - Clientes → Total por corte y sucursal: los botones de día son siempre lunes a viernes (para cualquier cliente), además de Toda la semana.
 - Clientes → Kilos por sucursal, más simple: 1) Total por corte y sucursal (semana, con botones por día); 2) Total por semana (kilos de cada sucursal, Córdoba y Mendoza aparte); 3) Total por mes (igual, por mes). Se sacaron el cuadro por día, los cortes de cada sucursal y el total por corte de 4 semanas.
+- Pedidos y Logística: cartel grande con la cantidad de camiones del día y cada camión con su número (1, 2, 3…) en un círculo amarillo.

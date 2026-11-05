@@ -2937,16 +2937,16 @@
     var cams = camionesDe(f), hay = {}; cams.forEach(function (c) { hay[c.id] = c; });
     if (!cams.length) return '<div class="peds">' + ultimosArriba(lista).map(function (p) { return pedidoHTML(p, m); }).join('') + '</div>';
     var grupo = function (tit, extra, l, cls, camId, tot) { return '<div class="grupo-cam' + (cls ? ' ' + cls : '') + '" data-gcam="' + esc(camId || '') + '"><h3 class="grupo-tit">' + tit + ' <span class="small muted">' + esc(extra) + '</span>' + (tot || '') + (camId && S.editor && !S.solo ? '<span class="pcam-acc">' + menuHTML('pcam-' + camId, '⋯', '<button class="btn sm" data-act="pcam-editar" data-id="' + esc(camId) + '">Editar camión</button>' + botonBorrar('pcam-borrar', camId, 'Borrar camión'), 'Opciones del camión') + '</span>' : '') + '</h3>' + (camId && S.pec === camId ? pcamEdHTML() : '') + '<div class="peds">' + l.map(function (p) { return pedidoHTML(p, m, true); }).join('') + '</div></div>'; };
-    var h = '', sin = ultimosArriba(lista.filter(function (p) { return !(p.camion && hay[p.camion]); }));
+    var h = '<p class="cam-cuenta">🚚 <b>' + cams.length + '</b> ' + (cams.length === 1 ? 'camión' : 'camiones') + '</p>', sin = ultimosArriba(lista.filter(function (p) { return !(p.camion && hay[p.camion]); }));
     if (sin.length) h += grupo('Sin camión', resumenLog(sin), sin, 'sin-cam', '');
-    cams.forEach(function (c) {
+    cams.forEach(function (c, kc) {
       var o = c.orden || [], l = lista.filter(function (p) { return p.camion === c.id; }).sort(function (a, b) { var i = o.indexOf(a.id), j = o.indexOf(b.id); return (i < 0 ? 1e6 : i) - (j < 0 ? 1e6 : j); });
       var kgT = 0, faltaT = false; l.forEach(function (p) { var k = kgPedido(p); kgT += k.kg; if (k.falta) faltaT = true; });
       var pasa = +c.kg > 0 && kgT > +c.kg;
       var tot = l.length ? '<span class="grupo-kg' + (pasa ? ' pasa' : '') + '" title="Kilos que lleva el camión' + (faltaT ? ' (hay renglones sin peso)' : '') + '">≈ ' + n(Math.round(kgT)) + ' kg' + (+c.kg > 0 ? ' <small>de ' + n(+c.kg) + '</small>' : '') + (faltaT ? ' <small>+ sin peso</small>' : '') + '</span>' : '';
       // El horario se pone o se cambia ahí mismo (se guarda al salir del recuadro o con Enter).
       var horaH = S.editor && !S.solo ? (c.hora || S.horaAbierta === c.id ? ' <input type="time" class="cam-hora cam-hora-in" data-hora-cam="' + esc(c.id) + '" value="' + esc(c.hora || '') + '" aria-label="Horario de salida de ' + esc(nomCam(c)) + '" title="Tocá para cambiar el horario">' : ' <button class="btn sm cam-hora-mas" data-act="hora-abrir" data-id="' + esc(c.id) + '">+ Horario</button>') : (c.hora ? ' <span class="cam-hora">' + esc(c.hora) + ' hs</span>' : '');
-      h += grupo('<span class="badge cam-ped">' + esc(nomCam(c)) + '</span>' + horaH, l.length ? resumenLog(l) : 'vacío: arrastrá clientes acá', l, l.length ? '' : 'vacio', c.id, tot);
+      h += grupo('<span class="cam-n" title="Camión ' + (kc + 1) + ' de ' + cams.length + '">' + (kc + 1) + '</span><span class="badge cam-ped">' + esc(nomCam(c)) + '</span>' + horaH, l.length ? resumenLog(l) : 'vacío: arrastrá clientes acá', l, l.length ? '' : 'vacio', c.id, tot);
     });
     return h;
   }
@@ -3216,12 +3216,13 @@
     if (S.resumen) { el.innerHTML = h + resumenDiaHTML(f, cams, peds); pintarMsg('log'); return; }
     var tildL = S.editor && !S.solo && S.selDia === f ? (S.pedidos || []).filter(function (p) { return S.sel[p.id] && p.entrega === f; }) : [];
     if (tildL.length) h += '<div class="log-barra">' + barraCamionHTML(f, tildL) + '</div>';
+    if (cams.length) h += '<p class="cam-cuenta">🚚 <b>' + cams.length + '</b> ' + (cams.length === 1 ? 'camión' : 'camiones') + '</p>';
     h += '<p class="muted">Para entregar ' + esc(cuandoEs(f)) + ': ' + resumenLog(peds) + (cams.length ? ' · ' + cams.length + (cams.length === 1 ? ' camión' : ' camiones') : '') + '.</p>';
     cams.forEach(function (cam, k) {
       var suyos = peds.filter(function (p) { return p.camion === cam.id; }), ed = S.ec === cam.id;
       var car = cargaDe(peds, cam.id), ct = capTxt(cam, car), pasa = +cam.kg > 0 && car > +cam.kg;
       h += '<section class="cam' + (pasa ? ' pasa' : '') + '" data-cam="' + esc(cam.id) + '"><header class="cam-cab">'
-        + '<h2>' + esc(nomCam(cam)) + '</h2>' + (cam.hora ? '<span class="cam-hora">' + esc(cam.hora) + ' hs</span>' : '')
+        + '<span class="cam-n" title="Camión ' + (k + 1) + ' de ' + cams.length + '">' + (k + 1) + '</span><h2>' + esc(nomCam(cam)) + '</h2>' + (cam.hora ? '<span class="cam-hora">' + esc(cam.hora) + ' hs</span>' : '')
         + (cam.nota && !ed ? '<span class="cam-nota">' + esc(cam.nota) + '</span>' : '')
         + (!ed ? '<span class="log-acc">' + menuHTML('cam-' + cam.id, '⋯', (S.editor && cams.length > 1 ? '<button class="btn sm" data-act="camion-subir" data-id="' + esc(cam.id) + '"' + (k === 0 ? ' disabled' : '') + '>↑ Subir el camión</button><button class="btn sm" data-act="camion-bajar" data-id="' + esc(cam.id) + '"' + (k === cams.length - 1 ? ' disabled' : '') + '>↓ Bajar el camión</button>' : '') + '<button class="btn sm" data-act="cam-imprimir" data-id="' + esc(cam.id) + '">Imprimir este camión</button>'
           + (S.editor ? '<button class="btn sm" data-act="cam-editar" data-id="' + esc(cam.id) + '">Editar camión</button>' + botonBorrar('cam-borrar', cam.id, 'Borrar camión') : ''), 'Opciones del camión ' + nomCam(cam)) + '</span>' : '') + '</header>';
