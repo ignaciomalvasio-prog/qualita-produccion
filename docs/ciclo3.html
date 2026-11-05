@@ -675,6 +675,7 @@ button.cam-num{background:none;color:inherit;cursor:pointer}
 .busq-f.ir{cursor:pointer;position:relative;padding-right:30px}.busq-f.ir:hover,.busq-f.ir:focus-visible{background:var(--accent-soft)}.busq-f.ir:focus-visible{outline:2px solid var(--accent)}.busq-ir{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:22px;color:var(--accent);font-weight:700}
 .busq-f .nom{font-weight:700}.busq-dia{font:700 13px var(--body);color:var(--accent);min-width:78px}.busq-f .btn{margin-left:auto}
 .grupo-cam{margin-top:12px}.grupo-tit{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:16px;margin:0 0 6px}
+.gt-br{display:none}
 .grupo-cam.sin-cam .grupo-tit{color:var(--warn)}
 .frio-chip{display:inline-block;font:700 12px var(--body);letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:3px;white-space:nowrap;cursor:pointer;border:1px solid transparent}
 .frio-chip.fresco{background:var(--ok-soft);color:var(--ok);border-color:#b9dfc8}
@@ -1113,8 +1114,14 @@ input[data-h24]{width:6.2ch!important;min-width:6.2ch;text-align:center;font-var
   .stk-card.c5{background:#e6f6f8;border-color:#b3e0e7;border-left-color:#0f8a9c;color:#0a4e58}
 }
 @media (max-width:560px){
-  .grupo-cam:not([data-gcam=""])>.grupo-tit{position:relative;padding-right:56px!important}
-  .grupo-cam:not([data-gcam=""])>.grupo-tit .pcam-acc{position:absolute;top:10px;right:8px;margin:0}
+  /* Título del camión en el celu: número, nombre y ⋯ arriba; horario, detalle y kg abajo */
+  .grupo-cam:not([data-gcam=""])>.grupo-tit{display:grid!important;grid-template-columns:auto minmax(0,1fr) auto auto;grid-template-areas:"nom nom nom acc" "hora info kg kg";align-items:center;gap:8px 10px}
+  .grupo-cam:not([data-gcam=""])>.grupo-tit .cam-n{grid-area:nom;justify-self:start;align-self:center}
+  .grupo-cam:not([data-gcam=""])>.grupo-tit .badge.cam-ped{grid-area:nom;justify-self:start;white-space:normal;line-height:1.15;margin-left:40px}
+  .grupo-cam:not([data-gcam=""])>.grupo-tit .pcam-acc{grid-area:acc}
+  .grupo-cam:not([data-gcam=""])>.grupo-tit .cam-hora-in,.grupo-cam:not([data-gcam=""])>.grupo-tit .cam-hora-mas{grid-area:hora;justify-self:start}
+  .grupo-cam:not([data-gcam=""])>.grupo-tit>.small{grid-area:info;line-height:1.25}
+  .grupo-cam:not([data-gcam=""])>.grupo-tit .grupo-kg{grid-area:kg;justify-self:end}
 }
 </style>
 </head>

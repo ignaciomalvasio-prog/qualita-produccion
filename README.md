@@ -375,3 +375,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Pedidos: si un pedido tiene solo algunos cortes sumados a producción, en vez de la cruz roja muestra en naranja cuántos van (ej. 3/4).
 - Menús ⋯: si se abren pegados al borde (en el celu el botón a veces queda a la izquierda) se acomodan para que se vean enteros.
 - Pedidos en el celu: los ⋯ de cada camión siempre arriba a la derecha.
+- Pedidos en el celu: el título de cada camión siempre igual: número, nombre y ⋯ arriba; horario a la izquierda, detalle y kilos a la derecha abajo.

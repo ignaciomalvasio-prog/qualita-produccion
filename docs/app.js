@@ -2967,7 +2967,7 @@
       var tot = l.length ? '<span class="grupo-kg' + (pasa ? ' pasa' : '') + '" title="Kilos que lleva el camión' + (faltaT ? ' (hay renglones sin peso)' : '') + '">≈ ' + n(Math.round(kgT)) + ' kg' + (+c.kg > 0 ? ' <small>de ' + n(+c.kg) + '</small>' : '') + (faltaT ? ' <small>+ sin peso</small>' : '') + '</span>' : '';
       // El horario se pone o se cambia ahí mismo (se guarda al salir del recuadro o con Enter).
       var horaH = S.editor && !S.solo ? (c.hora || S.horaAbierta === c.id ? ' <input type="text" inputmode="numeric" maxlength="5" placeholder="hh:mm" autocomplete="off" data-h24="1" class="cam-hora cam-hora-in" data-hora-cam="' + esc(c.id) + '" value="' + esc(c.hora || '') + '" aria-label="Horario de salida de ' + esc(nomCam(c)) + '" title="Tocá para cambiar el horario">' : ' <button class="btn sm cam-hora-mas" data-act="hora-abrir" data-id="' + esc(c.id) + '">+ Horario</button>') : (c.hora ? ' <span class="cam-hora">' + esc(c.hora) + ' hs</span>' : '');
-      h += grupo('<span class="cam-n" title="Camión ' + (kc + 1) + ' de ' + cams.length + '">' + (kc + 1) + '</span><span class="badge cam-ped">' + esc(nomCam(c)) + '</span>' + horaH, l.length ? resumenLog(l) : 'vacío: arrastrá clientes acá', l, l.length ? '' : 'vacio', c.id, tot);
+      h += grupo('<span class="cam-n" title="Camión ' + (kc + 1) + ' de ' + cams.length + '">' + (kc + 1) + '</span><span class="badge cam-ped">' + esc(nomCam(c)) + '</span><span class="gt-br"></span>' + horaH, l.length ? resumenLog(l) : 'vacío: arrastrá clientes acá', l, l.length ? '' : 'vacio', c.id, tot);
     });
     return h;
   }
