@@ -370,3 +370,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Horarios de camiones en 24 h (Pedidos, Logística, Resumen y Editar camión): se escribe 0330, 1715 o 17:15 y queda como 17:15; sin AM/PM (prueba142).
 - Centro de desposte (pedido de Sabi 05/11): el Excel diario que se guarda solo en Escritorio\DDJJ ya no incluye el Rendimiento del mes, solo la DDJJ de desposte. Prueba: tests/prueba904.js.
 - Stock con más color: filas alternadas, cada depósito con su color (Frigorífico azul, Local Comercial verde, CICLO III naranja, ARGENCARNES violeta), etiqueta FRESCO/CONGELADO, producción de más de 30 días en naranja y de más de 60 en rojo, kilos en negrita y unidades en celeste; el recuadro Stock de Cortes con una tarjeta de color por corte.
+- Nuevo corte CORAZON (achura de faena: va en la planilla de faena; también en el portal de vendedores).

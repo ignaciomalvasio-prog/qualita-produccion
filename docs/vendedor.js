@@ -58,7 +58,7 @@
     [481, "Grasa – Cajas x 20 kgs.", "GRASA"],
     [501, "Lengua – Cajas x 10 kgs.", "MENUDENCIAS"],
     [502, "Higado – Cajas x 20 kgs.", "HIGADO"],
-    [503, "Corazon – Cajas x 20 kgs.", "MENUDENCIAS"],
+    [503, "Corazon – Cajas x 20 kgs.", "CORAZON"],
     [504, "Centro Entraña – Cajas x 20 kgs.", "MENUDENCIAS"],
     [505, "Riñon – Cajas x 20 kgs.", "MENUDENCIAS"],
     [506, "Rabo – Cajas x 10 kgs.", "MENUDENCIAS"],

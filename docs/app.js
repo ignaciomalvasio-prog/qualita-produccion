@@ -30,7 +30,7 @@
   var TABS = ['inicio', 'pedidos', 'produccion', 'ciclo3', 'logistica', 'medias', 'rendering', 'stock', 'clientes', 'camara', 'tunel'];
   // Artículos que solo se eligen a mano (no los usa la IA al leer pedidos): "CORTES", para casos eventuales (pedido de Renzo).
   var CORTES_A_MANO = ['CORTES'];
-  var CORTES_BASE = ['JAMON', 'PALETA', 'PECHO', 'PANCETA CON CUERO', 'PANCETA SIN CUERO', 'CARRE SIN SOLOMILLO', 'CARRE CON SOLOMILLO', 'SOLOMILLO', 'CINTA DE LOMO', 'MATAMBRE', 'VACIO', 'BONDIOLA', 'RECORTE', 'GRASA', 'CUERO', 'TAPA DE PALETA', 'TAPA DE JAMON', 'TORTUGA', 'GARRON', 'TOCINO', 'CHURRASCO', 'PAPADA', 'HUESITOS', 'UNTO', 'CABEZA', 'OREJAS', 'PULMON', 'HIGADO', 'PATAS Y MANOS', 'LENGUA', 'CHINCHULIN', 'RIÑON', 'RABO', 'MENUDENCIAS', 'EMBUTIDOS', 'CHORIZO', 'MORCILLA', 'SALCHICHA'];
+  var CORTES_BASE = ['JAMON', 'PALETA', 'PECHO', 'PANCETA CON CUERO', 'PANCETA SIN CUERO', 'CARRE SIN SOLOMILLO', 'CARRE CON SOLOMILLO', 'SOLOMILLO', 'CINTA DE LOMO', 'MATAMBRE', 'VACIO', 'BONDIOLA', 'RECORTE', 'GRASA', 'CUERO', 'TAPA DE PALETA', 'TAPA DE JAMON', 'TORTUGA', 'GARRON', 'TOCINO', 'CHURRASCO', 'PAPADA', 'HUESITOS', 'UNTO', 'CABEZA', 'OREJAS', 'PULMON', 'HIGADO', 'PATAS Y MANOS', 'LENGUA', 'CORAZON', 'CHINCHULIN', 'RIÑON', 'RABO', 'MENUDENCIAS', 'EMBUTIDOS', 'CHORIZO', 'MORCILLA', 'SALCHICHA'];
 
   var S = {
     faena: null, prod: null, pedidos: null, config: {}, ia: {}, status: 'loading', fuente: '',
@@ -395,8 +395,8 @@
   function corteDe(o, nombre) { var k = norm(nombre); return (o.cortes || []).filter(function (c) { return norm(c.corte) === k; })[0] || null; }
   function ordenCorte(nombre) { var x = norm(nombre), i = CORTES_BASE.map(norm).indexOf(x === 'CARRE' ? 'CARRE SIN SOLOMILLO' : /^GRASA (BUENA|MALA)$/.test(x) ? 'GRASA' : x); return i < 0 ? 999 : i + (x === 'GRASA BUENA' ? 0.1 : x === 'GRASA MALA' ? 0.2 : 0); }
   // Achuras y frescos que salen de FAENA (pedido de Renzo): van en una planilla aparte, con su propio título.
-  var CORTES_FAENA = ['CABEZA', 'OREJAS', 'PULMON', 'HIGADO', 'PATAS Y MANOS', 'LENGUA', 'CHINCHULIN', 'RIÑON', 'RABO', 'MENUDENCIAS'].map(norm);
-  function esFaena(corte) { var x = norm(corte); return CORTES_FAENA.indexOf(x) >= 0 || /^(PATAS?|MANOS?|CABEZAS?|OREJAS?|RIÑON|RINON|RIÑONES|RINONES|LENGUAS?|CHINCHULIN(ES)?|RABOS?)\b/.test(x); }
+  var CORTES_FAENA = ['CABEZA', 'OREJAS', 'PULMON', 'HIGADO', 'PATAS Y MANOS', 'LENGUA', 'CORAZON', 'CHINCHULIN', 'RIÑON', 'RABO', 'MENUDENCIAS'].map(norm);
+  function esFaena(corte) { var x = norm(corte); return CORTES_FAENA.indexOf(x) >= 0 || /^(PATAS?|MANOS?|CABEZAS?|OREJAS?|RIÑON|RINON|RIÑONES|RINONES|LENGUAS?|CORAZON(ES)?|CHINCHULIN(ES)?|RABOS?)\b/.test(x); }
   // "Pechito con manta" no es manta doble: en la planilla esos renglones van a PECHO (pedido de Renzo).
   // Solo quedan en PECHO MANTA DOBLE los que dicen "DOBLE".
   // Ya no hay rubros "PECHO MANTA DOBLE" ni "PECHO MANTA DOBLE CON CUERO": todo es PECHO (pedido de Renzo).
