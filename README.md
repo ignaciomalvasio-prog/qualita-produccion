@@ -356,3 +356,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Búsquedas (Pedidos y Logística, clientes y camiones): lo que ya salió (entrega hasta hoy) en rojo con "Ya salió"; lo que está por salir en verde con "Por salir" (solo editores).
 - Logística: el título del camión vuelve a como estaba; lo que se marca más es el nombre de cada cliente (más grande y subrayado, solo en pantalla; impreso igual que antes).
 - Pedidos con más color (solo en pantalla): renglones alternados en celeste, nombres en azul oscuro, Sin camión en ámbar, título de cada camión en degradé celeste y chips de otros días en celeste.
+- Pedidos: al subir o pegar fotos/capturas, antes de leerlas se abre un recuadro para recortar (mover y agrandar desde las esquinas); "Usar entera" la deja como está (prueba140).

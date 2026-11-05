@@ -2345,6 +2345,66 @@
       if (S.tab === ctx.tab && !escribiendo()) { S.pegar = true; render(); } else refrescar();
     });
   }
+  /* Recortar las fotos antes de leerlas (pedido de Renzo, 04/11/2026): se marca con un recuadro lo que vale
+     (se mueve arrastrando y se agranda desde las esquinas). "Usar entera" la deja como está. */
+  function recortarFotos(files, listo) {
+    var lista = Array.prototype.slice.call(files || []).filter(function (f) { return f && /^image\//.test(f.type || 'image/'); }), salida = [], i = 0;
+    if (!lista.length) return;
+    if (window.__mock && window.__mock.sinRecorte) { listo(lista); return; }
+    var sig = function () { if (i >= lista.length) { if (salida.length) listo(salida); return; } var f = lista[i++]; recortarUna(f, i, lista.length, function (r) { if (r === null) { i = lista.length; if (salida.length) listo(salida); return; } salida.push(r); sig(); }); };
+    sig();
+  }
+  function recortarUna(file, num, total, fin) {
+    var url = URL.createObjectURL(file), ov = document.createElement('div');
+    ov.className = 'rec-ov';
+    ov.innerHTML = '<div class="rec-caja"><p class="rec-tit">Recortá la foto' + (total > 1 ? ' ' + num + ' de ' + total : '') + '<span class="small"> · arrastrá el recuadro o sus esquinas</span></p>'
+      + '<div class="rec-zona"><img class="rec-img" alt="Foto a recortar"><div class="rec-sel"><i data-h="nw"></i><i data-h="ne"></i><i data-h="sw"></i><i data-h="se"></i></div></div>'
+      + '<div class="acciones rec-acc"><button class="btn pri" data-r="ok">✓ Usar recortada</button><button class="btn" data-r="entera">Usar entera</button><button class="btn lnk" data-r="no">Cancelar</button></div></div>';
+    document.body.appendChild(ov);
+    var img = ov.querySelector('.rec-img'), sel = ov.querySelector('.rec-sel'), r = { x: 0, y: 0, w: 0, h: 0 }, W = 0, H = 0;
+    var pinta = function () { sel.style.left = r.x + 'px'; sel.style.top = r.y + 'px'; sel.style.width = r.w + 'px'; sel.style.height = r.h + 'px'; };
+    var cerrar = function (res) { URL.revokeObjectURL(url); ov.remove(); document.removeEventListener('keydown', tecla); fin(res); };
+    var tecla = function (e) { if (e.key === 'Escape') cerrar(null); else if (e.key === 'Enter') { e.preventDefault(); ov.querySelector('[data-r="ok"]').click(); } };
+    document.addEventListener('keydown', tecla);
+    img.onload = function () {
+      W = img.clientWidth; H = img.clientHeight;
+      var m = Math.round(Math.min(W, H) * 0.04); r = { x: m, y: m, w: W - 2 * m, h: H - 2 * m }; pinta();
+    };
+    img.onerror = function () { cerrar(file); };
+    img.src = url;
+    var drag = null, MIN = 30;
+    var pos = function (e) { var b = img.getBoundingClientRect(); return { x: e.clientX - b.left, y: e.clientY - b.top }; };
+    sel.addEventListener('pointerdown', function (e) {
+      e.preventDefault(); sel.setPointerCapture(e.pointerId);
+      drag = { h: e.target.dataset.h || 'mover', p: pos(e), r: { x: r.x, y: r.y, w: r.w, h: r.h } };
+    });
+    sel.addEventListener('pointermove', function (e) {
+      if (!drag) return; var p = pos(e), dx = p.x - drag.p.x, dy = p.y - drag.p.y, o = drag.r, n = { x: o.x, y: o.y, w: o.w, h: o.h };
+      if (drag.h === 'mover') { n.x = Math.max(0, Math.min(W - o.w, o.x + dx)); n.y = Math.max(0, Math.min(H - o.h, o.y + dy)); }
+      else {
+        if (/w/.test(drag.h)) { var nx = Math.max(0, Math.min(o.x + o.w - MIN, o.x + dx)); n.w = o.w + (o.x - nx); n.x = nx; }
+        if (/e/.test(drag.h)) n.w = Math.max(MIN, Math.min(W - o.x, o.w + dx));
+        if (/n/.test(drag.h)) { var ny = Math.max(0, Math.min(o.y + o.h - MIN, o.y + dy)); n.h = o.h + (o.y - ny); n.y = ny; }
+        if (/s/.test(drag.h)) n.h = Math.max(MIN, Math.min(H - o.y, o.h + dy));
+      }
+      r = n; pinta();
+    });
+    var soltar = function () { drag = null; };
+    sel.addEventListener('pointerup', soltar); sel.addEventListener('pointercancel', soltar);
+    ov.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-r]'); if (!b) return;
+      if (b.dataset.r === 'no') return cerrar(null);
+      if (b.dataset.r === 'entera' || !W) return cerrar(file);
+      var k = img.naturalWidth / W, cv = document.createElement('canvas'), sx = Math.round(r.x * k), sy = Math.round(r.y * k), sw = Math.round(r.w * k), sh = Math.round(r.h * k);
+      cv.width = sw; cv.height = sh; cv.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+      cv.toBlob(function (bl) {
+        if (!bl) return cerrar(file);
+        var nom = String(file.name || 'foto').replace(/\.[a-z0-9]+$/i, '') + ' (recortada).jpg', nf;
+        try { nf = new File([bl], nom, { type: 'image/jpeg' }); } catch (er) { nf = bl; nf.name = nom; }
+        cerrar(nf);
+      }, 'image/jpeg', 0.92);
+    });
+  }
   function subirFotos(files) {
     var lista = Array.prototype.slice.call(files), ctx = ctxCarga(), leidos = [], errores = [], i = 0;
     if (!lista.length) return;
@@ -4474,7 +4534,7 @@
     e.preventDefault();
     imgs = imgs.map(function (b, i) { try { return new File([b], b.name && b.name !== 'image.png' ? b.name : 'captura' + (imgs.length > 1 ? ' ' + (i + 1) : '') + '.png', { type: b.type }); } catch (err) { return b; } });
     if (S.pegar && !String(S.pegarTxt || '').trim()) { S.pegar = false; renderPedidos(); }
-    subirFotos(imgs);
+    recortarFotos(imgs, subirFotos);
   });
   document.addEventListener('change', function (e) {
     var t = e.target, D = t.dataset;
@@ -4527,7 +4587,7 @@
       try { t.value = ''; } catch (err) {}
     }
     else if (t.id === 'pf-foto' && t.files && t.files.length) { leerFaenaFoto(t.files[0]); try { t.value = ''; } catch (err) {} }
-    else if (t.id === 'fotos' && t.files && t.files.length) { subirFotos(t.files); try { t.value = ''; } catch (err) {} }
+    else if (t.id === 'fotos' && t.files && t.files.length) { recortarFotos(t.files, subirFotos); try { t.value = ''; } catch (err) {} }
     else if (D.sel) {
       var ps = pedidoDe(D.sel);
       if (t.checked && ps) { if (S.selDia !== ps.entrega) { S.sel = {}; S.selDia = ps.entrega; S.camOtro = false; } S.sel[D.sel] = true; } else delete S.sel[D.sel];
