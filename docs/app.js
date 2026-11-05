@@ -4318,13 +4318,13 @@
       var gr2 = camGrupo(pn2), ids2 = gr2.map(function (x) { return x.id; }), f2 = pn2.entrega;
       var ya2 = camionesDe(f2).filter(function (c) { return norm(nomCam(c)) === norm(nom2); })[0];
       S.camMenu = null;
-      (ya2 ? asignarCamion(f2, ids2, ya2.id).then(function () { return ya2; }) : crearCamion(f2, nom2, '', ids2)).then(function (cam) { if (gr2.length > 1) S.sel = {}; avisar(gr2.length > 1 ? avisoCamion(f2, cam.id, gr2.length) : pn2.cliente + ' va en ' + nomCam(cam) + '.', 4000); renderPedidos(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); renderPedidos(); });
+      (ya2 ? asignarCamion(f2, ids2, ya2.id).then(function () { return ya2; }) : crearCamion(f2, nom2, '', ids2)).then(function (cam) { S.sel = {}; avisar(gr2.length > 1 ? avisoCamion(f2, cam.id, gr2.length) : pn2.cliente + ' va en ' + nomCam(cam) + '.', 4000); renderPedidos(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); renderPedidos(); });
     }
     else if (a === 'camp-set') {
       e.preventDefault(); e.stopPropagation(); var pc = pedidoDe(D.id); S.camMenu = null; if (!pc) { renderPedidos(); return; }
       var vc = D.v || '', fc = pc.entrega, gr = camGrupo(pc), idsC = gr.map(function (x) { return x.id; });
       (vc.charAt(0) === 'f' ? usarDeFlota(fc, vc.slice(2), idsC) : asignarCamion(fc, idsC, vc.slice(2)).then(function () { return { id: vc.slice(2) }; }))
-        .then(function (cam) { if (gr.length > 1) S.sel = {}; avisar(gr.length > 1 ? (vc ? avisoCamion(fc, cam.id, gr.length) : gr.length + ' pedidos quedaron sin camión.') : vc ? pc.cliente + ' ' + avisoCamion(fc, cam.id, 1).replace(/^1 pedido en /, 'va en ') : pc.cliente + ' quedó sin camión.', 5000); renderPedidos(); }, function (er) { avisar('!' + ((er && er.message) || 'No se pudo guardar. Revisá la conexión.'), 6000); renderPedidos(); });
+        .then(function (cam) { S.sel = {}; avisar(gr.length > 1 ? (vc ? avisoCamion(fc, cam.id, gr.length) : gr.length + ' pedidos quedaron sin camión.') : vc ? pc.cliente + ' ' + avisoCamion(fc, cam.id, 1).replace(/^1 pedido en /, 'va en ') : pc.cliente + ' quedó sin camión.', 5000); renderPedidos(); }, function (er) { avisar('!' + ((er && er.message) || 'No se pudo guardar. Revisá la conexión.'), 6000); renderPedidos(); });
     }
     else if (a === 'camp-sacar') {
       e.preventDefault(); e.stopPropagation(); var ps = pedidoDe(D.id); S.camMenu = null; if (!ps) return;
