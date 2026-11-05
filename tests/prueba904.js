@@ -23,7 +23,7 @@ let r=await correr({hasta:'2026-10-28',tener:[]});
 ok(r.titulo==='AUTO-OK','termina bien ('+r.titulo+')');
 ok(JSON.stringify(r.out.dias)==='["2026-10-27","2026-10-28"]','sin archivos: todos los días hasta ayer, no el de hoy ('+r.out.dias+')');
 const nom=r.out.archivos.map(a=>a.nombre);console.log('archivos:',nom.join(', '));
-ok(nom.includes('DDJJ desposte 28-10-2026.xlsx')&&nom.includes('Rendimiento desposte 2026-10.xlsx'),'DDJJ del día y Rendimiento del mes');
+ok(nom.includes('DDJJ desposte 28-10-2026.xlsx')&&!nom.some(n=>/Rendimiento/.test(n)),'solo la DDJJ del día, sin el Rendimiento');
 const d28=Buffer.from(r.out.archivos.find(a=>a.nombre==='DDJJ desposte 28-10-2026.xlsx').b64,'base64').toString('latin1');
 ok(/<c r="D19"[^>]*><v>159<\/v>/.test(d28),'el Excel trae lo mismo que la página (159), con formato');
 ok(!r.errs.length,'errores: '+(r.errs.join('|')||'ninguno'));

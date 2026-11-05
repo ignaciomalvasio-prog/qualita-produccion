@@ -1,11 +1,10 @@
 ﻿# ============================================================
-#  Centro de desposte · guarda solo, todos los días, los Excel de la DDJJ de desposte y del Rendimiento en el Escritorio
+#  Centro de desposte · guarda solo, todos los días, los Excel de la DDJJ de desposte en el Escritorio (sin el Rendimiento desde el 05/11)
 #  (pedido de Sabi, 29/10/2026). Lo corre la tarea "DDJJ Excel diario" a las 7:20 (después de que dj_sync.ps1 sube los datos de las 7).
 #
 #  Qué guarda, en Escritorio\DDJJ\AAAA-MM Mes\ :
 #    - "DDJJ desposte dd-mm-aaaa.xlsx" de cada día con desposte del mes hasta ayer que todavía no tenga archivo,
 #      y el último día siempre de nuevo (para que tenga lo corregido a mano en la página).
-#    - "Rendimiento desposte AAAA-MM.xlsx" del mes (se pisa todos los días).
 #  Los Excel son los mismos que los botones de la página: no se calculan acá. Este programa lee los datos de la web
 #  (lo del sistema + equivalencias + lo corregido a mano), arma una copia de la página /ddjj con esos datos adentro
 #  (window.__mock) y la abre con Edge sin ventana en modo automático (window.__auto); la página arma los Excel y

@@ -368,3 +368,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Grasa: en los pedidos es un solo corte GRASA; en la planilla de producción se puede seguir escribiendo GRASA BUENA o GRASA MALA (no se juntan).
 - Cámara: los feriados de la lista de Pedidos → Configuración (incluidos 9 y 10/11) se marcan en rojo y no proyectan faena ni desposte.
 - Horarios de camiones en 24 h (Pedidos, Logística, Resumen y Editar camión): se escribe 0330, 1715 o 17:15 y queda como 17:15; sin AM/PM (prueba142).
+- Centro de desposte (pedido de Sabi 05/11): el Excel diario que se guarda solo en Escritorio\DDJJ ya no incluye el Rendimiento del mes, solo la DDJJ de desposte. Prueba: tests/prueba904.js.

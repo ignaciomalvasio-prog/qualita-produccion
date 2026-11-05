@@ -654,18 +654,16 @@ function guardarXlsx(wb, nombre) {
 }
 /* Modo automático (lo usa dj_excel_diario.ps1 todos los días con Edge sin ventana y los datos en window.__mock):
    __auto = { hasta: 'AAAA-MM-DD', tener: [días que ya tienen archivo] } → Excel de cada día con desposte hasta "hasta" que falte,
-   el último siempre de nuevo (con lo corregido), y el Rendimiento del mes. Deja el resultado en <pre id="auto-out"> (JSON). */
+   el último siempre de nuevo (con lo corregido). Sin el Rendimiento (Sabi 05/11). Deja el resultado en <pre id="auto-out"> (JSON). */
 function correrAuto(espera) {
   const A = window.__auto; if (!A || A.hecho) return;
-  if (!window.XLSX && (espera || 0) < 60) { setTimeout(() => correrAuto((espera || 0) + 1), 500); return; }   // la librería de Excel se carga aparte
   A.hecho = true;
   const fin = (o, err) => { const pre = document.createElement('pre'); pre.id = 'auto-out'; pre.textContent = JSON.stringify(err ? { error: err } : o); document.body.appendChild(pre); document.title = err ? 'AUTO-ERROR' : 'AUTO-OK'; };
   try {
-    if (!window.XLSX) return fin(null, 'No se pudo cargar la librería de Excel (internet)');
     const dias = Object.keys(S.sis.dias).sort().filter(f => f <= A.hasta && calcular(f).hay), tener = A.tener || [];
     const hacer = dias.filter((f, i) => i === dias.length - 1 || !tener.includes(f));
     for (const f of hacer) { S.fecha = f; excelDJ(false); }
-    if (dias.length && typeof excelRend === 'function') excelRend();
+    // sin el Excel de Rendimiento (Sabi 05/11): solo la DDJJ de desposte
     fin({ dias: hacer, archivos: window.__autoOut || [] });
   } catch (e) { fin(null, String(e && e.message || e)); }
 }
