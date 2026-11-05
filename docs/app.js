@@ -1394,25 +1394,42 @@
   function repSemTxt(L) { return 'Semana del ' + diaCorto(L).replace(/^\S+ /, '') + ' al ' + diaCorto(mas(L, 6)).replace(/^\S+ /, ''); }
   // Kilos de cada sucursal por semana, Córdoba y Mendoza aparte (pedido de Renzo, 04/11/2026).
   var REP_MENDOZA = ['LAS HERAS', 'SAN MARTIN'];
-  function repSucSemanas(L, pref, nSem) {
-    var sems = [], suc = {};
-    for (var k = nSem - 1; k >= 0; k--) { var Lk = mas(L, -7 * k), dk = repDatos(Lk, pref), t = {}; dk.filas.forEach(function (r) { t[r.suc] = (t[r.suc] || 0) + r.tot; suc[r.suc] = 1; }); sems.push({ L: Lk, t: t }); }
-    var nombres = Object.keys(suc).sort(), esMza = function (x) { var y = norm(x); return REP_MENDOZA.some(function (m) { return y.indexOf(m) === 0; }) || /\b(MDZ|MENDOZA)\b/.test(y); };
-    return { sems: sems, cba: nombres.filter(function (x) { return !esMza(x); }), mza: nombres.filter(esMza) };
+  function repSucRango(desde, hasta, pref) {
+    var P = norm(pref || ''), t = {};
+    if (!P) return t;
+    (S.pedidos || []).forEach(function (p) {
+      var c = norm(p.cliente || ''); if (!p.entrega || p.entrega < desde || p.entrega > hasta || (c !== P && c.indexOf(P + ' ') !== 0)) return;
+      var suc = c === P ? '(sin sucursal)' : c.slice(P.length + 1).trim(); t[suc] = (t[suc] || 0) + kgPedido(p).kg;
+    });
+    return t;
   }
-  function repSucSemHTML(L, pref) {
-    var nSem = +S.repN || 4, d = repSucSemanas(L, pref, nSem);
+  var MESES_C = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+  // Kilos de cada sucursal por período (semanas o meses), con Córdoba y Mendoza aparte.
+  function repSucPeriodos(L, pref, tipo, cant) {
+    var pers = [], suc = {};
+    for (var k = cant - 1; k >= 0; k--) {
+      var desde, hasta, tit;
+      if (tipo === 'mes') { var a = String(L).split('-'), y = +a[0], m = +a[1] - 1 - k; while (m < 0) { m += 12; y--; } desde = y + '-' + ('0' + (m + 1)).slice(-2) + '-01'; hasta = mas((m === 11 ? (y + 1) + '-01' : y + '-' + ('0' + (m + 2)).slice(-2)) + '-01', -1); tit = MESES_C[m] + ' ' + String(y).slice(2); }
+      else { desde = mas(L, -7 * k); hasta = mas(desde, 6); tit = repSemCorta(desde); }
+      var t = repSucRango(desde, hasta, pref); Object.keys(t).forEach(function (x) { suc[x] = 1; }); pers.push({ tit: tit, t: t });
+    }
+    var nombres = Object.keys(suc).sort(), esMza = function (x) { var y = norm(x); return REP_MENDOZA.some(function (m) { return y.indexOf(m) === 0; }) || /\b(MDZ|MENDOZA)\b/.test(y); };
+    return { pers: pers, cba: nombres.filter(function (x) { return !esMza(x); }), mza: nombres.filter(esMza) };
+  }
+  function repSucPerHTML(L, pref, tipo) {
+    var key = tipo === 'mes' ? 'repNM' : 'repN', cant = +S[key] || (tipo === 'mes' ? 6 : 4), d = repSucPeriodos(L, pref, tipo, cant);
     if (!d.cba.length && !d.mza.length) return '';
-    var celdas = function (lista) { var tot = 0; return d.sems.map(function (sm) { var v = lista.reduce(function (a, x) { return a + (sm.t[x] || 0); }, 0); tot += v; return '<td class="num">' + (v ? n(Math.round(v)) : '–') + '</td>'; }).join('') + '<td class="num"><b>' + n(Math.round(tot)) + '</b></td>'; };
+    var celdas = function (lista, th) { var tot = 0, tg = th ? 'th' : 'td'; return d.pers.map(function (pr) { var v = lista.reduce(function (a, x) { return a + (pr.t[x] || 0); }, 0); tot += v; return '<' + tg + ' class="num">' + (v ? n(Math.round(v)) : '–') + '</' + tg + '>'; }).join('') + '<' + tg + ' class="num">' + (th ? n(Math.round(tot)) + ' kg' : '<b>' + n(Math.round(tot)) + '</b>') + '</' + tg + '>'; };
     var bloque = function (tit, lista) {
       if (!lista.length) return '';
-      return '<tr class="rep-zona"><th colspan="' + (d.sems.length + 2) + '">' + tit + '</th></tr>' + lista.map(function (x) { return '<tr><td>' + esc(x) + '</td>' + celdas([x]) + '</tr>'; }).join('')
-        + '<tr class="rep-sub-t"><td>Total ' + tit.toLowerCase().replace(/^./, function (c) { return c.toUpperCase(); }) + '</td>' + celdas(lista) + '</tr>';
+      return '<tr class="rep-zona"><th colspan="' + (d.pers.length + 2) + '">' + tit + '</th></tr>' + lista.map(function (x) { return '<tr><td>' + esc(x) + '</td>' + celdas([x]) + '</tr>'; }).join('')
+        + '<tr class="rep-sub-t"><td>Total ' + tit + '</td>' + celdas(lista) + '</tr>';
     };
-    return '<h3 class="rep-sub">Kilos por sucursal y semana <small class="muted">Córdoba y Mendoza aparte</small> <select id="rep-n" aria-label="Cuántas semanas">' + [4, 8, 12].map(function (k) { return '<option value="' + k + '"' + (k === nSem ? ' selected' : '') + '>Últimas ' + k + ' semanas</option>'; }).join('') + '</select></h3>'
-      + '<div class="rep-tabla"><table class="pl rep-mz rep-ss"><thead><tr><th>Sucursal</th>' + d.sems.map(function (sm) { return '<th class="num">' + esc(repSemCorta(sm.L)) + '</th>'; }).join('') + '<th class="num">Total</th></tr></thead><tbody>'
+    var ops = tipo === 'mes' ? [3, 6, 12] : [4, 8, 12];
+    return '<h3 class="rep-sub">' + (tipo === 'mes' ? 'Total por mes' : 'Total por semana') + ' <small class="muted">kilos de cada sucursal · Córdoba y Mendoza aparte</small> <select class="rep-n" data-rep-n="' + key + '" aria-label="Cuántos períodos">' + ops.map(function (k) { return '<option value="' + k + '"' + (k === cant ? ' selected' : '') + '>Últim' + (tipo === 'mes' ? 'os ' + k + ' meses' : 'as ' + k + ' semanas') + '</option>'; }).join('') + '</select></h3>'
+      + '<div class="rep-tabla"><table class="pl rep-mz rep-ss"><thead><tr><th>Sucursal</th>' + d.pers.map(function (pr) { return '<th class="num">' + esc(pr.tit) + '</th>'; }).join('') + '<th class="num">Total</th></tr></thead><tbody>'
       + bloque('CÓRDOBA', d.cba) + bloque('MENDOZA', d.mza)
-      + '</tbody><tfoot><tr><th>Total ' + esc(pref) + '</th>' + celdas(d.cba.concat(d.mza)).replace(/<td class="num">/g, '<th class="num">').replace(/<\/td>/g, '</th>').replace(/<b>|<\/b>/g, '') + '</tr></tfoot></table></div>';
+      + '</tbody><tfoot><tr><th>Total ' + esc(pref) + '</th>' + celdas(d.cba.concat(d.mza), true) + '</tr></tfoot></table></div>';
   }
   function repHTML() {
     var L = S.repSem || lunesDe(hoy()), pref = S.repCli == null ? 'DINO' : S.repCli, d = repDatos(L, pref);
@@ -1420,29 +1437,15 @@
       + '<div class="rep-barra"><label class="campo"><span>Cliente</span><input type="text" id="rep-cli" value="' + esc(pref) + '" style="text-transform:uppercase" autocomplete="off"></label>'
       + '<span class="rep-sem"><button class="btn step" data-act="rep-sem" data-d="-7" aria-label="Semana anterior">‹</button><b>' + esc(repSemTxt(L)) + '</b><button class="btn step" data-act="rep-sem" data-d="7" aria-label="Semana siguiente">›</button></span></div>';
     if (!d.filas.length) return h + '<p class="muted">No hay pedidos de ' + esc(pref || '…') + ' con entrega esa semana.</p></div>';
-    var tot = 0, tDia = {};
-    h += '<div class="rep-tabla"><table class="pl"><thead><tr><th>Sucursal</th>' + d.dias.map(function (f) { return '<th class="num">' + esc(diaCorto(f)) + '</th>'; }).join('') + '<th class="num">Total semana</th></tr></thead><tbody>';
-    d.filas.forEach(function (r) {
-      tot += r.tot; d.dias.forEach(function (f) { tDia[f] = (tDia[f] || 0) + (r.d[f] || 0); });
-      h += '<tr><td>' + esc(r.suc) + (r.falta ? ' <span class="small neg" title="Tiene renglones sin peso: no suman">*</span>' : '') + '</td>' + d.dias.map(function (f) { return '<td class="num">' + (r.d[f] ? n(r.d[f]) : '–') + '</td>'; }).join('') + '<td class="num"><b>' + n(r.tot) + '</b></td></tr>';
-    });
-    h += '</tbody><tfoot><tr><th>Total</th>' + d.dias.map(function (f) { return '<th class="num">' + n(tDia[f] || 0) + '</th>'; }).join('') + '<th class="num">' + n(tot) + ' kg</th></tr></tfoot></table></div>';
-    var falta = d.filas.some(function (r) { return r.falta; }), aprox = d.filas.some(function (r) { return r.aprox; });
-    h += '<p class="small muted">' + (aprox ? 'Los kilos salen de lo pedido (medias a ' + kgMedia() + ' kg, cajas a ' + kgCaja() + ' kg y lo que viene en kg); si a un pedido le cargaste los kilos a mano, valen esos. ' : '') + (falta ? '* tiene renglones sin peso (unidades u otros) que no suman.' : '') + '</p>';
-    h += repSucSemHTML(L, pref);
-    h += '<details class="rep-det"' + (S.repDet ? ' open' : '') + '><summary>Cortes de cada sucursal</summary><div class="rep-cortes">' + d.filas.map(function (r) {
-      return '<div class="rep-suc-c"><h3>' + esc(r.suc) + ' <small class="muted">' + n(r.tot) + ' kg</small></h3><table class="pl"><tbody>' + repCortesDe(r).map(function (c) { return '<tr><td>' + esc(c.n) + (c.sin.length ? ' <span class="small neg">(' + esc(c.sin.join(', ')) + ')</span>' : '') + '</td><td class="num">' + (c.kg ? n(c.kg) + ' kg' : '–') + '</td></tr>'; }).join('') + '</tbody></table></div>';
-    }).join('') + '</div></details>';
     // Total unificado: cada corte una fila, cada sucursal una columna.
     var diaM = repDiaSel(L, d.dias), dM = diaM ? repDatos(L, pref, diaM) : d, mz = repMatriz(dM), totM = 0;
     h += '<h3 class="rep-sub">Total por corte y sucursal <small class="muted">' + esc(diaM ? 'entrega del ' + diaCorto(diaM).toLowerCase() : repSemTxt(L).toLowerCase()) + '</small> <button class="btn sm wa" data-act="rep-mz-pdf">PDF por WhatsApp</button></h3>' + ('<p class="rep-dias"><span class="small muted">Ver:</span><button class="btn sm chip' + (diaM ? '' : ' on') + '" data-act="rep-dia" data-f="">Toda la semana</button>' + [0, 1, 2, 3, 4].map(function (i) { return mas(L, i); }).map(function (f) { return '<button class="btn sm chip' + (f === diaM ? ' on' : '') + '" data-act="rep-dia" data-f="' + f + '">' + esc(diaCorto(f)) + '</button>'; }).join('') + '</p>') + (diaM && !dM.filas.length ? '<p class="muted">No hay entregas de ' + esc(pref) + ' el ' + esc(diaCorto(diaM).toLowerCase()) + '.</p>' : '') + '<div class="rep-tabla"><table class="pl rep-mz"><thead><tr><th>Corte</th>' + dM.filas.map(function (r) { return '<th class="num">' + esc(r.suc) + '</th>'; }).join('') + '<th class="num">Total</th></tr></thead><tbody>'
       + mz.map(function (f) { totM += f.tot; return '<tr><td>' + esc(f.corte) + '</td>' + dM.filas.map(function (r) { return '<td class="num">' + (f.por[r.suc] ? n(f.por[r.suc]) : '–') + '</td>'; }).join('') + '<td class="num"><b>' + n(f.tot) + '</b></td></tr>'; }).join('')
       + '</tbody><tfoot><tr><th>Total</th>' + dM.filas.map(function (r) { return '<th class="num">' + n(Math.round(r.tot)) + '</th>'; }).join('') + '<th class="num">' + n(totM) + ' kg</th></tr></tfoot></table></div>';
-    // Y por semanas: las últimas 4 (todas las sucursales juntas).
-    var ss = repSemanas(L, pref), totS = 0;
-    h += '<h3 class="rep-sub">Total por corte, últimas ' + REP_SEMANAS + ' semanas <small class="muted">todas las sucursales</small></h3><div class="rep-tabla"><table class="pl rep-mz"><thead><tr><th>Corte</th>' + ss.sems.map(function (sm) { return '<th class="num">' + esc(repSemCorta(sm.L)) + '</th>'; }).join('') + '<th class="num">Total</th></tr></thead><tbody>'
-      + ss.filas.map(function (f) { totS += f.tot; return '<tr><td>' + esc(f.corte) + '</td>' + ss.sems.map(function (sm) { return '<td class="num">' + (f.por[sm.L] ? n(f.por[sm.L]) : '–') + '</td>'; }).join('') + '<td class="num"><b>' + n(f.tot) + '</b></td></tr>'; }).join('')
-      + '</tbody><tfoot><tr><th>Total</th>' + ss.sems.map(function (sm) { return '<th class="num">' + n(ss.filas.reduce(function (a, f) { return a + (f.por[sm.L] || 0); }, 0)) + '</th>'; }).join('') + '<th class="num">' + n(totS) + ' kg</th></tr></tfoot></table></div>';
+    // Después, kilos de cada sucursal por semana y por mes (Córdoba y Mendoza aparte).
+    h += repSucPerHTML(L, pref, 'sem') + repSucPerHTML(L, pref, 'mes');
+    var falta = d.filas.some(function (r) { return r.falta; }), aprox = d.filas.some(function (r) { return r.aprox; });
+    h += '<p class="small muted">' + (aprox ? 'Los kilos salen de lo pedido (medias a ' + kgMedia() + ' kg, cajas a ' + kgCaja() + ' kg y lo que viene en kg); si a un pedido le cargaste los kilos a mano, valen esos. ' : '') + (falta ? '* tiene renglones sin peso (unidades u otros) que no suman.' : '') + '</p>';
     return h + '<div class="acciones"><button class="btn" data-act="rep-copiar">Copiar el reporte</button><button class="btn" data-act="rep-excel">Descargar Excel</button><span class="guardado" id="g-rep"></span></div></div>';
   }
   function repTexto(sep) {
@@ -4632,7 +4635,7 @@
     else if (D.desc != null && t.matches('input.lc-desc-ed')) {
       guardarDesc(D.desc, D.k, t.value).then(function () { render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); render(); });
     }
-    else if (t.id === 'rep-n') { S.repN = +t.value || 4; S.repDet = !!(document.querySelector('.rep-det') || {}).open; render(); }
+    else if (D.repN) { S[D.repN] = +t.value || 0; render(); }
     else if (D.rubro && t.value) {
       guardarRubro(D.rubro, D.k, t.value).then(function () { avisar('Corte cambiado a ' + t.value + '.', 2500); render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); render(); });
     }
