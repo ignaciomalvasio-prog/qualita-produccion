@@ -374,3 +374,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Pedidos: al mandar a un camión un solo cliente tildado (menú del renglón o camión nuevo con Enter) queda destildado, igual que cuando son varios (prueba143).
 - Pedidos: si un pedido tiene solo algunos cortes sumados a producción, en vez de la cruz roja muestra en naranja cuántos van (ej. 3/4).
 - Menús ⋯: si se abren pegados al borde (en el celu el botón a veces queda a la izquierda) se acomodan para que se vean enteros.
+- Pedidos en el celu: los ⋯ de cada camión siempre arriba a la derecha.
