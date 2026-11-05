@@ -1310,11 +1310,11 @@
   }
   /* Reporte de kilos por sucursal (pedido de Renzo para DINO): cada pedido cuyo cliente empieza con el nombre
      elegido es una sucursal; se suman los kilos de las entregas de la semana (lunes a domingo) y se ve cada día aparte. */
-  function repDatos(L, pref) {
+  function repDatos(L, pref, dia) {
     var P = norm(pref || ''), fin = mas(L, 6), filas = {}, dias = [];
     if (!P) return { dias: [], filas: [] };
     (S.pedidos || []).forEach(function (p) {
-      var c = norm(p.cliente || ''); if (!p.entrega || p.entrega < L || p.entrega > fin || (c !== P && c.indexOf(P + ' ') !== 0)) return;
+      var c = norm(p.cliente || ''); if (!p.entrega || p.entrega < L || p.entrega > fin || (dia && p.entrega !== dia) || (c !== P && c.indexOf(P + ' ') !== 0)) return;
       var suc = c === P ? '(sin sucursal)' : c.slice(P.length + 1).trim(), k = kgPedido(p);
       var r = filas[suc] || (filas[suc] = { suc: suc, d: {}, tot: 0, aprox: false, falta: false });
       r.d[p.entrega] = (r.d[p.entrega] || 0) + k.kg; r.tot += k.kg; if (!k.manual) r.aprox = true; if (k.falta) r.falta = true;
@@ -1341,7 +1341,7 @@
   }
   // PDF del cuadro "Total por corte y sucursal": hoja apaisada, la letra se achica para que entren todas las sucursales.
   function repMatrizPDF() {
-    var L0 = window.PDFLib, L = S.repSem || lunesDe(hoy()), pref = S.repCli == null ? 'DINO' : S.repCli, d = repDatos(L, pref), mz = repMatriz(d);
+    var L0 = window.PDFLib, L = S.repSem || lunesDe(hoy()), pref = S.repCli == null ? 'DINO' : S.repCli, dS = repDatos(L, pref), dia = repDiaSel(L, dS.dias), d = dia ? repDatos(L, pref, dia) : dS, mz = repMatriz(d);
     var cols = d.filas.map(function (r) { return r.suc; }).concat(['TOTAL']), filas = mz.map(function (f) { return [f.corte].concat(d.filas.map(function (r) { return f.por[r.suc] ? n(f.por[r.suc]) : '-'; }), [n(f.tot)]); });
     var totF = ['TOTAL'].concat(d.filas.map(function (r) { return n(Math.round(r.tot)); }), [n(mz.reduce(function (a, f) { return a + f.tot; }, 0))]);
     return L0.PDFDocument.create().then(function (doc) {
@@ -1363,7 +1363,7 @@
         var tz = Math.min(tam * 0.8, 8); while (tz > 5.5 && !cols.every(function (c) { return partir(c, anchoC - 12, tz).every(function (x) { return W(FB, x, tz) <= anchoC - 12; }) && partir(c, anchoC - 12, tz).length <= 2; })) tz -= 0.25;
         var pag = doc.addPage([AN, AL]), y = AL - M;
         pag.drawText(limpio(norm(pref) + ' · TOTAL POR CORTE Y SUCURSAL'), { x: M, y: y - 14, size: 15, font: FB, color: negro });
-        pag.drawText(limpio(repSemTxt(L)), { x: M, y: y - 30, size: 10, font: F, color: gris }); y -= 46;
+        pag.drawText(limpio(dia ? 'Entrega del ' + diaCorto(dia).toLowerCase() : repSemTxt(L)), { x: M, y: y - 30, size: 10, font: F, color: gris }); y -= 46;
         var fila = Math.min(tam * 2.6, (y - M - 30 - tz * 2.6) / (filas.length + 1)), xCol = function (i) { return M + ancho0 + i * anchoC; };
         // Encabezados
         var hCab = tz * 2.6;
@@ -1390,6 +1390,7 @@
     return { sems: sems, filas: repOrdenGrupos(Object.keys(g)).map(function (q) { var f = { corte: q, por: {}, tot: 0 }; sems.forEach(function (sm) { var v = Math.round(sm.t[q] || 0); f.por[sm.L] = v; f.tot += v; }); return f; }) };
   }
   function repSemCorta(L) { var a = String(L).split('-'), b = String(mas(L, 6)).split('-'); return (+a[2]) + '/' + (+a[1]) + '–' + (+b[2]) + '/' + (+b[1]); }
+  function repDiaSel(L, dias) { return S.repDia && S.repDia >= L && S.repDia <= mas(L, 6) && dias.indexOf(S.repDia) >= 0 ? S.repDia : ''; }
   function repSemTxt(L) { return 'Semana del ' + diaCorto(L).replace(/^\S+ /, '') + ' al ' + diaCorto(mas(L, 6)).replace(/^\S+ /, ''); }
   // Kilos de cada sucursal por semana, Córdoba y Mendoza aparte (pedido de Renzo, 04/11/2026).
   var REP_MENDOZA = ['LAS HERAS', 'SAN MARTIN'];
@@ -1433,10 +1434,10 @@
       return '<div class="rep-suc-c"><h3>' + esc(r.suc) + ' <small class="muted">' + n(r.tot) + ' kg</small></h3><table class="pl"><tbody>' + repCortesDe(r).map(function (c) { return '<tr><td>' + esc(c.n) + (c.sin.length ? ' <span class="small neg">(' + esc(c.sin.join(', ')) + ')</span>' : '') + '</td><td class="num">' + (c.kg ? n(c.kg) + ' kg' : '–') + '</td></tr>'; }).join('') + '</tbody></table></div>';
     }).join('') + '</div></details>';
     // Total unificado: cada corte una fila, cada sucursal una columna.
-    var mz = repMatriz(d), totM = 0;
-    h += '<h3 class="rep-sub">Total por corte y sucursal <small class="muted">' + esc(repSemTxt(L).toLowerCase()) + '</small> <button class="btn sm wa" data-act="rep-mz-pdf">PDF por WhatsApp</button></h3><div class="rep-tabla"><table class="pl rep-mz"><thead><tr><th>Corte</th>' + d.filas.map(function (r) { return '<th class="num">' + esc(r.suc) + '</th>'; }).join('') + '<th class="num">Total</th></tr></thead><tbody>'
-      + mz.map(function (f) { totM += f.tot; return '<tr><td>' + esc(f.corte) + '</td>' + d.filas.map(function (r) { return '<td class="num">' + (f.por[r.suc] ? n(f.por[r.suc]) : '–') + '</td>'; }).join('') + '<td class="num"><b>' + n(f.tot) + '</b></td></tr>'; }).join('')
-      + '</tbody><tfoot><tr><th>Total</th>' + d.filas.map(function (r) { return '<th class="num">' + n(Math.round(r.tot)) + '</th>'; }).join('') + '<th class="num">' + n(totM) + ' kg</th></tr></tfoot></table></div>';
+    var diaM = repDiaSel(L, d.dias), dM = diaM ? repDatos(L, pref, diaM) : d, mz = repMatriz(dM), totM = 0;
+    h += '<h3 class="rep-sub">Total por corte y sucursal <small class="muted">' + esc(diaM ? 'entrega del ' + diaCorto(diaM).toLowerCase() : repSemTxt(L).toLowerCase()) + '</small> <button class="btn sm wa" data-act="rep-mz-pdf">PDF por WhatsApp</button></h3>' + (d.dias.length > 1 ? '<p class="rep-dias"><span class="small muted">Ver:</span><button class="btn sm chip' + (diaM ? '' : ' on') + '" data-act="rep-dia" data-f="">Toda la semana</button>' + d.dias.map(function (f) { return '<button class="btn sm chip' + (f === diaM ? ' on' : '') + '" data-act="rep-dia" data-f="' + f + '">Solo ' + esc(diaCorto(f).toLowerCase()) + '</button>'; }).join('') + '</p>' : '') + '<div class="rep-tabla"><table class="pl rep-mz"><thead><tr><th>Corte</th>' + dM.filas.map(function (r) { return '<th class="num">' + esc(r.suc) + '</th>'; }).join('') + '<th class="num">Total</th></tr></thead><tbody>'
+      + mz.map(function (f) { totM += f.tot; return '<tr><td>' + esc(f.corte) + '</td>' + dM.filas.map(function (r) { return '<td class="num">' + (f.por[r.suc] ? n(f.por[r.suc]) : '–') + '</td>'; }).join('') + '<td class="num"><b>' + n(f.tot) + '</b></td></tr>'; }).join('')
+      + '</tbody><tfoot><tr><th>Total</th>' + dM.filas.map(function (r) { return '<th class="num">' + n(Math.round(r.tot)) + '</th>'; }).join('') + '<th class="num">' + n(totM) + ' kg</th></tr></tfoot></table></div>';
     // Y por semanas: las últimas 4 (todas las sucursales juntas).
     var ss = repSemanas(L, pref), totS = 0;
     h += '<h3 class="rep-sub">Total por corte, últimas ' + REP_SEMANAS + ' semanas <small class="muted">todas las sucursales</small></h3><div class="rep-tabla"><table class="pl rep-mz"><thead><tr><th>Corte</th>' + ss.sems.map(function (sm) { return '<th class="num">' + esc(repSemCorta(sm.L)) + '</th>'; }).join('') + '<th class="num">Total</th></tr></thead><tbody>'
@@ -4005,6 +4006,7 @@
       }, function () { S.msg.cli = '!No se pudo guardar. Revisá la conexión.'; pintarMsg('cli'); });
       return;
     }
+    if (a === 'rep-dia') { S.repDia = D.f || ''; S.repDet = !!(document.querySelector('.rep-det') || {}).open; render(); return; }
     if (a === 'rep-mz-pdf') { var Lz = S.repSem || lunesDe(hoy()), pz = String(Lz).split('-'); compartirPDF(function () { return repMatrizPDF(); }, b, true, norm(S.repCli == null ? 'DINO' : S.repCli) + ' por corte ' + pz[2] + '-' + pz[1] + '.pdf'); return; }
     if (a === 'rep-sem') { S.repSem = mas(S.repSem || lunesDe(hoy()), +D.d); renderClientes(); return; }
     if (a === 'rep-copiar') {

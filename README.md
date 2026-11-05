@@ -359,3 +359,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Pedidos: al subir o pegar fotos/capturas, antes de leerlas se abre un recuadro para recortar (mover y agrandar desde las esquinas); "Usar entera" la deja como está (prueba140).
 - Pedidos vuelve a los colores de antes; ahora el color va en las solapas de arriba (celeste, la elegida en azul oscuro; Cámara y Túnel en amarillo suave). Solo en pantalla.
 - Clientes → Kilos por sucursal: cuadro "Kilos por sucursal y semana" (últimas 4, 8 o 12 semanas), con Córdoba y Mendoza (Las Heras, San Martín) aparte y sus totales (prueba141).
+- Clientes → Total por corte y sucursal: botones "Toda la semana" / "Solo martes 3/11"… para ver los kilos de una sola entrega (el PDF sale igual que lo que se ve).
