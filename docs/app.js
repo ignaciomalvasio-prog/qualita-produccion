@@ -1391,6 +1391,28 @@
   }
   function repSemCorta(L) { var a = String(L).split('-'), b = String(mas(L, 6)).split('-'); return (+a[2]) + '/' + (+a[1]) + '–' + (+b[2]) + '/' + (+b[1]); }
   function repSemTxt(L) { return 'Semana del ' + diaCorto(L).replace(/^\S+ /, '') + ' al ' + diaCorto(mas(L, 6)).replace(/^\S+ /, ''); }
+  // Kilos de cada sucursal por semana, Córdoba y Mendoza aparte (pedido de Renzo, 04/11/2026).
+  var REP_MENDOZA = ['LAS HERAS', 'SAN MARTIN'];
+  function repSucSemanas(L, pref, nSem) {
+    var sems = [], suc = {};
+    for (var k = nSem - 1; k >= 0; k--) { var Lk = mas(L, -7 * k), dk = repDatos(Lk, pref), t = {}; dk.filas.forEach(function (r) { t[r.suc] = (t[r.suc] || 0) + r.tot; suc[r.suc] = 1; }); sems.push({ L: Lk, t: t }); }
+    var nombres = Object.keys(suc).sort(), esMza = function (x) { var y = norm(x); return REP_MENDOZA.some(function (m) { return y.indexOf(m) === 0; }) || /\b(MDZ|MENDOZA)\b/.test(y); };
+    return { sems: sems, cba: nombres.filter(function (x) { return !esMza(x); }), mza: nombres.filter(esMza) };
+  }
+  function repSucSemHTML(L, pref) {
+    var nSem = +S.repN || 4, d = repSucSemanas(L, pref, nSem);
+    if (!d.cba.length && !d.mza.length) return '';
+    var celdas = function (lista) { var tot = 0; return d.sems.map(function (sm) { var v = lista.reduce(function (a, x) { return a + (sm.t[x] || 0); }, 0); tot += v; return '<td class="num">' + (v ? n(Math.round(v)) : '–') + '</td>'; }).join('') + '<td class="num"><b>' + n(Math.round(tot)) + '</b></td>'; };
+    var bloque = function (tit, lista) {
+      if (!lista.length) return '';
+      return '<tr class="rep-zona"><th colspan="' + (d.sems.length + 2) + '">' + tit + '</th></tr>' + lista.map(function (x) { return '<tr><td>' + esc(x) + '</td>' + celdas([x]) + '</tr>'; }).join('')
+        + '<tr class="rep-sub-t"><td>Total ' + tit.toLowerCase().replace(/^./, function (c) { return c.toUpperCase(); }) + '</td>' + celdas(lista) + '</tr>';
+    };
+    return '<h3 class="rep-sub">Kilos por sucursal y semana <small class="muted">Córdoba y Mendoza aparte</small> <select id="rep-n" aria-label="Cuántas semanas">' + [4, 8, 12].map(function (k) { return '<option value="' + k + '"' + (k === nSem ? ' selected' : '') + '>Últimas ' + k + ' semanas</option>'; }).join('') + '</select></h3>'
+      + '<div class="rep-tabla"><table class="pl rep-mz rep-ss"><thead><tr><th>Sucursal</th>' + d.sems.map(function (sm) { return '<th class="num">' + esc(repSemCorta(sm.L)) + '</th>'; }).join('') + '<th class="num">Total</th></tr></thead><tbody>'
+      + bloque('CÓRDOBA', d.cba) + bloque('MENDOZA', d.mza)
+      + '</tbody><tfoot><tr><th>Total ' + esc(pref) + '</th>' + celdas(d.cba.concat(d.mza)).replace(/<td class="num">/g, '<th class="num">').replace(/<\/td>/g, '</th>').replace(/<b>|<\/b>/g, '') + '</tr></tfoot></table></div>';
+  }
   function repHTML() {
     var L = S.repSem || lunesDe(hoy()), pref = S.repCli == null ? 'DINO' : S.repCli, d = repDatos(L, pref);
     var h = '<div class="panel rep-suc"><div class="cam-cab"><h2>Kilos por sucursal</h2><span class="small muted">para el reporte semanal</span></div>'
@@ -1406,6 +1428,7 @@
     h += '</tbody><tfoot><tr><th>Total</th>' + d.dias.map(function (f) { return '<th class="num">' + n(tDia[f] || 0) + '</th>'; }).join('') + '<th class="num">' + n(tot) + ' kg</th></tr></tfoot></table></div>';
     var falta = d.filas.some(function (r) { return r.falta; }), aprox = d.filas.some(function (r) { return r.aprox; });
     h += '<p class="small muted">' + (aprox ? 'Los kilos salen de lo pedido (medias a ' + kgMedia() + ' kg, cajas a ' + kgCaja() + ' kg y lo que viene en kg); si a un pedido le cargaste los kilos a mano, valen esos. ' : '') + (falta ? '* tiene renglones sin peso (unidades u otros) que no suman.' : '') + '</p>';
+    h += repSucSemHTML(L, pref);
     h += '<details class="rep-det"' + (S.repDet ? ' open' : '') + '><summary>Cortes de cada sucursal</summary><div class="rep-cortes">' + d.filas.map(function (r) {
       return '<div class="rep-suc-c"><h3>' + esc(r.suc) + ' <small class="muted">' + n(r.tot) + ' kg</small></h3><table class="pl"><tbody>' + repCortesDe(r).map(function (c) { return '<tr><td>' + esc(c.n) + (c.sin.length ? ' <span class="small neg">(' + esc(c.sin.join(', ')) + ')</span>' : '') + '</td><td class="num">' + (c.kg ? n(c.kg) + ' kg' : '–') + '</td></tr>'; }).join('') + '</tbody></table></div>';
     }).join('') + '</div></details>';
@@ -4607,6 +4630,7 @@
     else if (D.desc != null && t.matches('input.lc-desc-ed')) {
       guardarDesc(D.desc, D.k, t.value).then(function () { render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); render(); });
     }
+    else if (t.id === 'rep-n') { S.repN = +t.value || 4; S.repDet = !!(document.querySelector('.rep-det') || {}).open; render(); }
     else if (D.rubro && t.value) {
       guardarRubro(D.rubro, D.k, t.value).then(function () { avisar('Corte cambiado a ' + t.value + '.', 2500); render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); render(); });
     }
