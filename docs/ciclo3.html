@@ -1052,6 +1052,21 @@ details[open] > summary{margin-bottom:10px}
 .busq-f.sale{background:#f2fbf4;box-shadow:inset 4px 0 0 #1f8a4c}.busq-f.sale .busq-dia{color:#1f8a4c}
 .busq-est{font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:5px}
 .busq-est.salio{background:#c62828;color:#fff}.busq-est.sale{background:#1f8a4c;color:#fff}
+
+/* Pedidos con más color (pedido de Renzo, 04/11/2026): los mismos azules de la app. Solo en pantalla. */
+@media screen{
+  #view-pedidos .peds>.ped:nth-child(even):not(.abierto):not(.sel){background:#f3f9fc}
+  #view-pedidos .ped:not(.abierto):hover{background:#e6f3f9}
+  #view-pedidos .ped-tit .nom{color:#17364a}
+  #view-pedidos .ped.abierto{box-shadow:inset 4px 0 0 var(--accent)}
+  #view-pedidos .grupo-cam:not([data-gcam=""])>.grupo-tit{background:linear-gradient(90deg,#d6ecf6,#eef7fb)}
+  #view-pedidos .grupo-cam:not([data-gcam=""]){box-shadow:0 3px 0 rgba(23,54,74,.12)}
+  #view-pedidos .grupo-cam.sin-cam .peds{border:1px solid #f0dfb0;border-left:5px solid #e0a800;border-radius:8px;background:#fffdf6}
+  #view-pedidos .grupo-cam.sin-cam .peds>.ped:nth-child(even):not(.abierto):not(.sel){background:#fff8e6}
+  #view-pedidos .otros-dias .btn{background:#eef7fb;border-color:#bfe0ee;color:#17364a}
+  #view-pedidos .otros-dias .btn:hover{background:#dff0f8}
+  #view-pedidos .nav-ped .tit{box-shadow:0 3px 0 var(--accent)}
+}
 </style>
 </head>
 <body>
