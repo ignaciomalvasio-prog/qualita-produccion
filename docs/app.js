@@ -2964,6 +2964,22 @@
   // Cuándo se cargó un pedido (para mostrar arriba los últimos): el campo "alta" o, en los viejos, la hora que va en su id.
   function altaDe(p) { if (+p.alta > 0) return +p.alta; var mm = /^[a-z]([0-9a-z]{8})/.exec(String(p.id || '')), t = mm ? parseInt(mm[1], 36) : 0; return t > 1.6e12 && t < 4e12 ? t : 0; }
   function ultimosArriba(l) { return l.map(function (p, i) { return [p, i]; }).sort(function (a, b) { return altaDe(b[0]) - altaDe(a[0]) || a[1] - b[1]; }).map(function (x) { return x[0]; }); }
+  // Pasar un camión entero (con sus clientes) a otro día (pedido de Renzo, 06/11/2026): cada pedido se mueve como con "Cambiar de día".
+  function camDiaSelHTML(camId) {
+    var f = hoy(), ops = []; if (!esHabil(f)) f = habilSiguiente(f);
+    while (ops.length < 8) { if (f !== S.pd) ops.push(f); f = habilSiguiente(f); }
+    return '<select class="cam-dia" data-cam-dia="' + esc(camId) + '" aria-label="Pasar el camión a otro día"><option value="">Pasar a otro día…</option>' + ops.map(function (x) { return '<option value="' + x + '">' + esc(diaCorto(x)) + (x === hoy() ? ' (hoy)' : x === mas(hoy(), 1) ? ' (mañana)' : '') + (esFeriado(x) ? ' · feriado' : '') + '</option>'; }).join('') + '</select>';
+  }
+  function moverCamion(f, camId, g) {
+    var c = camionesDe(f).filter(function (x) { return x.id === camId; })[0]; if (!c || !g || g === f) return Promise.resolve();
+    var o = c.orden || [], peds = (S.pedidos || []).filter(function (p) { return p.entrega === f && p.camion === camId; }).sort(function (a, b) { var i = o.indexOf(a.id), j = o.indexOf(b.id); return (i < 0 ? 1e6 : i) - (j < 0 ? 1e6 : j); });
+    var ids = peds.map(function (p) { return p.id; });
+    return peds.reduce(function (pm, p) { return pm.then(function () { return moverPedido(pedidoDe(p.id), g); }); }, Promise.resolve())
+      .then(function () { var libre = !camionesDe(g).some(function (x) { return x.id === c.id; }); return crearCamion(g, c.nombre, c.nota, ids, c.kg, libre ? c.id : null, c.num); })
+      .then(function (nc) { return c.hora ? cambiarCamion(g, nc.id, c.nombre, c.nota, c.kg, c.num || '', c.hora) : null; })
+      .then(function () { return camionesDe(f).some(function (x) { return x.id === camId; }) ? borrarCamion(f, camId) : null; })
+      .then(function () { return { nombre: nomCam(c), n: ids.length }; });
+  }
   // Editar el camión desde Pedidos (pedido de Renzo, 04/11/2026): nombre, capacidad y nota (el horario ya se cambia en el título).
   function pcamEdHTML() {
     return '<div class="pcam-ed campos"><label class="campo"><span>Nombre del camión</span><input type="text" id="cam-e-nombre" value="' + esc(S.ecNombre || '') + '" placeholder="Ej. LUCAS HEREDIA" style="text-transform:uppercase"></label>'
@@ -2975,7 +2991,7 @@
   function pedidosAgrupadosHTML(f, lista, m) {
     var cams = camionesDe(f), hay = {}; cams.forEach(function (c) { hay[c.id] = c; });
     if (!cams.length) return '<div class="peds">' + ultimosArriba(lista).map(function (p) { return pedidoHTML(p, m); }).join('') + '</div>';
-    var grupo = function (tit, extra, l, cls, camId, tot) { return '<div class="grupo-cam' + (cls ? ' ' + cls : '') + '" data-gcam="' + esc(camId || '') + '"><h3 class="grupo-tit">' + tit + ' <span class="small muted">' + esc(extra) + '</span>' + (tot || '') + (camId && S.editor && !S.solo ? '<span class="pcam-acc">' + menuHTML('pcam-' + camId, '⋯', '<button class="btn sm" data-act="pcam-editar" data-id="' + esc(camId) + '">Editar camión</button>' + botonBorrar('pcam-borrar', camId, 'Borrar camión'), 'Opciones del camión') + '</span>' : '') + '</h3>' + (camId && S.pec === camId ? pcamEdHTML() : '') + '<div class="peds">' + l.map(function (p) { return pedidoHTML(p, m, true); }).join('') + '</div></div>'; };
+    var grupo = function (tit, extra, l, cls, camId, tot) { return '<div class="grupo-cam' + (cls ? ' ' + cls : '') + '" data-gcam="' + esc(camId || '') + '"><h3 class="grupo-tit">' + tit + ' <span class="small muted">' + esc(extra) + '</span>' + (tot || '') + (camId && S.editor && !S.solo ? '<span class="pcam-acc">' + menuHTML('pcam-' + camId, '⋯', '<button class="btn sm" data-act="pcam-editar" data-id="' + esc(camId) + '">Editar camión</button>' + camDiaSelHTML(camId) + botonBorrar('pcam-borrar', camId, 'Borrar camión'), 'Opciones del camión') + '</span>' : '') + '</h3>' + (camId && S.pec === camId ? pcamEdHTML() : '') + '<div class="peds">' + l.map(function (p) { return pedidoHTML(p, m, true); }).join('') + '</div></div>'; };
     var h = '<p class="cam-cuenta">🚚 <b>' + cams.length + '</b> ' + (cams.length === 1 ? 'camión' : 'camiones') + '</p>', sin = ultimosArriba(lista.filter(function (p) { return !(p.camion && hay[p.camion]); }));
     if (sin.length) h += grupo('Sin camión', resumenLog(sin), sin, 'sin-cam', '');
     cams.forEach(function (c, kc) {
@@ -4015,7 +4031,7 @@
   document.querySelector('.top').addEventListener('click', function (e) { var b = e.target.closest('[data-tab]'); if (!b) return; e.preventDefault(); if (b.dataset.tab === 'inicio') alInicio(); if (S.ep) { asentarEdicion(); S.ep = null; } S.ec = null; S.msg.fotos = ''; S.msg.log = ''; S.pegar = false; if (!S.leyendo) { S.pegarTxt = ''; S.pegarCli = ''; S.pegarDia = ''; } irA(b.dataset.tab); });
 
   document.addEventListener('click', function (e) {
-    if (S.menuAb && !e.target.closest('.mas-btn')) { var keep = e.target.closest('[data-act="cam-borrar"],[data-act="pcam-borrar"]'); if (!keep || S._c2 === keep.dataset.act + keep.dataset.i) cerrarMenus(); }
+    if (S.menuAb && !e.target.closest('.mas-btn') && !e.target.closest('.menu-pop select')) { var keep = e.target.closest('[data-act="cam-borrar"],[data-act="pcam-borrar"]'); if (!keep || S._c2 === keep.dataset.act + keep.dataset.i) cerrarMenus(); }
     var b = e.target.closest('[data-act]'); if (!b) return;
     var a = b.dataset.act, D = b.dataset, o, c;
     if (a === 'menu') { S.menuAb = S.menuAb === D.k ? null : D.k; render(); ajustarMenus(); return; }
@@ -4680,6 +4696,10 @@
     else if (D.repN) { S[D.repN] = +t.value || 0; render(); }
     else if (D.diaProd && t.value) {
       guardarDiaProd(D.diaProd, t.value).then(function () { avisar('Los cortes de este pedido se producen el ' + diaCorto(t.value).toLowerCase() + '.', 3500); render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); render(); });
+    }
+    else if (D.camDia && t.value) {
+      var gcd = t.value, fcd = S.pd; cerrarMenus(); avisar('Pasando el camión…', 2000);
+      moverCamion(fcd, D.camDia, gcd).then(function (r) { S.pd = gcd; avisar((r ? r.nombre + ' con ' + r.n + (r.n === 1 ? ' cliente' : ' clientes') : 'El camión') + ' pasó al ' + diaCorto(gcd).toLowerCase() + '.', 5000); render(); }, function () { avisar('!No se pudo pasar el camión. Revisá la conexión.', 6000); render(); });
     }
     else if (D.rubro && t.value) {
       guardarRubro(D.rubro, D.k, t.value).then(function () { avisar('Corte cambiado a ' + t.value + '.', 2500); render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); render(); });

@@ -379,3 +379,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Centro de desposte › Tropas (pedido de Sabi 06/11): las tropas más recientes primero (también en el Excel). Prueba: tests/prueba907.js.
 - Centro de desposte › DDJJ desposte (pedido de Sabi 06/11): sin el cartel "Tropas faenadas en más de un día" arriba del Ingreso (siguen como FAENA PARCIAL). Prueba: tests/prueba902.js.
 - Pedidos: en cada pedido abierto, "Producir el" para elegir el día de producción de sus cortes (el día de entrega o los 2 días hábiles anteriores); lo ya sumado se mueve a la planilla elegida (campo diaProd; prueba144).
+- Pedidos: en el ⋯ de cada camión, "Pasar a otro día…" mueve el camión entero (clientes en el mismo orden, horario y capacidad) al día elegido; cada pedido se mueve como con Cambiar de día (prueba145).
