@@ -685,7 +685,7 @@
   }
   function agregadoDe(id) {
     var im = yaImpreso(id), v = vistaDoc(id); if (!im || !v) return null;
-    var nuevo = filtrarOrden(v, contarClaves(im.l), true), q = quitadosDe(id);
+    var nuevo = filtrarOrden(v, contarClaves(im.l), true), q = [];   // lo que se quitó ya no se muestra (pedido de Renzo)
     if (nuevo.cortes.length || q.length) return { o: nuevo, quitados: q, ts: im.ts };
     var o = prodGuardada(id);
     if (o.impUlt && (o.impUlt.l || []).length) { var ul = filtrarOrden(v, contarClaves(o.impUlt.l), false); if (ul.cortes.length) return { o: ul, quitados: [], ts: o.impUlt.ts, ult: true }; }
@@ -716,7 +716,7 @@
   function agregadoHTML(f) {
     var a = agregadoDe(f), a3 = agregadoDe('c3-' + f), h = '';
     if (!a && !a3) return '<div class="panel"><p class="state">Todavía no se imprimió la planilla de este día. Cuando la imprimas o mandes el PDF, lo que se sume después aparece acá.</p></div>';
-    [[a, f, false], [a3, 'c3-' + f, true]].forEach(function (x) { if (x[0]) h += hojaHTML(x[0].o, f, x[2], false, { doc: x[1], d: x[0] }); });
+    [[a, f, false], [a3, 'c3-' + f, true]].forEach(function (x) { if (x[0] && !x[0].ult && !x[0].vacio) h += hojaHTML(x[0].o, f, x[2], false, { doc: x[1], d: x[0] }); });
     return h;
   }
   // La planilla de un día, para leer (la de desposte o la de embutidos).
@@ -960,8 +960,9 @@
     var f = S.fecha, o = solo3 ? null : prodDe(f), o3 = prodDe('c3-' + f), op = solo3 ? null : prodDe('op-' + f), edit = !!(S.ep && (S.ep.fecha === f || S.ep.fecha === 'c3-' + f || S.ep.fecha === 'op-' + f));
     var hayImp = !solo3 && !!(yaImpreso(f) || yaImpreso('c3-' + f));
     var pv = solo3 ? 'frescos' : (S.pv || (op ? 'op' : 'frescos')); if (edit) pv = esOP(S.ep.fecha) ? 'op' : 'frescos';
+    var nAgr = hayImp ? [f, 'c3-' + f].reduce(function (t, id) { var a = yaImpreso(id) && agregadoDe(id); return t + (a && !a.ult && !a.vacio ? lineasClave(a.o).length : 0); }, 0) : 0;
+    hayImp = nAgr > 0;   // la solapa Agregado aparece solo si hay algo nuevo
     if (pv === 'agr' && !hayImp) pv = 'frescos';
-    var nAgr = hayImp ? [f, 'c3-' + f].reduce(function (t, id) { var a = yaImpreso(id) && agregadoDe(id); return t + (a && !a.ult && !a.vacio ? lineasClave(a.o).length + a.quitados.length : 0); }, 0) : 0;
     var h = '<div class="nav"><button class="btn step" data-act="fecha" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + fechaTit(f) + '</span><button class="btn step" data-act="fecha" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="p-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">';
     if (pv === 'op' ? op : (o || o3)) h += '<button class="btn" data-act="imprimir">Imprimir</button>';

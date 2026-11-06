@@ -20,8 +20,7 @@ const data={faena:{},privado:{},config:{general:{feriados:[]}},pedidos:{},produc
  console.log('solapa:',await p.evaluate(()=>document.querySelector('.hoja-agr').innerText.replace(/\s+/g,' ').slice(0,400)));
  await p.screenshot({path:SP+'/p147.png'});
  await p.click('.hoja-agr [data-act="hoja-imprimir"]');await p.waitForTimeout(800);
- console.log('tras imprimir agregado:',await tabs(),'| ult:',await p.evaluate(()=>JSON.stringify(window.__mock.data.produccion['2026-11-11'].impUlt.l)));
- console.log('solapa luego:',await p.evaluate(()=>document.querySelector('.hoja-agr .hoja-sup').innerText));
+ console.log('tras imprimir agregado:',await tabs());
  await p.setViewportSize({width:400,height:800});await p.waitForTimeout(200);
  console.log('desborde:',await p.evaluate(()=>document.documentElement.scrollWidth));
  await p.screenshot({path:SP+'/p147m.png'});
@@ -38,5 +37,5 @@ const data={faena:{},privado:{},config:{general:{feriados:[]}},pedidos:{},produc
  await p.click('[data-act="agr-ya"][data-k^="BONDIOLA"]');await p.waitForTimeout(500);
  console.log('B quedan:',await p.evaluate(()=>document.querySelector('.hoja-agr .hoja-cortes')?.innerText.replace(/\s+/g,' ')));
  await p.click('[data-act="agr-todo"]');await p.waitForTimeout(500);
- console.log('B todo:',await p.evaluate(()=>document.querySelector('.hoja-agr').innerText.replace(/\s+/g,' ').slice(-80)));
+ console.log('B todo (sin solapa):',await p.evaluate(()=>!document.querySelector('.hoja-agr')&&![...document.querySelectorAll('.pv-tabs .btn')].some(x=>/Agregado/.test(x.textContent))));
  console.log('B errores:',errs);await b.close();})();
