@@ -3370,6 +3370,12 @@
      { clientes: [{ nombre, items: [{ corte, cod, cant, uni ('kg' | 'cajas' | 'unid.'), nota }] }], actualizado, por }.
      Se muestra solo a las mismas cuentas que Cámara (CAM_CUENTAS). */
   var TU_UNI = ['kg', 'cajas', 'unid.'];
+  // Código de congelado según el corte (pedido de Renzo, 06/11/2026). La grasa se elige: 479 o 482.
+  var TU_CODS = [[/RECORTE.*70\s*\/?\s*30/, '376'], [/RECORTE.*80\s*\/?\s*20/, '364'], [/RECORTE.*50\s*\/?\s*50/, '369'], [/RECORTE.*60\s*\/?\s*40/, '373'],
+    [/TAPA (DE )?JAMON/, '336'], [/TAPA (DE )?PALETA/, '156'], [/PALETA/, '377'], [/JAMON/, '326'], [/CARRE/, '30276'], [/PECH|COSTILL/, '30216'], [/MATAMBRE/, '30236'],
+    [/CHURRASC/, '30246'], [/SOLOMILLO|LOMO/, '30287'], [/TOCINO/, '466']];
+  function tuEsGrasa(corte) { return /GRASA/.test(norm(corte || '')); }
+  function tuCodDe(corte) { var t = norm(corte || ''); if (!t || tuEsGrasa(t)) return ''; for (var i = 0; i < TU_CODS.length; i++) if (TU_CODS[i][0].test(t)) return TU_CODS[i][1]; return ''; }
   function tuFecha() { return S.tuF || fechaProdInicial(); }
   function tuDoc(f) { var d = (S.tun || {})[f]; return d && (d.clientes || []).length ? d : null; }
   function tuAnt(f) { var ks = Object.keys(S.tun || {}).filter(function (k) { return k < f && tuDoc(k); }).sort(); return ks.length ? tuDoc(ks[ks.length - 1]) : null; }
@@ -3414,13 +3420,14 @@
   }
   function tuEditHTML() {
     var cl = S.tuEd.doc.clientes;
-    return '<div class="panel tu-ed"><h3>Guardar túnel contenedor · ' + esc(tituloDe(S.tuEd.f)) + '</h3><p class="small muted">Un bloque por cliente; adentro, un renglón por corte. La cantidad va en kg o en cajas.</p>'
+    return '<datalist id="tu-grasas"><option value="479">Grasa 479</option><option value="482">Grasa 482</option></datalist><div class="panel tu-ed"><h3>Guardar túnel contenedor · ' + esc(tituloDe(S.tuEd.f)) + '</h3><p class="small muted">Un bloque por cliente; adentro, un renglón por corte. La cantidad va en kg o en cajas.</p>'
       + cl.map(function (c, i) {
         return '<div class="tu-cli"><div class="tu-cli-cab"><input data-tuc="' + i + '" value="' + esc(c.nombre) + '" placeholder="Cliente (ej.: SWIFT)" aria-label="Cliente"><button class="btn sm" data-act="tu-cli-x" data-i="' + i + '" aria-label="Quitar cliente">Quitar cliente</button></div>'
           + c.items.map(function (it, j) {
             var k = i + '.' + j + '.';
+            if (!it.cod && tuCodDe(it.corte)) { it.cod = tuCodDe(it.corte); it.codAuto = it.cod; }
             return '<div class="tu-r"><input class="tu-corte" data-tu="' + k + 'corte" value="' + esc(it.corte) + '" placeholder="Corte" aria-label="Corte">'
-              + '<input class="tu-cod" data-tu="' + k + 'cod" value="' + esc(it.cod) + '" placeholder="Cód." inputmode="numeric" aria-label="Código">'
+              + '<input class="tu-cod" data-tu="' + k + 'cod" value="' + esc(it.cod) + '" placeholder="' + (tuEsGrasa(it.corte) ? '479/482' : 'Cód.') + '"' + (tuEsGrasa(it.corte) ? ' list="tu-grasas"' : '') + ' inputmode="numeric" aria-label="Código">'
               + '<input class="tu-cant" data-tu="' + k + 'cant" value="' + esc(it.cant) + '" placeholder="Cant." inputmode="decimal" aria-label="Cantidad">'
               + '<select class="tu-uni" data-tu="' + k + 'uni" aria-label="Unidad">' + TU_UNI.map(function (u) { return '<option' + (u === (it.uni || 'kg') ? ' selected' : '') + '>' + u + '</option>'; }).join('') + '</select>'
               + '<input class="tu-nota" data-tu="' + k + 'nota" value="' + esc(it.nota) + '" placeholder="Nota (ej.: + producción jueves)" aria-label="Nota">'
@@ -3468,7 +3475,13 @@
         var cur = t.selectionStart == null ? t.value.length : t.selectionStart, dig = t.value.slice(0, cur).replace(/[^\d,]/g, '').length, nv = tuMiles(t.value);
         if (nv !== t.value) { t.value = nv; var k = 0, c = 0; while (k < nv.length && c < dig) { if (/[\d,]/.test(nv[k])) c++; k++; } try { t.setSelectionRange(k, k); } catch (err) {} }
       }
-      S.tuEd.doc.clientes[+p[0]].items[+p[1]][p[2]] = t.value;
+      var itT = S.tuEd.doc.clientes[+p[0]].items[+p[1]]; itT[p[2]] = t.value;
+      if (p[2] === 'cod') itT.codAuto = '';
+      if (p[2] === 'corte') {   // el código se pone solo según el corte (si no lo escribiste a mano)
+        var ci = t.closest('.tu-r').querySelector('input.tu-cod'), auto = tuCodDe(t.value), gr = tuEsGrasa(t.value);
+        if (ci && (!itT.cod || itT.cod === itT.codAuto)) { itT.cod = auto; itT.codAuto = auto; ci.value = auto; }
+        if (ci) { ci.placeholder = gr ? '479/482' : 'Cód.'; if (gr) ci.setAttribute('list', 'tu-grasas'); else ci.removeAttribute('list'); }
+      }
     }
   });
   document.addEventListener('change', function (e) {
