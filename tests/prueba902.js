@@ -18,7 +18,7 @@ const ver=async(txt,f,anual,w)=>{const p=await b.newPage({viewport:{width:w||130
 let r=await ver(BASE.concat(FT),F);console.log('29/10:',r.ing.join(' / '));
 ok(r.ing.includes('261798:160:FAENA PARCIAL'),'29/10: 261798 faenada en dos días → total de la tropa (160) y FAENA PARCIAL');
 ok(r.ing.includes('261800:150:Consumo'),'29/10: tropa faenada en un solo día sin cambios');
-ok(/261798.*26\/10: 81, 27\/10: 79/.test(r.aviso),'aviso con los dos días de faena');
+ok(!/faenadas en más de un día/.test(r.aviso),'sin el cartel de tropas faenadas en más de un día');
 ok(/261798160158/.test(r.imp)&&/FAENA PARCIAL/.test(r.imp),'la hoja impresa lleva 160 y FAENA PARCIAL');
 ok(!r.errs.length,'errores: '+(r.errs.join('|')||'ninguno'));
 r=await ver(BASE.concat(FT),'2026-10-28',null,400);console.log('28/10:',r.ing.join(' / '));
