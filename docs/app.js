@@ -879,6 +879,17 @@
     }).then(null, function () { fin('!No se pudo preparar la impresión. Probá de nuevo.'); });
   }
   function bajar(blob, nombre) { var u = URL.createObjectURL(blob), a = document.createElement('a'); a.href = u; a.download = nombre; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(u); }, 4000); }
+  // ¿Ya lo pedí? (pedido de Renzo, 06/11/2026): por día, Cortes / Menudencias / Embutidos en verde (pedido) o rojo (no pedido).
+  var PASADOS = [['cortes', 'Cortes'], ['men', 'Menudencias'], ['emb', 'Embutidos']];
+  function pasadoDe(f) { var d = (S.pasados || {})[f]; return d || {}; }
+  function pasadoHTML(f) {
+    if (!S.editor || S.solo) return '';
+    var d = pasadoDe(f);
+    return '<aside class="pasado-box" aria-label="¿Ya está pedido?"><p class="pasado-tit">¿Pedido?</p>' + PASADOS.map(function (x) {
+      var ok = !!d[x[0]];
+      return '<button class="pasado-b ' + (ok ? 'si' : 'no') + '" data-act="pasado" data-f="' + f + '" data-k="' + x[0] + '" aria-pressed="' + ok + '" title="Tocá para cambiar">' + '<span class="t">' + x[1] + '</span><span class="e">' + (ok ? '✓ Pedido' : '✗ No pedido') + '</span></button>';
+    }).join('') + '</aside>';
+  }
   function renderProduccion() {
     var solo3 = S.solo === 'ciclo3', el = $(solo3 ? 'view-ciclo3' : 'view-produccion');
     if (cargando(el, S.prod)) return;
@@ -912,7 +923,7 @@
         if (S.editor) h += '<div class="acciones" style="justify-content:center">' + (ant ? '<button class="btn pri" data-act="op-nueva" data-v="ant">Armar desde la orden del ' + esc(diaCorto(ant.id.slice(3)).toLowerCase()) + '</button>' : '') + '<button class="btn' + (ant ? '' : ' pri') + '" data-act="op-nueva" data-v="base">Armar desde la orden base</button></div>';
         h += '</div>';
       }
-      el.innerHTML = h; return;
+      h += pasadoHTML(f); el.innerHTML = h; return;
     }
     if (solo3) {
       h += o3 ? hojaHTML(o3, f, true) : '<div class="panel"><p class="state">Todavía no hay embutidos para este día.</p></div>';
@@ -925,7 +936,7 @@
       h += '</div>';
     }
     if (o3) h += hojaHTML(o3, f, true);
-    el.innerHTML = h;
+    h += pasadoHTML(f); el.innerHTML = h;
   }
   function docDeOrden(o) {
     var out = o.linea === 'ciclo3' ? [] : [(o.medias || '') + '½ ' + String(o.mercado || '').toUpperCase(), ''];
@@ -4282,6 +4293,7 @@
     else if (a === 'fecha') { S.pv = null; S.fechaFija = true; if (S.ep) guardar('prod', true); S.ep = null; var x = S.fecha; do { x = mas(x, +D.d); } while (!esHabil(x)); S.fecha = x; render(); }
     else if (a === 'pv') { if (S.ep) { guardar('prod', true); S.ep = null; } S.pv = D.v; render(); }
     else if (a === 'tu-fecha') { var xt = tuFecha(); do { xt = mas(xt, +D.d); } while (!esHabil(xt)); S.tuF = xt; S.tuEd = null; render(); }
+    else if (a === 'pasado') { S.pasados = S.pasados || {}; var dP = clone(S.pasados[D.f] || {}); dP[D.k] = !dP[D.k]; S.pasados[D.f] = dP; render(); var docP = clone(S.pasados); Object.keys(docP).forEach(function (k) { if (k < mas(hoy(), -60)) delete docP[k]; }); store.set('privado', 'pasados', docP).catch(function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); }); }
     else if (a === 'tu-pegar') { S.tuPegar = true; render(); var tp = $('tu-pegar-txt'); if (tp) tp.focus(); }
     else if (a === 'tu-pegar-x') { S.tuPegar = false; render(); }
     else if (a === 'tu-pegar-leer') { var txT = ($('tu-pegar-txt') || {}).value || ''; if (!txT.trim()) { avisar('!Pegá primero el texto o la imagen.', 3000); return; } S.tuPegar = false; tunelDesdeFotos([{ texto: txT }]); }
@@ -5198,6 +5210,7 @@
               if (JSON.stringify(S.papelera) !== antesP && S.tab === 'pedidos' && !ocupado()) renderPedidos();
               var stk = l.filter(function (x) { return x.id === 'stock'; })[0], antesSt = S.stock ? S.stock.ts : null; S.stock = stk || null;
               if ((S.stock ? S.stock.ts : null) !== antesSt && S.tab === 'stock' && !escribiendo()) renderStock(); stkMandar();
+              var pas = l.filter(function (x) { return x.id === 'pasados'; })[0], antesPa = JSON.stringify(S.pasados || {}); S.pasados = pas ? clone(pas) : {}; delete S.pasados.id; if (JSON.stringify(S.pasados) !== antesPa && S.tab === 'produccion' && !ocupado()) render();
               var chf = l.filter(function (x) { return x.id === 'choferes'; })[0], antesCh = JSON.stringify(S.choferes || null); S.choferes = chf || null;
               if (JSON.stringify(S.choferes || null) !== antesCh && S.tab === 'logistica' && S.resumen && !ocupado()) render();
               var imp = l.filter(function (x) { return x.id === 'impresora'; })[0], antesI = impEstado(); S.impresora = imp || null;

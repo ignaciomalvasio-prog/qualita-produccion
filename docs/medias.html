@@ -1146,6 +1146,16 @@ input[data-h24]{width:6.2ch!important;min-width:6.2ch;text-align:center;font-var
 @media print{.tu-guardar{background:none;color:#000;border-color:#000}}
 .tu-pegar textarea{width:100%;box-sizing:border-box;font:inherit;font-size:16px;padding:10px;border:1px solid var(--line);border-radius:8px}
 .btn.fer{color:#c62828;border-color:#e8a5a5;background:#fff5f5}.btn.fer.on,.btn.chip.fer.on,.carga-dias .btn.chip.fer.on{background:#c62828!important;border-color:#c62828!important;color:#fff!important}
+
+/* ¿Pedido? Cortes / Menudencias / Embutidos (Producción) */
+.pasado-box{position:fixed;right:10px;top:50%;transform:translateY(-50%);z-index:30;display:flex;flex-direction:column;gap:8px;background:#fff;border:1px solid var(--line,#dfe8ee);border-radius:12px;padding:10px;box-shadow:0 6px 18px rgba(23,54,74,.18);width:142px;box-sizing:border-box}
+.pasado-tit{margin:0;font:700 14px var(--display);letter-spacing:.06em;text-transform:uppercase;color:#17364a;text-align:center}
+.pasado-b{display:flex;flex-direction:column;align-items:center;gap:1px;border-radius:9px;padding:7px 6px;cursor:pointer;border:2px solid;font-family:inherit}
+.pasado-b .t{font:700 14px var(--display);letter-spacing:.02em;text-transform:uppercase}.pasado-b .e{font-size:12px;font-weight:800}
+.pasado-b.si{background:#e3f6ea;border-color:#1f8a4c;color:#11532d}.pasado-b.no{background:#fdecec;border-color:#c62828;color:#8a1f1f}
+@media (min-width:561px) and (max-width:1500px){ #view-produccion{padding-right:162px!important} }
+@media (max-width:560px){ #view-produccion{padding-right:0!important} .pasado-box{top:auto;bottom:10px;transform:none;flex-direction:row;width:auto;left:10px;right:10px;padding:6px;gap:6px}.pasado-tit{display:none}.pasado-b{flex:1;padding:5px 2px}.pasado-b .t{font-size:13px} #view-produccion{padding-bottom:80px} }
+@media print{ .pasado-box{display:none} }
 </style>
 </head>
 <body>

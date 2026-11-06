@@ -387,3 +387,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Túnel: botón "📷 Subir foto" (como en Pedidos, con recorte): la IA lee clientes y cortes, pone los códigos y abre para revisar y guardar; se suma a lo que ya había ese día (prueba146).
 - Túnel: "📷 Subir foto" siempre habilitado (si falta la clave de IA, avisa) y "📋 Pegar texto o imagen": se pega un mensaje o una captura (también Ctrl+V en la pestaña) y se lee igual que la foto (prueba146).
 - Pedidos: los feriados en rojo en "Cargar para el", en "Otros días con pedidos" (con · feriado) y en "Cambiar de día".
+- Producción: recuadro "¿Pedido?" a la derecha (abajo en el celu) con Cortes, Menudencias y Embutidos por día: en verde "Pedido" o en rojo "No pedido", se toca para cambiar (privado/pasados; solo editores, no se imprime).
