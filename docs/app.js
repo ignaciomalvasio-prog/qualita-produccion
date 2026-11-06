@@ -4441,6 +4441,15 @@
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && S.menuAb) cerrarMenus(); });
   document.addEventListener('keydown', function (e) { var t = e.target; if ((e.key === 'Enter' || e.key === ' ') && t && t.classList && t.classList.contains('busq-f') && t.dataset.act) { e.preventDefault(); t.click(); } });
   document.addEventListener('keydown', function (e) { var t = e.target; if (e.key === 'Enter' && t && t.matches && t.matches('input.lc-desc-ed')) { e.preventDefault(); t.blur(); } });
+  // Túnel: Enter baja al mismo casillero del renglón de abajo (pedido de Renzo, 06/11/2026).
+  document.addEventListener('keydown', function (e) {
+    var t = e.target; if (e.key !== 'Enter' || !t || !t.closest || !t.closest('.tu-ed') || t.tagName !== 'INPUT') return;
+    e.preventDefault();
+    var ed = t.closest('.tu-ed'), sig = null;
+    if (t.dataset.tuc != null) sig = t.closest('.tu-cli').querySelector('input.tu-corte');
+    else { var cls = (t.className.match(/tu-(corte|cod|cant|nota)/) || [])[0], l = cls ? Array.prototype.slice.call(ed.querySelectorAll('input.' + cls)) : []; sig = l[l.indexOf(t) + 1]; }
+    if (sig) { sig.focus(); if (sig.select) sig.select(); } else t.blur();
+  });
   document.addEventListener('keydown', function (e) { var t = e.target; if (e.key === 'Enter' && t && t.dataset && t.dataset.campNuevo) { e.preventDefault(); var bt = document.querySelector('[data-act="camp-crear"][data-id="' + t.dataset.campNuevo + '"]'); if (bt) bt.click(); } });
   // Ctrl+Z / Ctrl+Y en Cámara (cuando no se está escribiendo en una casilla, que tiene su propio deshacer).
   document.addEventListener('keydown', function (e) {
