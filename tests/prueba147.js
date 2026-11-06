@@ -1,0 +1,28 @@
+// Agregado: después de imprimir la planilla, lo que se suma aparece como AGREGADO y tiene su solapa para imprimir solo eso.
+const {chromium}=require('playwright');const W='2026-11-11';const SP=process.argv[2]||'.';
+const data={faena:{},privado:{},config:{general:{feriados:[]}},pedidos:{},produccion:{[W]:{fecha:W,medias:750,mercado:'',estado:'borrador',cortes:[{corte:'PECHO',lineas:[{t:'100 KG "ZANOTTI"'},{t:'20 KG "DINO"'}]},{corte:'MATAMBRE',lineas:[{t:'30 KG "DINO"'}]}]}}};
+(async()=>{const b=await chromium.launch();const errs=[];const p=await b.newPage({viewport:{width:1366,height:900}});p.on('pageerror',e=>errs.push(e.message));
+ await p.clock.install({time:new Date('2026-11-06T10:30:00-03:00')});
+ await p.addInitScript(d=>{window.__mock={data:JSON.parse(JSON.stringify(d)),user:{email:'yo@x.com'},editores:['yo@x.com']}},data);
+ await p.goto('http://127.0.0.1:8765/index.html#produccion');await p.clock.runFor(2000);await p.waitForTimeout(300);
+ await p.fill('#p-fecha',W);await p.dispatchEvent('#p-fecha','change');await p.waitForTimeout(300);
+ const tabs=()=>p.evaluate(()=>[...document.querySelectorAll('.pv-tabs .btn')].map(x=>x.textContent.trim()).join(' | '));
+ console.log('antes:',await tabs());
+ await p.click('.nav [data-act="imprimir"]');await p.waitForTimeout(800);
+ console.log('impreso:',await p.evaluate(()=>JSON.stringify(window.__mock.data.produccion['2026-11-11'].impreso.l)));
+ console.log('después de imprimir:',await tabs());
+ // el fin de semana se suma algo y se saca otra cosa
+ await p.evaluate(()=>{const o=window.__mock.data.produccion['2026-11-11'];o.cortes[0].lineas.push({t:'50 KG "TERUEL"'});o.cortes[1].lineas=[];o.cortes.push({corte:'BONDIOLA',lineas:[{t:'10 KG "DINO"'}]});window.__mock.emitir('produccion');});
+ await p.waitForTimeout(500);
+ console.log('con agregado:',await tabs());
+ console.log('marcas en la planilla:',await p.evaluate(()=>[...document.querySelectorAll('li.li-agr')].map(x=>x.textContent.replace(/\s+/g,' ').trim()).join(' / ')));
+ await p.click('.pv-tabs [data-v="agr"]');await p.waitForTimeout(300);
+ console.log('solapa:',await p.evaluate(()=>document.querySelector('.hoja-agr').innerText.replace(/\s+/g,' ').slice(0,400)));
+ await p.screenshot({path:SP+'/p147.png'});
+ await p.click('.hoja-agr [data-act="hoja-imprimir"]');await p.waitForTimeout(800);
+ console.log('tras imprimir agregado:',await tabs(),'| ult:',await p.evaluate(()=>JSON.stringify(window.__mock.data.produccion['2026-11-11'].impUlt.l)));
+ console.log('solapa luego:',await p.evaluate(()=>document.querySelector('.hoja-agr .hoja-sup').innerText));
+ await p.setViewportSize({width:400,height:800});await p.waitForTimeout(200);
+ console.log('desborde:',await p.evaluate(()=>document.documentElement.scrollWidth));
+ await p.screenshot({path:SP+'/p147m.png'});
+ console.log('errores:',errs);await b.close();})();

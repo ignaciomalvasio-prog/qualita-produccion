@@ -664,26 +664,87 @@
   // El día de trabajo: hoy si es hábil; desde las 15 h ya se trabaja para el día hábil siguiente.
   function fechaProdInicial() { var h = hoy(); return esHabil(h) && new Date().getHours() < 15 ? h : habilSiguiente(h); }
 
+  /* Agregado (pedido de Renzo, 06/11/2026): al imprimir o mandar el PDF, la planilla guarda qué renglones ya salieron
+     (campo "impreso" del mismo documento). Lo que se suma después aparece como AGREGADO y tiene su propia solapa,
+     para imprimir o mandar solo eso. Si se saca algo ya impreso, avisa "Se quitó". */
+  function lineasClave(o) { var r = []; (o && o.cortes || []).forEach(function (c) { (c.lineas || []).forEach(function (l) { r.push(norm(c.corte) + '|' + norm(l.t)); }); }); return r; }
+  function contarClaves(a) { var m = {}; (a || []).forEach(function (k) { m[k] = (m[k] || 0) + 1; }); return m; }
+  function vistaDoc(id) { var o = prodDe(id); return o ? (esC3(id) ? o : unirPecho(o)) : null; }
+  function yaImpreso(id) { var o = prodGuardada(id); return o && o.impreso && Array.isArray(o.impreso.l) ? o.impreso : null; }
+  // Los renglones de "o" que pasan (o no) la cuenta de "base".
+  function filtrarOrden(o, base, nuevos) {
+    var u = {}, x = clone(o);
+    x.cortes = (o.cortes || []).map(function (c) { return { corte: c.corte, lineas: c.lineas.filter(function (l) { var k = norm(c.corte) + '|' + norm(l.t); u[k] = (u[k] || 0) + 1; return nuevos ? u[k] > (base[k] || 0) : u[k] <= (base[k] || 0); }) }; }).filter(function (c) { return c.lineas.length; });
+    return x;
+  }
+  function quitadosDe(id) {
+    var im = yaImpreso(id); if (!im) return [];
+    var cur = contarClaves(lineasClave(vistaDoc(id))), old = contarClaves(im.l), r = [];
+    Object.keys(old).forEach(function (k) { for (var i = cur[k] || 0; i < old[k]; i++) r.push(k.replace('|', ': ')); });
+    return r;
+  }
+  function agregadoDe(id) {
+    var im = yaImpreso(id), v = vistaDoc(id); if (!im || !v) return null;
+    var nuevo = filtrarOrden(v, contarClaves(im.l), true), q = quitadosDe(id);
+    if (nuevo.cortes.length || q.length) return { o: nuevo, quitados: q, ts: im.ts };
+    var o = prodGuardada(id);
+    if (o.impUlt && (o.impUlt.l || []).length) { var ul = filtrarOrden(v, contarClaves(o.impUlt.l), false); if (ul.cortes.length) return { o: ul, quitados: [], ts: o.impUlt.ts, ult: true }; }
+    return { o: nuevo, quitados: [], ts: im.ts, vacio: true };
+  }
+  function cuandoTxt(ts) { var d = new Date(ts || 0); return d.getDate() + '/' + (d.getMonth() + 1) + ' ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+  // Después de imprimir o mandar: lo de esas hojas queda como ya impreso.
+  function marcarImpreso(hojas) {
+    if (!S.editor) return;
+    var por = {};
+    [].concat(hojas).forEach(function (hj) {
+      if (!hj || !hj.dataset || !hj.dataset.doc) return; var id = hj.dataset.doc, pa = hj.dataset.parte, v = vistaDoc(id); if (!v) return;
+      var sub = pa === 'emp' ? partirFaena(v).emp : pa === 'fae' ? partirFaena(v).fae : v;
+      var x = por[id] || (por[id] = { k: [], agr: false }); x.k = x.k.concat(lineasClave(sub)); if (pa === 'agr') x.agr = true;
+    });
+    var t = Object.keys(por).map(function (id) {
+      var o = prodGuardada(id); if (!o || (S.ep && S.ep.fecha === id)) return null;
+      var cur = contarClaves(lineasClave(vistaDoc(id))), old = contarClaves((o.impreso || {}).l), pr = contarClaves(por[id].k), l = [];
+      Object.keys(cur).forEach(function (k) { var c = Math.min(cur[k], Math.max(old[k] || 0, pr[k] || 0)); for (var i = 0; i < c; i++) l.push(k); });
+      var antes = ((o.impreso || {}).l || []).slice().sort().join('\n');
+      if (o.impreso && antes === l.slice().sort().join('\n')) return null;
+      var y = clone(o), ts = Date.now(); y.impreso = { ts: ts, l: l };
+      if (por[id].agr) { var nu = []; Object.keys(pr).forEach(function (k) { var c = Math.min(pr[k], cur[k] || 0) - (o.impreso ? Math.min(old[k] || 0, cur[k] || 0) : 0); for (var i = 0; i < c; i++) nu.push(k); }); if (nu.length) y.impUlt = { ts: ts, l: nu }; }
+      return guardarOrden(id, y);
+    }).filter(Boolean);
+    if (t.length) Promise.all(t).then(function () { if (S.tab === 'produccion' && !ocupado()) render(); }, function () {});
+  }
+  function agregadoHTML(f) {
+    var a = agregadoDe(f), a3 = agregadoDe('c3-' + f), h = '';
+    if (!a && !a3) return '<div class="panel"><p class="state">Todavía no se imprimió la planilla de este día. Cuando la imprimas o mandes el PDF, lo que se sume después aparece acá.</p></div>';
+    [[a, f, false], [a3, 'c3-' + f, true]].forEach(function (x) { if (x[0]) h += hojaHTML(x[0].o, f, x[2], false, { doc: x[1], d: x[0] }); });
+    return h;
+  }
   // La planilla de un día, para leer (la de desposte o la de embutidos).
-  function hojaHTML(o, f, c3, fae) {
-    var nl = (o.cortes || []).reduce(function (t, c) { return t + c.lineas.length; }, 0), k = c3 ? 'c3' : fae ? 'faena' : 'orden';
-    var h = '<div class="panel hoja' + (c3 ? ' hoja-c3' : fae ? ' hoja-faena' : '') + '"' + (c3 ? ' id="embutidos"' : fae ? ' id="faena"' : '') + '><header class="hoja-cab"><div><p class="hoja-sup">' + (c3 ? (S.solo ? 'Ciclo III · Embutidos' : 'Ciclo III') : fae ? 'Achuras y frescos de faena' : 'Planilla de empaque') + '</p><h2>' + esc(c3 && !S.solo ? 'Embutidos' : (c3 ? '' : fae ? 'FAENA · ' : 'EMPAQUE · ') + tituloDe(f)) + '</h2></div>'
-      + (c3 || fae ? (kgOrden(o) ? '<div class="hoja-dato"><b>' + n(kgOrden(o)) + '</b><span>kg</span></div>' : '') : '<div class="hoja-dato"><b>' + n(+o.medias || 0) + '</b><span>medias' + (o.mercado ? ' · ' + esc(o.mercado) : '') + '</span></div>')
+  function hojaHTML(o, f, c3, fae, agr) {
+    var nl = (o.cortes || []).reduce(function (t, c) { return t + c.lineas.length; }, 0), k = agr ? (c3 ? 'agr3' : 'agr') : c3 ? 'c3' : fae ? 'faena' : 'orden';
+    var docId = agr ? agr.doc : (c3 ? 'c3-' : '') + f, im = !agr && yaImpreso(docId), base = im ? contarClaves(im.l) : null, cu = {};
+    var h = '<div class="panel hoja' + (c3 ? ' hoja-c3' : fae ? ' hoja-faena' : '') + (agr ? ' hoja-agr' : '') + '" data-doc="' + docId + '" data-parte="' + (agr ? 'agr' : c3 ? 'c3' : fae ? 'fae' : 'emp') + '"' + (agr ? '' : c3 ? ' id="embutidos"' : fae ? ' id="faena"' : '') + '><header class="hoja-cab"><div><p class="hoja-sup">' + (agr ? (c3 ? 'Embutidos · ' : 'Empaque · ') + (agr.d.ult ? 'último agregado, impreso el ' : 'agregado después de imprimir el ') + cuandoTxt(agr.d.ts) : c3 ? (S.solo ? 'Ciclo III · Embutidos' : 'Ciclo III') : fae ? 'Achuras y frescos de faena' : 'Planilla de empaque') + '</p><h2>' + esc(agr ? 'AGREGADO · ' + tituloDe(f) : c3 && !S.solo ? 'Embutidos' : (c3 ? '' : fae ? 'FAENA · ' : 'EMPAQUE · ') + tituloDe(f)) + '</h2></div>'
+      + (agr ? '' : c3 || fae ? (kgOrden(o) ? '<div class="hoja-dato"><b>' + n(kgOrden(o)) + '</b><span>kg</span></div>' : '') : '<div class="hoja-dato"><b>' + n(+o.medias || 0) + '</b><span>medias' + (o.mercado ? ' · ' + esc(o.mercado) : '') + '</span></div>')
       + (o.estado === 'borrador' ? '<span class="badge warn">Borrador</span>' : '<span class="badge ok">Confirmada</span>') + '</header>';
     var acc = '<div class="acciones hoja-acc">'
       + (S.editor ? '<button class="btn pri" data-act="p-editar" data-id="' + (c3 ? 'c3-' : '') + f + '">' + (c3 ? 'Editar embutidos' : 'Editar') + '</button>' : '')
-      + '<button class="btn" data-act="hoja-imprimir">' + (c3 ? 'Imprimir embutidos' : fae ? 'Imprimir faena' : 'Imprimir cortes') + '</button>'
+      + '<button class="btn" data-act="hoja-imprimir">' + (agr ? 'Imprimir solo lo agregado' : c3 ? 'Imprimir embutidos' : fae ? 'Imprimir faena' : 'Imprimir cortes') + '</button>'
       + '<button class="btn" data-act="copiar" data-t="' + k + '">Copiar como texto</button><button class="btn wa" data-act="wa-pdf">PDF por WhatsApp</button>'
-      + (S.editor && !c3 && !fae ? '<button class="btn" data-act="ir-pedidos" data-f="' + f + '">Sumar cortes desde los pedidos</button>' : '')
+      + (S.editor && !c3 && !fae && !agr ? '<button class="btn" data-act="ir-pedidos" data-f="' + f + '">Sumar cortes desde los pedidos</button>' : '')
       + (S.editor && c3 ? '<button class="btn" data-act="link-c3">Copiar link para el Ciclo III</button>' : '')
       + '<span class="small muted" id="copiado-' + k + '" aria-live="polite"></span></div>';
     h += acc;
-    if (!nl) h += '<p class="muted">Todavía no se sumó ningún ' + (c3 ? 'embutido' : 'corte') + '.</p>';
+    if (agr && agr.d.vacio) h += '<p class="muted">No se agregó nada después de imprimir.</p>';
+    else if (!nl && agr) h += '';
+    else if (!nl) h += '<p class="muted">Todavía no se sumó ningún ' + (c3 ? 'embutido' : 'corte') + '.</p>';
     else h += '<div class="hoja-cortes">' + (o.cortes || []).map(function (c) {
       var td = totalCorteDet(c), tot = td.kg != null ? n(td.kg) + ' kg' : '';
       var det = [td.det, td.sin ? (tot ? '+ ' : '') + td.sin : ''].filter(Boolean).join(' ');
-      return '<div class="hoja-corte"><div class="hoja-nom"><h3>' + esc(c.corte || 'Sin corte') + '</h3>' + (tot || det ? '<p class="hoja-tot"><span>Total</span> ' + esc(tot) + (det ? '<small class="hoja-det"> (' + esc(det) + ')</small>' : '') + '</p>' : '') + '</div><ul>' + c.lineas.map(function (l) { return '<li>' + lineaHojaHTML(l.t) + (l.f ? ' ' + frioBadge(l.f) : '') + '</li>'; }).join('') + '</ul></div>';
+      return '<div class="hoja-corte"><div class="hoja-nom"><h3>' + esc(c.corte || 'Sin corte') + '</h3>' + (tot || det ? '<p class="hoja-tot"><span>Total</span> ' + esc(tot) + (det ? '<small class="hoja-det"> (' + esc(det) + ')</small>' : '') + '</p>' : '') + '</div><ul>' + c.lineas.map(function (l) {
+        var kk = norm(c.corte) + '|' + norm(l.t); cu[kk] = (cu[kk] || 0) + 1; var es = base && cu[kk] > (base[kk] || 0);
+        return '<li' + (es ? ' class="li-agr"' : '') + '>' + lineaHojaHTML(l.t) + (l.f ? ' ' + frioBadge(l.f) : '') + (es ? ' <span class="badge agr-tag">AGREGADO</span>' : '') + '</li>'; }).join('') + '</ul></div>';
     }).join('') + '</div>';
+    if (agr && agr.d.quitados.length) h += '<p class="muted agr-quit">Se quitó (ya estaba impreso, no va): ' + agr.d.quitados.map(esc).join(' · ') + '</p>';
     h += '<textarea id="txt-' + k + '" class="txt" readonly hidden aria-label="Planilla en texto">' + esc(fae ? textoOrden(o).replace(/^([^\n]*)\n[^\n]*/, '$1\nFAENA') : textoOrden(o)) + '</textarea></div>';
     return h;
   }
@@ -811,7 +872,7 @@
   function compartirPDF(hoja, btn, wa, nombre0) {
     if (!hoja || (btn && btn.disabled)) return;
     var dia = S.fecha || '';
-    var nombre = nombre0 || (hoja.classList.contains('op-hoja') ? 'Orden de produccion' : hoja.classList.contains('hoja-c3') ? 'Embutidos' : hoja.classList.contains('hoja-faena') ? 'Faena' : 'Planilla de frescos') + ' ' + dia.slice(8, 10) + '-' + dia.slice(5, 7) + '.pdf';
+    var nombre = nombre0 || (hoja.classList.contains('op-hoja') ? 'Orden de produccion' : hoja.classList.contains('hoja-agr') ? (hoja.classList.contains('hoja-c3') ? 'Agregado embutidos' : 'Agregado') : hoja.classList.contains('hoja-c3') ? 'Embutidos' : hoja.classList.contains('hoja-faena') ? 'Faena' : 'Planilla de frescos') + ' ' + dia.slice(8, 10) + '-' + dia.slice(5, 7) + '.pdf';
     var txt0 = btn ? btn.textContent : ''; if (btn) { btn.disabled = true; btn.textContent = 'Armando el PDF…'; }
     var fin = function (m) { if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = txt0; } if (m) avisar(m, m.charAt(0) === '!' ? 7000 : 4000); };
     cargarScript('lib/pdf-lib.min.js').then(function () { return typeof hoja === 'function' ? hoja() : armarPDF(hoja); }).then(function (bytes) {
@@ -895,14 +956,17 @@
     if (cargando(el, S.prod)) return;
     if (!S.fecha || !S.fechaFija) S.fecha = fechaProdInicial();
     var f = S.fecha, o = solo3 ? null : prodDe(f), o3 = prodDe('c3-' + f), op = solo3 ? null : prodDe('op-' + f), edit = !!(S.ep && (S.ep.fecha === f || S.ep.fecha === 'c3-' + f || S.ep.fecha === 'op-' + f));
+    var hayImp = !solo3 && !!(yaImpreso(f) || yaImpreso('c3-' + f));
     var pv = solo3 ? 'frescos' : (S.pv || (op ? 'op' : 'frescos')); if (edit) pv = esOP(S.ep.fecha) ? 'op' : 'frescos';
+    if (pv === 'agr' && !hayImp) pv = 'frescos';
+    var nAgr = hayImp ? [f, 'c3-' + f].reduce(function (t, id) { var a = yaImpreso(id) && agregadoDe(id); return t + (a && !a.ult && !a.vacio ? lineasClave(a.o).length + a.quitados.length : 0); }, 0) : 0;
     var h = '<div class="nav"><button class="btn step" data-act="fecha" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + fechaTit(f) + '</span><button class="btn step" data-act="fecha" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="p-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">';
     if (pv === 'op' ? op : (o || o3)) h += '<button class="btn" data-act="imprimir">Imprimir</button>';
     if (edit) h += '<button class="btn pri" data-act="p-editar">Listo</button>';
     if (S.editor) h += '<button class="btn" data-act="link-prod">Copiar link para compartir</button><span class="guardado" id="g-prod"></span>';
     h += '</div>';
-    if (!solo3) h += '<div class="pv-tabs" role="tablist" aria-label="Qué planilla ver"><button class="btn" role="tab" data-act="pv" data-v="op" aria-selected="' + (pv === 'op') + '">Orden de producción' + (op ? '' : ' <small>(sin armar)</small>') + '</button><button class="btn" role="tab" data-act="pv" data-v="frescos" aria-selected="' + (pv === 'frescos') + '">Planilla de frescos' + (o ? '' : ' <small>(vacía)</small>') + '</button></div>';
+    if (!solo3) h += '<div class="pv-tabs" role="tablist" aria-label="Qué planilla ver"><button class="btn" role="tab" data-act="pv" data-v="op" aria-selected="' + (pv === 'op') + '">Orden de producción' + (op ? '' : ' <small>(sin armar)</small>') + '</button><button class="btn" role="tab" data-act="pv" data-v="frescos" aria-selected="' + (pv === 'frescos') + '">Planilla de frescos' + (o ? '' : ' <small>(vacía)</small>') + '</button>' + (hayImp ? '<button class="btn pv-agr' + (nAgr ? ' hay' : '') + '" role="tab" data-act="pv" data-v="agr" aria-selected="' + (pv === 'agr') + '">Agregado' + (nAgr ? ' <b class="agr-n">' + nAgr + '</b>' : '') + '</button>' : '') + '</div>';
     if (edit) { h += prodEditHTML(S.ep.doc); el.innerHTML = h; pintarMsg('prod'); crecer($('p-doc')); return; }
     if (pv === 'op') {
       if (op) h += opHTML(op, f);
@@ -925,6 +989,7 @@
       }
       h += pasadoHTML(f); el.innerHTML = h; return;
     }
+    if (pv === 'agr') { h += agregadoHTML(f) + pasadoHTML(f); el.innerHTML = h; return; }
     if (solo3) {
       h += o3 ? hojaHTML(o3, f, true) : '<div class="panel"><p class="state">Todavía no hay embutidos para este día.</p></div>';
       el.innerHTML = h; return;
@@ -4235,9 +4300,9 @@
     else if (a === 'resumen') { S.resumen = !S.resumen; render(); }
     else if (a === 'hoja-pdf') { compartirPDF(b.closest('.hoja'), b); }
     // Una sola planilla (la de cortes o la de embutidos), sin las demás.
-    else if (a === 'hoja-imprimir') { var hjx = b.closest('.hoja'); if (hjx) imprimirPDF([hjx], b); }
+    else if (a === 'hoja-imprimir') { var hjx = b.closest('.hoja'); if (hjx) { imprimirPDF([hjx], b); if (S.tab === 'produccion') marcarImpreso([hjx]); } }
     else if (a === 'imprimir' && S.tab === 'tunel' && document.querySelector('#view-tunel .hoja')) { imprimirPDF([document.querySelector('#view-tunel .hoja')], b); }
-    else if (a === 'imprimir' && S.tab === 'produccion' && !S.ep && document.querySelector('#view-produccion .hoja')) { imprimirPDF(Array.prototype.slice.call(document.querySelectorAll('#view-produccion .hoja')), b); }
+    else if (a === 'imprimir' && S.tab === 'produccion' && !S.ep && document.querySelector('#view-produccion .hoja')) { var hjs = Array.prototype.slice.call(document.querySelectorAll('#view-produccion .hoja')); imprimirPDF(hjs, b); marcarImpreso(hjs); }
     else if (a === 'imprimir') {
       // Se imprime siempre la vista de lectura, no la de edición.
       if (S.em) { guardar('medias', true); S.em = null; }
@@ -4255,7 +4320,7 @@
     else if (a === 'pin-bloquear') bloquear();
     else if (a === 'pin-sacar') { try { localStorage.removeItem('qualita-pin'); } catch (er) {} avisar('PIN sacado: esta compu ya no se bloquea.', 4000); render(); }
     else if (a === 'pin-poner') { var pn = String(($('pin-nuevo') || {}).value || '').trim(); if (!/^\d{4,8}$/.test(pn)) { avisar('!El PIN tiene que ser de 4 a 8 números.', 5000); return; } pinHash(pn).then(function (h) { try { localStorage.setItem('qualita-pin', h); } catch (er) {} pinUso = Date.now(); avisar('PIN puesto. La app se bloquea al abrirla y después de ' + PIN_MIN + ' min sin uso.', 6000); render(); }); }
-    else if (a === 'wa-pdf') { compartirPDF(b.closest('.hoja'), b, true); }
+    else if (a === 'wa-pdf') { compartirPDF(b.closest('.hoja'), b, true); if (S.tab === 'produccion') marcarImpreso([b.closest('.hoja')]); }
     else if (a === 'copiar') {
       var ta = $('txt-' + (D.t || 'orden')), msg = $('copiado-' + (D.t || 'orden')); ta.hidden = false;
       var ok = function () { msg.textContent = 'Copiado.'; }, no = function () { ta.focus(); ta.select(); msg.textContent = 'Seleccionado: copialo con Ctrl+C o manteniendo apretado.'; };
