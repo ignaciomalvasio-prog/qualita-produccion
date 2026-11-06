@@ -3401,7 +3401,7 @@
   function tuTexto(f) {
     var d = tuDoc(f); if (!d) return '';
     return 'GUARDAR TÚNEL CONTENEDOR · ' + tituloDe(f).toUpperCase() + '\n' + d.clientes.map(function (c) {
-      return '\n*' + (String(c.nombre || 'SIN CLIENTE').toUpperCase()) + '*\n' + c.items.map(function (it) { return '- ' + tuRenglon(it); }).join('\n');
+      return '\n*' + (String(c.nombre || 'SIN CLIENTE').toUpperCase()) + '* — PARA GUARDAR EN TÚNEL\n' + c.items.map(function (it) { return '- ' + tuRenglon(it); }).join('\n');
     }).join('\n') + (tuTotTxt(tuTodos(d)) ? '\n\nTOTAL: ' + tuTotTxt(tuTodos(d)) : '');
   }
   function tuGuardar() {
@@ -3444,7 +3444,7 @@
       + (tuSuma(tuTodos(d), 'kg') ? '<div class="hoja-dato"><b>' + n(tuSuma(tuTodos(d), 'kg')) + '</b><span>kg</span></div>' : '') + '</header>'
       + '<div class="acciones hoja-acc"><button class="btn pri" data-act="tu-armar">Editar</button><button class="btn wa" data-act="tu-pdf">PDF por WhatsApp</button><button class="btn" data-act="tu-texto">Copiar texto</button></div>'
       + '<div class="op-lista">' + d.clientes.map(function (c) {
-        return '<div class="op-c"><p class="tu-nom"><u class="op-corte">' + esc(String(c.nombre || 'SIN CLIENTE').toUpperCase()) + '</u></p>'
+        return '<div class="op-c"><p class="tu-nom"><u class="op-corte">' + esc(String(c.nombre || 'SIN CLIENTE').toUpperCase()) + '</u> <span class="tu-guardar">PARA GUARDAR EN TÚNEL</span></p>'
           + c.items.map(function (it) { return '<p class="op-sig">' + opLineaHTML(tuRenglon(it)) + '</p>'; }).join('') + '</div>';
       }).join('') + '</div>'
       + (tot ? '<p class="tu-tot"><b>TOTAL: ' + esc(tot.toUpperCase()) + '</b></p>' : '')
@@ -4227,7 +4227,7 @@
     else if (a === 'tu-ren') { S.tuEd.doc.clientes[+D.i].items.push(tuItem()); render(); var rs2 = document.querySelectorAll('#view-tunel [data-tu^="' + D.i + '.' + (S.tuEd.doc.clientes[+D.i].items.length - 1) + '.corte"]'); if (rs2.length) rs2[0].focus(); }
     else if (a === 'tu-ren-x') { S.tuEd.doc.clientes[+D.i].items.splice(+D.j, 1); render(); }
     else if (a === 'tu-texto') { var tx = tuTexto(tuFecha()); (navigator.clipboard ? navigator.clipboard.writeText(tx) : Promise.reject()).then(function () { avisar('Copiado. Pegalo en WhatsApp.', 3000); }, function () { avisar('!No se pudo copiar.', 4000); }); }
-    else if (a === 'tu-pdf') { var ft = tuFecha(); compartirPDF(b.closest('.hoja'), b, true, 'Tunel ' + ft.slice(8, 10) + '-' + ft.slice(5, 7) + '.pdf'); }
+    else if (a === 'tu-pdf') { var ft = tuFecha(); compartirPDF(b.closest('.hoja'), b, true, 'Guardar en tunel ' + ft.slice(8, 10) + '-' + ft.slice(5, 7) + '.pdf'); }
     else if (a === 'op-nueva') {
       S.fechaFija = true; var idn = 'op-' + S.fecha, dn = opNueva(S.fecha, D.v);
       S.ep = { fecha: idn, doc: dn }; S.ep.base = clone(dn); S.pv = 'op'; S.msg.prod = ''; guardar('prod', true); render();
