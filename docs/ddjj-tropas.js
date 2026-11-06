@@ -21,9 +21,10 @@ function enRangos(hist, L) {
   }
   return c;
 }
+/* las tropas más recientes primero (Sabi 06/11) */
 function filasTropas() {
   const sis = S.sis || {}, mu = typeof muertosPorTropa === 'function' ? muertosPorTropa() : {}, L = rangosT();
-  return (sis.tp || []).slice().sort((a, b) => a.fecha.localeCompare(b.fecha) || String(a.tropa).localeCompare(String(b.tropa))).map(t => {
+  return (sis.tp || []).slice().sort((a, b) => b.fecha.localeCompare(a.fecha) || String(b.tropa).localeCompare(String(a.tropa))).map(t => {
     const fd = (sis.fd || {})[t.tropa] || {}, dias = Object.keys(fd).sort(), fae = dias.reduce((a, d) => a + fd[d], 0);
     const r = enRangos((sis.fr || {})[t.tropa], L), tot = r.reduce((a, x) => a + x, 0);
     return Object.assign({}, t, { fae, dias: dias.map(d => [d, fd[d]]), mu: mu[t.tropa] || 0, prom: t.cab && t.kg ? t.kg / t.cab : 0, rangos: r, totR: tot });

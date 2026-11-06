@@ -376,3 +376,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Menús ⋯: si se abren pegados al borde (en el celu el botón a veces queda a la izquierda) se acomodan para que se vean enteros.
 - Pedidos en el celu: los ⋯ de cada camión siempre arriba a la derecha.
 - Pedidos en el celu: el título de cada camión siempre igual: número, nombre y ⋯ arriba; horario a la izquierda, detalle y kilos a la derecha abajo.
+- Centro de desposte › Tropas (pedido de Sabi 06/11): las tropas más recientes primero (también en el Excel). Prueba: tests/prueba907.js.

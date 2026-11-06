@@ -15,8 +15,8 @@ for(const w of [1300,400]){const p=await b.newPage({viewport:{width:w,height:900
  await p.click('#nav a[data-t="tropas"]');await p.waitForTimeout(400);
  const filas=await p.evaluate(()=>[...document.querySelectorAll('.dj-tropas tbody tr')].map(r=>[...r.cells].map(c=>c.innerText.replace(/\s+/g,' ').trim()).join(' | ')));
  if(w===1300){console.log(filas.join('\n'));
-  ok(/^261798 \| 25\/10 \| La Quimera S.A. \| El Rodeo \| 160 \| 1 \| 21\.840 \| 136,50/.test(filas[0])&&!/AE667IF/.test(filas[0]),'261798: datos sin jaula ni faenadas, muerto, kg vivos y promedio');
-  ok(/100 · 62,5 % \| 60 · 37,5 % \| 0 · 0,0 %$/.test(filas[0]),'261798: animales y % (menos de 80, 80 a 110, más de 110): '+filas[0].split('|').slice(-3).join('|'));
+  ok(/^261798 \| 25\/10 \| La Quimera S.A. \| El Rodeo \| 160 \| 1 \| 21\.840 \| 136,50/.test(filas[1])&&!/AE667IF/.test(filas[1])&&/^261814/.test(filas[0]),'más reciente primero (261814); 261798: datos sin jaula ni faenadas, muerto, kg vivos y promedio');
+  ok(/100 · 62,5 % \| 60 · 37,5 % \| 0 · 0,0 %$/.test(filas[1]),'261798: animales y % (menos de 80, 80 a 110, más de 110): '+filas[1].split('|').slice(-3).join('|'));
   ok(/^Total del mes \| 220 \| 1 \| 30\.000 \| 136,36/.test(filas[2]),'total del mes');
   // cambiar rangos
   await p.click('text=Cambiar rangos');await p.fill('#dlg-v','70, 90');await p.click('#dlg-ok');await p.waitForTimeout(400);
