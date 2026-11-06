@@ -806,8 +806,12 @@
         c = c || datos.cab; var cabH = datos.cab;
         pag.drawText(limpio(cabH.sup.toUpperCase()), { x: M, y: y - 9, size: 9, font: FB, color: gris });
         if (cabH.estado) { var ew = ancho(FB, limpio(cabH.estado.toUpperCase()), 8); pag.drawText(limpio(cabH.estado.toUpperCase()), { x: maxX - ew, y: y - 9, size: 8, font: FB, color: gris }); }
-        y -= 30; pag.drawText(limpio(cabH.tit.toUpperCase()), { x: M, y: y, size: 19, font: FB, color: negro });
-        if (cabH.dato) { var dw = ancho(FB, limpio(cabH.dato.toUpperCase()), 15); pag.drawText(limpio(cabH.dato.toUpperCase()), { x: maxX - dw, y: y, size: 15, font: FB, color: negro }); }
+        // Título y dato (medias, kg) en el mismo renglón; si no entran juntos se achica el título y, si igual no entra, el dato baja (se pisaban).
+        var titT = limpio(cabH.tit.toUpperCase()), datT = cabH.dato ? limpio(cabH.dato.toUpperCase()) : '', dw = datT ? ancho(FB, datT, 15) : 0, tTit = 19;
+        while (tTit > 14 && ancho(FB, titT, tTit) + dw + 16 > maxX - M) tTit -= 0.5;
+        var juntos = ancho(FB, titT, tTit) + dw + 16 <= maxX - M;
+        y -= 30; pag.drawText(titT, { x: M, y: y, size: tTit, font: FB, color: negro });
+        if (datT) { if (!juntos) y -= 20; pag.drawText(datT, { x: maxX - dw, y: y, size: 15, font: FB, color: negro }); }
         y -= 10; pag.drawLine({ start: { x: M, y: y }, end: { x: maxX, y: y }, thickness: 1.5, color: negro }); y -= 8;
         // El cuerpo se acomoda a la hoja: se busca la letra más grande que entra entera en una A4 (entre 10,5 y 20)
         // y lo que sobra se reparte entre los cortes. Si ni con la letra chica entra, sigue en otra página.
