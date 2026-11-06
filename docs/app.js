@@ -742,8 +742,10 @@
       var det = [td.det, td.sin ? (tot ? '+ ' : '') + td.sin : ''].filter(Boolean).join(' ');
       return '<div class="hoja-corte"><div class="hoja-nom"><h3>' + esc(c.corte || 'Sin corte') + '</h3>' + (tot || det ? '<p class="hoja-tot"><span>Total</span> ' + esc(tot) + (det ? '<small class="hoja-det"> (' + esc(det) + ')</small>' : '') + '</p>' : '') + '</div><ul>' + c.lineas.map(function (l) {
         var kk = norm(c.corte) + '|' + norm(l.t); cu[kk] = (cu[kk] || 0) + 1; var es = base && cu[kk] > (base[kk] || 0);
-        return '<li' + (es ? ' class="li-agr"' : '') + '>' + lineaHojaHTML(l.t) + (l.f ? ' ' + frioBadge(l.f) : '') + (es ? ' <span class="badge agr-tag">AGREGADO</span>' : '') + '</li>'; }).join('') + '</ul></div>';
+        var ya = agr && !agr.d.ult && S.editor ? ' <button class="btn agr-ya" data-act="agr-ya" data-doc="' + esc(docId) + '" data-k="' + esc(kk) + '" title="Ya lo había pasado: sacarlo de Agregado">✓ Ya lo tenía pasado</button>' : '';
+        return '<li' + (es ? ' class="li-agr"' : '') + '>' + lineaHojaHTML(l.t) + (l.f ? ' ' + frioBadge(l.f) : '') + (es ? ' <span class="badge agr-tag">AGREGADO</span>' : '') + ya + '</li>'; }).join('') + '</ul></div>';
     }).join('') + '</div>';
+    if (agr && !agr.d.ult && !agr.d.vacio && S.editor && nl) h += '<div class="acciones agr-todo-acc"><button class="btn" data-act="agr-todo" data-doc="' + esc(docId) + '">✓ Todo esto ya lo tenía pasado</button></div>';
     if (agr && agr.d.quitados.length) h += '<p class="muted agr-quit">Se quitó (ya estaba impreso, no va): ' + agr.d.quitados.map(esc).join(' · ') + '</p>';
     h += '<textarea id="txt-' + k + '" class="txt" readonly hidden aria-label="Planilla en texto">' + esc(fae ? textoOrden(o).replace(/^([^\n]*)\n[^\n]*/, '$1\nFAENA') : textoOrden(o)) + '</textarea></div>';
     return h;
@@ -4320,6 +4322,15 @@
     else if (a === 'pin-bloquear') bloquear();
     else if (a === 'pin-sacar') { try { localStorage.removeItem('qualita-pin'); } catch (er) {} avisar('PIN sacado: esta compu ya no se bloquea.', 4000); render(); }
     else if (a === 'pin-poner') { var pn = String(($('pin-nuevo') || {}).value || '').trim(); if (!/^\d{4,8}$/.test(pn)) { avisar('!El PIN tiene que ser de 4 a 8 números.', 5000); return; } pinHash(pn).then(function (h) { try { localStorage.setItem('qualita-pin', h); } catch (er) {} pinUso = Date.now(); avisar('PIN puesto. La app se bloquea al abrirla y después de ' + PIN_MIN + ' min sin uso.', 6000); render(); }); }
+    else if (a === 'agr-ya' || a === 'agr-todo') {
+      var oY = prodGuardada(D.doc); if (oY && oY.impreso) {
+        var curY = contarClaves(lineasClave(vistaDoc(D.doc))), lY = (oY.impreso.l || []).filter(function (k) { return curY[k]; }), yY = clone(oY);
+        if (a === 'agr-todo') lY = lineasClave(vistaDoc(D.doc));
+        else if ((contarClaves(lY)[D.k] || 0) < (curY[D.k] || 0)) lY.push(D.k);
+        yY.impreso = { ts: oY.impreso.ts, l: lY };
+        guardarOrden(D.doc, yY).then(function () { render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); });
+      }
+    }
     else if (a === 'wa-pdf') { compartirPDF(b.closest('.hoja'), b, true); if (S.tab === 'produccion') marcarImpreso([b.closest('.hoja')]); }
     else if (a === 'copiar') {
       var ta = $('txt-' + (D.t || 'orden')), msg = $('copiado-' + (D.t || 'orden')); ta.hidden = false;

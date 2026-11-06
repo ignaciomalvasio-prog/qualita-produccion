@@ -390,3 +390,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Producción: recuadro "¿Pedido?" a la derecha (abajo en el celu) con Cortes, Menudencias y Embutidos por día: en verde "Pedido" o en rojo "No pedido", se toca para cambiar (privado/pasados; solo editores, no se imprime).
 - Planilla de empaque impresa igual que en pantalla: cada corte en su bloque con franja a la izquierda y fondo suave.
 - (06/11/2026) Producción: solapa **Agregado**. Al imprimir o mandar el PDF de la planilla, la app guarda lo que ya salió; lo que se suma después se marca AGREGADO en naranja y en la solapa Agregado se imprime o manda solo eso (avisa también lo que se quitó).
+- (06/11/2026) Agregado: botón "✓ Ya lo tenía pasado" en cada renglón (y "Todo esto ya lo tenía pasado") para sacar de Agregado lo que ya se había pasado.

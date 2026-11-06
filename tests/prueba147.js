@@ -26,3 +26,17 @@ const data={faena:{},privado:{},config:{general:{feriados:[]}},pedidos:{},produc
  console.log('desborde:',await p.evaluate(()=>document.documentElement.scrollWidth));
  await p.screenshot({path:SP+'/p147m.png'});
  console.log('errores:',errs);await b.close();})();
+// "Ya lo tenía pasado"
+(async()=>{const b=await chromium.launch();const errs=[];const p=await b.newPage({viewport:{width:1366,height:900}});p.on('pageerror',e=>errs.push(e.message));
+ await p.clock.install({time:new Date('2026-11-06T10:30:00-03:00')});
+ await p.addInitScript(d=>{window.__mock={data:JSON.parse(JSON.stringify(d)),user:{email:'yo@x.com'},editores:['yo@x.com']}},data);
+ await p.goto('http://127.0.0.1:8765/index.html#produccion');await p.clock.runFor(2000);await p.waitForTimeout(300);
+ await p.fill('#p-fecha',W);await p.dispatchEvent('#p-fecha','change');await p.waitForTimeout(300);
+ await p.click('.nav [data-act="imprimir"]');await p.waitForTimeout(800);
+ await p.evaluate(()=>{const o=window.__mock.data.produccion['2026-11-11'];o.cortes[0].lineas.push({t:'50 KG "TERUEL"'});o.cortes.push({corte:'BONDIOLA',lineas:[{t:'10 KG "DINO"'}]});window.__mock.emitir('produccion');});
+ await p.waitForTimeout(400);await p.click('.pv-tabs [data-v="agr"]');await p.waitForTimeout(300);
+ await p.click('[data-act="agr-ya"][data-k^="BONDIOLA"]');await p.waitForTimeout(500);
+ console.log('B quedan:',await p.evaluate(()=>document.querySelector('.hoja-agr .hoja-cortes')?.innerText.replace(/\s+/g,' ')));
+ await p.click('[data-act="agr-todo"]');await p.waitForTimeout(500);
+ console.log('B todo:',await p.evaluate(()=>document.querySelector('.hoja-agr').innerText.replace(/\s+/g,' ').slice(-80)));
+ console.log('B errores:',errs);await b.close();})();
