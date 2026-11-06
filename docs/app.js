@@ -3435,20 +3435,71 @@
           }).join('')
           + '<button class="btn sm" data-act="tu-ren" data-i="' + i + '">+ Corte</button></div>';
       }).join('')
-      + '<div class="acciones"><button class="btn" data-act="tu-cli">+ Cliente</button></div>'
+      + '<div class="acciones"><button class="btn" data-act="tu-cli">+ Cliente</button>' + tuFotoBtn() + '</div>'
       + '<div class="acciones"><button class="btn pri" data-act="tu-guardar">Guardar</button><button class="btn" data-act="tu-cancelar">Cancelar</button></div></div>';
   }
   function tuHojaHTML(d, f) {
     var tot = tuTotTxt(tuTodos(d));
     return '<div class="panel hoja op-hoja tu-hoja"><header class="hoja-cab"><div><p class="hoja-sup">Guardar túnel contenedor</p><h2>TÚNEL · ' + esc(tituloDe(f).toUpperCase()) + '</h2></div>'
       + (tuSuma(tuTodos(d), 'kg') ? '<div class="hoja-dato"><b>' + n(tuSuma(tuTodos(d), 'kg')) + '</b><span>kg</span></div>' : '') + '</header>'
-      + '<div class="acciones hoja-acc"><button class="btn pri" data-act="tu-armar">Editar</button><button class="btn wa" data-act="tu-pdf">PDF por WhatsApp</button><button class="btn" data-act="tu-texto">Copiar texto</button></div>'
+      + '<div class="acciones hoja-acc"><button class="btn pri" data-act="tu-armar">Editar</button>' + tuFotoBtn() + '<button class="btn wa" data-act="tu-pdf">PDF por WhatsApp</button><button class="btn" data-act="tu-texto">Copiar texto</button></div>'
       + '<div class="op-lista">' + d.clientes.map(function (c) {
         return '<div class="op-c"><p class="tu-nom"><u class="op-corte">' + esc(String(c.nombre || 'SIN CLIENTE').toUpperCase()) + '</u> <span class="tu-guardar">PARA GUARDAR EN TÚNEL</span></p>'
           + c.items.map(function (it) { return '<p class="op-sig">' + opLineaHTML(tuRenglon(it)) + '</p>'; }).join('') + '</div>';
       }).join('') + '</div>'
       + (tot ? '<p class="tu-tot"><b>TOTAL: ' + esc(tot.toUpperCase()) + '</b></p>' : '')
       + (d.actualizado ? '<div class="small muted">Guardado: ' + esc(d.actualizado) + '</div>' : '') + '</div>';
+  }
+  // Túnel desde una foto (pedido de Renzo, 06/11/2026): la IA lee clientes y cortes, se recorta antes como en Pedidos y se abre para revisar y guardar.
+  var ESQUEMA_TUNEL = { type: 'object', additionalProperties: false, required: ['clientes', 'dudas'], properties: {
+    clientes: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['nombre', 'items'], properties: {
+      nombre: { type: 'string' },
+      items: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['corte', 'cod', 'cant', 'uni', 'nota'], properties: {
+        corte: { type: 'string' }, cod: { type: 'string', description: 'Código del artículo si figura; vacío si no' }, cant: { type: 'number', description: '0 si no figura' },
+        uni: { type: 'string', enum: ['kg', 'cajas', 'unid.'] }, nota: { type: 'string' } } } } } } },
+    dudas: { type: 'array', items: { type: 'string' } } } };
+  function leerTunelFoto(file) {
+    if (window.__mock && window.__mock.iaTunel) return Promise.resolve(window.__mock.iaTunel(file.name));
+    return achicar(file).then(function (b64) {
+      return fetch('https://api.anthropic.com/v1/messages', { method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': S.ia.clave, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({ model: S.ia.modelo || IA_MODELO, max_tokens: 8000,
+          system: 'Sos el asistente del Frigorífico Qualitá (cerdo). Recibís una foto o captura con la mercadería que hay que GUARDAR EN EL TÚNEL CONTENEDOR (congelado), agrupada por cliente. Devolvé un elemento por cliente con un renglón por corte: corte (en mayúsculas, como figura: CARRE, PECHO, MATAMBRE, CHURRASCO, SOLOMILLO, GRASA, TAPA DE JAMON, RECORTE 70/30…), cod (el código si figura, si no vacío), cant (número; si dice 8.100 son ocho mil cien), uni (kg, cajas o unid.), nota (aclaraciones). Si no hay cliente, nombre vacío. No inventes datos: lo dudoso va en dudas.',
+          output_config: { format: { type: 'json_schema', schema: ESQUEMA_TUNEL } },
+          messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } }, { type: 'text', text: 'Leé lo que hay que guardar en el túnel.' }] }] }) })
+        .then(function (r) { return r.json().then(function (j) {
+          if (!r.ok) throw new Error(r.status === 401 ? 'La clave de IA no es válida.' : (j && j.error && j.error.message) || ('Error ' + r.status));
+          var tx = (j.content || []).filter(function (b) { return b.type === 'text'; }).map(function (b) { return b.text; }).join('').trim(), d = null;
+          try { d = JSON.parse(tx); } catch (e) { var a = tx.indexOf('{'), z = tx.lastIndexOf('}'); try { d = JSON.parse(tx.slice(a, z + 1)); } catch (e2) { d = null; } }
+          if (!d || !Array.isArray(d.clientes)) throw new Error('No se pudo leer la foto.');
+          return d;
+        }); });
+    });
+  }
+  function tunelDesdeFotos(files) {
+    var f = tuFecha();
+    if (!S.tuEd || S.tuEd.f !== f) S.tuEd = { f: f, doc: tuDoc(f) ? tuLimpio(tuDoc(f)) : { clientes: [] } };
+    var doc = S.tuEd.doc, dudas = [];
+    doc.clientes = doc.clientes.filter(function (c) { return c.nombre || c.items.some(function (it) { return it.corte || it.cant; }); });
+    avisar('Leyendo la foto…', 20000);
+    return Array.prototype.reduce.call(files, function (pm, file) { return pm.then(function () { return leerTunelFoto(file).then(function (d) {
+      (d.dudas || []).forEach(function (x) { dudas.push(x); });
+      (d.clientes || []).forEach(function (c) {
+        var nom = String(c.nombre || '').toUpperCase().trim(), dest = doc.clientes.filter(function (x) { return nom && norm(x.nombre) === norm(nom); })[0];
+        if (!dest) { dest = { nombre: nom, items: [] }; doc.clientes.push(dest); }
+        (c.items || []).forEach(function (it) {
+          var cod = String(it.cod || '').trim() || tuCodDe(it.corte);
+          dest.items.push({ corte: String(it.corte || '').toUpperCase(), cod: cod, codAuto: String(it.cod || '').trim() ? '' : cod, cant: +it.cant ? tuMiles(String(+it.cant).replace('.', ',')) : '', uni: it.uni || 'kg', nota: it.nota || '' });
+        });
+      });
+    }); }); }, Promise.resolve()).then(function () {
+      if (!doc.clientes.length) doc.clientes.push({ nombre: '', items: [tuItem()] });
+      avisar('Listo: revisá lo leído y tocá Guardar.' + (dudas.length ? ' Dudas: ' + dudas.join(' · ') : ''), dudas.length ? 12000 : 5000); render();
+    }, function (err) { avisar('!' + (err.message || 'No se pudo leer la foto.'), 7000); render(); });
+  }
+  function tuFotoBtn() {
+    var conIA = !!(S.ia && S.ia.clave) || !!(window.__mock && (window.__mock.iaTunel || window.__mock.ia));
+    return '<label class="btn' + (conIA ? '' : ' off') + '" style="display:inline-flex;align-items:center' + (conIA ? '' : ';opacity:.45') + '" title="' + (conIA ? 'Sacá o elegí una foto: se lee sola' : 'Falta cargar la clave de IA (Pedidos → Configuración)') + '">📷 Subir foto<input type="file" id="tu-foto" accept="image/*" multiple hidden' + (conIA ? '' : ' disabled') + '></label>';
   }
   function renderTunel() {
     var el = $('view-tunel');
@@ -3461,7 +3512,7 @@
     else {
       var af = tuAntFecha(f);
       h += '<div class="panel"><p class="state">Todavía no armaste lo del túnel para este día.</p><div class="acciones" style="justify-content:center">'
-        + (af ? '<button class="btn" data-act="tu-copiar">Copiar la del ' + esc(diaCorto(af).toLowerCase()) + '</button>' : '') + '<button class="btn pri" data-act="tu-armar">Armar</button></div>'
+        + (af ? '<button class="btn" data-act="tu-copiar">Copiar la del ' + esc(diaCorto(af).toLowerCase()) + '</button>' : '') + '<button class="btn pri" data-act="tu-armar">Armar</button>' + tuFotoBtn() + '</div>'
         + '<p class="small muted" style="text-align:center">🔒 Solo la ves vos.</p></div>';
     }
     el.innerHTML = h;
@@ -3487,6 +3538,7 @@
   document.addEventListener('change', function (e) {
     var t = e.target; if (!t.closest || !t.closest('#view-tunel')) return;
     if (t.id === 'tu-fecha-in' && t.value) { S.tuF = t.value; S.tuEd = null; render(); return; }
+    if (t.id === 'tu-foto' && t.files && t.files.length) { var fsT = t.files; recortarFotos(fsT, tunelDesdeFotos); try { t.value = ''; } catch (err) {} return; }
     if (S.tuEd && t.dataset.tu) { var p = t.dataset.tu.split('.'); S.tuEd.doc.clientes[+p[0]].items[+p[1]][p[2]] = t.value; }
   });
   function camaraTileHTML() {
