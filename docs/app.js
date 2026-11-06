@@ -442,7 +442,7 @@
     var docs = {}, t = [];
     (S.prod || []).forEach(function (o) {
       var d = diaProd(o.id), pre = esC3(o.id) ? 'c3-' : ''; if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || d < hoy() || diaProdPara(d) === d || moviendoFer[o.id]) return;
-      var pasan = []; (o.cortes || []).forEach(function (c) { (c.lineas || []).forEach(function (l) { var pp = l.p && pedidoDe(l.p); if (pp && pp.entrega === d) pasan.push({ c: c.corte, l: l }); }); });
+      var pasan = []; (o.cortes || []).forEach(function (c) { (c.lineas || []).forEach(function (l) { var pp = l.p && pedidoDe(l.p); if (pp && pp.entrega === d && !pp.diaProd) pasan.push({ c: c.corte, l: l }); }); });
       if (!pasan.length) return;
       moviendoFer[o.id] = 1;
       var desde = docs[o.id] || (docs[o.id] = clone(o)), hid = pre + diaProdPara(d), hacia = docs[hid] || (docs[hid] = clone(prodGuardada(hid) || prodVacia(hid)));
@@ -526,7 +526,9 @@
   function diaProd(id) { return String(id || '').replace(/^c3-/, ''); }
   function idActual() { return (S.solo === 'ciclo3' ? 'c3-' : '') + S.fecha; }
   function esEmbutido(c) { var t = norm((c.corte || '') + ' ' + (c.texto || '')); return norm(c.corte) === 'EMBUTIDOS' || /CHORIZ|MORCILL|SALCHICH/.test(t); }
-  function idPara(p, c) { return (esEmbutido(c) ? 'c3-' : '') + diaProdPara(p.entrega); }
+  // Día de producción del pedido: el que eligió Renzo en el pedido (mismo día de la entrega o antes), si no el de siempre.
+  function prodDiaPedido(p) { return p.diaProd && p.diaProd <= p.entrega && p.diaProd >= mas(p.entrega, -10) ? p.diaProd : diaProdPara(p.entrega); }
+  function idPara(p, c) { return (esEmbutido(c) ? 'c3-' : '') + prodDiaPedido(p); }
   // En Ciclo III los renglones se agrupan por producto: chorizo, morcilla o salchicha.
   function corteC3(c) { var t = norm((c.texto || '') + ' ' + (c.corte || '')); return /CHORIZ/.test(t) ? 'CHORIZO' : /MORCILL/.test(t) ? 'MORCILLA' : /SALCHICH/.test(t) ? 'SALCHICHA' : 'EMBUTIDOS'; }
   function prodGuardada(f) { return (S.prod || []).filter(function (o) { return o.id === f; })[0] || null; }
@@ -1701,6 +1703,21 @@
     return guardarPropuesta({ editaId: p.id, faenaFija: ff, cliente: p.cliente, entrega: f, medias: p.medias, peso: p.peso, frio: p.frio, cuenta: p.cuenta || '', nota: p.nota, kg: p.kg, origen: p.origen, cortes: clone(cortesDe(p)) });
   }
   function diaCorto(f) { var x = String(f).split('-'); return diaDe(f) + ' ' + (+x[2]) + '/' + (+x[1]); }
+  // Elegir en qué día se producen los cortes del pedido (pedido de Renzo, 06/11/2026): el de la entrega o los días hábiles anteriores.
+  function diaProdSelHTML(p) {
+    var act = prodDiaPedido(p), ops = [p.entrega], d = p.entrega;
+    while (ops.length < 3) { d = trabajoAnterior(d); ops.push(d); }
+    if (ops.indexOf(act) < 0) ops.push(act);
+    return '<label class="dia-prod">Producir el <select data-dia-prod="' + esc(p.id) + '" aria-label="Día de producción de ' + esc(p.cliente) + '">' + ops.map(function (x) { return '<option value="' + x + '"' + (x === act ? ' selected' : '') + '>' + esc(diaCorto(x)) + (x === p.entrega ? ' (día de entrega)' : '') + '</option>'; }).join('') + '</select></label>';
+  }
+  function guardarDiaProd(id, f) {
+    var p = pedidoDe(id); if (!p) return Promise.resolve();
+    var antes = clone(p), doc = clone(p); delete doc.id;
+    if (f === diaProdPara(p.entrega)) delete doc.diaProd; else doc.diaProd = f;
+    var nu = clone(doc); nu.id = id;
+    S.pedidos = poner(S.pedidos, id, doc);
+    return store.set('pedidos', id, doc).then(function () { return revincularProduccion(nu, antes); });
+  }
   function opcionesDia(p) {
     var f = hoy(), ops = [];
     if (!esHabil(f)) f = habilSiguiente(f);
@@ -2106,6 +2123,7 @@
       camion: previo && previo.entrega === entrega ? (previo.camion || '') : '',
       cortes: (q.cortes || []).filter(function (c) { return c.texto; }).map(function (c) { return { k: c.k || uid(), corte: norm(c.corte), texto: sinCliente(String(c.texto).toUpperCase().replace(/\s+/g, ' ').trim(), q.cliente), orden: c.orden !== false, precio: precioNum(c.precio), iva: precioNum(c.precio) === '' ? '' : (c.iva || ''), frio: frioDe(c.frio) }; }).filter(function (c) { return c.texto; }) };
     var ff = 'faenaFija' in q ? q.faenaFija : previo && previo.faenaFija; if (ff && +p.medias > 0 && ff < p.entrega) p.faenaFija = ff;
+    var dpq = 'diaProd' in q ? q.diaProd : previo && previo.entrega === p.entrega ? previo.diaProd : ''; if (dpq && dpq <= p.entrega) p.diaProd = dpq;   // día de producción elegido para el pedido
     if ('precioMedias' in q) { p.precioMedias = precioNum(q.precioMedias); p.ivaMedias = p.precioMedias === '' ? '' : (q.ivaMedias || ''); }
     else { if (previo && (previo.precioMedias === 0 || previo.precioMedias)) p.precioMedias = previo.precioMedias; if (previo && previo.ivaMedias) p.ivaMedias = previo.ivaMedias; }
     var vd = q.vendedor || (previo && previo.vendedor); if (vd) { p.vendedor = vd; p.vendedorNombre = q.vendedorNombre || (previo && previo.vendedorNombre) || ''; }
@@ -2660,7 +2678,7 @@
     if (S.editor && !S.solo && (p.nota || S.notaAbierta === p.id)) h += '<textarea class="log-nota log-nota-ed" rows="1" data-nota-ped="' + id + '" placeholder="Escribí la nota…" aria-label="Nota de ' + esc(p.cliente) + '">' + esc(p.nota || '') + '</textarea>' + (p.nota ? '<p class="log-nota solo-print">' + esc(p.nota) + '</p>' : '');
     else if (S.editor && !S.solo) h += '<button class="btn lnk sm log-nota-mas" data-act="nota-abrir" data-id="' + id + '">+ Nota</button>';
     else if (p.nota) h += '<p class="log-nota">' + esc(p.nota) + '</p>';
-    h += '<div class="acciones">' + (cs.length - enP > 1 ? '<button class="btn sm" data-act="c-todos" data-id="' + id + '">Sumar todos a producción</button>' : '')
+    h += '<div class="acciones">' + (cs.length ? diaProdSelHTML(p) : '') + (cs.length - enP > 1 ? '<button class="btn sm" data-act="c-todos" data-id="' + id + '">Sumar todos a producción</button>' : '')
       + '<button class="btn sm" data-act="ped-editar" data-id="' + id + '">Editar</button><button class="btn sm" data-act="ped-dup" data-id="' + id + '" title="Hace otro pedido igual, para cambiarlo antes de guardar">Duplicar</button><button class="btn sm" data-act="ped-txt" data-id="' + id + '" title="Copia el pedido como texto para pegarlo en WhatsApp o en Pegar texto">Copiar texto</button>' + opcionesDia(p)
       + '<button class="btn sm rojo" data-act="ped-borrar" data-id="' + id + '" data-i="' + id + '">' + (S._c2 === 'ped-borrar' + p.id ? 'Tocá de nuevo para confirmar' : 'Quitar') + '</button></div>';
     return h + '</div></div>';
@@ -4660,6 +4678,9 @@
       guardarDesc(D.desc, D.k, t.value).then(function () { render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); render(); });
     }
     else if (D.repN) { S[D.repN] = +t.value || 0; render(); }
+    else if (D.diaProd && t.value) {
+      guardarDiaProd(D.diaProd, t.value).then(function () { avisar('Los cortes de este pedido se producen el ' + diaCorto(t.value).toLowerCase() + '.', 3500); render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); render(); });
+    }
     else if (D.rubro && t.value) {
       guardarRubro(D.rubro, D.k, t.value).then(function () { avisar('Corte cambiado a ' + t.value + '.', 2500); render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); render(); });
     }
