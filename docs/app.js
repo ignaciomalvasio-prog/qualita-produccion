@@ -3460,13 +3460,21 @@
     dudas: { type: 'array', items: { type: 'string' } } } };
   function leerTunelFoto(file) {
     if (window.__mock && window.__mock.iaTunel) return Promise.resolve(window.__mock.iaTunel(file.name));
-    return achicar(file).then(function (b64) {
+    return achicar(file).then(function (b64) { return leerTunelIA([{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } }, { type: 'text', text: 'Leé lo que hay que guardar en el túnel.' }]); });
+  }
+  function leerTunelTexto(txt) {
+    if (window.__mock && window.__mock.iaTunel) return Promise.resolve(window.__mock.iaTunel('texto', txt));
+    return leerTunelIA([{ type: 'text', text: 'Este es un mensaje pegado con lo que hay que guardar en el túnel. Leelo.\n\n<mensaje>\n' + txt + '\n</mensaje>' }]);
+  }
+  function leerTunelIA(contenido) {
+    if (!(S.ia && S.ia.clave)) return Promise.reject(new Error('Falta cargar la clave de IA (Pedidos → Configuración).'));
+    return Promise.resolve().then(function () {
       return fetch('https://api.anthropic.com/v1/messages', { method: 'POST',
         headers: { 'content-type': 'application/json', 'x-api-key': S.ia.clave, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
         body: JSON.stringify({ model: S.ia.modelo || IA_MODELO, max_tokens: 8000,
           system: 'Sos el asistente del Frigorífico Qualitá (cerdo). Recibís una foto o captura con la mercadería que hay que GUARDAR EN EL TÚNEL CONTENEDOR (congelado), agrupada por cliente. Devolvé un elemento por cliente con un renglón por corte: corte (en mayúsculas, como figura: CARRE, PECHO, MATAMBRE, CHURRASCO, SOLOMILLO, GRASA, TAPA DE JAMON, RECORTE 70/30…), cod (el código si figura, si no vacío), cant (número; si dice 8.100 son ocho mil cien), uni (kg, cajas o unid.), nota (aclaraciones). Si no hay cliente, nombre vacío. No inventes datos: lo dudoso va en dudas.',
           output_config: { format: { type: 'json_schema', schema: ESQUEMA_TUNEL } },
-          messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } }, { type: 'text', text: 'Leé lo que hay que guardar en el túnel.' }] }] }) })
+          messages: [{ role: 'user', content: contenido }] }) })
         .then(function (r) { return r.json().then(function (j) {
           if (!r.ok) throw new Error(r.status === 401 ? 'La clave de IA no es válida.' : (j && j.error && j.error.message) || ('Error ' + r.status));
           var tx = (j.content || []).filter(function (b) { return b.type === 'text'; }).map(function (b) { return b.text; }).join('').trim(), d = null;
@@ -3482,7 +3490,7 @@
     var doc = S.tuEd.doc, dudas = [];
     doc.clientes = doc.clientes.filter(function (c) { return c.nombre || c.items.some(function (it) { return it.corte || it.cant; }); });
     avisar('Leyendo la foto…', 20000);
-    return Array.prototype.reduce.call(files, function (pm, file) { return pm.then(function () { return leerTunelFoto(file).then(function (d) {
+    return Array.prototype.reduce.call(files, function (pm, file) { return pm.then(function () { return (file && file.texto != null ? leerTunelTexto(file.texto) : leerTunelFoto(file)).then(function (d) {
       (d.dudas || []).forEach(function (x) { dudas.push(x); });
       (d.clientes || []).forEach(function (c) {
         var nom = String(c.nombre || '').toUpperCase().trim(), dest = doc.clientes.filter(function (x) { return nom && norm(x.nombre) === norm(nom); })[0];
@@ -3498,8 +3506,11 @@
     }, function (err) { avisar('!' + (err.message || 'No se pudo leer la foto.'), 7000); render(); });
   }
   function tuFotoBtn() {
-    var conIA = !!(S.ia && S.ia.clave) || !!(window.__mock && (window.__mock.iaTunel || window.__mock.ia));
-    return '<label class="btn' + (conIA ? '' : ' off') + '" style="display:inline-flex;align-items:center' + (conIA ? '' : ';opacity:.45') + '" title="' + (conIA ? 'Sacá o elegí una foto: se lee sola' : 'Falta cargar la clave de IA (Pedidos → Configuración)') + '">📷 Subir foto<input type="file" id="tu-foto" accept="image/*" multiple hidden' + (conIA ? '' : ' disabled') + '></label>';
+    return '<label class="btn" style="display:inline-flex;align-items:center" title="Sacá una foto o elegí una imagen: se lee sola">📷 Subir foto<input type="file" id="tu-foto" accept="image/*" multiple hidden></label>'
+      + '<button class="btn" data-act="tu-pegar">📋 Pegar texto o imagen</button>';
+  }
+  function tuPegarHTML() {
+    return S.tuPegar ? '<div class="panel tu-pegar"><p><b>Pegá acá</b> el mensaje (WhatsApp, mail…) o una captura <span class="small muted">— Ctrl+V o mantené apretado y "Pegar"</span></p><textarea id="tu-pegar-txt" rows="6" placeholder="Ej.: COTO: carré 8.100 kg, solomillo 2.700 kg…"></textarea><div class="acciones"><button class="btn pri" data-act="tu-pegar-leer">Leer</button><button class="btn" data-act="tu-pegar-x">Cancelar</button></div></div>' : '';
   }
   function renderTunel() {
     var el = $('view-tunel');
@@ -3507,6 +3518,7 @@
     var f = tuFecha(), d = tuDoc(f), ed = S.tuEd && S.tuEd.f === f;
     var h = '<div class="nav"><button class="btn step" data-act="tu-fecha" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + fechaTit(f) + '</span><button class="btn step" data-act="tu-fecha" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="tu-fecha-in" value="' + esc(f) + '" aria-label="Ir a una fecha">' + (d && !ed ? '<button class="btn" data-act="imprimir">Imprimir</button>' : '') + '</div>';
+    h += tuPegarHTML();
     if (ed) h += tuEditHTML();
     else if (d) h += tuHojaHTML(d, f);
     else {
@@ -4270,6 +4282,9 @@
     else if (a === 'fecha') { S.pv = null; S.fechaFija = true; if (S.ep) guardar('prod', true); S.ep = null; var x = S.fecha; do { x = mas(x, +D.d); } while (!esHabil(x)); S.fecha = x; render(); }
     else if (a === 'pv') { if (S.ep) { guardar('prod', true); S.ep = null; } S.pv = D.v; render(); }
     else if (a === 'tu-fecha') { var xt = tuFecha(); do { xt = mas(xt, +D.d); } while (!esHabil(xt)); S.tuF = xt; S.tuEd = null; render(); }
+    else if (a === 'tu-pegar') { S.tuPegar = true; render(); var tp = $('tu-pegar-txt'); if (tp) tp.focus(); }
+    else if (a === 'tu-pegar-x') { S.tuPegar = false; render(); }
+    else if (a === 'tu-pegar-leer') { var txT = ($('tu-pegar-txt') || {}).value || ''; if (!txT.trim()) { avisar('!Pegá primero el texto o la imagen.', 3000); return; } S.tuPegar = false; tunelDesdeFotos([{ texto: txT }]); }
     else if (a === 'tu-armar') { S.tuEd = { f: tuFecha(), doc: tuDoc(tuFecha()) ? tuLimpio(tuDoc(tuFecha())) : { clientes: [{ nombre: '', items: [tuItem()] }] } }; render(); var pi = document.querySelector('#view-tunel [data-tuc]'); if (pi) pi.focus(); }
     else if (a === 'tu-copiar') { var ta3 = tuAnt(tuFecha()); if (ta3) { S.tuEd = { f: tuFecha(), doc: tuLimpio(ta3) }; render(); } }
     else if (a === 'tu-cancelar') { S.tuEd = null; render(); }
@@ -4673,6 +4688,12 @@
   });
   // Una captura copiada (o varias imágenes) se pega con Ctrl+V donde esté el botón "Subir fotos o capturas", también en el cuadro de texto.
   document.addEventListener('paste', function (e) {
+    if (S.tab === 'tunel' && S.camaraOk && e.clipboardData) {
+      var tim = Array.prototype.slice.call(e.clipboardData.items || []).filter(function (it) { return it.kind === 'file' && /^image\//.test(it.type); }).map(function (it) { return it.getAsFile(); }).filter(Boolean);
+      if (tim.length) { e.preventDefault(); S.tuPegar = false; recortarFotos(tim, tunelDesdeFotos); return; }
+      if (!e.target.closest || !e.target.closest('input,textarea')) { var ttx = e.clipboardData.getData('text/plain'); if (ttx && ttx.trim()) { e.preventDefault(); S.tuPegar = false; tunelDesdeFotos([{ texto: ttx }]); } }
+      return;
+    }
     if ($('rend-rep') && e.clipboardData) {
       var ri = Array.prototype.slice.call(e.clipboardData.items || []).filter(function (it) { return it.kind === 'file' && /^image\//.test(it.type); }).map(function (it) { return it.getAsFile(); }).filter(Boolean);
       if (ri.length) { e.preventDefault(); cargarReporteRend(ri[0]); }
