@@ -37,5 +37,10 @@ const data={faena:{},privado:{},config:{general:{feriados:[]}},pedidos:{},produc
  await p.click('[data-act="agr-ya"][data-k^="BONDIOLA"]');await p.waitForTimeout(500);
  console.log('B quedan:',await p.evaluate(()=>document.querySelector('.hoja-agr .hoja-cortes')?.innerText.replace(/\s+/g,' ')));
  await p.click('[data-act="agr-todo"]');await p.waitForTimeout(500);
+ await p.click('.pv-tabs [data-v="frescos"]');await p.waitForTimeout(300);
+ console.log('B volver botones:',await p.evaluate(()=>[...document.querySelectorAll('[data-act="agr-volver"]')].map(x=>x.dataset.k).join(' / ')));
+ await p.click('[data-act="agr-volver"]');await p.waitForTimeout(500);
+ console.log('B tras volver:',await p.evaluate(()=>[...document.querySelectorAll('.pv-tabs .btn')].map(x=>x.textContent.trim()).join(' | ')));
+ await p.click('.pv-tabs [data-v="agr"]');await p.waitForTimeout(300);await p.click('[data-act="agr-todo"]');await p.waitForTimeout(500);
  console.log('B todo (sin solapa):',await p.evaluate(()=>!document.querySelector('.hoja-agr')&&![...document.querySelectorAll('.pv-tabs .btn')].some(x=>/Agregado/.test(x.textContent))));
  console.log('B errores:',errs);await b.close();})();

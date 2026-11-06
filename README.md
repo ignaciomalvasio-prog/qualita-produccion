@@ -392,3 +392,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - (06/11/2026) Producción: solapa **Agregado**. Al imprimir o mandar el PDF de la planilla, la app guarda lo que ya salió; lo que se suma después se marca AGREGADO en naranja y en la solapa Agregado se imprime o manda solo eso (avisa también lo que se quitó).
 - (06/11/2026) Agregado: botón "✓ Ya lo tenía pasado" en cada renglón (y "Todo esto ya lo tenía pasado") para sacar de Agregado lo que ya se había pasado.
 - (06/11/2026) Agregado: ya no muestra lo que se quitó; la solapa aparece solo cuando hay algo nuevo sin imprimir.
+- (06/11/2026) Agregado: si se sacó algo por error con "Ya lo tenía pasado", en la Planilla de frescos ese renglón tiene "↩ Volver a Agregado".

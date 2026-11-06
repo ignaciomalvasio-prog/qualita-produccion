@@ -707,7 +707,7 @@
       Object.keys(cur).forEach(function (k) { var c = Math.min(cur[k], Math.max(old[k] || 0, pr[k] || 0)); for (var i = 0; i < c; i++) l.push(k); });
       var antes = ((o.impreso || {}).l || []).slice().sort().join('\n');
       if (o.impreso && antes === l.slice().sort().join('\n')) return null;
-      var y = clone(o), ts = Date.now(); y.impreso = { ts: ts, l: l };
+      var y = clone(o), ts = Date.now(); y.impreso = { ts: ts, l: l, man: ((o.impreso || {}).man || []).filter(function (k) { return cur[k] && !pr[k]; }) };
       if (por[id].agr) { var nu = []; Object.keys(pr).forEach(function (k) { var c = Math.min(pr[k], cur[k] || 0) - (o.impreso ? Math.min(old[k] || 0, cur[k] || 0) : 0); for (var i = 0; i < c; i++) nu.push(k); }); if (nu.length) y.impUlt = { ts: ts, l: nu }; }
       return guardarOrden(id, y);
     }).filter(Boolean);
@@ -742,8 +742,9 @@
       var det = [td.det, td.sin ? (tot ? '+ ' : '') + td.sin : ''].filter(Boolean).join(' ');
       return '<div class="hoja-corte"><div class="hoja-nom"><h3>' + esc(c.corte || 'Sin corte') + '</h3>' + (tot || det ? '<p class="hoja-tot"><span>Total</span> ' + esc(tot) + (det ? '<small class="hoja-det"> (' + esc(det) + ')</small>' : '') + '</p>' : '') + '</div><ul>' + c.lineas.map(function (l) {
         var kk = norm(c.corte) + '|' + norm(l.t); cu[kk] = (cu[kk] || 0) + 1; var es = base && cu[kk] > (base[kk] || 0);
+        var man = !agr && im && S.editor && !es && (im.man || []).indexOf(kk) >= 0 ? ' <button class="btn agr-volver" data-act="agr-volver" data-doc="' + esc(docId) + '" data-k="' + esc(kk) + '" title="Lo sacaste de Agregado: volver a ponerlo">↩ Volver a Agregado</button>' : '';
         var ya = agr && !agr.d.ult && S.editor ? ' <button class="btn agr-ya" data-act="agr-ya" data-doc="' + esc(docId) + '" data-k="' + esc(kk) + '" title="Ya lo había pasado: sacarlo de Agregado">✓ Ya lo tenía pasado</button>' : '';
-        return '<li' + (es ? ' class="li-agr"' : '') + '>' + lineaHojaHTML(l.t) + (l.f ? ' ' + frioBadge(l.f) : '') + (es ? ' <span class="badge agr-tag">AGREGADO</span>' : '') + ya + '</li>'; }).join('') + '</ul></div>';
+        return '<li' + (es ? ' class="li-agr"' : '') + '>' + lineaHojaHTML(l.t) + (l.f ? ' ' + frioBadge(l.f) : '') + (es ? ' <span class="badge agr-tag">AGREGADO</span>' : '') + ya + man + '</li>'; }).join('') + '</ul></div>';
     }).join('') + '</div>';
     if (agr && !agr.d.ult && !agr.d.vacio && S.editor && nl) h += '<div class="acciones agr-todo-acc"><button class="btn" data-act="agr-todo" data-doc="' + esc(docId) + '">✓ Todo esto ya lo tenía pasado</button></div>';
     if (agr && agr.d.quitados.length) h += '<p class="muted agr-quit">Se quitó (ya estaba impreso, no va): ' + agr.d.quitados.map(esc).join(' · ') + '</p>';
@@ -4326,10 +4327,20 @@
     else if (a === 'agr-ya' || a === 'agr-todo') {
       var oY = prodGuardada(D.doc); if (oY && oY.impreso) {
         var curY = contarClaves(lineasClave(vistaDoc(D.doc))), lY = (oY.impreso.l || []).filter(function (k) { return curY[k]; }), yY = clone(oY);
-        if (a === 'agr-todo') lY = lineasClave(vistaDoc(D.doc));
-        else if ((contarClaves(lY)[D.k] || 0) < (curY[D.k] || 0)) lY.push(D.k);
-        yY.impreso = { ts: oY.impreso.ts, l: lY };
+        var viejo = contarClaves(lY), manY = (oY.impreso.man || []).filter(function (k) { return curY[k]; });
+        if (a === 'agr-todo') { lineasClave(agregadoDe(D.doc).o).forEach(function (k) { manY.push(k); }); lY = lineasClave(vistaDoc(D.doc)); }
+        else if ((viejo[D.k] || 0) < (curY[D.k] || 0)) { lY.push(D.k); manY.push(D.k); }
+        yY.impreso = { ts: oY.impreso.ts, l: lY, man: manY };
+        avisar('Lo sacaste de Agregado. Si fue sin querer, en la Planilla de frescos tocá "↩ Volver a Agregado" en ese renglón.', 7000);
         guardarOrden(D.doc, yY).then(function () { render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); });
+      }
+    }
+    else if (a === 'agr-volver') {
+      var oV = prodGuardada(D.doc); if (oV && oV.impreso) {
+        var yV = clone(oV), lV = (oV.impreso.l || []).slice(), mV = (oV.impreso.man || []).slice(), iV = lV.lastIndexOf(D.k), jV = mV.indexOf(D.k);
+        if (iV >= 0) lV.splice(iV, 1); if (jV >= 0) mV.splice(jV, 1);
+        yV.impreso = { ts: oV.impreso.ts, l: lV, man: mV };
+        guardarOrden(D.doc, yV).then(function () { avisar('Volvió a Agregado.', 3000); render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); });
       }
     }
     else if (a === 'wa-pdf') { compartirPDF(b.closest('.hoja'), b, true); if (S.tab === 'produccion') marcarImpreso([b.closest('.hoja')]); }
