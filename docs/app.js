@@ -1723,7 +1723,7 @@
     if (!esHabil(f)) f = habilSiguiente(f);
     while (ops.length < 8) { if (f !== p.entrega) ops.push(f); f = habilSiguiente(f); }
     return '<select class="mover" data-mover="' + esc(p.id) + '" aria-label="Cambiar de día el pedido de ' + esc(p.cliente) + '"><option value="">Cambiar de día…</option>'
-      + ops.map(function (x) { return '<option value="' + x + '">' + esc(diaCorto(x)) + (x === hoy() ? ' (hoy)' : x === mas(hoy(), 1) ? ' (mañana)' : '') + '</option>'; }).join('')
+      + ops.map(function (x) { return '<option value="' + x + '"' + (esFeriado(x) ? ' style="color:#c62828"' : '') + '>' + esc(diaCorto(x)) + (x === hoy() ? ' (hoy)' : x === mas(hoy(), 1) ? ' (mañana)' : '') + (esFeriado(x) ? ' · feriado' : '') + '</option>'; }).join('')
       + '<option value="otra">Otra fecha…</option></select>';
   }
   function editarPedido(id, campo) {
@@ -2549,7 +2549,7 @@
   function cargaDiaHTML() {
     var sel = cargaDiaActual(), dias = diasCarga();
     if (sel && dias.indexOf(sel) < 0) dias.push(sel);
-    var chip = function (v, txt) { return '<button class="btn sm chip carga-dia' + (v === sel ? ' on' : '') + '" data-act="carga-dia" data-v="' + esc(v) + '" aria-pressed="' + (v === sel) + '">' + txt + '</button>'; };
+    var chip = function (v, txt) { return '<button class="btn sm chip carga-dia' + (v === sel ? ' on' : '') + (v && esFeriado(v) ? ' fer' : '') + '"' + (v && esFeriado(v) ? ' title="Feriado: no hay actividad"' : '') + ' data-act="carga-dia" data-v="' + esc(v) + '" aria-pressed="' + (v === sel) + '">' + txt + '</button>'; };
     return '<div class="carga-dias"><span class="small muted">' + (S.tab === 'pedidos' ? 'Cargar para el' : '¿Para qué día?') + '</span>' + dias.map(function (f) { return chip(f, esc(diaCorto(f))); }).join('') + chip('', 'Según el pedido')
       + '<label class="btn sm chip carga-otro" title="Elegir otra fecha">Otra fecha<input type="date" id="carga-dia-otra" value="' + esc(sel) + '"></label></div>';
   }
@@ -3117,7 +3117,7 @@
     // Aviso de los otros días que tienen pedidos cargados, para no perderlos de vista.
     var otros = {}; (S.pedidos || []).forEach(function (p) { if (p.entrega && p.entrega !== f && p.entrega >= hy && pasaFiltro(p.vendedor)) otros[p.entrega] = (otros[p.entrega] || 0) + 1; });
     var ko = Object.keys(otros).sort();
-    if (ko.length) h += '<p class="otros-dias"><span class="small muted">Otros días con pedidos:</span>' + ko.map(function (d) { return '<button class="btn sm" data-act="pd-ir" data-f="' + d + '">' + esc(diaCorto(d)) + ' <b>' + otros[d] + '</b></button>'; }).join('') + '</p>';
+    if (ko.length) h += '<p class="otros-dias"><span class="small muted">Otros días con pedidos:</span>' + ko.map(function (d) { return '<button class="btn sm' + (esFeriado(d) ? ' fer' : '') + '" data-act="pd-ir" data-f="' + d + '">' + esc(diaCorto(d)) + (esFeriado(d) ? ' · feriado' : '') + ' <b>' + otros[d] + '</b></button>'; }).join('') + '</p>';
     h += deshacerHTML();
     if (tild.length) h += barraCamionHTML(f, tild);
     h += lista.length ? pedidosAgrupadosHTML(f, lista, m) : '<p class="muted sin">Sin pedidos para este día.</p>';
