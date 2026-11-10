@@ -398,3 +398,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - (10/11/2026) Agregado: una hoja que no figura como impresa (por ejemplo embutidos pasados antes de que existiera Agregado) tiene "✓ Esta hoja ya la pasé"; lo nuevo se vuelve a poner con "↩ Volver a Agregado".
 - (10/11/2026) Agregado: una sola hoja con cortes, menudencias y embutidos juntos.
 - (10/11/2026) Agregado: vuelve a ir por separado, ahora en tres hojas: Agregado cortes, Agregado menudencias y Agregado embutidos (cada una se imprime y se marca sola).
+- (10/11/2026) Unidad PALLETS en el selector de unidad (Pedidos y Logística); "24 PALLET ..." se reconoce solo.
