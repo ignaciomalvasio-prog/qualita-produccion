@@ -2653,8 +2653,10 @@
   }
   function cuandoEs(f) { return f === mas(hoy(), 1) ? 'mañana' : f === hoy() ? 'hoy' : 'el ' + tituloDe(f).toLowerCase(); }
   // Marca en el listado: cuántos cortes del pedido ya se mandaron a producción.
-  function prodBadgeHTML(enP, tot) {
+  function prodBadgeHTML(enP, tot, cong) {
     if (!tot) return '<span class="pr-ic nada" title="Solo medias: no hay cortes para mandar a producción" aria-label="Solo medias">–</span>';
+    // Solo mercadería congelada (sale de cámara): no se marca como que falta producir (pedido de Renzo, 10/11/2026).
+    if (cong && !enP) return '<span class="pr-ic cong" title="Congelado: sale de cámara, no hace falta producir" aria-label="Congelado">❄</span>';
     return enP >= tot ? '<span class="pr-ic si" title="En producción" aria-label="En producción">✓</span>'
       : enP ? '<span class="pr-ic parte" title="Sumados a producción: ' + enP + ' de ' + tot + ' cortes (falta ' + (tot - enP) + ')" aria-label="Sumados ' + enP + ' de ' + tot + '">' + enP + '/' + tot + '</span>'
       : '<span class="pr-ic no" title="Sin producción" aria-label="Sin producción">✗</span>';
@@ -2745,7 +2747,7 @@
       + (mov ? '<button class="ped-mover" data-parr="' + id + '" aria-label="Arrastrar a ' + esc(p.cliente) + ' para cambiar el orden de bajada (o usar las flechas del teclado)" title="Arrastrar para ordenar">⠿</button>' : '')
       + '<label class="chk"><input type="checkbox" data-sel="' + id + '"' + (sel ? ' checked' : '') + ' aria-label="Tildar el pedido de ' + esc(p.cliente) + ' para un camión"></label>'
       + '<button class="ped-tit" data-act="ped-abrir" data-id="' + id + '" aria-expanded="' + ab + '"><span class="nom">' + esc(p.cliente || 'Sin cliente') + '</span>' + ctaHTML(cuentaPedido(p), true) + '<span class="res">' + res.join(' · ') + ' ' + frioChipHTML(p) + '</span>'
-      + (cam || (VENDEDORES && p.vendedor) ? '<span class="marcas">' + (VENDEDORES && p.vendedor ? '<span class="badge vend" title="' + esc(p.vendedor) + '">Vendedor: ' + esc(p.vendedorNombre || p.vendedor.split('@')[0]) + '</span>' : '') + (cam && !(S.editor && !S.solo) ? '<span class="badge cam-ped">' + esc(cam) + '</span>' : '') + '</span>' : '') + (S.editor && !S.solo ? '<span class="col-cam">' + camChipHTML(p) + sacarCamHTML(p) + '</span>' : '') + '<span class="col-kg">' + kgPedHTML(p) + '</span><span class="col-prod">' + prodBadgeHTML(enP, cs.length) + '</span><span class="chev" aria-hidden="true">' + (ab ? '▴' : '▾') + '</span></button></div>';
+      + (cam || (VENDEDORES && p.vendedor) ? '<span class="marcas">' + (VENDEDORES && p.vendedor ? '<span class="badge vend" title="' + esc(p.vendedor) + '">Vendedor: ' + esc(p.vendedorNombre || p.vendedor.split('@')[0]) + '</span>' : '') + (cam && !(S.editor && !S.solo) ? '<span class="badge cam-ped">' + esc(cam) + '</span>' : '') + '</span>' : '') + (S.editor && !S.solo ? '<span class="col-cam">' + camChipHTML(p) + sacarCamHTML(p) + '</span>' : '') + '<span class="col-kg">' + kgPedHTML(p) + '</span><span class="col-prod">' + prodBadgeHTML(enP, cs.length, cs.length > 0 && cs.every(function (c) { return (c.frio || p.frio) === 'CONGELADO'; })) + '</span><span class="chev" aria-hidden="true">' + (ab ? '▴' : '▾') + '</span></button></div>';
     if (S.frioMenu === p.id) h += frioMenuHTML(p);
     if (S.camMenu === p.id) h += camMenuHTML(p);
     if (!ab) return h + '</div>';
