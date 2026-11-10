@@ -396,3 +396,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - (06/11/2026) PDF/impresión: el título del día ya no se pisa con las medias ("750½ CONSUMO"); si no entran, se achica el título o las medias bajan un renglón.
 - (10/11/2026) Pedidos: un pedido que es todo congelado ya no muestra la cruz roja de "falta producir"; muestra ❄ (sale de cámara).
 - (10/11/2026) Agregado: una hoja que no figura como impresa (por ejemplo embutidos pasados antes de que existiera Agregado) tiene "✓ Esta hoja ya la pasé"; lo nuevo se vuelve a poner con "↩ Volver a Agregado".
+- (10/11/2026) Agregado: una sola hoja con cortes, menudencias y embutidos juntos.

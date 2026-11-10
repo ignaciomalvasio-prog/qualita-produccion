@@ -1,7 +1,7 @@
 // Embutidos impresos antes de Agregado: "Esta hoja ya la pasé" y después "Volver a Agregado" para lo nuevo.
 const {chromium}=require('playwright');const W='2026-11-11';
 const data={faena:{},privado:{},config:{general:{feriados:[]}},pedidos:{},produccion:{
- [W]:{fecha:W,medias:750,mercado:'',estado:'borrador',impreso:{ts:1,l:['PECHO|100 KG "ZANOTTI"']},cortes:[{corte:'PECHO',lineas:[{t:'100 KG "ZANOTTI"'}]}]},
+ [W]:{fecha:W,medias:750,mercado:'',estado:'borrador',impreso:{ts:1,l:['PECHO|100 KG "ZANOTTI"']},cortes:[{corte:'PECHO',lineas:[{t:'100 KG "ZANOTTI"'},{t:'10 KG "ESLAVA"'}]},{corte:'HIGADO',lineas:[{t:'5 KG "ESLAVA"'}]}]},
  ['c3-'+W]:{fecha:W,linea:'ciclo3',estado:'borrador',cortes:[{corte:'CHORIZO',lineas:[{t:'200KG CHORIZO "COTO"'},{t:'50KG CHORIZO "ESLAVA"'}]}]}}};
 (async()=>{const b=await chromium.launch();const errs=[];const p=await b.newPage({viewport:{width:1366,height:900}});p.on('pageerror',e=>errs.push(e.message));
  await p.clock.install({time:new Date('2026-11-10T16:30:00-03:00')});
@@ -16,4 +16,7 @@ const data={faena:{},privado:{},config:{general:{feriados:[]}},pedidos:{},produc
  console.log('tabs:',await tabs());
  await p.click('.pv-tabs [data-v="agr"]');await p.waitForTimeout(300);
  console.log('agregado:',await p.evaluate(()=>document.querySelector('.hoja-agr .hoja-cortes').innerText.replace(/\s+/g,' ')));
+ console.log('hojas agregado:',await p.locator('.hoja-agr').count());
+ await p.click('.hoja-agr [data-act="hoja-imprimir"]');await p.waitForTimeout(800);
+ console.log('tras imprimir:',await tabs(),await p.evaluate(()=>[window.__mock.data.produccion['2026-11-11'].impreso.l.length,window.__mock.data.produccion['c3-2026-11-11'].impreso.l.length].join('/')));
  console.log('errores:',errs);await b.close();})();
