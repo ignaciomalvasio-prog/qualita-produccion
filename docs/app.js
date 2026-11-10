@@ -746,6 +746,8 @@
         var ya = agr && !agr.d.ult && S.editor ? ' <button class="btn agr-ya" data-act="agr-ya" data-doc="' + esc(docId) + '" data-k="' + esc(kk) + '" title="Ya lo había pasado: sacarlo de Agregado">✓ Ya lo tenía pasado</button>' : '';
         return '<li' + (es ? ' class="li-agr"' : '') + '>' + lineaHojaHTML(l.t) + (l.f ? ' ' + frioBadge(l.f) : '') + (es ? ' <span class="badge agr-tag">AGREGADO</span>' : '') + ya + man + '</li>'; }).join('') + '</ul></div>';
     }).join('') + '</div>';
+    // Hoja que todavía no figura como impresa (se pasó antes de que existiera Agregado, o la imprimió otro): marcarla a mano.
+    if (!agr && !im && S.editor && !S.solo && nl && S.tab === 'produccion') h += '<div class="acciones agr-todo-acc"><button class="btn agr-base" data-act="agr-base" data-doc="' + esc(docId) + '" title="Para que lo que se sume después aparezca en Agregado">✓ Esta hoja ya la pasé</button> <span class="small muted">Si ya la pasaste, tocá acá; lo que se sume después aparece en Agregado. Si algo de acá es nuevo, después tocá "↩ Volver a Agregado" en ese renglón.</span></div>';
     if (agr && !agr.d.ult && !agr.d.vacio && S.editor && nl) h += '<div class="acciones agr-todo-acc"><button class="btn" data-act="agr-todo" data-doc="' + esc(docId) + '">✓ Todo esto ya lo tenía pasado</button></div>';
     if (agr && agr.d.quitados.length) h += '<p class="muted agr-quit">Se quitó (ya estaba impreso, no va): ' + agr.d.quitados.map(esc).join(' · ') + '</p>';
     h += '<textarea id="txt-' + k + '" class="txt" readonly hidden aria-label="Planilla en texto">' + esc(fae ? textoOrden(o).replace(/^([^\n]*)\n[^\n]*/, '$1\nFAENA') : textoOrden(o)) + '</textarea></div>';
@@ -4340,6 +4342,11 @@
         avisar('Lo sacaste de Agregado. Si fue sin querer, en la Planilla de frescos tocá "↩ Volver a Agregado" en ese renglón.', 7000);
         guardarOrden(D.doc, yY).then(function () { render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); });
       }
+    }
+    else if (a === 'agr-base') {
+      var oB = prodGuardada(D.doc); if (oB) { var yB = clone(oB), lB = lineasClave(vistaDoc(D.doc));
+        yB.impreso = { ts: Date.now(), l: lB, man: lB.slice() };
+        guardarOrden(D.doc, yB).then(function () { avisar('Listo: esta hoja quedó como pasada.', 3500); render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); }); }
     }
     else if (a === 'agr-volver') {
       var oV = prodGuardada(D.doc); if (oV && oV.impreso) {
