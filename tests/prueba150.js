@@ -15,8 +15,12 @@ const data={faena:{},privado:{},config:{general:{feriados:[]}},pedidos:{},produc
  await p.click('[data-act="agr-volver"][data-k*="ESLAVA"]');await p.waitForTimeout(400);
  console.log('tabs:',await tabs());
  await p.click('.pv-tabs [data-v="agr"]');await p.waitForTimeout(300);
- console.log('agregado:',await p.evaluate(()=>document.querySelector('.hoja-agr .hoja-cortes').innerText.replace(/\s+/g,' ')));
- console.log('hojas agregado:',await p.locator('.hoja-agr').count());
+ 
+ console.log('hojas agregado:',await p.evaluate(()=>[...document.querySelectorAll('.hoja-agr h2')].map(x=>x.textContent).join(' / ')));
+ await p.click('.hoja-agr.hoja-faena [data-act="agr-todo"]');await p.waitForTimeout(400);
+ console.log('tras todo menudencias:',await p.evaluate(()=>[...document.querySelectorAll('.hoja-agr h2')].map(x=>x.textContent).join(' / ')));
+ await p.click('.hoja-agr.hoja-c3 [data-act="hoja-imprimir"]');await p.waitForTimeout(800);
+ console.log('tras imprimir embutidos:',await p.evaluate(()=>[...document.querySelectorAll('.hoja-agr h2')].map(x=>x.textContent).join(' / ')));
  await p.click('.hoja-agr [data-act="hoja-imprimir"]');await p.waitForTimeout(800);
  console.log('tras imprimir:',await tabs(),await p.evaluate(()=>[window.__mock.data.produccion['2026-11-11'].impreso.l.length,window.__mock.data.produccion['c3-2026-11-11'].impreso.l.length].join('/')));
  console.log('errores:',errs);await b.close();})();

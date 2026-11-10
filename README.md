@@ -397,3 +397,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - (10/11/2026) Pedidos: un pedido que es todo congelado ya no muestra la cruz roja de "falta producir"; muestra ❄ (sale de cámara).
 - (10/11/2026) Agregado: una hoja que no figura como impresa (por ejemplo embutidos pasados antes de que existiera Agregado) tiene "✓ Esta hoja ya la pasé"; lo nuevo se vuelve a poner con "↩ Volver a Agregado".
 - (10/11/2026) Agregado: una sola hoja con cortes, menudencias y embutidos juntos.
+- (10/11/2026) Agregado: vuelve a ir por separado, ahora en tres hojas: Agregado cortes, Agregado menudencias y Agregado embutidos (cada una se imprime y se marca sola).

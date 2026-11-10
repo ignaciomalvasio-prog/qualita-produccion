@@ -698,8 +698,8 @@
     var por = {};
     [].concat(hojas).forEach(function (hj) {
       if (!hj || !hj.dataset || !hj.dataset.doc) return; hj.dataset.doc.split(',').forEach(function (id) { var pa = hj.dataset.parte, v = vistaDoc(id); if (!v) return;
-      var sub = pa === 'emp' ? partirFaena(v).emp : pa === 'fae' ? partirFaena(v).fae : v;
-      var x = por[id] || (por[id] = { k: [], agr: false }); x.k = x.k.concat(lineasClave(sub)); if (pa === 'agr') x.agr = true; });
+      var pp = String(pa || '').replace(/^agr-/, ''), sub = pp === 'emp' ? partirFaena(v).emp : pp === 'fae' ? partirFaena(v).fae : v;
+      var x = por[id] || (por[id] = { k: [], agr: false }); x.k = x.k.concat(lineasClave(sub)); if (/^agr/.test(pa || '')) x.agr = true; });
     });
     var t = Object.keys(por).map(function (id) {
       var o = prodGuardada(id); if (!o || (S.ep && S.ep.fecha === id)) return null;
@@ -716,22 +716,21 @@
   function agregadoHTML(f) {
     var a = agregadoDe(f), a3 = agregadoDe('c3-' + f), h = '';
     if (!a && !a3) return '<div class="panel"><p class="state">Todavía no se imprimió la planilla de este día. Cuando la imprimas o mandes el PDF, lo que se sume después aparece acá.</p></div>';
-    // Una sola hoja de Agregado: cortes, menudencias y embutidos juntos (pedido de Renzo, 10/11/2026).
-    var docs = [], cortes = [], ts = 0, base = null;
-    [[a, f], [a3, 'c3-' + f]].forEach(function (x) {
+    // Agregado por separado: cortes, menudencias (faena) y embutidos (pedido de Renzo, 10/11/2026).
+    var nom = { emp: 'CORTES', fae: 'MENUDENCIAS', c3: 'EMBUTIDOS' };
+    [[a, f, 'emp'], [a, f, 'fae'], [a3, 'c3-' + f, 'c3']].forEach(function (x) {
       if (!x[0] || x[0].ult || x[0].vacio) return;
-      docs.push(x[1]); ts = Math.max(ts, x[0].ts || 0); base = base || x[0].o;
-      (x[0].o.cortes || []).forEach(function (c) { var y = clone(c); y._doc = x[1]; cortes.push(y); });
+      var o = x[2] === 'c3' ? x[0].o : clone(x[0].o); if (x[2] !== 'c3') o.cortes = partirFaena(x[0].o)[x[2]].cortes || [];
+      if (!(o.cortes || []).length) return;
+      h += hojaHTML(o, f, x[2] === 'c3', x[2] === 'fae', { doc: x[1], d: x[0], parte: x[2], nom: nom[x[2]] });
     });
-    if (!docs.length) return h;
-    var o = clone(base); o.cortes = cortes;
-    return hojaHTML(o, f, false, false, { doc: docs.join(','), d: { ts: ts, quitados: [] } });
+    return h;
   }
   // La planilla de un día, para leer (la de desposte o la de embutidos).
   function hojaHTML(o, f, c3, fae, agr) {
-    var nl = (o.cortes || []).reduce(function (t, c) { return t + c.lineas.length; }, 0), k = agr ? (c3 ? 'agr3' : 'agr') : c3 ? 'c3' : fae ? 'faena' : 'orden';
+    var nl = (o.cortes || []).reduce(function (t, c) { return t + c.lineas.length; }, 0), k = agr ? 'agr-' + agr.parte : c3 ? 'c3' : fae ? 'faena' : 'orden';
     var docId = agr ? agr.doc : (c3 ? 'c3-' : '') + f, im = !agr && yaImpreso(docId), base = im ? contarClaves(im.l) : null, cu = {};
-    var h = '<div class="panel hoja' + (c3 ? ' hoja-c3' : fae ? ' hoja-faena' : '') + (agr ? ' hoja-agr' : '') + '" data-doc="' + docId + '" data-parte="' + (agr ? 'agr' : c3 ? 'c3' : fae ? 'fae' : 'emp') + '"' + (agr ? '' : c3 ? ' id="embutidos"' : fae ? ' id="faena"' : '') + '><header class="hoja-cab"><div><p class="hoja-sup">' + (agr ? (agr.d.ult ? 'último agregado, impreso el ' : 'agregado después de imprimir el ') + cuandoTxt(agr.d.ts) : c3 ? (S.solo ? 'Ciclo III · Embutidos' : 'Ciclo III') : fae ? 'Achuras y frescos de faena' : 'Planilla de empaque') + '</p><h2>' + esc(agr ? 'AGREGADO · ' + tituloDe(f) : c3 && !S.solo ? 'Embutidos' : (c3 ? '' : fae ? 'FAENA · ' : 'EMPAQUE · ') + tituloDe(f)) + '</h2></div>'
+    var h = '<div class="panel hoja' + (c3 ? ' hoja-c3' : fae ? ' hoja-faena' : '') + (agr ? ' hoja-agr' : '') + '" data-doc="' + docId + '" data-parte="' + (agr ? 'agr-' + agr.parte : c3 ? 'c3' : fae ? 'fae' : 'emp') + '"' + (agr ? '' : c3 ? ' id="embutidos"' : fae ? ' id="faena"' : '') + '><header class="hoja-cab"><div><p class="hoja-sup">' + (agr ? agr.nom.charAt(0) + agr.nom.slice(1).toLowerCase() + ' · ' + (agr.d.ult ? 'último agregado, impreso el ' : 'agregado después de imprimir el ') + cuandoTxt(agr.d.ts) : c3 ? (S.solo ? 'Ciclo III · Embutidos' : 'Ciclo III') : fae ? 'Achuras y frescos de faena' : 'Planilla de empaque') + '</p><h2>' + esc(agr ? 'AGREGADO ' + agr.nom + ' · ' + tituloDe(f) : c3 && !S.solo ? 'Embutidos' : (c3 ? '' : fae ? 'FAENA · ' : 'EMPAQUE · ') + tituloDe(f)) + '</h2></div>'
       + (agr ? '' : c3 || fae ? (kgOrden(o) ? '<div class="hoja-dato"><b>' + n(kgOrden(o)) + '</b><span>kg</span></div>' : '') : '<div class="hoja-dato"><b>' + n(+o.medias || 0) + '</b><span>medias' + (o.mercado ? ' · ' + esc(o.mercado) : '') + '</span></div>')
       + (o.estado === 'borrador' ? '<span class="badge warn">Borrador</span>' : '<span class="badge ok">Confirmada</span>') + '</header>';
     var acc = '<div class="acciones hoja-acc">'
@@ -756,7 +755,7 @@
     }).join('') + '</div>';
     // Hoja que todavía no figura como impresa (se pasó antes de que existiera Agregado, o la imprimió otro): marcarla a mano.
     if (!agr && !im && S.editor && !S.solo && nl && S.tab === 'produccion') h += '<div class="acciones agr-todo-acc"><button class="btn agr-base" data-act="agr-base" data-doc="' + esc(docId) + '" title="Para que lo que se sume después aparezca en Agregado">✓ Esta hoja ya la pasé</button> <span class="small muted">Si ya la pasaste, tocá acá; lo que se sume después aparece en Agregado. Si algo de acá es nuevo, después tocá "↩ Volver a Agregado" en ese renglón.</span></div>';
-    if (agr && !agr.d.ult && !agr.d.vacio && S.editor && nl) h += '<div class="acciones agr-todo-acc"><button class="btn" data-act="agr-todo" data-doc="' + esc(docId) + '">✓ Todo esto ya lo tenía pasado</button></div>';
+    if (agr && !agr.d.ult && !agr.d.vacio && S.editor && nl) h += '<div class="acciones agr-todo-acc"><button class="btn" data-act="agr-todo" data-doc="' + esc(docId) + '" data-parte="' + agr.parte + '">✓ Todo esto ya lo tenía pasado</button></div>';
     if (agr && agr.d.quitados.length) h += '<p class="muted agr-quit">Se quitó (ya estaba impreso, no va): ' + agr.d.quitados.map(esc).join(' · ') + '</p>';
     h += '<textarea id="txt-' + k + '" class="txt" readonly hidden aria-label="Planilla en texto">' + esc(fae ? textoOrden(o).replace(/^([^\n]*)\n[^\n]*/, '$1\nFAENA') : textoOrden(o)) + '</textarea></div>';
     return h;
@@ -889,7 +888,7 @@
   function compartirPDF(hoja, btn, wa, nombre0) {
     if (!hoja || (btn && btn.disabled)) return;
     var dia = S.fecha || '';
-    var nombre = nombre0 || (hoja.classList.contains('op-hoja') ? 'Orden de produccion' : hoja.classList.contains('hoja-agr') ? (hoja.classList.contains('hoja-c3') ? 'Agregado embutidos' : 'Agregado') : hoja.classList.contains('hoja-c3') ? 'Embutidos' : hoja.classList.contains('hoja-faena') ? 'Faena' : 'Planilla de frescos') + ' ' + dia.slice(8, 10) + '-' + dia.slice(5, 7) + '.pdf';
+    var nombre = nombre0 || (hoja.classList.contains('op-hoja') ? 'Orden de produccion' : hoja.classList.contains('hoja-agr') ? (hoja.classList.contains('hoja-c3') ? 'Agregado embutidos' : hoja.classList.contains('hoja-faena') ? 'Agregado menudencias' : 'Agregado cortes') : hoja.classList.contains('hoja-c3') ? 'Embutidos' : hoja.classList.contains('hoja-faena') ? 'Faena' : 'Planilla de frescos') + ' ' + dia.slice(8, 10) + '-' + dia.slice(5, 7) + '.pdf';
     var txt0 = btn ? btn.textContent : ''; if (btn) { btn.disabled = true; btn.textContent = 'Armando el PDF…'; }
     var fin = function (m) { if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = txt0; } if (m) avisar(m, m.charAt(0) === '!' ? 7000 : 4000); };
     cargarScript('lib/pdf-lib.min.js').then(function () { return typeof hoja === 'function' ? hoja() : armarPDF(hoja); }).then(function (bytes) {
@@ -4344,7 +4343,8 @@
       var oY = prodGuardada(D.doc); if (oY && oY.impreso) {
         var curY = contarClaves(lineasClave(vistaDoc(D.doc))), lY = (oY.impreso.l || []).filter(function (k) { return curY[k]; }), yY = clone(oY);
         var viejo = contarClaves(lY), manY = (oY.impreso.man || []).filter(function (k) { return curY[k]; });
-        if (a === 'agr-todo') { lineasClave(agregadoDe(D.doc).o).forEach(function (k) { manY.push(k); }); lY = lineasClave(vistaDoc(D.doc)); }
+        if (a === 'agr-todo') { var agY = agregadoDe(D.doc).o, ptY = D.parte === 'emp' || D.parte === 'fae' ? partirFaena(agY)[D.parte] : agY;
+          lineasClave(ptY).forEach(function (k) { if ((contarClaves(lY)[k] || 0) < (curY[k] || 0)) { lY.push(k); manY.push(k); } }); }
         else if ((viejo[D.k] || 0) < (curY[D.k] || 0)) { lY.push(D.k); manY.push(D.k); }
         yY.impreso = { ts: oY.impreso.ts, l: lY, man: manY };
         avisar('Lo sacaste de Agregado. Si fue sin querer, en la Planilla de frescos tocá "↩ Volver a Agregado" en ese renglón.', 7000);
