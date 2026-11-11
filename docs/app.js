@@ -891,7 +891,8 @@
     var nombre = nombre0 || (hoja.classList.contains('op-hoja') ? 'Orden de produccion' : hoja.classList.contains('hoja-agr') ? (hoja.classList.contains('hoja-c3') ? 'Agregado embutidos' : hoja.classList.contains('hoja-faena') ? 'Agregado menudencias' : 'Agregado cortes') : hoja.classList.contains('hoja-c3') ? 'Embutidos' : hoja.classList.contains('hoja-faena') ? 'Faena' : 'Planilla de frescos') + ' ' + dia.slice(8, 10) + '-' + dia.slice(5, 7) + '.pdf';
     var txt0 = btn ? btn.textContent : ''; if (btn) { btn.disabled = true; btn.textContent = 'Armando el PDF…'; }
     var fin = function (m) { if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = txt0; } if (m) avisar(m, m.charAt(0) === '!' ? 7000 : 4000); };
-    cargarScript('lib/pdf-lib.min.js').then(function () { return typeof hoja === 'function' ? hoja() : armarPDF(hoja); }).then(function (bytes) {
+    var salio = true;
+    return cargarScript('lib/pdf-lib.min.js').then(function () { return typeof hoja === 'function' ? hoja() : armarPDF(hoja); }).then(function (bytes) {
       var blob = new Blob([bytes], { type: 'application/pdf' }), file = null; try { file = new File([blob], nombre, { type: 'application/pdf' }); } catch (e) {}
       if (window.__mock) window.__mock.ultimoPDF = { nombre: nombre, blob: blob };
       // Celular, y también la compu cuando el navegador lo permite (Chrome 128+ en Mac/Windows): abre "Compartir" del sistema con el PDF,
@@ -899,13 +900,13 @@
       var puede = false; try { puede = !!(file && navigator.canShare && navigator.canShare({ files: [file] })); } catch (e) {}
       if (window.__mock && window.__mock.compartirArchivos) { window.__mock.compartirArchivos(nombre); return ''; }
       if (puede && (wa || /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent))) {
-        return navigator.share({ files: [file] }).then(function () { return ''; }, function (e) { if (e && e.name === 'AbortError') return ''; bajar(blob, nombre); return 'PDF descargado: ' + nombre; });
+        return navigator.share({ files: [file] }).then(function () { return ''; }, function (e) { if (e && e.name === 'AbortError') { salio = false; return ''; } bajar(blob, nombre); return 'PDF descargado: ' + nombre; });
       }
       bajar(blob, nombre);
       // En la compu WhatsApp no deja adjuntar desde una página: se baja el PDF y se abre WhatsApp Web para arrastrarlo al chat.
       if (wa) { if (window.__mock) window.__mock.abrioWA = true; else window.open('https://web.whatsapp.com/', 'qualita-whatsapp'); return 'PDF descargado: ' + nombre + '. Se abrió WhatsApp: elegí el chat y arrastrá el PDF (o tocá el clip y adjuntalo).'; }
       return 'PDF descargado: ' + nombre + '. Adjuntalo en WhatsApp o en el mail.';
-    }).then(function (m) { fin(m); }, function () { fin('!No se pudo armar el PDF. Revisá la conexión y probá de nuevo.'); });
+    }).then(function (m) { fin(m); return salio; }, function () { fin('!No se pudo armar el PDF. Revisá la conexión y probá de nuevo.'); return false; });
   }
   // Logística se imprime como se ve, pero achicada lo justo para usar la menor cantidad de hojas A4:
   // se arma una copia invisible con el estilo de impresión al ancho de la hoja, se mide y se elige el tamaño.
@@ -946,14 +947,14 @@
   function imprimirPDF(hojas, btn, opc) {
     var txt0 = btn ? btn.textContent : ''; if (btn) { btn.disabled = true; btn.textContent = 'Preparando…'; }
     var fin = function (m) { if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = txt0; } if (m) avisar(m, 7000); };
-    cargarScript('lib/pdf-lib.min.js').then(function () { return armarPDF(hojas, opc); }).then(function (bytes) {
+    return cargarScript('lib/pdf-lib.min.js').then(function () { return armarPDF(hojas, opc); }).then(function (bytes) {
       var blob = new Blob([bytes], { type: 'application/pdf' }), u = URL.createObjectURL(blob);
-      if (window.__mock) { window.__mock.ultimoPDF = { nombre: 'imprimir', blob: blob }; fin(); return; }
+      if (window.__mock) { window.__mock.ultimoPDF = { nombre: 'imprimir', blob: blob }; fin(); return true; }
       var fr = $('marco-impresion'); if (fr) fr.remove();
       fr = document.createElement('iframe'); fr.id = 'marco-impresion'; fr.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0';
       fr.onload = function () { setTimeout(function () { try { fr.contentWindow.focus(); fr.contentWindow.print(); fin(); } catch (e) { window.open(u, '_blank'); fin('Se abrió el PDF: imprimilo desde ahí.'); } }, 700); };
-      fr.src = u; document.body.appendChild(fr);
-    }).then(null, function () { fin('!No se pudo preparar la impresión. Probá de nuevo.'); });
+      fr.src = u; document.body.appendChild(fr); return true;
+    }).then(null, function () { fin('!No se pudo preparar la impresión. Probá de nuevo.'); return false; });
   }
   function bajar(blob, nombre) { var u = URL.createObjectURL(blob), a = document.createElement('a'); a.href = u; a.download = nombre; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(u); }, 4000); }
   // ¿Ya lo pedí? (pedido de Renzo, 06/11/2026): por día, Cortes / Menudencias / Embutidos en verde (pedido) o rojo (no pedido).
@@ -4319,9 +4320,9 @@
     else if (a === 'resumen') { S.resumen = !S.resumen; render(); }
     else if (a === 'hoja-pdf') { compartirPDF(b.closest('.hoja'), b); }
     // Una sola planilla (la de cortes o la de embutidos), sin las demás.
-    else if (a === 'hoja-imprimir') { var hjx = b.closest('.hoja'); if (hjx) { imprimirPDF([hjx], b); if (S.tab === 'produccion') marcarImpreso([hjx]); } }
+    else if (a === 'hoja-imprimir') { var hjx = b.closest('.hoja'); if (hjx) { var enProdX = S.tab === 'produccion'; imprimirPDF([hjx], b).then(function (ok) { if (ok && enProdX) marcarImpreso([hjx]); }); } }
     else if (a === 'imprimir' && S.tab === 'tunel' && document.querySelector('#view-tunel .hoja')) { imprimirPDF([document.querySelector('#view-tunel .hoja')], b); }
-    else if (a === 'imprimir' && S.tab === 'produccion' && !S.ep && document.querySelector('#view-produccion .hoja')) { var hjs = Array.prototype.slice.call(document.querySelectorAll('#view-produccion .hoja')); imprimirPDF(hjs, b); marcarImpreso(hjs); }
+    else if (a === 'imprimir' && S.tab === 'produccion' && !S.ep && document.querySelector('#view-produccion .hoja')) { var hjs = Array.prototype.slice.call(document.querySelectorAll('#view-produccion .hoja')); imprimirPDF(hjs, b).then(function (ok) { if (ok) marcarImpreso(hjs); }); }
     else if (a === 'imprimir') {
       // Se imprime siempre la vista de lectura, no la de edición.
       if (S.em) { guardar('medias', true); S.em = null; }
@@ -4364,7 +4365,7 @@
         guardarOrden(D.doc, yV).then(function () { avisar('Volvió a Agregado.', 3000); render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); });
       }
     }
-    else if (a === 'wa-pdf') { compartirPDF(b.closest('.hoja'), b, true); if (S.tab === 'produccion') marcarImpreso([b.closest('.hoja')]); }
+    else if (a === 'wa-pdf') { var hjW = b.closest('.hoja'), enProdW = S.tab === 'produccion'; var prW = compartirPDF(hjW, b, true); if (prW) prW.then(function (ok) { if (ok && enProdW) marcarImpreso([hjW]); }); }
     else if (a === 'copiar') {
       var ta = $('txt-' + (D.t || 'orden')), msg = $('copiado-' + (D.t || 'orden')); ta.hidden = false;
       var ok = function () { msg.textContent = 'Copiado.'; }, no = function () { ta.focus(); ta.select(); msg.textContent = 'Seleccionado: copialo con Ctrl+C o manteniendo apretado.'; };
