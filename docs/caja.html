@@ -372,7 +372,7 @@ async function subirExcel(file) {
 
 const qf = new URLSearchParams(location.search).get('f');
 $('f').value = /^\d{4}-\d{2}-\d{2}$/.test(qf || '') ? qf : hoyIso();
-C3API.listo.then(api => { if (api.rol === 'ddjj') location.replace('/ddjj'); else if (api.rol === 'faena') location.replace('/faena'); else cargarDia(); });
+C3API.listo.then(api => { if (api.rol === 'rrhh') location.replace('/rrhh'); else if (api.rol === 'ddjj') location.replace('/ddjj'); else if (api.rol === 'faena') location.replace('/faena'); else cargarDia(); });
 </script>
 </body>
 </html>

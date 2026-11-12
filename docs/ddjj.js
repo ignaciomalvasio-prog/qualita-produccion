@@ -733,6 +733,7 @@ document.getElementById('nav').addEventListener('click', e => {
   S.tab = a.dataset.t; render(); window.scrollTo(0, 0);
 });
 C3API.listo.then(() => {
+  if (C3API.rol === 'rrhh' && !window.FAENA_PUB) { location.replace('/rrhh'); return; }
   /* vista solo de Faena y mortalidad (link /faena o usuarios con rol "faena") */
   if (window.SOLO_FAENA || C3API.rol === 'faena') {
     window.SOLO_FAENA = true; S.tab = 'faena';

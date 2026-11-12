@@ -103,6 +103,15 @@
             "value": "no-cache"
           }
         ]
+      },
+      {
+        "source": "/rrhh",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
       }
     ],
     "cleanUrls": true

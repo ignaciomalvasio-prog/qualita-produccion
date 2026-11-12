@@ -61,6 +61,23 @@ service cloud.firestore {
     match /c3cambios/{doc} { allow read, create: if esEditor() || esC3(); allow update, delete: if false; }
     // c3mail: mails pendientes (planilla de caja); los manda la notebook de Igna y los marca como enviados.
     match /c3mail/{doc}    { allow create: if esEditor() || esC3(); allow read, update: if esEditor(); allow delete: if false; }
+    // Centro RRHH (/rrhh): solo las cuentas verificadas que figuran en /rhusuarios (Gabi e Igna).
+    // Ni los editores de producción ni los usuarios de los otros centros. admin == true maneja /rhusuarios.
+    function esRH() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && exists(/databases/$(database)/documents/rhusuarios/$(request.auth.token.email));
+    }
+    function esRHAdmin() {
+      return esRH() && get(/databases/$(database)/documents/rhusuarios/$(request.auth.token.email)).data.get('admin', false) == true;
+    }
+    match /rhusuarios/{email} {
+      allow get: if request.auth != null && (request.auth.token.email == email || esRHAdmin());
+      allow list, write: if esRHAdmin();
+    }
+    // rhdocs: nómina, ausencias (aus-AAAA), sueldos (liq-AAAA-MM, liq-indice). rhcambios: historial, no se borra.
+    match /rhdocs/{doc}    { allow read, write: if esRH(); }
+    match /rhcambios/{doc} { allow read, create: if esRH(); allow update, delete: if false; }
     // La lista de editores solo se cambia desde la consola de Firebase.
     match /editores/{email} {
       allow get: if request.auth != null && request.auth.token.email == email;

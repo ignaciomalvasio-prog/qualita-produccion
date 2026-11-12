@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Centro RRHH · Qualitá</title>
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="manifest" href="/rrhh.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="RRHH">
+<meta name="theme-color" content="#0b5d75">
+<link rel="icon" type="image/png" href="/icon-192.png">
+<meta name="robots" content="noindex">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+<link rel="stylesheet" href="/control-estilo.css">
+<link rel="stylesheet" href="/control.css">
+<link rel="stylesheet" href="/rrhh.css">
+</head>
+<body>
+<header>
+  <div class="brand"><img src="/logo.png" alt="Qualitá"><div><div class="t">Centro RRHH</div><div class="s">Personal del Frigorífico Qualitá</div></div></div>
+  <nav id="nav">
+    <a href="#" data-t="resumen" class="on">Resumen</a>
+    <a href="#" data-t="nomina">Nómina</a>
+    <a href="#" data-t="ausencias">Ausencias</a>
+    <a href="#" data-t="vacaciones">Vacaciones</a>
+    <a href="#" data-t="indicadores">Indicadores</a>
+    <a href="#" data-t="importar">Importar</a>
+    <a href="#" data-t="cambios">Cambios</a>
+    <a href="#" data-t="usuarios" id="nav-usr" style="display:none">Usuarios</a>
+  </nav>
+  <div class="stat" id="st"><span id="st-user"></span></div>
+</header>
+<main id="main"><div class="cargando"><span class="spin"></span> Conectando…</div></main>
+
+<dialog id="dlg" class="ancho">
+  <div class="dlg-h" id="dlg-h"></div>
+  <div class="dlg-b" id="dlg-b"></div>
+  <div class="dlg-f" id="dlg-f"></div>
+</dialog>
+<div class="toast" id="toast"></div>
+
+<script>window.C3_TITULO = 'Centro RRHH'; window.C3_COL = 'rhdocs'; window.C3_LOG = 'rhcambios';</script>
+<script src="/acceso.js"></script>
+<script src="/control-base.js"></script>
+<script src="/rrhh.js"></script>
+</body>
+</html>

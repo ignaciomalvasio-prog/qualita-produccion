@@ -1486,4 +1486,4 @@ function aoaVentasMensual() {
 
 /* ================= inicio ================= */
 $('mes').value = M;
-C3API.listo.then(api => { if (api.rol === 'caja') location.replace('/caja'); else if (api.rol === 'ddjj') location.replace('/ddjj'); else if (api.rol === 'faena') location.replace('/faena'); else if (api.rol === 'compras') location.replace('/compras'); else cargar(false); });
+C3API.listo.then(api => { if (api.rol === 'rrhh') location.replace('/rrhh'); else if (api.rol === 'caja') location.replace('/caja'); else if (api.rol === 'ddjj') location.replace('/ddjj'); else if (api.rol === 'faena') location.replace('/faena'); else if (api.rol === 'compras') location.replace('/compras'); else cargar(false); });

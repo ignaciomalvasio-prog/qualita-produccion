@@ -676,6 +676,7 @@ async function cargar() {
 }
 document.querySelectorAll('#nav a').forEach(a => a.onclick = e => { e.preventDefault(); TAB = a.dataset.t; refrescar(); window.scrollTo(0, 0); });
 C3API.listo.then(api => {
+  if (api.rol === 'rrhh') { location.replace('/rrhh'); return; }
   if (!api.editor && !['todo', 'compras'].includes(api.rol)) { $('main').innerHTML = '<section class="empty">Tu cuenta no tiene acceso al Centro de compras. Pedile a Igna que te lo habilite.</section>'; return; }
   cargar();
 });

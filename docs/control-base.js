@@ -4,7 +4,10 @@
    - Los datos del sistema de gestión los sube la notebook de Igna todos los días a las 8 h y a las 20 h (C:\InformeQualita\ciclo3\c3_sync.ps1)
      a /c3sis: "mes-AAAA-MM" (remitos, producción, ventas, stock) e "ins" (insumos, compras y producción).
    - Lo que se carga a mano va en /c3docs/{nombre} = { json, ver, por, ts } y cada cambio deja un renglón en /c3cambios.
-   - Modo de prueba: si existe window.__mock = { user, rol, sis: {id: txt}, docs: {nombre: objeto} } no usa Firebase. */
+   - Modo de prueba: si existe window.__mock = { user, rol, sis: {id: txt}, docs: {nombre: objeto} } no usa Firebase.
+   - Colecciones configurables (Centro RRHH, link /rrhh): window.C3_COL = 'rhdocs' y window.C3_LOG = 'rhcambios' antes de cargar este archivo.
+     Con C3_COL = 'rhdocs' solo entran las cuentas de /rhusuarios (ni los editores ni los usuarios de los otros centros);
+     quien figura solo en /rhusuarios tiene rol "rrhh" y los otros centros lo mandan a /rrhh. En el mock: rh = { admin }, rhusuarios = { mail: {...} }. */
 window.C3API = (function () {
   'use strict';
   var FIREBASE = {
@@ -16,7 +19,8 @@ window.C3API = (function () {
       storageBucket: 'qualita-produccion.firebasestorage.app'
     }
   };
-  var api = { usuario: null, rol: '', editor: false };
+  var COL = window.C3_COL || 'c3docs', LOG = window.C3_LOG || 'c3cambios', SOLO_RH = COL === 'rhdocs';
+  var api = { usuario: null, rol: '', editor: false, rh: null };
   var resolverListo, store = null;
   api.listo = new Promise(function (r) { resolverListo = r; });
 
@@ -45,13 +49,14 @@ window.C3API = (function () {
         permiso: function (email) {
           var ed = fs.getDoc(fs.doc(db, 'editores', email)).then(function (s) { return s.exists(); }, function () { return false; });
           var c3 = fs.getDoc(fs.doc(db, 'c3usuarios', email)).then(function (s) { return s.exists() ? (s.data() || {}) : null; }, function () { return null; });
-          return Promise.all([ed, c3]).then(function (r) { return { editor: r[0], c3: r[1] }; });
+          var rh = fs.getDoc(fs.doc(db, 'rhusuarios', email)).then(function (s) { return s.exists() ? (s.data() || {}) : null; }, function () { return null; });
+          return Promise.all([ed, c3, rh]).then(function (r) { return { editor: r[0], c3: r[1], rh: r[2] }; });
         },
         sis: function (id) { return fs.getDoc(fs.doc(db, 'c3sis', id)).then(function (s) { return s.exists() ? s.data() : null; }); },
-        leer: function (n) { return fs.getDoc(fs.doc(db, 'c3docs', n)).then(function (s) { return s.exists() ? s.data() : null; }); },
+        leer: function (n) { return fs.getDoc(fs.doc(db, COL, n)).then(function (s) { return s.exists() ? s.data() : null; }); },
         /* lee, cambia y guarda en una transacción: si otro guardó en el medio, Firestore la repite sola */
         cambiar: function (n, fn, quien, desc) {
-          var ref = fs.doc(db, 'c3docs', n), out = null;
+          var ref = fs.doc(db, COL, n), out = null;
           return fs.runTransaction(db, function (tx) {
             return tx.get(ref).then(function (s) {
               var x = s.exists() ? s.data() : {};
@@ -60,16 +65,19 @@ window.C3API = (function () {
               tx.set(ref, { json: JSON.stringify(d), ver: (x.ver || 0) + 1, por: quien, ts: new Date().toISOString() });
             });
           }).then(function () {
-            return fs.addDoc(fs.collection(db, 'c3cambios'), { ts: new Date().toISOString(), quien: quien, doc: n, cambio: String(desc || '').slice(0, 1500) }).catch(function () {});
+            return fs.addDoc(fs.collection(db, LOG), { ts: new Date().toISOString(), quien: quien, doc: n, cambio: String(desc || '').slice(0, 1500) }).catch(function () {});
           }).then(function () { return out; });
         },
         cambios: function () {
-          return fs.getDocs(fs.query(fs.collection(db, 'c3cambios'), fs.orderBy('ts', 'desc'), fs.limit(400))).then(function (s) { return s.docs.map(function (x) { return x.data(); }); });
+          return fs.getDocs(fs.query(fs.collection(db, LOG), fs.orderBy('ts', 'desc'), fs.limit(400))).then(function (s) { return s.docs.map(function (x) { return x.data(); }); });
         },
         encolarMail: function (d) { return fs.addDoc(fs.collection(db, 'c3mail'), d); },
         usuarios: function () { return fs.getDocs(fs.collection(db, 'c3usuarios')).then(function (s) { return s.docs.map(function (x) { var o = x.data() || {}; o.email = x.id; return o; }); }); },
         ponerUsuario: function (email, datos) { return fs.setDoc(fs.doc(db, 'c3usuarios', email), datos); },
-        sacarUsuario: function (email) { return fs.deleteDoc(fs.doc(db, 'c3usuarios', email)); }
+        sacarUsuario: function (email) { return fs.deleteDoc(fs.doc(db, 'c3usuarios', email)); },
+        rhUsuarios: function () { return fs.getDocs(fs.collection(db, 'rhusuarios')).then(function (s) { return s.docs.map(function (x) { var o = x.data() || {}; o.email = x.id; return o; }); }); },
+        ponerRh: function (email, datos) { return fs.setDoc(fs.doc(db, 'rhusuarios', email), datos); },
+        sacarRh: function (email) { return fs.deleteDoc(fs.doc(db, 'rhusuarios', email)); }
       };
     });
   }
@@ -77,7 +85,7 @@ window.C3API = (function () {
   /* ---------- modo de prueba ---------- */
   function mockStore(m) {
     var clone = function (x) { return JSON.parse(JSON.stringify(x)); };
-    m.docs = m.docs || {}; m.sis = m.sis || {}; m.cambios = m.cambios || []; m.usuarios = m.usuarios || {};
+    m.docs = m.docs || {}; m.sis = m.sis || {}; m.cambios = m.cambios || []; m.usuarios = m.usuarios || {}; m.rhusuarios = m.rhusuarios || {};
     var cb = null;
     return {
       onAuth: function (c) { cb = c; setTimeout(function () { c(m.user || null); }, 0); },
@@ -85,7 +93,7 @@ window.C3API = (function () {
       entrarMail: function () { return this.google(); }, crearMail: function () { return Promise.resolve(); }, olvide: function () { return Promise.resolve(); },
       reenviar: function () { return Promise.resolve(); }, confirmar: function () { return Promise.resolve(true); },
       signOut: function () { m.user = null; cb(null); return Promise.resolve(); },
-      permiso: function () { return Promise.resolve({ editor: m.rol === 'editor', c3: m.rol && m.rol !== 'editor' ? { rol: m.rol } : null }); },
+      permiso: function () { return Promise.resolve({ editor: m.rol === 'editor', c3: m.rol && m.rol !== 'editor' && m.rol !== 'rrhh' ? { rol: m.rol } : null, rh: m.rh || (m.rol === 'rrhh' ? { admin: false } : null) }); },
       sis: function (id) { return Promise.resolve(m.sis[id] != null ? { txt: m.sis[id], hora: '21/10 12:30' } : null); },
       leer: function (n) { return Promise.resolve(m.docs[n] ? { json: JSON.stringify(m.docs[n]), ver: 1 } : null); },
       cambiar: function (n, fn, quien, desc) { var d = clone(m.docs[n] || {}); fn(d); m.docs[n] = clone(d); m.cambios.unshift({ ts: new Date().toISOString(), quien: quien, doc: n, cambio: desc }); return Promise.resolve(d); },
@@ -93,7 +101,10 @@ window.C3API = (function () {
       encolarMail: function (d) { m.mails = m.mails || []; m.mails.push(clone(d)); return Promise.resolve(); },
       usuarios: function () { return Promise.resolve(Object.keys(m.usuarios).map(function (e) { var o = clone(m.usuarios[e]); o.email = e; return o; })); },
       ponerUsuario: function (e, d) { m.usuarios[e] = clone(d); return Promise.resolve(); },
-      sacarUsuario: function (e) { delete m.usuarios[e]; return Promise.resolve(); }
+      sacarUsuario: function (e) { delete m.usuarios[e]; return Promise.resolve(); },
+      rhUsuarios: function () { return Promise.resolve(Object.keys(m.rhusuarios).map(function (e) { var o = clone(m.rhusuarios[e]); o.email = e; return o; })); },
+      ponerRh: function (e, d) { m.rhusuarios[e] = clone(d); return Promise.resolve(); },
+      sacarRh: function (e) { delete m.rhusuarios[e]; return Promise.resolve(); }
     };
   }
 
@@ -113,15 +124,16 @@ window.C3API = (function () {
     if (!u) { api.usuario = null; pedirIngreso(); return; }
     if (u.emailVerified === false) { window.Acceso.verificar(store, u.email); return; }
     store.permiso(u.email).then(function (p) {
-      if (!p.editor && !p.c3) {
-        cartel('<h2 style="justify-content:center">Tu cuenta todavía no está habilitada</h2><p class="sub">Entraste como <b>' + String(u.email).replace(/</g, '&lt;') + '</b>. Pedile a Igna que la habilite (Centro de control › Usuarios).</p><button id="c3-salir">Usar otra cuenta</button>');
+      if (SOLO_RH ? !p.rh : (!p.editor && !p.c3 && !p.rh)) {
+        cartel('<h2 style="justify-content:center">Tu cuenta todavía no está habilitada</h2><p class="sub">Entraste como <b>' + String(u.email).replace(/</g, '&lt;') + '</b>. ' + (SOLO_RH ? 'El Centro RRHH es solo para las cuentas habilitadas por RRHH (Centro RRHH › Usuarios).' : 'Pedile a Igna que la habilite (Centro de control › Usuarios).') + '</p><button id="c3-salir">Usar otra cuenta</button>');
         document.getElementById('c3-salir').onclick = function () { store.signOut(); };
         return;
       }
       if (mostroCartel) { location.reload(); return; }   // la página se tapó con el cartel de ingreso: se vuelve a abrir
-      api.usuario = { email: u.email, nombre: (p.c3 && p.c3.nombre) || nombreDe(u) };
+      api.usuario = { email: u.email, nombre: (SOLO_RH && p.rh && p.rh.nombre) || (p.c3 && p.c3.nombre) || (p.rh && p.rh.nombre) || nombreDe(u) };
       api.editor = !!p.editor;
-      api.rol = p.editor ? 'todo' : ((p.c3 && p.c3.rol) || 'todo');
+      api.rh = p.rh || null;
+      api.rol = p.editor ? 'todo' : p.c3 ? (p.c3.rol || 'todo') : 'rrhh';
       var st = document.getElementById('st-user'); if (st) st.innerHTML = String(api.usuario.nombre).replace(/</g, '&lt;') + ' · <a href="#" onclick="C3API.salir();return false">Salir</a>';
       resolverListo(api);
     });
@@ -141,6 +153,9 @@ window.C3API = (function () {
   api.encolarMail = function (d) { return api.listo.then(function () { return store.encolarMail(d); }); };
   api.ponerUsuario = function (e, d) { return store.ponerUsuario(e, d); };
   api.sacarUsuario = function (e) { return store.sacarUsuario(e); };
+  api.rhUsuarios = function () { return store.rhUsuarios(); };
+  api.ponerRh = function (e, d) { return store.ponerRh(e, d); };
+  api.sacarRh = function (e) { return store.sacarRh(e); };
   api.salir = function () { return store.signOut().then(function () { location.reload(); }); };
 
   /* link público de solo lectura (/faena?k=clave): no pide ingreso; los datos los lee ddjj.js del documento público */
