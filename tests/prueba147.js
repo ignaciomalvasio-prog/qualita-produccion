@@ -21,6 +21,8 @@ const data={faena:{},privado:{},config:{general:{feriados:[]}},pedidos:{},produc
  await p.screenshot({path:SP+'/p147.png'});
  await p.click('.hoja-agr [data-act="hoja-imprimir"]');await p.waitForTimeout(800);
  console.log('tras imprimir agregado:',await tabs());
+ await p.click('.pv-tabs [data-v="agr"]');await p.waitForTimeout(300);
+ console.log('último:',await p.evaluate(()=>[...document.querySelectorAll('.hoja-agr')].map(h=>h.querySelector('.hoja-sup').textContent+' :: '+h.querySelector('.hoja-cortes').innerText.replace(/\s+/g,' ')).join(' || ')));
  await p.setViewportSize({width:400,height:800});await p.waitForTimeout(200);
  console.log('desborde:',await p.evaluate(()=>document.documentElement.scrollWidth));
  await p.screenshot({path:SP+'/p147m.png'});

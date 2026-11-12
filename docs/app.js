@@ -717,9 +717,9 @@
     var a = agregadoDe(f), a3 = agregadoDe('c3-' + f), h = '';
     if (!a && !a3) return '<div class="panel"><p class="state">Todavía no se imprimió la planilla de este día. Cuando la imprimas o mandes el PDF, lo que se sume después aparece acá.</p></div>';
     // Agregado por separado: cortes, menudencias (faena) y embutidos (pedido de Renzo, 10/11/2026).
-    var nom = { emp: 'CORTES', fae: 'MENUDENCIAS', c3: 'EMBUTIDOS' };
+    var nom = { emp: 'CORTES', fae: 'MENUDENCIAS', c3: 'EMBUTIDOS' }, hayNuevo = [a, a3].some(function (x) { return x && !x.ult && !x.vacio; });
     [[a, f, 'emp'], [a, f, 'fae'], [a3, 'c3-' + f, 'c3']].forEach(function (x) {
-      if (!x[0] || x[0].ult || x[0].vacio) return;
+      if (!x[0] || x[0].vacio || (x[0].ult && hayNuevo)) return;
       var o = x[2] === 'c3' ? x[0].o : clone(x[0].o); if (x[2] !== 'c3') o.cortes = partirFaena(x[0].o)[x[2]].cortes || [];
       if (!(o.cortes || []).length) return;
       h += hojaHTML(o, f, x[2] === 'c3', x[2] === 'fae', { doc: x[1], d: x[0], parte: x[2], nom: nom[x[2]] });
@@ -976,7 +976,9 @@
     var hayImp = !solo3 && !!(yaImpreso(f) || yaImpreso('c3-' + f));
     var pv = solo3 ? 'frescos' : (S.pv || (op ? 'op' : 'frescos')); if (edit) pv = esOP(S.ep.fecha) ? 'op' : 'frescos';
     var nAgr = hayImp ? [f, 'c3-' + f].reduce(function (t, id) { var a = yaImpreso(id) && agregadoDe(id); return t + (a && !a.ult && !a.vacio ? lineasClave(a.o).length : 0); }, 0) : 0;
-    hayImp = nAgr > 0;   // la solapa Agregado aparece solo si hay algo nuevo
+    // Si no hay nada nuevo pero ya se mandó un agregado, queda la solapa "Último agregado" para volver a mandarlo (pedido de Renzo, 12/11/2026).
+    var ultAgr = !nAgr && hayImp ? [f, 'c3-' + f].reduce(function (t, id) { var a = yaImpreso(id) && agregadoDe(id); return a && a.ult ? Math.max(t, a.ts || 1) : t; }, 0) : 0;
+    hayImp = nAgr > 0 || ultAgr > 0;   // la solapa Agregado aparece solo si hay algo nuevo (o un último agregado para volver a mandar)
     if (pv === 'agr' && !hayImp) pv = 'frescos';
     var h = '<div class="nav"><button class="btn step" data-act="fecha" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + fechaTit(f) + '</span><button class="btn step" data-act="fecha" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="p-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">';
@@ -984,7 +986,7 @@
     if (edit) h += '<button class="btn pri" data-act="p-editar">Listo</button>';
     if (S.editor) h += '<button class="btn" data-act="link-prod">Copiar link para compartir</button><span class="guardado" id="g-prod"></span>';
     h += '</div>';
-    if (!solo3) h += '<div class="pv-tabs" role="tablist" aria-label="Qué planilla ver"><button class="btn" role="tab" data-act="pv" data-v="op" aria-selected="' + (pv === 'op') + '">Orden de producción' + (op ? '' : ' <small>(sin armar)</small>') + '</button><button class="btn" role="tab" data-act="pv" data-v="frescos" aria-selected="' + (pv === 'frescos') + '">Planilla de frescos' + (o ? '' : ' <small>(vacía)</small>') + '</button>' + (hayImp ? '<button class="btn pv-agr' + (nAgr ? ' hay' : '') + '" role="tab" data-act="pv" data-v="agr" aria-selected="' + (pv === 'agr') + '">Agregado' + (nAgr ? ' <b class="agr-n">' + nAgr + '</b>' : '') + '</button>' : '') + '</div>';
+    if (!solo3) h += '<div class="pv-tabs" role="tablist" aria-label="Qué planilla ver"><button class="btn" role="tab" data-act="pv" data-v="op" aria-selected="' + (pv === 'op') + '">Orden de producción' + (op ? '' : ' <small>(sin armar)</small>') + '</button><button class="btn" role="tab" data-act="pv" data-v="frescos" aria-selected="' + (pv === 'frescos') + '">Planilla de frescos' + (o ? '' : ' <small>(vacía)</small>') + '</button>' + (hayImp ? '<button class="btn pv-agr' + (nAgr ? ' hay' : '') + '" role="tab" data-act="pv" data-v="agr" aria-selected="' + (pv === 'agr') + '">' + (nAgr ? 'Agregado <b class="agr-n">' + nAgr + '</b>' : 'Último agregado <small>(' + cuandoTxt(ultAgr).split(' ')[1] + ')</small>') + '</button>' : '') + '</div>';
     if (edit) { h += prodEditHTML(S.ep.doc); el.innerHTML = h; pintarMsg('prod'); crecer($('p-doc')); return; }
     if (pv === 'op') {
       if (op) h += opHTML(op, f);
