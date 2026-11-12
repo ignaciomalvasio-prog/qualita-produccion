@@ -1308,6 +1308,16 @@
      sistema (tabla STOCK, grupos con kilos > 0). Acá solo se mira y se filtra. */
   function stockFiltro() { return S.stf || (S.stf = { q: '', fd: '', fh: '', dep: '' }); }
   function fCorta(d) { var m = /^(\d{4})-(\d\d)-(\d\d)/.exec(d || ''); return m ? m[3] + '/' + m[2] + '/' + m[1].slice(2) : ''; }
+  /* Stock "En cámara" (pedido de Renzo, 12/11/2026): la tabla STOCK del sistema traía piezas que no están en cámara (ej. pecho 30216:
+     13.420 kg en la app contra 10.494 kg "00_En Camara" en el sistema). Si un artículo tiene piezas etiquetadas en ese depósito
+     (st.fechas, que son solo las "En cámara"), se usan esas; lo que no lleva etiqueta (patitas, cabezas…) sigue saliendo de STOCK. */
+  function stockEnCamara() {
+    var st = S.stock || {}, fe = st.fechas || [];
+    if (!fe.length) return st.filas || [];
+    var con = {}, sum = {};
+    fe.forEach(function (r) { var k = (+r.a) + '|' + String(r.f); con[k] = true; var x = sum[k] || (sum[k] = { a: +r.a, f: r.f, kg: 0, u: 0 }); x.kg += +r.kg || 0; x.u += +r.u || 0; });
+    return (st.filas || []).filter(function (r) { return !con[(+r.a) + '|' + String(r.f)]; }).concat(Object.keys(sum).map(function (k) { return sum[k]; }));
+  }
   function stockFilas() {
     var st = S.stock || {}, F = stockFiltro(), arts = st.arts || {}, porArt = {};
     var q = norm(F.q || '').trim(), palabras = q ? q.split(/\s+/) : [], esNum = /^\d+$/.test(q), conFecha = !!(F.fd || F.fh);
@@ -1319,7 +1329,7 @@
     }
     function art(a) { return porArt[a] || (porArt[a] = { a: a, n: arts[String(a)] || '', kg: 0, u: 0, deps: [], dias: {}, dmin: '', dmax: '' }); }
     function sumDep(x, f, kg, u) { var d = x.deps.filter(function (y) { return String(y.f) === String(f); })[0]; if (!d) x.deps.push(d = { f: f, kg: 0, u: 0 }); d.kg += kg; d.u += u; }
-    if (!conFecha) (st.filas || []).forEach(function (r) { if (!pasa(r)) return; var x = art(+r.a); x.kg += +r.kg || 0; x.u += +r.u || 0; sumDep(x, r.f, +r.kg || 0, +r.u || 0); });
+    if (!conFecha) stockEnCamara().forEach(function (r) { if (!pasa(r)) return; var x = art(+r.a); x.kg += +r.kg || 0; x.u += +r.u || 0; sumDep(x, r.f, +r.kg || 0, +r.u || 0); });
     (st.fechas || []).forEach(function (r) {
       if (!pasa(r)) return; var d = String(r.d || '');
       if (conFecha) { if ((F.fd && d < F.fd) || (F.fh && d > F.fh)) return; var x = art(+r.a); x.kg += +r.kg || 0; x.u += +r.u || 0; sumDep(x, r.f, +r.kg || 0, +r.u || 0); x.dias[d] = (x.dias[d] || 0) + (+r.kg || 0); }
@@ -1357,7 +1367,7 @@
   function stkValores() {
     var st = S.stock || {}, out = {}, hay = {};
     STK_CORTES.forEach(function (c) { out[c[0]] = 0; });
-    (st.filas || []).forEach(function (r) { if (String(r.f) !== '1') return; STK_CORTES.forEach(function (c) { if (c[1].indexOf(+r.a) >= 0) { out[c[0]] += +r.kg || 0; hay[c[0]] = true; } }); });
+    stockEnCamara().forEach(function (r) { if (String(r.f) !== '1') return; STK_CORTES.forEach(function (c) { if (c[1].indexOf(+r.a) >= 0) { out[c[0]] += +r.kg || 0; hay[c[0]] = true; } }); });
     return { v: out, hay: hay };
   }
   function stkMandar(forzar) {
