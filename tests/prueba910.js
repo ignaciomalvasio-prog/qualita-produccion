@@ -82,6 +82,26 @@ if(w===1400){
 console.log(w,'desborde',await p.evaluate(()=>document.documentElement.scrollWidth-innerWidth),'· errores',p.errs.join('|')||'ninguno');
 if(w===400){await p.locator('#tw-nom tr.clic').first().click().catch(()=>{});}
 await p.close();}
+// con datos del sistema de sueldos (rhdocs/sis-nomina): lo del sistema manda y no se edita; un CUIL con reingreso
+{const s1=cuil(20,40111222),s2=cuil(27,41222333);
+ const txt=['OK|2026-11-12 13:56',
+  'E|7|'+s1+'|Perez|Juan|M|1985-11-20|2012-03-01|||  |Desposte|Oficial|Despostador|56/75 INDUSTRIA DE LA CARNE|1|Calle 1|123|0||5223|  |3511234|  |8',
+  'E|50|'+s2+'|Gomez|Ana|F|1990-01-01|2020-01-01|2024-05-01|Renuncia||Faena|Peon|Playero|56/75 INDUSTRIA DE LA CARNE|1|Calle 2|5|0||5220||||8',
+  'E|90|'+s2+'|Gomez|Ana|F|1990-01-01|2025-03-01|||  |Empaque|Peon|Empacadora|56/75 INDUSTRIA DE LA CARNE|1|Calle 2|5|0||5220||||8',
+  'E|91|'+cuil(20,42333444)+'|Sosa|Luis|M|1980-01-01|2019-01-01|2026-10-20|Despido sin causa|falta|Faena|Peon|Playero|UATRE|0||||||||||'].join('\n');
+ const dd={'sis-nomina':{txt,act:'2026-11-12 13:56'},nomina:{personas:{[s1]:{cuil:s1,nombre:'VIEJO NOMBRE',sector:'Otro',obs:'cargado en la web'}}}};
+ const p=await nueva(1200,{user:{email:'igna@x.com',displayName:'Igna',emailVerified:true},rol:'editor',rh:{admin:true},docs:dd});await p.waitForSelector('.kpi');
+ console.log('sis estado:',await p.innerText('#st'));
+ await p.click('#nav a[data-t="nomina"]');await p.waitForTimeout(200);await p.selectOption('#f-est','todos');await p.waitForTimeout(200);
+ console.log('sis nomina:',await p.evaluate(()=>[...document.querySelectorAll('#tw-nom tbody tr')].map(r=>r.cells[0].innerText+' '+r.cells[1].innerText+' '+r.cells[3].innerText+' '+r.cells[9].innerText.replace(/\s+/g,' ')).join(' / ')));
+ await p.locator('#tw-nom tr.clic',{hasText:'Perez'}).click();await p.waitForTimeout(200);
+ console.log('sis ficha: nombre bloqueado',await p.isDisabled('#p-nombre'),'· sector',await p.inputValue('#p-sector'),'· obs web',await p.inputValue('#p-obs'),'· botón baja',await p.locator('.caja-baja button.danger').count());
+ await p.fill('#p-obs','nota nueva');await p.click('#p-ok');await p.waitForTimeout(300);
+ console.log('sis guardado web:',await p.evaluate(s1=>JSON.stringify(window.__mock.docs.nomina.personas[s1]),s1));
+ await p.click('#dlg-f button:has-text("Cerrar")');await p.locator('#tw-nom tr.clic',{hasText:'Gomez'}).click();await p.waitForTimeout(200);
+ console.log('sis reingreso:',(await p.innerText('#dlg-b')).includes('Períodos anteriores'),'· legajo',await p.inputValue('#p-legajo'));
+ await p.screenshot({path:SP+'/rrhh-sis-ficha.png'});
+ console.log('sis errores',p.errs.join('|')||'ninguno');await p.close();}
 // un usuario rrhh sin admin no ve Usuarios
 {const p=await nueva(1200,{user:{email:'gabi@x.com',displayName:'Gabi',emailVerified:true},rol:'rrhh',docs});await p.waitForSelector('.kpi');console.log('rrhh sin admin ve Usuarios:',await p.isVisible('#nav-usr'),'· errores',p.errs.join('|')||'ninguno');await p.close();}
 await br.close();})();

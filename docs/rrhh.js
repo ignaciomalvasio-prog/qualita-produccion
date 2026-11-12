@@ -8,7 +8,11 @@
                     (cada ausencia va en el año en que empieza)
      liq-AAAA-MM  : { mes, archivo, por, ts, filas: { CUIL: { nombre, legajo, rem, noRem, bruto, neto, aportes, contrib } } }
      liq-indice   : { meses: { 'AAAA-MM': { n, bruto, neto, contrib, archivo, por, ts } } }
-   Se cargan a mano o con la pestaña Importar (Excel, CSV o TXT del sistema de sueldos o del F.931), uniendo por CUIL. */
+     sis-nomina   : { txt, act } lo sube la notebook de Igna desde el sistema de sueldos (C:\InformeQualita\rrhh\rh_sync.ps1, tarea
+                    "RRHH a la web" 7, 13 y 19 h; SUELDOS.EMPLEADOS, activos y bajas desde 2024). Renglones
+                    E|legajo|cuil|apellido|nombre|sexo|nac|alta|baja|motivo baja|obs baja|sector|categoría|cargo|convenio|convencionado|calle|nro|piso|depto|cp|tel|cel|mail|horas
+                    La nómina = lo del sistema (manda, no se edita acá) + lo cargado en la web para lo que el sistema no tiene.
+   También se puede importar (Excel, CSV o TXT del sistema de sueldos o del F.931), uniendo por CUIL. */
 'use strict';
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -72,7 +76,42 @@ function cuilOk(c) {
 function fmtCuil(c) { return c && c.length === 11 ? c.slice(0, 2) + '-' + c.slice(2, 10) + '-' + c[10] : (c || ''); }
 
 /* ---------- datos ---------- */
-const N = {};            // nómina: CUIL → persona
+const N = {};            // nómina: CUIL → persona (lo del sistema + lo de la web)
+let NOM_WEB = {};        // rhdocs/nomina.personas (lo cargado en la web)
+let SIS = null;          // { act, n } datos del sistema de sueldos
+/* une lo cargado en la web con lo del sistema de sueldos: lo del sistema manda (si trae el dato) */
+function armarNomina(sisTxt) {
+  for (const k in N) delete N[k];
+  for (const c in NOM_WEB) N[c] = Object.assign({}, NOM_WEB[c], { sisK: null });
+  if (sisTxt == null) return;
+  const filas = [];
+  let act = '';
+  for (const l of String(sisTxt).replace(/^\uFEFF/, '').split('\n')) {
+    const f = l.replace(/\r$/, '').split('|');
+    if (f[0] === 'OK') act = f[1] || '';
+    if (f[0] !== 'E') continue;
+    const cuil = normCuil(f[2]); if (!cuil) continue;
+    const t = s => String(s || '').trim();
+    const dom = [t(f[16]), t(f[17]) && t(f[17]) !== '0' ? t(f[17]) : '', t(f[18]) && t(f[18]) !== '0' ? 'piso ' + t(f[18]) : '', t(f[19]) ? 'dto. ' + t(f[19]) : ''].filter(Boolean).join(' ') + (t(f[20]) ? ' (CP ' + t(f[20]) + ')' : '');
+    filas.push({ cuil, legajo: t(f[1]), nombre: [t(f[3]), t(f[4])].filter(Boolean).join(', '), sexo: t(f[5]), nac: t(f[6]), ingreso: t(f[7]), egreso: t(f[8]),
+      motivo: t(f[9]), obsBaja: t(f[10]), sector: t(f[11]), categoria: t(f[12]), puesto: t(f[13]), convenio: t(f[14]) + (f[15] === '0' && t(f[14]) ? ' (fuera de convenio)' : ''),
+      domicilio: dom.trim(), tel: t(f[22]) || t(f[21]), mail: t(f[23]), jornada: +f[24] ? t(f[24]) + ' h por día' : '' });
+  }
+  /* un mismo CUIL dos veces (reingreso): vale el legajo activo o el de alta más nueva; el otro va a períodos anteriores */
+  const porC = {};
+  for (const x of filas) (porC[x.cuil] = porC[x.cuil] || []).push(x);
+  for (const c in porC) {
+    const l = porC[c].sort((a, b) => (!a.egreso) - (!b.egreso) || (a.ingreso < b.ingreso ? -1 : 1));
+    const x = l[l.length - 1], p = N[c] = Object.assign({}, N[c] || {}, { cuil: c });
+    const k = [];
+    for (const campo of ['legajo', 'nombre', 'sexo', 'nac', 'ingreso', 'sector', 'categoria', 'puesto', 'convenio', 'domicilio', 'tel', 'mail', 'jornada']) if (x[campo]) { p[campo] = x[campo]; k.push(campo); }
+    p.egreso = x.egreso; p.motivo = x.egreso ? (x.motivo || 'Según el sistema de sueldos') : ''; p.obsBaja = x.egreso ? x.obsBaja : '';
+    if (!p.dni) p.dni = String(+c.slice(2, 10));
+    p.historial = l.slice(0, -1).map(y => ({ ingreso: y.ingreso, egreso: y.egreso, motivo: y.motivo })).concat((p.historial || []).filter(h => !l.some(y => y.ingreso === h.ingreso)));
+    p.sisK = new Set(k.concat(['cuil', 'dni']));
+  }
+  SIS = { act, n: filas.length, txt: sisTxt };
+}
 const AUS = {};          // año → lista de ausencias (null mientras no se leyó)
 const LIQ = {};          // 'AAAA-MM' → documento de sueldos del mes
 let IDX = {};            // liq-indice.meses
@@ -297,8 +336,9 @@ const CAMPOS_FICHA = [
   ['basico', 'Sueldo básico', 'number'], ['tel', 'Teléfono', 'text'], ['mail', 'Mail', 'text'], ['domicilio', 'Domicilio', 'text'],
   ['obs', 'Observaciones', 'area']
 ];
-function inputCampo(k, tipo, v) {
+function inputCampo(k, tipo, v, bloq) {
   v = v == null ? '' : v;
+  if (bloq) return '<input id="p-' + k + '" value="' + esc(tipo === 'date' ? fec(v) : tipo === 'number' ? pesos(v) : v) + '" disabled>';
   if (tipo === 'area') return '<textarea id="p-' + k + '" rows="2">' + esc(v) + '</textarea>';
   if (tipo.startsWith('sel:')) return '<select id="p-' + k + '">' + tipo.slice(4).split(',').map(o => '<option value="' + o + '"' + (o === v ? ' selected' : '') + '>' + (o || '—') + '</option>').join('') + '</select>';
   if (tipo === 'list') return '<input id="p-' + k + '" list="dl-sec" value="' + esc(v) + '"><datalist id="dl-sec">' + sectores().filter(s => s !== 'Sin sector').map(s => '<option value="' + esc(s) + '">').join('') + '</datalist>';
@@ -324,9 +364,11 @@ function fichaDatos(p, head, sub_) {
   const nuevo = !p, x = p || {}, hoy = hoyISO();
   let h = (sub_ || '') + (nuevo ? '<p class="sub">Cargá los datos de la persona. El CUIL es obligatorio: con él se unen las ausencias y los sueldos que se importen.</p>' : '') +
     (!nuevo && faltan(x).length ? '<div class="aviso">Falta: <b>' + esc(faltan(x).join(', ')) + '</b>.</div>' : '') +
-    '<div class="ed-grid">' + CAMPOS_FICHA.map(([k, t, tipo]) => '<div class="' + (tipo === 'area' || k === 'domicilio' ? 'full' : '') + '"><label>' + t + '</label>' + inputCampo(k, tipo, k === 'cuil' ? fmtCuil(x.cuil) : x[k]) + '</div>').join('') + '</div>';
+    (x.sisK ? '<p class="nota-ed" style="margin:0 0 10px">Los datos en gris vienen del <b>sistema de sueldos</b> (se actualizan solos a las 7, 13 y 19 h); se cambian allá. Acá se completa lo que el sistema no tiene.</p>' : '') +
+    '<div class="ed-grid">' + CAMPOS_FICHA.map(([k, t, tipo]) => '<div class="' + (tipo === 'area' || k === 'domicilio' ? 'full' : '') + '"><label>' + t + (x.sisK && x.sisK.has(k) ? ' <small class="muted">· sistema</small>' : '') + '</label>' + inputCampo(k, tipo, k === 'cuil' ? fmtCuil(x.cuil) : x[k], x.sisK && x.sisK.has(k)) + '</div>').join('') + '</div>';
   if (!nuevo) {
-    if (activo(x, hoy) || (x.ingreso > hoy && !x.egreso)) h += '<div class="caja-baja"><b>Dar de baja</b><div class="row" style="margin-top:6px"><div><label>Fecha de egreso</label><input id="b-fec" type="date" value="' + hoy + '"></div><div><label>Motivo</label><select id="b-mot">' + MOTIVOS_BAJA.map(m => '<option>' + m + '</option>').join('') + '</select></div><div style="flex:1;min-width:160px"><label>Comentario</label><input id="b-obs" placeholder="Opcional"></div><button class="danger" onclick="darBaja(\'' + x.cuil + '\')">Dar de baja</button></div></div>';
+    if (x.sisK) { if (x.egreso) h += '<div class="caja-baja"><b>De baja desde el ' + fec(x.egreso) + '</b> · ' + esc(x.motivo || '') + (x.obsBaja ? ' · ' + esc(x.obsBaja) : '') + ' <small class="muted">(según el sistema de sueldos)</small></div>'; }
+    else if (activo(x, hoy) || (x.ingreso > hoy && !x.egreso)) h += '<div class="caja-baja"><b>Dar de baja</b><div class="row" style="margin-top:6px"><div><label>Fecha de egreso</label><input id="b-fec" type="date" value="' + hoy + '"></div><div><label>Motivo</label><select id="b-mot">' + MOTIVOS_BAJA.map(m => '<option>' + m + '</option>').join('') + '</select></div><div style="flex:1;min-width:160px"><label>Comentario</label><input id="b-obs" placeholder="Opcional"></div><button class="danger" onclick="darBaja(\'' + x.cuil + '\')">Dar de baja</button></div></div>';
     else if (x.egreso) h += '<div class="caja-baja"><b>De baja desde el ' + fec(x.egreso) + '</b> · ' + esc(x.motivo || 'sin motivo') + (x.obsBaja ? ' · ' + esc(x.obsBaja) : '') + '<div class="row" style="margin-top:6px"><div><label>Reingresa el</label><input id="r-fec" type="date" value="' + hoy + '"></div><button onclick="reincorporar(\'' + x.cuil + '\')">Reincorporar</button></div></div>';
     if ((x.historial || []).length) h += '<h3>Períodos anteriores</h3><table class="tb compacta"><thead><tr><th>Ingreso</th><th>Egreso</th><th>Motivo</th></tr></thead><tbody>' + x.historial.map(r => '<tr><td>' + fec(r.ingreso) + '</td><td>' + fec(r.egreso) + '</td><td>' + esc(r.motivo || '') + '</td></tr>').join('') + '</tbody></table>';
   }
@@ -335,20 +377,22 @@ function fichaDatos(p, head, sub_) {
 }
 async function guardarPersona(p) {
   const v = {}; for (const [k, , tipo] of CAMPOS_FICHA) { const el = $('p-' + k); v[k] = el ? String(el.value).trim() : ''; if (tipo === 'number') v[k] = v[k] === '' ? '' : Math.round(parseFloat(v[k].replace(',', '.')) * 100) / 100 || 0; }
-  const cuil = normCuil(v.cuil);
-  if (!v.nombre) { toast('Falta el nombre', true); return; }
+  const cuil = p && p.sisK ? p.cuil : normCuil(v.cuil);
+  if (p && p.sisK) v.cuil = cuil;
+  if (!v.nombre && !(p && p.sisK)) { toast('Falta el nombre', true); return; }
   if (!cuil) { toast('El CUIL tiene que tener 11 números', true); return; }
   if (!cuilOk(cuil) && !confirm('El CUIL ' + fmtCuil(cuil) + ' no da el dígito verificador. ¿Guardarlo igual?')) return;
   if ((!p || p.cuil !== cuil) && N[cuil]) { toast('Ya hay una persona con ese CUIL: ' + N[cuil].nombre, true); return; }
   v.cuil = cuil; if (!v.dni) v.dni = String(+cuil.slice(2, 10));
   const viejo = p ? p.cuil : null;
-  const cambios = p ? CAMPOS_FICHA.filter(([k]) => String(p[k] == null ? '' : p[k]) !== String(v[k])).map(x => x[1]) : [];
+  if (p && p.sisK) for (const k of p.sisK) if (k !== 'cuil') delete v[k];
+  const cambios = p ? CAMPOS_FICHA.filter(([k]) => k in v && k !== 'cuil' && String(p[k] == null ? '' : p[k]) !== String(v[k])).map(x => x[1]) : [];
   if (p && !cambios.length) { toast('No cambiaste nada'); return; }
   await guardarNomina(d => {
     const ant = viejo ? d.personas[viejo] || {} : {};
     if (viejo && viejo !== cuil) delete d.personas[viejo];
     d.personas[cuil] = Object.assign({}, ant, v, { act: new Date().toISOString(), por: C3API.usuario.nombre });
-  }, p ? 'Ficha de ' + v.nombre + ': ' + cambios.join(', ') : 'Alta de ' + v.nombre + ' (' + fmtCuil(cuil) + ')' + (v.ingreso ? ', ingreso ' + fec(v.ingreso) : ''));
+  }, p ? 'Ficha de ' + (v.nombre || p.nombre) + ': ' + cambios.join(', ') : 'Alta de ' + v.nombre + ' (' + fmtCuil(cuil) + ')' + (v.ingreso ? ', ingreso ' + fec(v.ingreso) : ''));
   if (viejo && viejo !== cuil) await moverCuil(viejo, cuil);
   toast(p ? 'Ficha guardada' : 'Persona agregada');
   ficha(cuil);
@@ -360,7 +404,7 @@ async function moverCuil(a, b) {
 async function guardarNomina(fn, desc) {
   try {
     const d = await C3API.cambiarDoc('nomina', d => { d.personas = d.personas || {}; fn(d); }, desc);
-    for (const k in N) delete N[k]; Object.assign(N, (d && d.personas) || {});
+    NOM_WEB = (d && d.personas) || {}; armarNomina(SIS ? SIS.txt : null);
     if (TAB !== 'importar') refrescar();
     return d;
   } catch (e) { console.error(e); toast('No se pudo guardar: ' + (e.message || e), true); throw e; }
@@ -924,9 +968,10 @@ async function cargar() {
   $('main').innerHTML = '<div class="cargando"><span class="spin"></span> Trayendo el personal…</div>';
   try {
     const y = +hoyISO().slice(0, 4);
-    const [nom, idx] = await Promise.all([C3API.leerDoc('nomina'), C3API.leerDoc('liq-indice'), leerAus(y), leerAus(y - 1)]);
-    Object.assign(N, (nom.d && nom.d.personas) || {}); IDX = (idx.d && idx.d.meses) || {};
-    $('st').innerHTML = '<span class="dot"></span><b>' + n0(activos().length) + '</b> personas activas<br><span id="st-user">' + esc(C3API.usuario.nombre) + ' · <a href="#" onclick="C3API.salir();return false">Salir</a></span>';
+    const [nom, idx, sis] = await Promise.all([C3API.leerDoc('nomina'), C3API.leerDoc('liq-indice'), C3API.leerDoc('sis-nomina'), leerAus(y), leerAus(y - 1)]);
+    NOM_WEB = (nom.d && nom.d.personas) || {}; IDX = (idx.d && idx.d.meses) || {};
+    armarNomina(sis.d && sis.d.txt ? sis.d.txt : null);
+    $('st').innerHTML = '<span class="dot' + (SIS ? '' : ' off') + '"></span><b>' + n0(activos().length) + '</b> activos · ' + (SIS ? 'sistema de sueldos al <b>' + esc(SIS.act ? fec(SIS.act.slice(0, 10)) + ' ' + SIS.act.slice(11, 16) : '—') + '</b>' : 'sin datos del sistema') + '<br><span id="st-user">' + esc(C3API.usuario.nombre) + ' · <a href="#" onclick="C3API.salir();return false">Salir</a></span>';
     leerUI(); if (TAB === 'usuarios' && !esAdmin()) TAB = 'resumen';
     refrescar();
   } catch (e) {
