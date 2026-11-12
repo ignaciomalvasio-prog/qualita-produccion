@@ -828,8 +828,16 @@
         var titT = limpio(cabH.tit.toUpperCase()), datT = cabH.dato ? limpio(cabH.dato.toUpperCase()) : '', dw = datT ? ancho(FB, datT, 15) : 0, tTit = 19;
         while (tTit > 14 && ancho(FB, titT, tTit) + dw + 16 > maxX - M) tTit -= 0.5;
         var juntos = ancho(FB, titT, tTit) + dw + 16 <= maxX - M;
+        if (!juntos) { tTit = 19; while (tTit > 12 && ancho(FB, titT, tTit) > maxX - M) tTit -= 0.5; }
         y -= 30; pag.drawText(titT, { x: M, y: y, size: tTit, font: FB, color: negro });
-        if (datT) { if (!juntos) y -= 20; pag.drawText(datT, { x: maxX - dw, y: y, size: 15, font: FB, color: negro }); }
+        if (datT && juntos) pag.drawText(datT, { x: maxX - dw, y: y, size: 15, font: FB, color: negro });
+        else if (datT) {
+          // Dato largo (ej. "750½ CONSUMO + CERDAS (PRODUCIR ...)"): abajo del título, desde la izquierda y en varios renglones si hace falta.
+          var tD = 13, pal = datT.split(' '), ren = [], act = '';
+          pal.forEach(function (w) { var pr = act ? act + ' ' + w : w; if (act && ancho(FB, pr, tD) > maxX - M) { ren.push(act); act = w; } else act = pr; });
+          if (act) ren.push(act);
+          ren.forEach(function (r) { y -= tD + 5; pag.drawText(r, { x: M, y: y, size: tD, font: FB, color: negro }); });
+        }
         y -= 10; pag.drawLine({ start: { x: M, y: y }, end: { x: maxX, y: y }, thickness: 1.5, color: negro }); y -= 8;
         // El cuerpo se acomoda a la hoja: se busca la letra más grande que entra entera en una A4 (entre 10,5 y 20)
         // y lo que sobra se reparte entre los cortes. Si ni con la letra chica entra, sigue en otra página.
