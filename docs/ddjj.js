@@ -369,6 +369,14 @@ function renderDia() {
       P.c.nuevos.map(r => '<tr><td>' + r.art + ' · ' + esc(r.den) + '</td><td class="num">' + fmt2(r.kg) + ' kg</td><td>' + selectLinea(r.art) + '</td></tr>').join('') + '</table></div></div>';
   }
 
+  /* artículos sacados de la declaración solo este día (No va / rendering): se listan para poder volver a ponerlos (Sabi 13/11) */
+  const sac = Object.keys(x.mover || {}).filter(k => x.mover[k] === 'I' || x.mover[k] === 'R');
+  if (sac.length) {
+    const den = {}; ((S.sis.dias[S.fecha] || {}).re || []).forEach(r => { den[r.art] = den[r.art] || { den: r.den, kg: 0 }; den[r.art].kg += r.kg; });
+    h += '<div class="alerta" style="overflow-wrap:anywhere"><div><b>Sacados de la declaración solo este día:</b> ' + sac.map(k => '<span>' + esc(k) + (den[k] ? ' · ' + esc(den[k].den) + ' (' + fmt2(den[k].kg) + ' kg)' : '') +
+      (x.mover[k] === 'R' ? ' <span class="chip sm">a rendering</span>' : '') + '</span>' + (soloVer() ? '' : ' <button class="small" onclick="desmover(' + Number(k) + ')">↩ volver a ponerlo</button>')).join(' · ') + '</div></div>';
+  }
+
   /* ---- producción ---- */
   h += '<section><h2>Producción</h2><p class="sub">Tocá un número para corregirlo (queda en amarillo y se ve al lado lo que dice el sistema). Tocá el nombre de un corte para ver de qué artículos del sistema sale.</p>';
   h += '<div class="tw"><table class="planilla dj-tab"><thead><tr><th>Nombre del corte</th><th class="num">Cantidad de cortes</th><th class="num">Kg exportación</th><th class="num">Kg consumo</th><th>Destino</th><th></th></tr></thead><tbody>';

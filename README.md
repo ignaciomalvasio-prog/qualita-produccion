@@ -408,3 +408,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - (12/11/2026) PDF/impresión: si las medias vienen con un texto largo ("750½ CONSUMO + CERDAS (...)"), van abajo del título desde la izquierda y en varios renglones; antes se cortaba el número de medias.
 - (12/11/2026) Logística: en los ⋯ de cada camión, "PDF de este camión por WhatsApp" y "Texto de este camión por WhatsApp" (al chofer si tiene teléfono).
 - (12/11/2026) Logística: "Mandar este camión por WhatsApp (PDF)" en los ⋯ del camión arma el camión completo como se ve (clientes en orden, cortes, cantidades, precios, notas y kg), en lugar del resumen corto.
+- Centro de desposte › DDJJ desposte (pedido de Sabi 13/11): los artículos que se sacaron de la declaración solo ese día ("No va en la declaración" o "Cuero a rendering") se listan arriba de la Producción con "↩ volver a ponerlo" (antes no había forma de deshacerlo). Prueba: tests/prueba911.js.
