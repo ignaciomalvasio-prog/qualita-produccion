@@ -123,7 +123,9 @@ window.C3API = (function () {
   function revisar(u) {
     if (!u) { api.usuario = null; pedirIngreso(); return; }
     if (u.emailVerified === false) { window.Acceso.verificar(store, u.email); return; }
-    store.permiso(u.email).then(function (p) {
+    /* recién verificado el mail, el pase guardado puede decir todavía "sin verificar" y las reglas niegan todo: se pide uno nuevo */
+    var fresco = (u.getIdTokenResult ? u.getIdTokenResult().then(function (r) { if (r && r.claims && r.claims.email_verified === false) return u.getIdToken(true); }) : Promise.resolve()).catch(function () {});
+    fresco.then(function () { return store.permiso(u.email); }).then(function (p) {
       if (SOLO_RH ? !p.rh : (!p.editor && !p.c3 && !p.rh)) {
         cartel('<h2 style="justify-content:center">Tu cuenta todavía no está habilitada</h2><p class="sub">Entraste como <b>' + String(u.email).replace(/</g, '&lt;') + '</b>. ' + (SOLO_RH ? 'El Centro RRHH es solo para las cuentas habilitadas por RRHH (Centro RRHH › Usuarios).' : 'Pedile a Igna que la habilite (Centro de control › Usuarios).') + '</p><button id="c3-salir">Usar otra cuenta</button>');
         document.getElementById('c3-salir').onclick = function () { store.signOut(); };
