@@ -81,3 +81,14 @@ dialog h3{font-size:13.5px;margin:16px 0 6px;font-weight:600}
 
 @media (max-width:900px){main{padding:16px}}
 @media (max-width:560px){.kpi b{font-size:19px}.ed-grid{grid-template-columns:1fr}.filt .bus{min-width:0;width:100%}.filt>div{flex:1 1 140px}}
+
+/* reloj */
+label.btn{display:inline-flex;align-items:center;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);border-radius:7px}
+label.btn.small{padding:3px 10px;font-size:12.5px}
+label.btn:hover{border-color:#cdd3d7;background:#fafbfb}
+.seg{display:inline-flex}
+.seg button{border-radius:0}
+.seg button:first-child{border-radius:7px 0 0 7px}
+.seg button:last-child{border-radius:0 7px 7px 0;margin-left:-1px}
+.seg button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.cab input[type=date]{width:auto;padding:3px 6px}

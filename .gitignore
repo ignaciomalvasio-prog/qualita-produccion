@@ -6,3 +6,5 @@ notebook/**/*_log.txt
 notebook/**/dj_ultimo.txt
 notebook/**/dj_sync_estado.json
 notebook/**/tmp/
+notebook/**/rh_reloj_estado.json
+notebook/**/rh_sync_estado.json

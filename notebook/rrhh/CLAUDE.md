@@ -15,3 +15,9 @@ Pantalla: https://qualita-produccion.web.app/rrhh (código web en `docs/rrhh*`).
 - La web considera "liquidado" un mes cuando tiene sueldos de más de la mitad de la dotación: ahí ausentismo, masa salarial y costo salen del sistema.
 - `instalar_rh_sync.ps1`: tarea de Windows "RRHH a la web" (7:05, 13:05 y 19:05, oculta con `..\ciclo3\c3_oculto.vbs`).
 - `.ps1` en UTF-8 con BOM y CRLF. Nada de claves en estos archivos.
+
+## Reloj CC-Cloud (pestaña Reloj)
+- CC-Cloud (reloj Ratronic, qualita.cc-cloud.ra-tronic.com, Reportes › "Enviar por mail auto") manda todos los días a las 6:00 a `rrhhqualita@gmail.com`, en Excel: "Reporte Cronológico de Fichadas" (agrupado por sector) y "Reporte de Ausencias y Retrasos". El correo saliente de CC-Cloud (Configuración › Ajustes avanzados) es smtp.gmail.com:587 con esa misma casilla y una contraseña de aplicación.
+- `rh_reloj.ps1`: entra por IMAP (imap.gmail.com:993, `EXAMINE`, solo lee) con `$RelojMail`/`$RelojClave` de `config_local.ps1` (solo en la notebook, lo arma `Configurar reloj.bat`), busca los mails de los últimos `-Dias` (10) y sube cada Excel adjunto tal cual a `rhdocs/reloj-x-{uidvalidity-uid-n}` `{ archivo, asunto, recibido, b64 }`, anotándolo en `rhdocs/reloj-entrada` `{ lista: [{id, archivo, recibido, kb}] }`. Recuerda los mails ya leídos en `rh_reloj_estado.json`. `-Probar` solo entra y cuenta. Log: `rh_reloj_log.txt`.
+- La web (`docs/rrhh-reloj.js`) procesa los Excel pendientes al abrirse y arma `rhdocs/reloj-AAAA-MM` (ver el comentario de arriba de ese archivo). También se pueden subir Excel a mano desde la pestaña Reloj (para meses viejos).
+- `configurar_reloj.ps1` (lo abre `Configurar reloj.bat`): pide la clave, prueba, instala la tarea "RRHH reloj a la web" (6:20, 9:20, 13:20 y 18:20) y sube. `Traer reloj ahora.bat` lo corre a mano.

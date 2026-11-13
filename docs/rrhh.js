@@ -16,6 +16,7 @@
                     sueldos por mes y legajo, ausencias liquidadas (horas), presentismo, sanciones y vacaciones notificadas.
                     Para los meses ya liquidados, ausentismo, masa salarial y costo salen de ahí; lo cargado a mano cuenta
                     para los meses todavía abiertos.
+   Reloj CC-Cloud (pestaña Reloj y ficha › Reloj): rrhh-reloj.js, con reloj-entrada, reloj-x-*, reloj-hechos, reloj-AAAA-MM y reloj-indice.
    También se puede importar (Excel, CSV o TXT del sistema de sueldos o del F.931), uniendo por CUIL. */
 'use strict';
 const $ = id => document.getElementById(id);
@@ -313,7 +314,7 @@ function graf(vals, fmt) {
 function refrescar() {
   guardarUI();
   document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.t === TAB));
-  const f = { resumen: vResumen, nomina: vNomina, ausencias: vAusencias, vacaciones: vVacaciones, sanciones: vSanciones, indicadores: vIndicadores, importar: vImportar, cambios: vCambios, usuarios: vUsuarios }[TAB] || vResumen;
+  const f = { resumen: vResumen, nomina: vNomina, ausencias: vAusencias, vacaciones: vVacaciones, sanciones: vSanciones, reloj: () => vReloj(), indicadores: vIndicadores, importar: vImportar, cambios: vCambios, usuarios: vUsuarios }[TAB] || vResumen;
   const r = f();
   if (r && r.then) { $('main').innerHTML = '<div class="cargando"><span class="spin"></span> Cargando…</div>'; r.then(h => { if (h != null) $('main').innerHTML = h; }, e => { console.error(e); $('main').innerHTML = '<section class="empty">No se pudo cargar (' + esc(e.message || e) + ').</section>'; }); }
   else $('main').innerHTML = r;
@@ -430,13 +431,13 @@ function ficha(cuil, sub) {
   const p = N[cuil]; if (!p) return;
   fichaAbierta = cuil; UI.ficha = sub || 'datos';
   const hoy = hoyISO();
-  const tabs = [['datos', 'Datos'], ['ausencias', 'Ausencias'], ['vacaciones', 'Vacaciones'], ['sanciones', 'Sanciones'], ['sueldos', 'Sueldos']];
+  const tabs = [['datos', 'Datos'], ['ausencias', 'Ausencias'], ['vacaciones', 'Vacaciones'], ['sanciones', 'Sanciones'], ['reloj', 'Reloj'], ['sueldos', 'Sueldos']];
   const head = esc(p.nombre || fmtCuil(cuil)) + ' <small class="muted">· ' + fmtCuil(cuil) + (p.legajo ? ' · legajo ' + esc(p.legajo) : '') + '</small> ' + (activo(p, hoy) ? '<span class="chip ok">Activo</span>' : p.egreso ? '<span class="chip mut">Baja ' + fec(p.egreso) + '</span>' : '');
   const sub_ = '<div class="subt">' + tabs.map(t => '<button data-fi="' + t[0] + '" class="' + (t[0] === UI.ficha ? 'on' : '') + '">' + t[1] + '</button>').join('') + '</div>';
   if (UI.ficha === 'datos') return fichaDatos(p, head, sub_);
   const pie = UI.ficha === 'ausencias' ? '<button class="primary" onclick="dlgAusencia(null,\'' + cuil + '\')">+ Cargar ausencia</button>' : UI.ficha === 'vacaciones' ? '<button class="primary" onclick="dlgAusencia(null,\'' + cuil + '\',\'vac\')">+ Cargar vacaciones</button>' : '';
   abrirDlg(head, sub_ + '<div id="fi-b"><div class="cargando"><span class="spin"></span></div></div>', pie);
-  const cuerpo = { ausencias: fichaAus, vacaciones: fichaVac, sanciones: fichaSan, sueldos: fichaSueldos }[UI.ficha];
+  const cuerpo = { ausencias: fichaAus, vacaciones: fichaVac, sanciones: fichaSan, reloj: x => fichaReloj(x), sueldos: fichaSueldos }[UI.ficha];
   Promise.resolve(cuerpo(p)).then(h => { const b = $('fi-b'); if (b) b.innerHTML = h; }, e => { const b = $('fi-b'); if (b) b.innerHTML = '<p class="muted">No se pudo cargar (' + esc(e.message || e) + ').</p>'; });
 }
 window.ficha = ficha;
@@ -1212,6 +1213,7 @@ async function rhAdmin(mail, admin) {
     await C3API.ponerRh(mail, u);
     await C3API.cambiarDoc('usuarios-log', d => { d.n = (d.n || 0) + 1; }, (admin ? 'Ahora es administrador: ' : 'Ya no es administrador: ') + mail);
     refrescar();
+    procesarReloj().then(n => { if (n && TAB === 'reloj') refrescar(); });
   } catch (e) { toast('No se pudo cambiar: ' + (e.message || e), true); }
 }
 async function rhSacar(mail) {
