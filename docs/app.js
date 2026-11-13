@@ -3595,7 +3595,7 @@
     var tot = tuTotTxt(tuTodos(d));
     return '<div class="panel hoja op-hoja tu-hoja"><header class="hoja-cab"><div><p class="hoja-sup">Guardar túnel contenedor</p><h2>TÚNEL · ' + esc(tituloDe(f).toUpperCase()) + '</h2></div>'
       + (tuSuma(tuTodos(d), 'kg') ? '<div class="hoja-dato"><b>' + n(tuSuma(tuTodos(d), 'kg')) + '</b><span>kg</span></div>' : '') + '</header>'
-      + '<div class="acciones hoja-acc"><button class="btn pri" data-act="tu-armar">Editar</button>' + tuFotoBtn() + '<button class="btn wa" data-act="tu-pdf">PDF por WhatsApp</button><button class="btn" data-act="tu-texto">Copiar texto</button></div>'
+      + '<div class="acciones hoja-acc"><button class="btn pri" data-act="tu-armar">Editar</button>' + tuFotoBtn() + '<button class="btn wa" data-act="tu-pdf">PDF por WhatsApp</button><button class="btn" data-act="imprimir">Imprimir</button><button class="btn" data-act="tu-texto">Copiar texto</button></div>'
       + '<div class="op-lista">' + d.clientes.map(function (c) {
         return '<div class="op-c"><p class="tu-nom"><u class="op-corte">' + esc(String(c.nombre || 'SIN CLIENTE').toUpperCase()) + '</u> <span class="tu-guardar">PARA GUARDAR EN TÚNEL</span></p>'
           + c.items.map(function (it) { return '<p class="op-sig">' + opLineaHTML(tuRenglon(it)) + '</p>'; }).join('') + '</div>';
@@ -3670,7 +3670,7 @@
     if (!S.camaraOk) { el.innerHTML = '<div class="panel"><p class="state">Esta sección es privada.</p></div>'; return; }
     var f = tuFecha(), d = tuDoc(f), ed = S.tuEd && S.tuEd.f === f;
     var h = '<div class="nav"><button class="btn step" data-act="tu-fecha" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + fechaTit(f) + '</span><button class="btn step" data-act="tu-fecha" data-d="1" aria-label="Día siguiente">›</button>'
-      + '<input type="date" id="tu-fecha-in" value="' + esc(f) + '" aria-label="Ir a una fecha">' + (d && !ed ? '<button class="btn" data-act="imprimir">Imprimir</button>' : '') + '</div>';
+      + '<input type="date" id="tu-fecha-in" value="' + esc(f) + '" aria-label="Ir a una fecha"></div>';   // Imprimir va con los otros botones de la hoja (pedido de Renzo)
     h += tuPegarHTML();
     if (ed) h += tuEditHTML();
     else if (d) h += tuHojaHTML(d, f);
