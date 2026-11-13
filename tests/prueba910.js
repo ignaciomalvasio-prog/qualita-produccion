@@ -89,7 +89,11 @@ await p.close();}
   'E|50|'+s2+'|Gomez|Ana|F|1990-01-01|2020-01-01|2024-05-01|Renuncia||Faena|Peon|Playero|56/75 INDUSTRIA DE LA CARNE|1|Calle 2|5|0||5220||||8',
   'E|90|'+s2+'|Gomez|Ana|F|1990-01-01|2025-03-01|||  |Empaque|Peon|Empacadora|56/75 INDUSTRIA DE LA CARNE|1|Calle 2|5|0||5220||||8',
   'E|91|'+cuil(20,42333444)+'|Sosa|Luis|M|1980-01-01|2019-01-01|2026-10-20|Despido sin causa|falta|Faena|Peon|Playero|UATRE|0||||||||||'].join('\n');
- const dd={'sis-nomina':{txt,act:'2026-11-12 13:56'},nomina:{personas:{[s1]:{cuil:s1,nombre:'VIEJO NOMBRE',sector:'Otro',obs:'cargado en la web'}}}};
+ const liq=['OK|x','L|202610|7|1000000|50000|0|200000|300000|400000|0','L|202610|90|800000|0|20000|160000|240000|0|0','L|202610|91|500000|0|0|100000|150000|0|900000','L|202611|7|10|0|0|0|0|0|0'].join('\n');
+ const aus=['OK|x','A|202610|7|7|16','A|202610|90|11|8','A|202610|90|24|8','A|202610|7|35|40','PR|202610|7|2|1','PR|202610|90|1|1'].join('\n');
+ const san=['OK|x','S|1|2026-11-05|1|90|Llegada tarde|0|||2026-11-05','S|2|2026-11-05|2|90|llegada tarde|0|||2026-11-05','S|3|2026-10-20|3|90|Ausencia injsutificada|2|2026-10-21|2026-10-22|2026-10-19','S|4|2025-03-01|1|7|Mal comportamiento|0|||'].join('\n');
+ const vac=['OK|x','V|10|7|2025|21|2025-11-01|2025-12-01|2025-12-21|2025-12-22|2','V|11|90|2025|10|2025-12-01|2026-01-05|2026-01-14|2026-01-15|0'].join('\n');
+ const dd={'sis-nomina':{txt,act:'2026-11-12 13:56'},'sis-liq':{txt:liq},'sis-aus':{txt:aus},'sis-san':{txt:san},'sis-vac':{txt:vac},nomina:{personas:{[s1]:{cuil:s1,nombre:'VIEJO NOMBRE',sector:'Otro',obs:'cargado en la web'}}}};
  const p=await nueva(1200,{user:{email:'igna@x.com',displayName:'Igna',emailVerified:true},rol:'editor',rh:{admin:true},docs:dd});await p.waitForSelector('.kpi');
  console.log('sis estado:',await p.innerText('#st'));
  await p.click('#nav a[data-t="nomina"]');await p.waitForTimeout(200);await p.selectOption('#f-est','todos');await p.waitForTimeout(200);
@@ -101,7 +105,16 @@ await p.close();}
  await p.click('#dlg-f button:has-text("Cerrar")');await p.locator('#tw-nom tr.clic',{hasText:'Gomez'}).click();await p.waitForTimeout(200);
  console.log('sis reingreso:',(await p.innerText('#dlg-b')).includes('Períodos anteriores'),'· legajo',await p.inputValue('#p-legajo'));
  await p.screenshot({path:SP+'/rrhh-sis-ficha.png'});
- console.log('sis errores',p.errs.join('|')||'ninguno');await p.close();}
+ await p.click('#dlg-f button:has-text("Cerrar")');
+ await p.click('#nav a[data-t="ausencias"]');await p.waitForTimeout(300);
+ console.log('sis ausencias:',await p.evaluate(()=>document.querySelector('main h2').innerText+' | '+[...document.querySelectorAll('.kpi')].map(k=>k.innerText.replace(/\n/g,' ')).join(' | ')),'· tabla',await p.locator('#tw-aus-sis tbody tr').count(),'· sector visible',await p.isVisible('#tw-aus-s'));
+ await p.click('#nav a[data-t="sanciones"]');await p.waitForTimeout(300);await p.selectOption('#f-anio-san','2026');await p.waitForTimeout(300);
+ console.log('sis sanciones:',await p.evaluate(()=>[...document.querySelectorAll('.kpi')].map(k=>k.innerText.replace(/\n/g,' ')).join(' | ')),'· motivos',await p.evaluate(()=>[...document.querySelectorAll('#tw-san-m tbody tr')].map(r=>r.cells[0].innerText+'='+r.cells[1].innerText).join(', ')));
+ await p.click('#nav a[data-t="vacaciones"]');await p.waitForTimeout(200);await p.selectOption('#f-anio','2025');await p.waitForTimeout(300);
+ console.log('sis vacaciones 2025:',await p.evaluate(()=>[...document.querySelectorAll('#tw-vac tbody tr')].map(r=>r.cells[1].innerText+' '+r.cells[6].innerText).join(', ')));
+ await p.click('#nav a[data-t="indicadores"]');await p.waitForTimeout(400);
+ console.log('sis indicadores oct:',await p.evaluate(()=>{const r=[...document.querySelectorAll('#tw-ind tbody tr')].find(r=>r.cells[0].innerText==='oct 26');return r?[...r.cells].map(c=>c.innerText).join(' '):'no';}),'· bajas',await p.evaluate(()=>[...document.querySelectorAll('#tw-ind-baj tbody tr')].map(r=>r.cells[0].innerText+' '+r.cells[1].innerText).join(', ')));
+ console.log('sis desborde',await p.evaluate(()=>document.documentElement.scrollWidth-innerWidth),'· errores',p.errs.join('|')||'ninguno');await p.close();}
 // un usuario rrhh sin admin no ve Usuarios
 {const p=await nueva(1200,{user:{email:'gabi@x.com',displayName:'Gabi',emailVerified:true},rol:'rrhh',docs});await p.waitForSelector('.kpi');console.log('rrhh sin admin ve Usuarios:',await p.isVisible('#nav-usr'),'· errores',p.errs.join('|')||'ninguno');await p.close();}
 await br.close();})();

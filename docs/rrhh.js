@@ -12,6 +12,10 @@
                     "RRHH a la web" 7, 13 y 19 h; SUELDOS.EMPLEADOS, activos y bajas desde 2024). Renglones
                     E|legajo|cuil|apellido|nombre|sexo|nac|alta|baja|motivo baja|obs baja|sector|categoría|cargo|convenio|convencionado|calle|nro|piso|depto|cp|tel|cel|mail|horas
                     La nómina = lo del sistema (manda, no se edita acá) + lo cargado en la web para lo que el sistema no tiene.
+     sis-liq / sis-aus / sis-san / sis-vac : también del sistema de sueldos (mismo programa, ver notebook/rrhh/CLAUDE.md):
+                    sueldos por mes y legajo, ausencias liquidadas (horas), presentismo, sanciones y vacaciones notificadas.
+                    Para los meses ya liquidados, ausentismo, masa salarial y costo salen de ahí; lo cargado a mano cuenta
+                    para los meses todavía abiertos.
    También se puede importar (Excel, CSV o TXT del sistema de sueldos o del F.931), uniendo por CUIL. */
 'use strict';
 const $ = id => document.getElementById(id);
@@ -79,6 +83,48 @@ function fmtCuil(c) { return c && c.length === 11 ? c.slice(0, 2) + '-' + c.slic
 const N = {};            // nómina: CUIL → persona (lo del sistema + lo de la web)
 let NOM_WEB = {};        // rhdocs/nomina.personas (lo cargado en la web)
 let SIS = null;          // { act, n } datos del sistema de sueldos
+const LEG = {};          // legajo del sistema → CUIL
+const SLIQ = {};         // 'AAAA-MM' → { CUIL: { rem, noRem, asig, bruto, aportes, contrib, anticipos, indem } }  (sistema)
+const SAUS = {};         // 'AAAA-MM' → { CUIL: { enf, enfD, acc, inj, sus, vacH, vacD } } (horas, salvo los D en días)
+const SPRE = {};         // 'AAAA-MM' → { CUIL: { n: presentismos cobrados, hor: cobra por hora } }
+let SAN = [];            // sanciones del sistema
+let SVAC = [];           // vacaciones notificadas en el sistema
+const CERR = new Set();  // meses ya liquidados en el sistema (con sueldos de casi toda la dotación)
+const TIPOS_SAN = { 1: 'Apercibimiento', 2: 'Acta de constatación', 3: 'Suspensión' };
+const mesDe = s => String(s).slice(0, 4) + '-' + String(s).slice(4, 6);
+function lineas(txt) { return String(txt || '').replace(/^\uFEFF/, '').split('\n').map(l => l.replace(/\r$/, '').split('|')); }
+function armarSistema(liq, aus, san, vac) {
+  [SLIQ, SAUS, SPRE].forEach(o => { for (const k in o) delete o[k]; });
+  const c = l => LEG[String(l).trim()];
+  for (const f of lineas(liq)) if (f[0] === 'L' && c(f[2])) {
+    const m = mesDe(f[1]), x = { rem: +f[3] || 0, noRem: +f[4] || 0, asig: +f[5] || 0, aportes: +f[6] || 0, contrib: +f[7] || 0, anticipos: +f[8] || 0, indem: +f[9] || 0 };
+    x.bruto = x.rem + x.noRem + x.asig;
+    (SLIQ[m] = SLIQ[m] || {})[c(f[2])] = x;
+  }
+  const AC = { 7: 'enf', 47: 'enfD', 10: 'acc', 11: 'inj', 17: 'sus', 24: 'sus', 35: 'vacH', 30: 'vacD' };
+  for (const f of lineas(aus)) {
+    if (f[0] === 'A' && c(f[2]) && AC[f[3]]) { const m = mesDe(f[1]), o = (SAUS[m] = SAUS[m] || {}), x = o[c(f[2])] = o[c(f[2])] || {}; x[AC[f[3]]] = (x[AC[f[3]]] || 0) + (+f[4] || 0); }
+    if (f[0] === 'PR' && c(f[2])) (SPRE[mesDe(f[1])] = SPRE[mesDe(f[1])] || {})[c(f[2])] = { n: +f[3] || 0, hor: f[4] === '1' };
+  }
+  SAN = lineas(san).filter(f => f[0] === 'S' && c(f[4])).map(f => ({ num: f[1], fecha: f[2], tipo: +f[3], cuil: c(f[4]), motivo: (f[5] || '').trim(), dias: +f[6] || 0, desde: f[7], hasta: f[8], hecho: f[9] }));
+  SVAC = lineas(vac).filter(f => f[0] === 'V' && c(f[2]) && f[9] !== '0').map(f => ({ num: f[1], cuil: c(f[2]), periodo: +f[3], dias: +f[4] || 0, notif: f[5], desde: f[6], hasta: f[7], reint: f[8], sis: true }));
+  /* meses liquidados: sueldos de al menos la mitad de la dotación de ese mes */
+  CERR.clear();
+  for (const m in SLIQ) {
+    const n = Object.keys(SLIQ[m]).length, dot = personas().filter(p => activo(p, finMes(m))).length;
+    if (n > dot * 0.5) {
+      CERR.add(m);
+      const t = Object.values(SLIQ[m]).reduce((a, x) => ({ bruto: a.bruto + x.bruto, contrib: a.contrib + x.contrib, indem: a.indem + x.indem, anticipos: a.anticipos + x.anticipos }), { bruto: 0, contrib: 0, indem: 0, anticipos: 0 });
+      IDX[m] = { n, bruto: Math.round(t.bruto), contrib: Math.round(t.contrib), indem: Math.round(t.indem), anticipos: Math.round(t.anticipos), neto: 0, archivo: 'Sistema de sueldos', sis: true };
+      LIQ[m] = { mes: m, sis: true, filas: Object.fromEntries(Object.entries(SLIQ[m]).map(([k, x]) => [k, Object.assign({ nombre: nomDe(k) }, x)])) };
+    }
+  }
+}
+/* horas de jornada de una persona (para pasar horas a días) */
+const hsDia = p => parseFloat(p && p.jornada) || 8;
+/* días hábiles perdidos según la liquidación (sin vacaciones) */
+function diasSis(x, p) { return x ? ((x.enf || 0) + (x.acc || 0) + (x.inj || 0) + (x.sus || 0)) / hsDia(p) + (x.enfD || 0) : 0; }
+const dSis = (h, p) => (h || 0) / hsDia(p);
 /* une lo cargado en la web con lo del sistema de sueldos: lo del sistema manda (si trae el dato) */
 function armarNomina(sisTxt) {
   for (const k in N) delete N[k];
@@ -99,7 +145,8 @@ function armarNomina(sisTxt) {
   }
   /* un mismo CUIL dos veces (reingreso): vale el legajo activo o el de alta más nueva; el otro va a períodos anteriores */
   const porC = {};
-  for (const x of filas) (porC[x.cuil] = porC[x.cuil] || []).push(x);
+  for (const k in LEG) delete LEG[k];
+  for (const x of filas) { (porC[x.cuil] = porC[x.cuil] || []).push(x); if (x.legajo) LEG[x.legajo] = x.cuil; }
   for (const c in porC) {
     const l = porC[c].sort((a, b) => (!a.egreso) - (!b.egreso) || (a.ingreso < b.ingreso ? -1 : 1));
     const x = l[l.length - 1], p = N[c] = Object.assign({}, N[c] || {}, { cuil: c });
@@ -117,7 +164,7 @@ const LIQ = {};          // 'AAAA-MM' → documento de sueldos del mes
 let IDX = {};            // liq-indice.meses
 let TAB = 'resumen';
 let fichaAbierta = null;   // CUIL de la ficha abierta (para las solapas del diálogo)
-const UI = { buscar: '', sector: '', estado: 'act', mesAus: '', anioVac: '', finInd: '', ficha: 'datos' };
+const UI = { buscar: '', sector: '', estado: 'act', mesAus: '', anioVac: '', finInd: '', ficha: 'datos', anioSan: '', tipoSan: '' };
 function guardarUI() { try { localStorage.setItem('rh-ui', JSON.stringify({ TAB, sector: UI.sector, estado: UI.estado })); } catch (e) {} }
 function leerUI() { try { const x = JSON.parse(localStorage.getItem('rh-ui') || 'null'); if (x) { if (x.TAB) TAB = x.TAB; UI.sector = x.sector || ''; UI.estado = x.estado || 'act'; } } catch (e) {} }
 
@@ -153,13 +200,23 @@ function ausEn(a, b, cuil) {
   return r;
 }
 /* ausentismo: días hábiles de ausencia (sin vacaciones) sobre días hábiles de la dotación */
+/* ausentismo: días hábiles perdidos (sin vacaciones) sobre los días hábiles de la dotación.
+   Mes completo ya liquidado → según la liquidación del sistema; si no, lo cargado a mano. */
 function ausentismo(a, b, filtro) {
-  let perd = 0, disp = 0;
+  let perd = 0, disp = 0, sis = false;
   const ps = personas().filter(p => !filtro || filtro(p));
   const set = new Set(ps.map(p => p.cuil));
-  for (const p of ps) disp += habPersona(p, a, b);
-  for (const x of ausEn(a, b)) if (x.tipo !== 'vac' && set.has(x.cuil)) perd += habiles(maxF(a, x.desde), minF(b, x.hasta));
-  return { perd, disp, pct: disp ? perd / disp * 100 : null };
+  for (let m = a.slice(0, 7); m <= b.slice(0, 7); m = mesMas(m, 1)) {
+    const ma = maxF(a, iniMes(m)), mb = minF(b, finMes(m));
+    for (const p of ps) disp += habPersona(p, ma, mb);
+    if (CERR.has(m) && ma === iniMes(m) && mb === finMes(m)) {
+      sis = true;
+      const S = SAUS[m] || {};
+      for (const c in S) if (set.has(c)) perd += diasSis(S[c], N[c]);
+    } else for (const x of ausEn(ma, mb)) if (x.tipo !== 'vac' && set.has(x.cuil)) perd += habiles(maxF(ma, x.desde), minF(mb, x.hasta));
+  }
+  perd = Math.round(perd * 10) / 10;
+  return { perd, disp, pct: disp ? perd / disp * 100 : null, sis };
 }
 
 /* ---------- vacaciones (LCT art. 150, 151 y 153) ---------- */
@@ -173,10 +230,27 @@ function vacCorresponden(p, y) {
   const d = a < 5 ? 14 : a < 10 ? 21 : a < 20 ? 28 : 35;
   return { dias: d, regla: d + ' días corridos (art. 150, ' + a + ' año' + (a !== 1 ? 's' : '') + ' de antigüedad)' };
 }
+/* vacaciones tomadas de un año: las notificadas en el sistema; si el sistema no tiene ninguna de esa persona y año, las cargadas a mano */
 function vacTomadas(cuil, y) {
+  const s = SVAC.filter(v => v.cuil === cuil && v.periodo === +y);
+  if (s.length) return s.sort((a, b) => a.desde < b.desde ? -1 : 1);
   const r = [];
   for (const k in AUS) for (const x of AUS[k] || []) if (x.cuil === cuil && x.tipo === 'vac' && String(x.periodo || x.desde.slice(0, 4)) === String(y)) r.push(x);
   return r.sort((a, b) => a.desde < b.desde ? -1 : 1);
+}
+const diasVac = x => x.sis ? x.dias : corridos(x.desde, x.hasta);
+/* motivo de baja → grupo */
+function grupoBaja(m) {
+  m = sinAcentos(m);
+  if (/renuncia/.test(m)) return 'Renuncia';
+  if (/abandono/.test(m)) return 'Abandono de trabajo';
+  if (/jubil/.test(m)) return 'Jubilación';
+  if (/fallec/.test(m)) return 'Fallecimiento';
+  if (/voluntad concurrente|mutuo|acuerdo/.test(m)) return 'Mutuo acuerdo';
+  if (/por el trabajador/.test(m)) return 'Despido indirecto';
+  if (/despido|cesant|exoner|por el empleador|disminucion del trabajo|fuerza mayor/.test(m)) return 'Despido';
+  if (/plazo|contrato|pasant|aprendiz|prueba/.test(m)) return 'Fin de contrato o prueba';
+  return 'Otros motivos';
 }
 
 /* ---------- tablas (ordenables y para Excel) ---------- */
@@ -239,7 +313,7 @@ function graf(vals, fmt) {
 function refrescar() {
   guardarUI();
   document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.t === TAB));
-  const f = { resumen: vResumen, nomina: vNomina, ausencias: vAusencias, vacaciones: vVacaciones, indicadores: vIndicadores, importar: vImportar, cambios: vCambios, usuarios: vUsuarios }[TAB] || vResumen;
+  const f = { resumen: vResumen, nomina: vNomina, ausencias: vAusencias, vacaciones: vVacaciones, sanciones: vSanciones, indicadores: vIndicadores, importar: vImportar, cambios: vCambios, usuarios: vUsuarios }[TAB] || vResumen;
   const r = f();
   if (r && r.then) { $('main').innerHTML = '<div class="cargando"><span class="spin"></span> Cargando…</div>'; r.then(h => { if (h != null) $('main').innerHTML = h; }, e => { console.error(e); $('main').innerHTML = '<section class="empty">No se pudo cargar (' + esc(e.message || e) + ').</section>'; }); }
   else $('main').innerHTML = r;
@@ -251,7 +325,9 @@ function vResumen() {
   const hoy = hoyISO(), mes = hoy.slice(0, 7), act = activos(hoy);
   if (!personas().length) return cab('Resumen', '') + '<section class="empty">Todavía no hay personal cargado. Empezá por <a href="#" data-ir="importar">Importar</a> el Excel del sistema de sueldos o del F.931, o cargá a mano en <a href="#" data-ir="nomina">Nómina</a>.</section>';
   const altas = personas().filter(p => p.ingreso && p.ingreso.slice(0, 7) === mes), bajas = personas().filter(p => p.egreso && p.egreso.slice(0, 7) === mes);
-  const ausHoy = ausEn(hoy, hoy).filter(x => N[x.cuil]), aMes = ausentismo(iniMes(mes), hoy);
+  const ausHoy = ausEn(hoy, hoy).filter(x => N[x.cuil]);
+  const ultC = [...CERR].sort().pop(), aMes = ultC ? ausentismo(iniMes(ultC), finMes(ultC)) : ausentismo(iniMes(mes), hoy);
+  const san30 = SAN.filter(x => x.fecha >= sumDias(hoy, -30)).sort((a, b) => a.fecha < b.fecha ? 1 : -1);
   const ult = Object.keys(IDX).sort().pop(), li = ult ? IDX[ult] : null;
   const inc = act.filter(p => faltan(p).length);
   const porSec = {}; act.forEach(p => { const s = p.sector || 'Sin sector'; porSec[s] = (porSec[s] || 0) + 1; });
@@ -262,7 +338,8 @@ function vResumen() {
     kpi('Personal activo', n0(act.length), Object.keys(porSec).length + ' sectores', { ir: 'nomina' }) +
     kpi('Altas y bajas de ' + MESES_L[+mes.slice(5) - 1], '+' + altas.length + ' / −' + bajas.length, altas.length + ' ingresaron · ' + bajas.length + ' salieron') +
     kpi('Ausentes hoy', n0(ausHoy.length), ausHoy.filter(x => x.tipo === 'vac').length + ' de vacaciones', { warn: ausHoy.filter(x => x.tipo !== 'vac').length > 0, ir: 'ausencias' }) +
-    kpi('Ausentismo del mes', pct(aMes.pct), aMes.perd + ' días hábiles perdidos (sin vacaciones)', { warn: aMes.pct > 5, ir: 'ausencias' }) +
+    kpi('Ausentismo ' + (ultC ? mesLargo(ultC) : 'del mes'), pct(aMes.pct), (Math.round(aMes.perd * 10) / 10).toLocaleString('es-AR') + ' días hábiles perdidos' + (ultC ? ' · según la liquidación' : ''), { warn: aMes.pct > 5, ir: 'ausencias' }) +
+    kpi('Sanciones últimos 30 días', n0(san30.length), san30.filter(x => x.tipo === 3).length + ' suspensiones · ' + new Set(san30.map(x => x.cuil)).size + ' personas', { ir: 'sanciones' }) +
     kpi('Masa salarial', li ? pesos(li.bruto) : '—', li ? mesLargo(ult) + (li.contrib ? ' · costo ' + pesos(li.bruto + li.contrib) : '') : 'sin sueldos importados', { ir: li ? 'indicadores' : 'importar' }) +
     kpi('Legajos incompletos', n0(inc.length), 'de ' + act.length + ' activos', { warn: inc.length > 0 }) +
     '</div><div class="g2">';
@@ -283,6 +360,9 @@ function vResumen() {
     { t: 'Movimiento', v: p => p.egreso && p.egreso.slice(0, 7) === mes ? 'Baja' : 'Alta', h: p => p.egreso && p.egreso.slice(0, 7) === mes ? '<span class="chip bad">Baja</span> <small class="muted">' + esc(p.motivo || '') + '</small>' : '<span class="chip ok">Alta</span>' },
     { t: 'Fecha', v: p => p.egreso && p.egreso.slice(0, 7) === mes ? p.egreso : p.ingreso, f: fec }
   ], altas.concat(bajas.filter(p => altas.indexOf(p) < 0)), { orden: 3, click: p => ficha(p.cuil), vacio: 'Sin altas ni bajas este mes.' }) + '</section>';
+  if (san30.length) h += '<section><div class="cab"><div><h2>Sanciones de los últimos 30 días</h2></div><button class="small" data-ir="sanciones">Ver todas</button></div>' + tabla('r-san', [
+    { t: 'Fecha', v: x => x.fecha, f: fec }, { t: 'Persona', v: x => nomDe(x.cuil) }, { t: 'Sector', v: x => secDe(x.cuil) }, { t: 'Tipo', v: x => TIPOS_SAN[x.tipo], h: x => chipSan(x.tipo) }, { t: 'Motivo', v: x => x.motivo }
+  ], san30, { orden: 0, limite: 8, clase: 'compacta', click: x => ficha(x.cuil, 'sanciones') }) + '</section>';
   h += '</div><section><div class="cab"><div><h2>Legajos incompletos</h2><p class="sub">Personal activo al que le falta algún dato. Clic para completarlo.</p></div>' + botonXl('r-inc', 'Legajos incompletos') + '</div>' + tabla('r-inc', [
     { t: 'Legajo', v: p => p.legajo || '' }, { t: 'Persona', v: p => p.nombre || fmtCuil(p.cuil) }, { t: 'Sector', v: p => p.sector || '' },
     { t: 'Falta', v: p => faltan(p).join(', '), h: p => '<span class="falta">' + esc(faltan(p).join(', ')) + '</span>' }, { t: 'Datos que faltan', num: 1, v: p => faltan(p).length }
@@ -350,13 +430,13 @@ function ficha(cuil, sub) {
   const p = N[cuil]; if (!p) return;
   fichaAbierta = cuil; UI.ficha = sub || 'datos';
   const hoy = hoyISO();
-  const tabs = [['datos', 'Datos'], ['ausencias', 'Ausencias'], ['vacaciones', 'Vacaciones'], ['sueldos', 'Sueldos']];
+  const tabs = [['datos', 'Datos'], ['ausencias', 'Ausencias'], ['vacaciones', 'Vacaciones'], ['sanciones', 'Sanciones'], ['sueldos', 'Sueldos']];
   const head = esc(p.nombre || fmtCuil(cuil)) + ' <small class="muted">· ' + fmtCuil(cuil) + (p.legajo ? ' · legajo ' + esc(p.legajo) : '') + '</small> ' + (activo(p, hoy) ? '<span class="chip ok">Activo</span>' : p.egreso ? '<span class="chip mut">Baja ' + fec(p.egreso) + '</span>' : '');
   const sub_ = '<div class="subt">' + tabs.map(t => '<button data-fi="' + t[0] + '" class="' + (t[0] === UI.ficha ? 'on' : '') + '">' + t[1] + '</button>').join('') + '</div>';
   if (UI.ficha === 'datos') return fichaDatos(p, head, sub_);
   const pie = UI.ficha === 'ausencias' ? '<button class="primary" onclick="dlgAusencia(null,\'' + cuil + '\')">+ Cargar ausencia</button>' : UI.ficha === 'vacaciones' ? '<button class="primary" onclick="dlgAusencia(null,\'' + cuil + '\',\'vac\')">+ Cargar vacaciones</button>' : '';
   abrirDlg(head, sub_ + '<div id="fi-b"><div class="cargando"><span class="spin"></span></div></div>', pie);
-  const cuerpo = { ausencias: fichaAus, vacaciones: fichaVac, sueldos: fichaSueldos }[UI.ficha];
+  const cuerpo = { ausencias: fichaAus, vacaciones: fichaVac, sanciones: fichaSan, sueldos: fichaSueldos }[UI.ficha];
   Promise.resolve(cuerpo(p)).then(h => { const b = $('fi-b'); if (b) b.innerHTML = h; }, e => { const b = $('fi-b'); if (b) b.innerHTML = '<p class="muted">No se pudo cargar (' + esc(e.message || e) + ').</p>'; });
 }
 window.ficha = ficha;
@@ -429,31 +509,53 @@ async function fichaAus(p) {
   const hoy = hoyISO(), y = +hoy.slice(0, 4);
   await Promise.all([leerAus(y), leerAus(y - 1)]);
   const l = ausEn('0000-01-01', '9999-12-31', p.cuil).sort((a, b) => a.desde < b.desde ? 1 : -1);
-  const del = {}; for (const x of l) if (x.desde.slice(0, 4) === String(y)) { del[x.tipo] = (del[x.tipo] || 0) + corridos(x.desde, x.hasta); }
-  const a12 = ausentismo(iniMes(mesMas(hoy.slice(0, 7), -11)), hoy, q => q.cuil === p.cuil);
-  return '<div class="kpis sm">' + kpi('Ausentismo 12 meses', pct(a12.pct), a12.perd + ' días hábiles') + Object.keys(del).map(t => kpi(TIPOS[t] + ' ' + y, del[t] + ' días')).join('') + '</div>' +
-    (l.length ? '<table class="tb compacta"><thead><tr><th>Motivo</th><th>Desde</th><th>Hasta</th><th class="num">Días</th><th class="num">Hábiles</th><th>Obs.</th><th></th></tr></thead><tbody>' +
-      l.map(x => '<tr><td>' + esc(TIPOS[x.tipo] || x.tipo) + (x.tipo === 'vac' ? ' <small class="muted">(' + (x.periodo || x.desde.slice(0, 4)) + ')</small>' : '') + (x.cert ? ' <span class="chip info">certificado</span>' : '') + '</td><td>' + fec(x.desde) + '</td><td>' + fec(x.hasta) + '</td><td class="num">' + corridos(x.desde, x.hasta) + '</td><td class="num">' + habiles(x.desde, x.hasta) + '</td><td>' + esc(x.obs || '') + '</td><td><button class="small" onclick="dlgAusencia(\'' + x.id + '\')">Editar</button></td></tr>').join('') + '</tbody></table>'
-      : '<p class="muted">No tiene ausencias cargadas en ' + (y - 1) + ' ni ' + y + '.</p>');
+  const a12 = ausentismo(iniMes(mesMas(hoy.slice(0, 7), -11)), finMes(mesMas(hoy.slice(0, 7), -1)), q => q.cuil === p.cuil);
+  const d1 = v => v ? (Math.round(v * 10) / 10).toLocaleString('es-AR') : '';
+  /* meses liquidados en el sistema, del más nuevo al más viejo */
+  const meses = [...CERR].sort().reverse().slice(0, 18).map(m => {
+    const x = (SAUS[m] || {})[p.cuil] || {}, pr = (SPRE[m] || {})[p.cuil];
+    return { m, enf: dSis(x.enf, p) + (x.enfD || 0), acc: dSis(x.acc, p), inj: dSis(x.inj, p), sus: dSis(x.sus, p), vac: dSis(x.vacH, p) + (x.vacD || 0), pres: !!(pr && pr.hor && pr.n < 2) };
+  }).filter(r => r.enf || r.acc || r.inj || r.sus || r.vac || r.pres);
+  const T = meses.filter(r => r.m >= mesMas(hoy.slice(0, 7), -12)).reduce((t, r) => ({ enf: t.enf + r.enf, acc: t.acc + r.acc, inj: t.inj + r.inj, sus: t.sus + r.sus, pres: t.pres + (r.pres ? 1 : 0) }), { enf: 0, acc: 0, inj: 0, sus: 0, pres: 0 });
+  const d0 = v => d1(v) || '0';
+  let h = '<div class="kpis sm">' + kpi('Ausentismo 12 meses', pct(a12.pct), d0(a12.perd) + ' días hábiles') + kpi('Enfermedad', d0(T.enf) + ' días', '12 meses') + kpi('Accidente / ART', d0(T.acc) + ' días') +
+    kpi('Faltas sin aviso', d0(T.inj) + ' días', '', { warn: T.inj > 0 }) + kpi('Suspensión', d0(T.sus) + ' días') + kpi('Perdió presentismo', T.pres + ' meses', '', { warn: T.pres > 0 }) + '</div>';
+  if (meses.length) h += '<h3>Según las liquidaciones (sistema de sueldos), en días</h3><table class="tb compacta"><thead><tr><th>Mes</th><th class="num">Enfermedad</th><th class="num">Accidente / ART</th><th class="num">Faltas sin aviso</th><th class="num">Suspensión</th><th class="num">Vacaciones</th><th>Presentismo</th></tr></thead><tbody>' +
+    meses.map(r => '<tr><td>' + mesLargo(r.m) + '</td><td class="num">' + d1(r.enf) + '</td><td class="num">' + d1(r.acc) + '</td><td class="num">' + d1(r.inj) + '</td><td class="num">' + d1(r.sus) + '</td><td class="num">' + d1(r.vac) + '</td><td>' + (r.pres ? '<span class="chip warn">perdió</span>' : '') + '</td></tr>').join('') + '</tbody></table>';
+  h += '<h3>Cargadas a mano</h3>' + (l.length ? '<table class="tb compacta"><thead><tr><th>Motivo</th><th>Desde</th><th>Hasta</th><th class="num">Días</th><th class="num">Hábiles</th><th>Obs.</th><th></th></tr></thead><tbody>' +
+    l.map(x => '<tr><td>' + esc(TIPOS[x.tipo] || x.tipo) + (x.tipo === 'vac' ? ' <small class="muted">(' + (x.periodo || x.desde.slice(0, 4)) + ')</small>' : '') + (x.cert ? ' <span class="chip info">certificado</span>' : '') + '</td><td>' + fec(x.desde) + '</td><td>' + fec(x.hasta) + '</td><td class="num">' + corridos(x.desde, x.hasta) + '</td><td class="num">' + habiles(x.desde, x.hasta) + '</td><td>' + esc(x.obs || '') + '</td><td><button class="small" onclick="dlgAusencia(\'' + x.id + '\')">Editar</button></td></tr>').join('') + '</tbody></table>'
+    : '<p class="muted">Nada cargado a mano en ' + (y - 1) + ' ni ' + y + '.</p>');
+  return h;
 }
 async function fichaVac(p) {
   const y = +hoyISO().slice(0, 4);
   await Promise.all([leerAus(y - 1), leerAus(y), leerAus(y + 1)]);
   return [y, y - 1].map(a => {
-    const c = vacCorresponden(p, a), t = vacTomadas(p.cuil, a), tom = t.reduce((s, x) => s + corridos(x.desde, x.hasta), 0);
-    return '<h3>Vacaciones ' + a + '</h3><div class="kpis sm">' + kpi('Corresponden', c.dias + ' días', esc(c.regla)) + kpi('Tomadas', tom + ' días') + kpi('Pendientes', (c.dias - tom) + ' días', '', { warn: c.dias - tom > 0 }) + '</div>' +
-      (t.length ? '<table class="tb compacta"><tbody>' + t.map(x => '<tr><td>' + fec(x.desde) + ' a ' + fec(x.hasta) + '</td><td class="num">' + corridos(x.desde, x.hasta) + ' días</td><td>' + esc(x.obs || '') + '</td><td><button class="small" onclick="dlgAusencia(\'' + x.id + '\')">Editar</button></td></tr>').join('') + '</tbody></table>' : '');
-  }).join('') + '<p class="nota-ed">Se cuentan en días corridos. Las vacaciones de cada año se toman entre el 1 de octubre y el 30 de abril siguiente (art. 154 LCT).</p>';
+    const c = vacCorresponden(p, a), t = vacTomadas(p.cuil, a), tom = t.reduce((s, x) => s + diasVac(x), 0);
+    return '<h3>Vacaciones ' + a + '</h3><div class="kpis sm">' + kpi('Corresponden', c.dias + ' días', esc(c.regla)) + kpi('Tomadas', tom + ' días', t.some(x => x.sis) ? 'notificadas en el sistema' : '') + kpi('Pendientes', (c.dias - tom) + ' días', '', { warn: c.dias - tom > 0 }) + '</div>' +
+      (t.length ? '<table class="tb compacta"><tbody>' + t.map(x => '<tr><td>' + fec(x.desde) + ' a ' + fec(x.hasta) + '</td><td class="num">' + diasVac(x) + ' días</td><td>' + (x.sis ? '<small class="muted">Sistema de sueldos' + (x.notif ? ' · notificada ' + fec(x.notif) : '') + '</small>' : esc(x.obs || '')) + '</td><td>' + (x.sis ? '' : '<button class="small" onclick="dlgAusencia(\'' + x.id + '\')">Editar</button>') + '</td></tr>').join('') + '</tbody></table>' : '');
+  }).join('') + '<p class="nota-ed">Se cuentan en días corridos. Las vacaciones de cada año se toman entre el 1 de octubre y el 30 de abril siguiente (art. 154 LCT). Si el sistema de sueldos tiene vacaciones notificadas de ese año, valen esas.</p>';
 }
 async function fichaSueldos(p) {
   const meses = Object.keys(IDX).sort().reverse().slice(0, 24);
   await Promise.all(meses.map(leerLiq));
   const l = meses.map(m => ({ m, f: LIQ[m] && LIQ[m].filas[p.cuil] })).filter(x => x.f);
-  return '<div class="kpis sm">' + kpi('Sueldo básico (ficha)', p.basico ? pesos(p.basico) : '—') + (l[0] ? kpi('Último bruto', pesos(l[0].f.bruto), mesLargo(l[0].m)) + kpi('Último neto', l[0].f.neto ? pesos(l[0].f.neto) : '—') : '') + '</div>' +
-    (l.length ? '<table class="tb compacta"><thead><tr><th>Mes</th><th class="num">Remunerativo</th><th class="num">No remun.</th><th class="num">Bruto</th><th class="num">Aportes</th><th class="num">Neto</th><th class="num">Contribuciones</th><th class="num">Costo</th></tr></thead><tbody>' +
-      l.map(({ m, f }) => '<tr><td>' + mesLargo(m) + '</td><td class="num">' + (f.rem ? pesos(f.rem) : '') + '</td><td class="num">' + (f.noRem ? pesos(f.noRem) : '') + '</td><td class="num"><b>' + pesos(f.bruto) + '</b></td><td class="num">' + (f.aportes ? pesos(f.aportes) : '') + '</td><td class="num">' + (f.neto ? pesos(f.neto) : '') + '</td><td class="num">' + (f.contrib ? pesos(f.contrib) : '') + '</td><td class="num">' + pesos(f.bruto + (f.contrib || 0)) + '</td></tr>').join('') + '</tbody></table>'
-      : '<p class="muted">No hay sueldos importados de esta persona. Se cargan desde la pestaña Importar.</p>');
+  const v = x => x ? pesos(x) : '';
+  return '<div class="kpis sm">' + kpi('Sueldo básico (ficha)', p.basico ? pesos(p.basico) : '—') + (l[0] ? kpi('Último bruto', pesos(l[0].f.bruto), mesLargo(l[0].m)) + kpi('Costo para la empresa', pesos(l[0].f.bruto + (l[0].f.contrib || 0)), l[0].f.contrib ? 'bruto + contribuciones' : 'solo bruto') : '') + '</div>' +
+    (l.length ? '<table class="tb compacta"><thead><tr><th>Mes</th><th class="num">Remunerativo</th><th class="num">No remun. y asig.</th><th class="num">Bruto</th><th class="num">Aportes</th><th class="num">Contribuciones</th><th class="num">Costo</th><th class="num">Anticipos</th><th class="num">Indemn. y vac. no gozadas</th></tr></thead><tbody>' +
+      l.map(({ m, f }) => '<tr><td>' + mesLargo(m) + '</td><td class="num">' + v(f.rem) + '</td><td class="num">' + v((f.noRem || 0) + (f.asig || 0)) + '</td><td class="num"><b>' + pesos(f.bruto) + '</b></td><td class="num">' + v(f.aportes) + '</td><td class="num">' + v(f.contrib) + '</td><td class="num">' + pesos(f.bruto + (f.contrib || 0)) + '</td><td class="num">' + v(f.anticipos) + '</td><td class="num">' + v(f.indem) + '</td></tr>').join('') + '</tbody></table><p class="mini muted">Cada mes suma todas sus liquidaciones (mensual, vacaciones, final). Las contribuciones patronales figuran en el sistema desde mayo de 2026.</p>'
+      : '<p class="muted">No hay sueldos de esta persona.</p>');
 }
+async function fichaSan(p) {
+  const l = SAN.filter(x => x.cuil === p.cuil).sort((a, b) => a.fecha < b.fecha ? 1 : -1);
+  const y = hoyISO().slice(0, 4), ly = l.filter(x => x.fecha.slice(0, 4) === y);
+  return '<div class="kpis sm">' + kpi('Apercibimientos ' + y, ly.filter(x => x.tipo === 1).length) + kpi('Actas ' + y, ly.filter(x => x.tipo === 2).length) +
+    kpi('Suspensiones ' + y, ly.filter(x => x.tipo === 3).length, ly.filter(x => x.tipo === 3).reduce((s, x) => s + x.dias, 0) + ' días', { warn: ly.some(x => x.tipo === 3) }) + kpi('Total desde 2024', l.length) + '</div>' +
+    (l.length ? '<table class="tb compacta"><thead><tr><th>Fecha</th><th>Tipo</th><th>Motivo</th><th class="num">Días</th><th>Desde – hasta</th></tr></thead><tbody>' +
+      l.map(x => '<tr><td>' + fec(x.fecha) + '</td><td>' + chipSan(x.tipo) + '</td><td>' + esc(x.motivo) + '</td><td class="num">' + (x.dias || '') + '</td><td>' + (x.tipo === 3 && x.desde ? fec(x.desde) + ' – ' + fec(x.hasta) : '') + '</td></tr>').join('') + '</tbody></table>'
+      : '<p class="muted">No tiene sanciones en el sistema desde 2024.</p>') + '<p class="nota-ed">Las sanciones se cargan en el sistema de sueldos y se ven acá solas.</p>';
+}
+const chipSan = t => '<span class="chip ' + (t === 3 ? 'bad' : t === 2 ? 'warn' : 'mut') + '">' + (TIPOS_SAN[t] || 'Sanción') + '</span>';
 
 /* ---------- Ausencias ---------- */
 async function guardarAus(y, fn, desc) {
@@ -520,7 +622,8 @@ async function dlgAusencia(id, cuil, tipo) {
 window.dlgAusencia = dlgAusencia;
 
 async function vAusencias() {
-  const hoy = hoyISO(), m = UI.mesAus || hoy.slice(0, 7), y = +m.slice(0, 4);
+  const hoy = hoyISO(), ultC = [...CERR].sort().pop();
+  const m = UI.mesAus || (ultC && !ausEn(iniMes(hoy.slice(0, 7)), hoy).length ? ultC : hoy.slice(0, 7)), y = +m.slice(0, 4);
   await Promise.all([leerAus(y), leerAus(y - 1)]);
   const a = iniMes(m), b = minF(finMes(m), m === hoy.slice(0, 7) ? hoy : finMes(m)), bF = finMes(m);
   const l = ausEn(a, bF).filter(x => N[x.cuil]);
@@ -528,26 +631,53 @@ async function vAusencias() {
   const porT = {}; for (const x of l) { const t = porT[x.tipo] = porT[x.tipo] || { k: x.tipo, n: 0, cor: 0, hab: 0, pers: new Set() }; t.n++; t.cor += corridos(maxF(a, x.desde), minF(bF, x.hasta)); t.hab += habiles(maxF(a, x.desde), minF(bF, x.hasta)); t.pers.add(x.cuil); }
   const porS = {}; for (const s of sectores()) { const r = ausentismo(a, b, p => (p.sector || 'Sin sector') === s); if (r.disp) porS[s] = Object.assign({ k: s }, r); }
   setTimeout(() => { const el = $('f-mes'); if (el) el.onchange = () => { if (el.value) { UI.mesAus = el.value; refrescar(); } }; }, 0);
-  return cab('Ausencias de ' + mesLargo(m), 'Faltas, licencias y vacaciones del mes. El <b>ausentismo</b> son los días hábiles (lunes a viernes) perdidos sin contar vacaciones, sobre los días hábiles de toda la dotación' + (m === hoy.slice(0, 7) ? ' hasta hoy' : '') + '.',
-    '<input id="f-mes" type="month" value="' + m + '"><button class="small primary" onclick="dlgAusencia()">+ Cargar ausencia</button>' + botonXl('aus,aus-t,aus-s', 'Ausencias ' + m)) +
-    '<div class="kpis">' + kpi('Ausentismo', pct(as.pct), as.perd + ' de ' + n0(as.disp) + ' días hábiles', { warn: as.pct > 5 }) +
-    kpi('Personas con ausencias', new Set(l.filter(x => x.tipo !== 'vac').map(x => x.cuil)).size) +
-    kpi('Enfermedad y ART', (porT.enf ? porT.enf.hab : 0) + (porT.art ? porT.art.hab : 0) + ' días', 'hábiles') +
-    kpi('Faltas sin aviso', porT.inj ? porT.inj.hab + ' días' : '0', porT.inj ? porT.inj.pers.size + ' personas' : '', { warn: !!porT.inj }) +
-    kpi('Vacaciones', porT.vac ? porT.vac.cor + ' días' : '0', porT.vac ? porT.vac.pers.size + ' personas' : '') + '</div>' +
-    '<section>' + tabla('aus', [
+  const cerr = CERR.has(m);
+  let sisH = '', kp;
+  const d1 = v => v ? (Math.round(v * 10) / 10).toLocaleString('es-AR') : '', d0 = v => d1(v) || '0';
+  if (cerr) {
+    const S = SAUS[m] || {}, P = SPRE[m] || {};
+    const filas = Object.keys(Object.assign({}, S, P)).filter(c => N[c]).map(c => {
+      const x = S[c] || {}, p = N[c], pr = P[c];
+      return { c, enf: dSis(x.enf, p) + (x.enfD || 0), acc: dSis(x.acc, p), inj: dSis(x.inj, p), sus: dSis(x.sus, p), vac: dSis(x.vacH, p) + (x.vacD || 0), pres: !!(pr && pr.hor && pr.n < 2) };
+    }).filter(r => r.enf || r.acc || r.inj || r.sus || r.vac || r.pres);
+    const T = filas.reduce((t, r) => ({ enf: t.enf + r.enf, acc: t.acc + r.acc, inj: t.inj + r.inj, sus: t.sus + r.sus, vac: t.vac + r.vac, pres: t.pres + (r.pres ? 1 : 0) }), { enf: 0, acc: 0, inj: 0, sus: 0, vac: 0, pres: 0 });
+    kp = kpi('Ausentismo', pct(as.pct), d0(as.perd) + ' de ' + n0(as.disp) + ' días hábiles · según la liquidación', { warn: as.pct > 5 }) +
+      kpi('Enfermedad', d0(T.enf) + ' días', filas.filter(r => r.enf).length + ' personas') +
+      kpi('Accidente / ART', d0(T.acc) + ' días', filas.filter(r => r.acc).length + ' personas') +
+      kpi('Faltas sin aviso', d0(T.inj) + ' días', filas.filter(r => r.inj).length + ' personas', { warn: T.inj > 0 }) +
+      kpi('Suspensiones', d0(T.sus) + ' días', filas.filter(r => r.sus).length + ' personas') +
+      kpi('Perdieron presentismo', n0(T.pres), 'personas que cobran por hora', { warn: T.pres > 0 });
+    sisH = '<section><div class="cab"><div><h2>Según la liquidación de ' + mesLargo(m) + '</h2><p class="sub">Del sistema de sueldos: horas de enfermedad, accidente, faltas sin aviso, suspensión y vacaciones liquidadas, pasadas a días (' + 'jornada de cada uno, 8 h si no figura). Presentismo perdido: le faltó alguna quincena.</p></div></div>' + tabla('aus-sis', [
+      { t: 'Legajo', num: 1, v: r => +N[r.c].legajo || 0 }, { t: 'Persona', v: r => nomDe(r.c) }, { t: 'Sector', v: r => secDe(r.c) },
+      { t: 'Enfermedad', num: 1, v: r => r.enf, f: d1 }, { t: 'Accidente / ART', num: 1, v: r => r.acc, f: d1 }, { t: 'Faltas sin aviso', num: 1, v: r => r.inj, f: d1 },
+      { t: 'Suspensión', num: 1, v: r => r.sus, f: d1 }, { t: 'Vacaciones', num: 1, v: r => r.vac, f: d1 },
+      { t: 'Presentismo', v: r => r.pres ? 'Perdió' : '', h: r => r.pres ? '<span class="chip warn">perdió</span>' : '' }
+    ], filas, { orden: 3, clase: 'compacta', click: r => ficha(r.c, 'ausencias'), hoja: 'Liquidación ' + m, total: ['', 'Total', '', d1(T.enf), d1(T.acc), d1(T.inj), d1(T.sus), d1(T.vac), T.pres ? T.pres + ' perdieron' : ''], vacio: 'Nadie faltó según la liquidación.' }) + '</section>';
+  } else {
+    kp = kpi('Ausentismo', pct(as.pct), d1(as.perd) + ' de ' + n0(as.disp) + ' días hábiles · cargado a mano', { warn: as.pct > 5 }) +
+      kpi('Personas con ausencias', new Set(l.filter(x => x.tipo !== 'vac').map(x => x.cuil)).size) +
+      kpi('Enfermedad y ART', (porT.enf ? porT.enf.hab : 0) + (porT.art ? porT.art.hab : 0) + ' días', 'hábiles') +
+      kpi('Faltas sin aviso', porT.inj ? porT.inj.hab + ' días' : '0', porT.inj ? porT.inj.pers.size + ' personas' : '', { warn: !!porT.inj }) +
+      kpi('Vacaciones', porT.vac ? porT.vac.cor + ' días' : '0', porT.vac ? porT.vac.pers.size + ' personas' : '');
+  }
+  const sanM = SAN.filter(x => x.fecha.slice(0, 7) === m);
+  return cab('Ausencias de ' + mesLargo(m), cerr ? 'Mes ya liquidado: las faltas salen del <b>sistema de sueldos</b>. El ausentismo son los días hábiles perdidos (sin vacaciones) sobre los días hábiles de toda la dotación.'
+      : 'Mes todavía no liquidado: cuenta lo que se carga a mano acá (cuando se liquide, pasa a contar lo del sistema de sueldos). El <b>ausentismo</b> son los días hábiles perdidos sin vacaciones, sobre los días hábiles de la dotación' + (m === hoy.slice(0, 7) ? ' hasta hoy' : '') + '.',
+    '<input id="f-mes" type="month" value="' + m + '"><button class="small primary" onclick="dlgAusencia()">+ Cargar ausencia</button>' + botonXl((cerr ? 'aus-sis,' : '') + 'aus,aus-t,aus-s', 'Ausencias ' + m)) +
+    '<div class="kpis">' + kp + (sanM.length ? kpi('Sanciones del mes', n0(sanM.length), sanM.filter(x => x.tipo === 3).length + ' suspensiones', { ir: 'sanciones' }) : '') + '</div>' + sisH +
+    (cerr && !l.length ? '<div style="display:none">' : '') + '<section>' + (cerr ? '<h2>Cargadas a mano</h2>' : '') + tabla('aus', [
       { t: 'Persona', v: x => nomDe(x.cuil) }, { t: 'Sector', v: x => secDe(x.cuil) },
       { t: 'Motivo', v: x => TIPOS[x.tipo] || x.tipo, h: x => esc(TIPOS[x.tipo] || x.tipo) + (x.cert ? ' <span class="chip info">cert.</span>' : '') },
       { t: 'Desde', v: x => x.desde, f: fec }, { t: 'Hasta', v: x => x.hasta, f: fec },
       { t: 'Días', num: 1, v: x => corridos(x.desde, x.hasta) }, { t: 'Hábiles en el mes', num: 1, v: x => habiles(maxF(a, x.desde), minF(bF, x.hasta)) },
       { t: 'Obs.', v: x => x.obs || '' }, { t: 'Cargó', v: x => x.por || '' }
     ], l, { orden: 3, clase: 'compacta', click: x => dlgAusencia(x.id), hoja: 'Ausencias', vacio: 'No hay ausencias cargadas en el mes.' }) + '</section>' +
-    '<div class="g2"><section><h2>Por motivo</h2>' + tabla('aus-t', [
+    '<div class="g2"><section><h2>Por motivo' + (cerr ? ' (cargadas a mano)' : '') + '</h2>' + tabla('aus-t', [
       { t: 'Motivo', v: x => TIPOS[x.k] || x.k }, { t: 'Casos', num: 1, v: x => x.n }, { t: 'Personas', num: 1, v: x => x.pers.size },
       { t: 'Días', num: 1, v: x => x.cor }, { t: 'Hábiles', num: 1, v: x => x.hab }
-    ], Object.values(porT), { orden: 4, hoja: 'Por motivo' }) + '</section>' +
+    ], Object.values(porT), { orden: 4, hoja: 'Por motivo' }) + '</section>' + (cerr && !l.length ? '</div></div><div class="g2">' : '') +
     '<section><h2>Ausentismo por sector</h2>' + tabla('aus-s', [
-      { t: 'Sector', v: x => x.k }, { t: 'Días perdidos', num: 1, v: x => x.perd }, { t: 'Ausentismo', num: 1, v: x => x.pct, f: v => pct(v) },
+      { t: 'Sector', v: x => x.k }, { t: 'Días perdidos', num: 1, v: x => x.perd, f: v => (Math.round(v * 10) / 10).toLocaleString('es-AR') }, { t: 'Ausentismo', num: 1, v: x => x.pct, f: v => pct(v) },
       { t: '', v: x => x.pct, h: x => barra(x.pct || 0, Math.max(...Object.values(porS).map(s => s.pct || 0))), cls: 'bc', x: () => '' }
     ], Object.values(porS), { orden: 2, hoja: 'Por sector' }) + '</section></div>';
 }
@@ -557,13 +687,13 @@ async function vVacaciones() {
   const hoy = hoyISO(), y = +(UI.anioVac || (+hoy.slice(5, 7) <= 4 ? +hoy.slice(0, 4) - 1 : +hoy.slice(0, 4)));
   await Promise.all([leerAus(y), leerAus(y + 1)]);
   const l = personas().filter(p => p.ingreso && p.ingreso <= y + '-12-31' && (!p.egreso || p.egreso >= y + '-12-31')).map(p => {
-    const c = vacCorresponden(p, y), t = vacTomadas(p.cuil, y), tom = t.reduce((s, x) => s + corridos(x.desde, x.hasta), 0);
+    const c = vacCorresponden(p, y), t = vacTomadas(p.cuil, y), tom = t.reduce((s, x) => s + diasVac(x), 0);
     return { p, c, t, tom, pend: c.dias - tom };
   });
   const tot = l.reduce((s, x) => ({ c: s.c + x.c.dias, t: s.t + x.tom, pe: s.pe + Math.max(0, x.pend) }), { c: 0, t: 0, pe: 0 });
   const anios = []; for (let a = +hoy.slice(0, 4) + 1; a >= +hoy.slice(0, 4) - 3; a--) anios.push(a);
   setTimeout(() => { const el = $('f-anio'); if (el) el.onchange = () => { UI.anioVac = el.value; refrescar(); }; }, 0);
-  return cab('Vacaciones ' + y, 'Lo que corresponde a cada uno según la <b>antigüedad al 31/12/' + y + '</b> (art. 150 LCT: hasta 5 años 14 días, de 5 a 10 años 21, de 10 a 20 años 28 y más de 20 años 35, en días corridos). Quien no trabajó la mitad de los días hábiles del año tiene 1 día cada 20 trabajados (art. 153). Se toman entre el 1/10/' + y + ' y el 30/4/' + (y + 1) + '. Clic en una persona para cargarle vacaciones.',
+  return cab('Vacaciones ' + y, 'Lo que corresponde a cada uno según la <b>antigüedad al 31/12/' + y + '</b> (art. 150 LCT: hasta 5 años 14 días, de 5 a 10 años 21, de 10 a 20 años 28 y más de 20 años 35, en días corridos). Quien no trabajó la mitad de los días hábiles del año tiene 1 día cada 20 trabajados (art. 153). Se toman entre el 1/10/' + y + ' y el 30/4/' + (y + 1) + '. Las <b>tomadas</b> son las notificadas en el sistema de sueldos (o las cargadas a mano si el sistema no tiene). Clic en una persona para cargarle vacaciones.',
     '<select id="f-anio">' + anios.map(a => '<option' + (a === y ? ' selected' : '') + '>' + a + '</option>').join('') + '</select>' + botonXl('vac', 'Vacaciones ' + y)) +
     '<div class="kpis">' + kpi('Personas', n0(l.length)) + kpi('Días que corresponden', n0(tot.c)) + kpi('Días tomados', n0(tot.t), tot.c ? pct(tot.t / tot.c * 100, 0) + ' del total' : '') +
     kpi('Días pendientes', n0(tot.pe), l.filter(x => x.pend > 0).length + ' personas con días por tomar', { warn: tot.pe > 0 }) + '</div>' +
@@ -577,9 +707,64 @@ async function vVacaciones() {
 }
 function vacPersona(cuil, y) { dlgAusencia(null, cuil, 'vac').then(() => { const s = $('a-per'); if (s) { if (![...s.options].some(o => +o.value === y)) s.add(new Option(y, y)); s.value = String(y); } }); }
 
+
+/* ---------- Sanciones (del sistema de sueldos) ---------- */
+function vSanciones() {
+  const hoy = hoyISO(), y = UI.anioSan || hoy.slice(0, 4), tipo = UI.tipoSan || '';
+  const anios = [...new Set(SAN.map(x => x.fecha.slice(0, 4)).concat([hoy.slice(0, 4)]))].sort().reverse();
+  const base = SAN.filter(x => x.fecha.slice(0, 4) === y);
+  const l = base.filter(x => !tipo || String(x.tipo) === tipo);
+  const motivoN = m => {
+    const s = sinAcentos(m).replace(/\s+/g, ' ').trim();
+    if (/llegad\w* tard/.test(s)) return 'Llegada tarde';
+    if (/(ausencia|falta)\w* (inj|sin aviso)/.test(s)) return 'Ausencia injustificada';
+    if (/bpm|buenas practicas/.test(s)) return 'Incumplimiento BPM';
+    if (/incumpl\w* laboral/.test(s)) return 'Incumplimiento laboral';
+    if (/comportamiento|conducta/.test(s)) return 'Mal comportamiento';
+    return (m.trim().charAt(0).toUpperCase() + m.trim().slice(1).toLowerCase()) || 'Sin motivo';
+  };
+  const porP = {}, porM = {}, porMes = {};
+  for (const x of l) {
+    const p = porP[x.cuil] = porP[x.cuil] || { c: x.cuil, a: 0, ac: 0, s: 0, d: 0, n: 0, ult: '' };
+    p.n++; if (x.tipo === 1) p.a++; else if (x.tipo === 2) p.ac++; else if (x.tipo === 3) { p.s++; p.d += x.dias; }
+    if (x.fecha > p.ult) p.ult = x.fecha;
+    const k = motivoN(x.motivo); porM[k] = (porM[k] || 0) + 1;
+    porMes[x.fecha.slice(0, 7)] = (porMes[x.fecha.slice(0, 7)] || 0) + 1;
+  }
+  const meses = []; for (let i = 1; i <= 12; i++) { const m = y + '-' + p2(i); if (m <= hoy.slice(0, 7)) meses.push({ k: MESES[i - 1], v: porMes[m] || 0 }); }
+  const susp = base.filter(x => x.tipo === 3), act = activos(hoy).length;
+  const reinc = Object.values(porP).filter(p => p.n >= 3).length;
+  setTimeout(() => {
+    const a = $('f-anio-san'); if (a) a.onchange = () => { UI.anioSan = a.value; refrescar(); };
+    const t = $('f-tipo-san'); if (t) t.onchange = () => { UI.tipoSan = t.value; refrescar(); };
+  }, 0);
+  if (!SAN.length) return cab('Sanciones', '') + '<section class="empty">Todavía no llegaron las sanciones del sistema de sueldos (las sube la notebook a las 7, 13 y 19 h).</section>';
+  return cab('Sanciones ' + y, 'Apercibimientos, actas de constatación y suspensiones cargadas en el <b>sistema de sueldos</b> (se actualizan solas). Clic en una persona para ver su ficha.',
+    '<select id="f-anio-san">' + anios.map(a => '<option' + (a === y ? ' selected' : '') + '>' + a + '</option>').join('') + '</select>' +
+    '<select id="f-tipo-san"><option value="">Todas</option>' + Object.keys(TIPOS_SAN).map(k => '<option value="' + k + '"' + (k === tipo ? ' selected' : '') + '>' + TIPOS_SAN[k] + '</option>').join('') + '</select>' + botonXl('san,san-p,san-m', 'Sanciones ' + y)) +
+    '<div class="kpis">' + kpi('Apercibimientos', n0(base.filter(x => x.tipo === 1).length)) + kpi('Actas de constatación', n0(base.filter(x => x.tipo === 2).length)) +
+    kpi('Suspensiones', n0(susp.length), susp.reduce((s, x) => s + x.dias, 0) + ' días de suspensión', { warn: susp.length > 0 }) +
+    kpi('Personas sancionadas', n0(new Set(base.map(x => x.cuil)).size), act ? pct(new Set(base.filter(x => activo(N[x.cuil] || {}, hoy)).map(x => x.cuil)).size / act * 100, 0) + ' del personal activo' : '') +
+    kpi('Con 3 o más', n0(reinc), 'personas' + (tipo ? ' (de este tipo)' : ''), { warn: reinc > 0 }) + '</div>' +
+    '<div class="g2"><section><p class="graf-t">Sanciones por mes' + (tipo ? ' · ' + TIPOS_SAN[tipo] : '') + '</p>' + graf(meses, n0) + '</section>' +
+    '<section><h2>Por motivo</h2>' + tabla('san-m', [{ t: 'Motivo', v: x => x.k }, { t: 'Cantidad', num: 1, v: x => x.n }, { t: '%', num: 1, v: x => l.length ? x.n / l.length * 100 : 0, f: v => pct(v, 0) }],
+      Object.keys(porM).map(k => ({ k, n: porM[k] })), { orden: 1, limite: 8, hoja: 'Por motivo' }) + '</section></div>' +
+    '<section><h2>Por persona</h2>' + tabla('san-p', [
+      { t: 'Legajo', num: 1, v: x => +(N[x.c] || {}).legajo || 0 }, { t: 'Persona', v: x => nomDe(x.c) }, { t: 'Sector', v: x => secDe(x.c) },
+      { t: 'Apercib.', num: 1, v: x => x.a }, { t: 'Actas', num: 1, v: x => x.ac }, { t: 'Suspens.', num: 1, v: x => x.s }, { t: 'Días susp.', num: 1, v: x => x.d },
+      { t: 'Total', num: 1, v: x => x.n, h: x => x.n >= 3 ? '<span class="chip warn">' + x.n + '</span>' : String(x.n) }, { t: 'Última', v: x => x.ult, f: fec },
+      { t: 'Estado', v: x => activo(N[x.c] || {}, hoy) ? 'Activo' : 'Baja', h: x => activo(N[x.c] || {}, hoy) ? '' : '<span class="chip mut">baja</span>' }
+    ], Object.values(porP), { orden: 7, limite: 30, clase: 'compacta', click: x => ficha(x.c, 'sanciones'), hoja: 'Por persona', vacio: 'Sin sanciones.' }) + '</section>' +
+    '<section><h2>Listado</h2>' + tabla('san', [
+      { t: 'Fecha', v: x => x.fecha, f: fec }, { t: 'Persona', v: x => nomDe(x.cuil) }, { t: 'Sector', v: x => secDe(x.cuil) },
+      { t: 'Tipo', v: x => TIPOS_SAN[x.tipo] || '', h: x => chipSan(x.tipo) }, { t: 'Motivo', v: x => x.motivo }, { t: 'Días', num: 1, v: x => x.dias || '' },
+      { t: 'Desde', v: x => x.tipo === 3 ? x.desde : '', f: fec }, { t: 'Hasta', v: x => x.tipo === 3 ? x.hasta : '', f: fec }
+    ], l, { orden: 0, limite: 100, clase: 'compacta', click: x => ficha(x.cuil, 'sanciones'), hoja: 'Sanciones ' + y, vacio: 'Sin sanciones este año.' }) + '</section>';
+}
+
 /* ---------- Indicadores ---------- */
 async function vIndicadores() {
-  const hoy = hoyISO(), fin = UI.finInd || hoy.slice(0, 7), y = +fin.slice(0, 4);
+  const hoy = hoyISO(), fin = UI.finInd || [...CERR].sort().pop() || hoy.slice(0, 7), y = +fin.slice(0, 4);
   await Promise.all([leerAus(y), leerAus(y - 1)]);
   const meses = []; for (let i = 11; i >= 0; i--) meses.push(mesMas(fin, -i));
   const ps = personas();
@@ -588,8 +773,11 @@ async function vIndicadores() {
     const dot = ps.filter(p => activo(p, b)).length, dotIni = ps.filter(p => activo(p, sumDias(a, -1))).length;
     const altas = ps.filter(p => p.ingreso && p.ingreso.slice(0, 7) === m).length + ps.reduce((s, p) => s + (p.historial || []).filter(r => r.ingreso && r.ingreso.slice(0, 7) === m).length, 0);
     const bajas = ps.filter(p => p.egreso && p.egreso.slice(0, 7) === m).length + ps.reduce((s, p) => s + (p.historial || []).filter(r => r.egreso && r.egreso.slice(0, 7) === m).length, 0);
-    const prom = (dot + dotIni) / 2, au = b >= a ? ausentismo(a, b) : { pct: null }, li = IDX[m];
-    return { m, dot, prom, altas, bajas, rot: prom ? bajas / prom * 100 : null, aus: au.pct, masa: li ? li.bruto : null, costo: li ? li.bruto + (li.contrib || 0) : null, conContrib: !!(li && li.contrib), porEmp: li && dot ? (li.bruto + (li.contrib || 0)) / dot : null, futuro: a > hoy };
+    const prom = (dot + dotIni) / 2, li = IDX[m];
+    const au = b >= a && (CERR.has(m) || ausEn(a, b).some(x => x.tipo !== 'vac')) ? ausentismo(a, b) : { pct: null };
+    const sm = SAN.filter(x => x.fecha.slice(0, 7) === m);
+    return { m, dot, prom, altas, bajas, san: sm.length, susp: sm.filter(x => x.tipo === 3).reduce((t, x) => t + x.dias, 0), indem: li ? li.indem || 0 : null, aus: au.pct, masa: li ? li.bruto : null,
+      rot: prom ? bajas / prom * 100 : null, costo: li ? li.bruto + (li.contrib || 0) : null, conContrib: !!(li && li.contrib), porEmp: li && dot ? (li.bruto + (li.contrib || 0)) / dot : null, futuro: a > hoy };
   }).filter(f => !f.futuro);
   const ult = filas[filas.length - 1] || {}, ini12 = iniMes(meses[0]), fin12 = minF(finMes(fin), hoy);
   const bajas12 = filas.reduce((s, f) => s + f.bajas, 0), prom12 = filas.reduce((s, f) => s + f.prom, 0) / (filas.length || 1);
@@ -615,10 +803,11 @@ async function vIndicadores() {
   setTimeout(() => { const el = $('f-fin'); if (el) el.onchange = () => { if (el.value) { UI.finInd = el.value; refrescar(); } }; }, 0);
   const sinC = filas.some(f => f.masa != null && !f.conContrib);
   return cab('Indicadores', 'Los últimos 12 meses hasta ' + mesLargo(fin) + '. <b>Rotación</b>: bajas del mes sobre la dotación promedio. <b>Ausentismo</b>: días hábiles perdidos sin vacaciones. <b>Masa salarial</b>: bruto total de los sueldos importados; <b>costo laboral</b>: bruto + contribuciones patronales.',
-    '<input id="f-fin" type="month" value="' + fin + '">' + botonXl('ind,ind-sec,ind-ant,ind-ed', 'Indicadores RRHH ' + fin, 'Excel con todo')) +
+    '<input id="f-fin" type="month" value="' + fin + '">' + botonXl('ind,ind-baj,ind-sec,ind-ant,ind-ed', 'Indicadores RRHH ' + fin, 'Excel con todo')) +
     '<div class="kpis">' + kpi('Dotación', n0(ult.dot), 'al cierre de ' + mesTxt(fin)) + kpi('Altas / bajas 12 meses', '+' + filas.reduce((s, f) => s + f.altas, 0) + ' / −' + bajas12) +
     kpi('Rotación anual', pct(prom12 ? bajas12 / prom12 * 100 : null), 'bajas 12 meses / dotación promedio') +
     kpi('Ausentismo 12 meses', pct(ausentismo(ini12, fin12).pct)) +
+    kpi('Sanciones 12 meses', n0(filas.reduce((t, f) => t + f.san, 0)), filas.reduce((t, f) => t + f.susp, 0) + ' días de suspensión', { ir: 'sanciones' }) +
     kpi('Masa salarial', ult.masa != null ? pesos(ult.masa) : '—', ult.masa != null ? mesTxt(fin) : 'sin sueldos de ' + mesTxt(fin)) +
     kpi('Costo por empleado', ult.porEmp != null ? pesos(ult.porEmp) : '—', ult.porEmp != null ? (ult.conContrib ? 'bruto + contribuciones' : 'solo bruto (sin contribuciones)') : '') + '</div>' +
     (sinC ? '<div class="aviso">Hay meses sin contribuciones patronales: ahí el costo laboral es solo el bruto. Se completan importando el F.931 con la columna de contribuciones.</div>' : '') +
@@ -631,8 +820,18 @@ async function vIndicadores() {
       { t: 'Rotación', num: 1, v: f => f.rot, f: v => pct(v), x: f => f.rot == null ? '' : Math.round(f.rot * 100) / 100 },
       { t: 'Ausentismo', num: 1, v: f => f.aus, f: v => pct(v), x: f => f.aus == null ? '' : Math.round(f.aus * 100) / 100 },
       { t: 'Masa salarial', num: 1, v: f => f.masa, f: v => v == null ? '—' : pesos(v) }, { t: 'Costo laboral', num: 1, v: f => f.costo, h: f => f.costo == null ? '—' : pesos(f.costo) + (f.conContrib ? '' : ' <small class="muted">*</small>'), x: f => f.costo == null ? '' : Math.round(f.costo) },
-      { t: 'Costo por empleado', num: 1, v: f => f.porEmp, f: v => v == null ? '—' : pesos(v) }
+      { t: 'Costo por empleado', num: 1, v: f => f.porEmp, f: v => v == null ? '—' : pesos(v) },
+      { t: 'Indemnizaciones', num: 1, v: f => f.indem, f: v => v ? pesos(v) : '' },
+      { t: 'Sanciones', num: 1, v: f => f.san }, { t: 'Días de suspensión', num: 1, v: f => f.susp }
     ], filas, { orden: 0, dir: 1, hoja: 'Mes a mes' }) + (sinC ? '<p class="mini muted">* Sin contribuciones patronales: solo el bruto.</p>' : '') + '</section>' +
+    (() => {
+      const g = {};
+      for (const p of ps) for (const r of [{ egreso: p.egreso, motivo: p.motivo }].concat(p.historial || [])) if (r.egreso && r.egreso >= ini12 && r.egreso <= fin12) { const k = grupoBaja(r.motivo); (g[k] = g[k] || { k, n: 0, ej: {} }).n++; g[k].ej[r.motivo || 'sin motivo'] = (g[k].ej[r.motivo || 'sin motivo'] || 0) + 1; }
+      const l = Object.values(g), tot = l.reduce((t, x) => t + x.n, 0), mx = Math.max(0, ...l.map(x => x.n));
+      return '<section><h2>Bajas por motivo (12 meses)</h2>' + tabla('ind-baj', [{ t: 'Motivo', v: x => x.k }, { t: 'Bajas', num: 1, v: x => x.n }, { t: '%', num: 1, v: x => tot ? x.n / tot * 100 : 0, f: v => pct(v, 0) },
+        { t: '', v: x => x.n, h: x => barra(x.n, mx), cls: 'bc', x: () => '' }, { t: 'Detalle (como figura en el sistema)', v: x => Object.keys(x.ej).map(k => x.ej[k] + ' ' + k).join(' · '), h: x => '<small class="muted">' + esc(Object.keys(x.ej).map(k => x.ej[k] + ' × ' + k).join(' · ')) + '</small>' }],
+        l, { orden: 1, hoja: 'Bajas por motivo', total: ['Total', n0(tot), '100%', '', ''], vacio: 'Sin bajas en los últimos 12 meses.' }) + '</section>';
+    })() +
     '<section><h2>Por sector</h2><p class="sub">Personal activo al ' + fec(fin12) + '; bajas, rotación y ausentismo de los últimos 12 meses; masa salarial de ' + (ultLiq ? mesLargo(ultLiq) : '—') + '.</p>' + tabla('ind-sec', [
       { t: 'Sector', v: x => x.k }, { t: 'Personas', num: 1, v: x => x.n }, { t: '%', num: 1, v: x => act.length ? x.n / act.length * 100 : 0, f: v => pct(v, 0) },
       { t: 'Antigüedad prom.', num: 1, v: x => x.antP, f: v => v == null ? '—' : v.toLocaleString('es-AR', { maximumFractionDigits: 1 }) + ' años' },
@@ -968,9 +1167,11 @@ async function cargar() {
   $('main').innerHTML = '<div class="cargando"><span class="spin"></span> Trayendo el personal…</div>';
   try {
     const y = +hoyISO().slice(0, 4);
-    const [nom, idx, sis] = await Promise.all([C3API.leerDoc('nomina'), C3API.leerDoc('liq-indice'), C3API.leerDoc('sis-nomina'), leerAus(y), leerAus(y - 1)]);
+    const [nom, idx, sis, sl, sa, ss, sv] = await Promise.all([C3API.leerDoc('nomina'), C3API.leerDoc('liq-indice'), C3API.leerDoc('sis-nomina'),
+      C3API.leerDoc('sis-liq'), C3API.leerDoc('sis-aus'), C3API.leerDoc('sis-san'), C3API.leerDoc('sis-vac'), leerAus(y), leerAus(y - 1)]);
     NOM_WEB = (nom.d && nom.d.personas) || {}; IDX = (idx.d && idx.d.meses) || {};
     armarNomina(sis.d && sis.d.txt ? sis.d.txt : null);
+    armarSistema(sl.d && sl.d.txt, sa.d && sa.d.txt, ss.d && ss.d.txt, sv.d && sv.d.txt);
     $('st').innerHTML = '<span class="dot' + (SIS ? '' : ' off') + '"></span><b>' + n0(activos().length) + '</b> activos · ' + (SIS ? 'sistema de sueldos al <b>' + esc(SIS.act ? fec(SIS.act.slice(0, 10)) + ' ' + SIS.act.slice(11, 16) : '—') + '</b>' : 'sin datos del sistema') + '<br><span id="st-user">' + esc(C3API.usuario.nombre) + ' · <a href="#" onclick="C3API.salir();return false">Salir</a></span>';
     leerUI(); if (TAB === 'usuarios' && !esAdmin()) TAB = 'resumen';
     refrescar();
