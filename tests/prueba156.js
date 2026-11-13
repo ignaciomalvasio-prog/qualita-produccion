@@ -1,4 +1,4 @@
-// Logística: desde los ⋯ de un camión se manda solo ese camión por WhatsApp (PDF o texto).
+// Logística: desde los ⋯ de un camión se manda ese camión completo (como se ve) en PDF por WhatsApp.
 const {chromium}=require('playwright');const SP=process.argv[2];const fs=require('fs');
 const F='2026-10-22';const K=(k,corte,texto,precio)=>Object.assign({k,corte,texto},precio?{precio,iva:'iva'}:{});
 function dia(nCam,porCam,R){const cams=[],peds=[];let id=0;
@@ -16,10 +16,9 @@ await p.goto('http://127.0.0.1:8765/index.html#logistica');await p.clock.runFor(
 await p.fill('#l-fecha',F);await p.locator('#l-fecha').dispatchEvent('change');await p.waitForSelector('.log-ped',{timeout:8000});
 await p.evaluate(()=>document.querySelector('[data-act="menu"][data-k="cam-c1"]').click());await p.waitForTimeout(200);
 console.log(w,'menú:',await p.evaluate(()=>[...document.querySelectorAll('.menu-pop:not([hidden]) button, [data-k="cam-c1"] ~ * button')].map(x=>x.textContent).filter(Boolean).join(' | ')));
-await p.evaluate(()=>document.querySelector('[data-act="res-pdf"][data-cual="c1"]').click());
+await p.evaluate(()=>document.querySelector('[data-act="cam-pdf"][data-id="c1"]').click());
 await p.waitForFunction(()=>window.__mock.ultimoPDF||window.__comp,null,{timeout:15000});
-console.log(w,'pdf:',await p.evaluate(()=>(window.__mock.ultimoPDF||{}).nombre||JSON.stringify(window.__comp)));
-await p.evaluate(()=>document.querySelector('[data-act="menu"][data-k="cam-c1"]').click());await p.evaluate(()=>document.querySelector('[data-act="res-wa"][data-cual="c1"]').click());await p.waitForTimeout(400);
-console.log(w,'texto:',await p.evaluate(()=>String(window.__mock.compartido||'').slice(0,160)));
+const r=await p.evaluate(async()=>{const x=window.__mock.ultimoPDF;const a=new Uint8Array(await x.blob.arrayBuffer());let s='';a.forEach(c=>s+=String.fromCharCode(c));return {n:x.nombre,b:btoa(s)};});
+console.log(w,'pdf:',r.n);if(SP&&w===400){require('fs').writeFileSync(SP+'/p156.pdf',Buffer.from(r.b,'base64'));require('child_process').execSync('pdftoppm -r 70 -png -f 1 -l 1 '+SP+'/p156.pdf '+SP+'/p156');}
 console.log(w,'desborde:',await p.evaluate(()=>document.documentElement.scrollWidth),'errores:',errs);await p.close();}
 await b.close();})();

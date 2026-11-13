@@ -407,3 +407,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - (12/11/2026) Stock: para los artículos con piezas etiquetadas se cuentan solo las que están "En cámara" (antes la tabla STOCK sumaba de más: pecho 13.420 kg contra 10.494 kg en el sistema). Vale para la lista y para la planilla Stock de Cortes.
 - (12/11/2026) PDF/impresión: si las medias vienen con un texto largo ("750½ CONSUMO + CERDAS (...)"), van abajo del título desde la izquierda y en varios renglones; antes se cortaba el número de medias.
 - (12/11/2026) Logística: en los ⋯ de cada camión, "PDF de este camión por WhatsApp" y "Texto de este camión por WhatsApp" (al chofer si tiene teléfono).
+- (12/11/2026) Logística: "Mandar este camión por WhatsApp (PDF)" en los ⋯ del camión arma el camión completo como se ve (clientes en orden, cortes, cantidades, precios, notas y kg), en lugar del resumen corto.
