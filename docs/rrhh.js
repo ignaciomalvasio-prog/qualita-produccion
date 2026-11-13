@@ -164,7 +164,7 @@ const LIQ = {};          // 'AAAA-MM' → documento de sueldos del mes
 let IDX = {};            // liq-indice.meses
 let TAB = 'resumen';
 let fichaAbierta = null;   // CUIL de la ficha abierta (para las solapas del diálogo)
-const UI = { buscar: '', sector: '', estado: 'act', mesAus: '', anioVac: '', finInd: '', ficha: 'datos', anioSan: '', tipoSan: '' };
+const UI = { buscar: '', sector: '', estado: 'act', mesAus: '', anioVac: '', finInd: '', ficha: 'datos', anioSan: '', tipoSan: '', rangoAus: 'todo' };
 function guardarUI() { try { localStorage.setItem('rh-ui', JSON.stringify({ TAB, sector: UI.sector, estado: UI.estado })); } catch (e) {} }
 function leerUI() { try { const x = JSON.parse(localStorage.getItem('rh-ui') || 'null'); if (x) { if (x.TAB) TAB = x.TAB; UI.sector = x.sector || ''; UI.estado = x.estado || 'act'; } } catch (e) {} }
 
@@ -298,7 +298,7 @@ function barra(v, max) { const w = max > 0 ? Math.max(1, Math.round(v / max * 10
 function kpi(t, v, sub, opt) { opt = opt || {}; return '<div class="kpi' + (opt.warn ? ' warn' : '') + (opt.ir ? ' clic" data-ir="' + opt.ir : '') + '"><span>' + t + '</span><b>' + v + '</b>' + (sub ? '<small>' + sub + '</small>' : '') + '</div>'; }
 /* gráfico de columnas simple: vals = [{k, v}] */
 function graf(vals, fmt) {
-  const W = 640, H = 190, pad = 22, n = vals.length || 1, bw = (W - 10) / n, max = Math.max(0, ...vals.map(x => +x.v || 0)) || 1;
+  const n = vals.length || 1, W = Math.max(640, n * 52), H = 190, pad = 22, bw = (W - 10) / n, max = Math.max(0, ...vals.map(x => +x.v || 0)) || 1;
   let s = '<svg class="graf" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none"><line class="ax" x1="0" x2="' + W + '" y1="' + (H - pad) + '" y2="' + (H - pad) + '"/>';
   vals.forEach((x, i) => {
     const v = +x.v || 0, h = Math.round(v / max * (H - pad - 20)), X = 5 + i * bw;
@@ -512,7 +512,7 @@ async function fichaAus(p) {
   const a12 = ausentismo(iniMes(mesMas(hoy.slice(0, 7), -11)), finMes(mesMas(hoy.slice(0, 7), -1)), q => q.cuil === p.cuil);
   const d1 = v => v ? (Math.round(v * 10) / 10).toLocaleString('es-AR') : '';
   /* meses liquidados en el sistema, del más nuevo al más viejo */
-  const meses = [...CERR].sort().reverse().slice(0, 18).map(m => {
+  const meses = [...CERR].sort().reverse().map(m => {
     const x = (SAUS[m] || {})[p.cuil] || {}, pr = (SPRE[m] || {})[p.cuil];
     return { m, enf: dSis(x.enf, p) + (x.enfD || 0), acc: dSis(x.acc, p), inj: dSis(x.inj, p), sus: dSis(x.sus, p), vac: dSis(x.vacH, p) + (x.vacD || 0), pres: !!(pr && pr.hor && pr.n < 2) };
   }).filter(r => r.enf || r.acc || r.inj || r.sus || r.vac || r.pres);
@@ -521,6 +521,8 @@ async function fichaAus(p) {
   let h = '<div class="kpis sm">' + kpi('Ausentismo 12 meses', pct(a12.pct), d0(a12.perd) + ' días hábiles') + kpi('Enfermedad', d0(T.enf) + ' días', '12 meses') + kpi('Accidente / ART', d0(T.acc) + ' días') +
     kpi('Faltas sin aviso', d0(T.inj) + ' días', '', { warn: T.inj > 0 }) + kpi('Suspensión', d0(T.sus) + ' días') + kpi('Perdió presentismo', T.pres + ' meses', '', { warn: T.pres > 0 }) + '</div>';
   if (meses.length) h += '<h3>Según las liquidaciones (sistema de sueldos), en días</h3><table class="tb compacta"><thead><tr><th>Mes</th><th class="num">Enfermedad</th><th class="num">Accidente / ART</th><th class="num">Faltas sin aviso</th><th class="num">Suspensión</th><th class="num">Vacaciones</th><th>Presentismo</th></tr></thead><tbody>' +
+    (() => { const t = meses.reduce((a, r) => ({ enf: a.enf + r.enf, acc: a.acc + r.acc, inj: a.inj + r.inj, sus: a.sus + r.sus, vac: a.vac + r.vac, pres: a.pres + (r.pres ? 1 : 0) }), { enf: 0, acc: 0, inj: 0, sus: 0, vac: 0, pres: 0 });
+      return '<tr class="tot"><td>Total desde ' + mesLargo([...CERR].sort()[0]) + '</td><td class="num">' + d0(t.enf) + '</td><td class="num">' + d0(t.acc) + '</td><td class="num">' + d0(t.inj) + '</td><td class="num">' + d0(t.sus) + '</td><td class="num">' + d0(t.vac) + '</td><td>' + (t.pres ? t.pres + (t.pres > 1 ? ' veces' : ' vez') : '') + '</td></tr>'; })() +
     meses.map(r => '<tr><td>' + mesLargo(r.m) + '</td><td class="num">' + d1(r.enf) + '</td><td class="num">' + d1(r.acc) + '</td><td class="num">' + d1(r.inj) + '</td><td class="num">' + d1(r.sus) + '</td><td class="num">' + d1(r.vac) + '</td><td>' + (r.pres ? '<span class="chip warn">perdió</span>' : '') + '</td></tr>').join('') + '</tbody></table>';
   h += '<h3>Cargadas a mano</h3>' + (l.length ? '<table class="tb compacta"><thead><tr><th>Motivo</th><th>Desde</th><th>Hasta</th><th class="num">Días</th><th class="num">Hábiles</th><th>Obs.</th><th></th></tr></thead><tbody>' +
     l.map(x => '<tr><td>' + esc(TIPOS[x.tipo] || x.tipo) + (x.tipo === 'vac' ? ' <small class="muted">(' + (x.periodo || x.desde.slice(0, 4)) + ')</small>' : '') + (x.cert ? ' <span class="chip info">certificado</span>' : '') + '</td><td>' + fec(x.desde) + '</td><td>' + fec(x.hasta) + '</td><td class="num">' + corridos(x.desde, x.hasta) + '</td><td class="num">' + habiles(x.desde, x.hasta) + '</td><td>' + esc(x.obs || '') + '</td><td><button class="small" onclick="dlgAusencia(\'' + x.id + '\')">Editar</button></td></tr>').join('') + '</tbody></table>'
@@ -621,7 +623,81 @@ async function dlgAusencia(id, cuil, tipo) {
 }
 window.dlgAusencia = dlgAusencia;
 
+/* períodos para elegir: todo, últimos N meses, un año, o desde/hasta (meses AAAA-MM). Los "últimos" cuentan hasta el último mes liquidado. */
+function rangoDe(r, ultimo, primero) {
+  const hoyM = hoyISO().slice(0, 7), fin = ultimo || hoyM;
+  if (!r || r === 'todo') return [primero || '2000-01', hoyM];
+  const u = /^u(\d+)$/.exec(r); if (u) return [mesMas(fin, -(+u[1]) + 1), fin];
+  if (/^\d{4}$/.test(r)) return [r + '-01', minF(r + '-12', hoyM)];
+  const c = /^(\d{4}-\d{2})_(\d{4}-\d{2})$/.exec(r); if (c) return c[1] <= c[2] ? [c[1], c[2]] : [c[2], c[1]];
+  return [primero || '2000-01', hoyM];
+}
+function selRango(id, r, anios, ultimo) {
+  const op = [['todo', 'Toda la historia'], ['u12', 'Últimos 12 meses'], ['u6', 'Últimos 6 meses'], ['u3', 'Últimos 3 meses']].concat(anios.map(a => [a, 'Año ' + a])).concat([['otro', 'Desde / hasta…']]);
+  const otro = /_/.test(r || ''), [d, h] = otro ? r.split('_') : ['', ''];
+  return '<select id="' + id + '" title="' + (ultimo ? 'Los últimos meses cuentan hasta ' + mesLargo(ultimo) + ' (último liquidado)' : '') + '">' + op.map(o => '<option value="' + o[0] + '"' + ((otro ? 'otro' : r || 'todo') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select>' +
+    '<span id="' + id + '-c" style="display:' + (otro ? 'inline-flex' : 'none') + ';gap:6px;align-items:center"><input type="month" id="' + id + '-d" value="' + d + '"> a <input type="month" id="' + id + '-h" value="' + h + '"><button class="small" id="' + id + '-ok">Ver</button></span>';
+}
+function engancharRango(id, fijar) {
+  const s = $(id); if (!s) return;
+  s.onchange = () => { if (s.value === 'otro') { $(id + '-c').style.display = 'inline-flex'; return; } fijar(s.value); refrescar(); };
+  const ok = $(id + '-ok'); if (ok) ok.onclick = () => { const d = $(id + '-d').value, h = $(id + '-h').value; if (!d || !h) { toast('Elegí desde y hasta', true); return; } fijar(d + '_' + h); refrescar(); };
+}
+const rangoTxt = (a, b) => a === b ? mesLargo(a) : mesLargo(a) + ' a ' + mesLargo(b);
+
+/* Ausencias › Total: todo el historial liquidado del sistema (desde 2025) + lo cargado a mano en meses no liquidados */
+async function vAusenciasTodo() {
+  const hoy = hoyISO(), msAll = [...CERR].sort();
+  const [mi, mf] = rangoDe(UI.rangoAus, msAll[msAll.length - 1], msAll[0]);
+  const ms = msAll.filter(m => m >= mi && m <= mf);
+  const anios = [...new Set(msAll.map(m => m.slice(0, 4)).concat([hoy.slice(0, 4)]))].sort().reverse();
+  setTimeout(() => engancharRango('f-rango-aus', v => { UI.rangoAus = v; }), 0);
+  const y0 = ms.length ? +ms[0].slice(0, 4) : +hoy.slice(0, 4);
+  const ys = []; for (let y = y0 - 1; y <= +hoy.slice(0, 4); y++) ys.push(y);
+  await Promise.all(ys.map(leerAus));
+  const d1 = v => v ? (Math.round(v * 10) / 10).toLocaleString('es-AR') : '', d0 = v => d1(v) || '0';
+  const ini = maxF(iniMes(mi), msAll.length ? iniMes(msAll[0]) : iniMes(hoy.slice(0, 7))), finR = minF(hoy, finMes(mf));
+  const P = {};
+  const fila = c => P[c] = P[c] || { c, enf: 0, acc: 0, inj: 0, sus: 0, vac: 0, pres: 0, mano: 0, meses: new Set() };
+  for (const m of ms) {
+    const S = SAUS[m] || {}, PR = SPRE[m] || {};
+    for (const c in S) if (N[c]) { const x = S[c], p = N[c], r = fila(c); r.enf += dSis(x.enf, p) + (x.enfD || 0); r.acc += dSis(x.acc, p); r.inj += dSis(x.inj, p); r.sus += dSis(x.sus, p); r.vac += dSis(x.vacH, p) + (x.vacD || 0); if (diasSis(x, p)) r.meses.add(m); }
+    for (const c in PR) if (N[c] && PR[c].hor && PR[c].n < 2) fila(c).pres++;
+  }
+  /* lo cargado a mano cuenta solo en los meses que todavía no están liquidados */
+  for (const x of ausEn(ini, finR)) if (N[x.cuil] && x.tipo !== 'vac') {
+    let d = 0;
+    for (let m = maxF(ini, x.desde).slice(0, 7); m <= minF(finR, x.hasta).slice(0, 7); m = mesMas(m, 1)) if (!CERR.has(m)) d += habiles(maxF(maxF(ini, x.desde), iniMes(m)), minF(minF(finR, x.hasta), finMes(m)));
+    if (d) { const r = fila(x.cuil); r.mano += d; r.meses.add(x.desde.slice(0, 7)); }
+  }
+  const filas = Object.values(P).map(r => Object.assign(r, { tot: r.enf + r.acc + r.inj + r.sus + r.mano })).filter(r => r.tot || r.vac || r.pres);
+  const T = filas.reduce((t, r) => { for (const k of ['enf', 'acc', 'inj', 'sus', 'vac', 'pres', 'mano', 'tot']) t[k] += r[k]; return t; }, { enf: 0, acc: 0, inj: 0, sus: 0, vac: 0, pres: 0, mano: 0, tot: 0 });
+  const as = ini <= finR ? ausentismo(ini, finR) : { pct: null, perd: 0, disp: 0 };
+  const porMes = ms.map(m => { const a = ausentismo(iniMes(m), finMes(m)), S = SAUS[m] || {}; let e = 0, ac = 0, i = 0, s = 0; for (const c in S) if (N[c]) { const x = S[c], p = N[c]; e += dSis(x.enf, p) + (x.enfD || 0); ac += dSis(x.acc, p); i += dSis(x.inj, p); s += dSis(x.sus, p); } return { m, pct: a.pct, perd: a.perd, enf: e, acc: ac, inj: i, sus: s, pres: Object.values(SPRE[m] || {}).filter(x => x.hor && x.n < 2).length }; });
+  const hoyA = hoy;
+  return cab('Ausencias · ' + (ini <= finR ? rangoTxt(ini.slice(0, 7), finR.slice(0, 7)) : 'sin datos'), 'Suma del período elegido: lo liquidado en el sistema de sueldos (hay desde ' + (msAll.length ? mesLargo(msAll[0]) : '—') + ' hasta ' + (msAll.length ? mesLargo(msAll[msAll.length - 1]) : '—') + ') más lo cargado a mano en los meses que todavía no se liquidaron. En días (horas liquidadas ÷ jornada). Clic en una persona para ver su detalle mes a mes.',
+    selRango('f-rango-aus', UI.rangoAus, anios, msAll[msAll.length - 1]) + '<button class="small" id="aus-mes">Ver un mes</button><button class="small primary" onclick="dlgAusencia()">+ Cargar ausencia</button>' + botonXl('aus-tot,aus-tm', 'Ausencias total')) +
+    '<div class="kpis">' + kpi('Ausentismo', pct(as.pct), d0(as.perd) + ' de ' + n0(as.disp) + ' días hábiles', { warn: as.pct > 5 }) +
+    kpi('Enfermedad', d0(T.enf) + ' días', filas.filter(r => r.enf).length + ' personas') + kpi('Accidente / ART', d0(T.acc) + ' días', filas.filter(r => r.acc).length + ' personas') +
+    kpi('Faltas sin aviso', d0(T.inj) + ' días', filas.filter(r => r.inj).length + ' personas', { warn: T.inj > 0 }) + kpi('Suspensiones', d0(T.sus) + ' días', filas.filter(r => r.sus).length + ' personas') +
+    kpi('Presentismo perdido', n0(T.pres) + ' veces', filas.filter(r => r.pres).length + ' personas') + (T.mano ? kpi('Cargadas a mano', d0(T.mano) + ' días', 'meses sin liquidar') : '') + '</div>' +
+    '<section><p class="graf-t">Ausentismo mes a mes (%)</p>' + graf(porMes.map(r => ({ k: mesTxt(r.m), v: r.pct == null ? null : Math.round(r.pct * 10) / 10 })), v => pct(v)) + '</section>' +
+    '<section><h2>Por persona</h2><p class="sub">Ordenado por días perdidos (sin vacaciones). Incluye a los que ya no están.</p>' + tabla('aus-tot', [
+      { t: 'Legajo', num: 1, v: r => +(N[r.c] || {}).legajo || 0 }, { t: 'Persona', v: r => nomDe(r.c) }, { t: 'Sector', v: r => secDe(r.c) },
+      { t: 'Enfermedad', num: 1, v: r => r.enf, f: d1 }, { t: 'Accidente / ART', num: 1, v: r => r.acc, f: d1 }, { t: 'Faltas sin aviso', num: 1, v: r => r.inj, f: d1 },
+      { t: 'Suspensión', num: 1, v: r => r.sus, f: d1 }, { t: 'A mano', num: 1, v: r => r.mano, f: d1 },
+      { t: 'Total perdido', num: 1, v: r => r.tot, h: r => '<b>' + d0(r.tot) + '</b>' }, { t: 'Meses con faltas', num: 1, v: r => r.meses.size },
+      { t: 'Vacaciones', num: 1, v: r => r.vac, f: d1 }, { t: 'Presentismo perdido', num: 1, v: r => r.pres, f: v => v ? v + (v > 1 ? ' veces' : ' vez') : '' },
+      { t: 'Estado', v: r => activo(N[r.c] || {}, hoyA) ? 'Activo' : 'Baja', h: r => activo(N[r.c] || {}, hoyA) ? '' : '<span class="chip mut">baja</span>' }
+    ], filas, { orden: 8, limite: 60, clase: 'compacta', click: r => ficha(r.c, 'ausencias'), hoja: 'Por persona', total: ['', 'Total', '', d0(T.enf), d0(T.acc), d0(T.inj), d0(T.sus), d0(T.mano), d0(T.tot), '', d0(T.vac), n0(T.pres), ''], vacio: 'Sin ausencias.' }) + '</section>' +
+    '<section><h2>Mes a mes</h2>' + tabla('aus-tm', [
+      { t: 'Mes', v: r => r.m, f: mesTxt }, { t: 'Ausentismo', num: 1, v: r => r.pct, f: v => pct(v), x: r => r.pct == null ? '' : Math.round(r.pct * 100) / 100 }, { t: 'Días perdidos', num: 1, v: r => r.perd, f: d0 },
+      { t: 'Enfermedad', num: 1, v: r => r.enf, f: d1 }, { t: 'Accidente / ART', num: 1, v: r => r.acc, f: d1 }, { t: 'Faltas sin aviso', num: 1, v: r => r.inj, f: d1 }, { t: 'Suspensión', num: 1, v: r => r.sus, f: d1 },
+      { t: 'Perdieron presentismo', num: 1, v: r => r.pres }
+    ], porMes, { orden: 0, dir: -1, clase: 'compacta', click: r => { UI.mesAus = r.m; refrescar(); }, hoja: 'Mes a mes' }) + '</section>';
+}
 async function vAusencias() {
+  if (UI.mesAus === 'todo') { setTimeout(() => { const b = $('aus-mes'); if (b) b.onclick = () => { UI.mesAus = ''; refrescar(); }; }, 0); return vAusenciasTodo(); }
   const hoy = hoyISO(), ultC = [...CERR].sort().pop();
   const m = UI.mesAus || (ultC && !ausEn(iniMes(hoy.slice(0, 7)), hoy).length ? ultC : hoy.slice(0, 7)), y = +m.slice(0, 4);
   await Promise.all([leerAus(y), leerAus(y - 1)]);
@@ -630,7 +706,7 @@ async function vAusencias() {
   const as = ausentismo(a, b);
   const porT = {}; for (const x of l) { const t = porT[x.tipo] = porT[x.tipo] || { k: x.tipo, n: 0, cor: 0, hab: 0, pers: new Set() }; t.n++; t.cor += corridos(maxF(a, x.desde), minF(bF, x.hasta)); t.hab += habiles(maxF(a, x.desde), minF(bF, x.hasta)); t.pers.add(x.cuil); }
   const porS = {}; for (const s of sectores()) { const r = ausentismo(a, b, p => (p.sector || 'Sin sector') === s); if (r.disp) porS[s] = Object.assign({ k: s }, r); }
-  setTimeout(() => { const el = $('f-mes'); if (el) el.onchange = () => { if (el.value) { UI.mesAus = el.value; refrescar(); } }; }, 0);
+  setTimeout(() => { const el = $('f-mes'); if (el) el.onchange = () => { if (el.value) { UI.mesAus = el.value; refrescar(); } }; const t = $('aus-todo'); if (t) t.onclick = () => { UI.mesAus = 'todo'; refrescar(); }; }, 0);
   const cerr = CERR.has(m);
   let sisH = '', kp;
   const d1 = v => v ? (Math.round(v * 10) / 10).toLocaleString('es-AR') : '', d0 = v => d1(v) || '0';
@@ -663,7 +739,7 @@ async function vAusencias() {
   const sanM = SAN.filter(x => x.fecha.slice(0, 7) === m);
   return cab('Ausencias de ' + mesLargo(m), cerr ? 'Mes ya liquidado: las faltas salen del <b>sistema de sueldos</b>. El ausentismo son los días hábiles perdidos (sin vacaciones) sobre los días hábiles de toda la dotación.'
       : 'Mes todavía no liquidado: cuenta lo que se carga a mano acá (cuando se liquide, pasa a contar lo del sistema de sueldos). El <b>ausentismo</b> son los días hábiles perdidos sin vacaciones, sobre los días hábiles de la dotación' + (m === hoy.slice(0, 7) ? ' hasta hoy' : '') + '.',
-    '<input id="f-mes" type="month" value="' + m + '"><button class="small primary" onclick="dlgAusencia()">+ Cargar ausencia</button>' + botonXl((cerr ? 'aus-sis,' : '') + 'aus,aus-t,aus-s', 'Ausencias ' + m)) +
+    '<input id="f-mes" type="month" value="' + m + '"><button class="small" id="aus-todo" title="Sumar varios meses: toda la historia, un año, los últimos 12 o 6 meses, o desde/hasta">Ver un período</button><button class="small primary" onclick="dlgAusencia()">+ Cargar ausencia</button>' + botonXl((cerr ? 'aus-sis,' : '') + 'aus,aus-t,aus-s', 'Ausencias ' + m)) +
     '<div class="kpis">' + kp + (sanM.length ? kpi('Sanciones del mes', n0(sanM.length), sanM.filter(x => x.tipo === 3).length + ' suspensiones', { ir: 'sanciones' }) : '') + '</div>' + sisH +
     (cerr && !l.length ? '<div style="display:none">' : '') + '<section>' + (cerr ? '<h2>Cargadas a mano</h2>' : '') + tabla('aus', [
       { t: 'Persona', v: x => nomDe(x.cuil) }, { t: 'Sector', v: x => secDe(x.cuil) },
@@ -710,9 +786,10 @@ function vacPersona(cuil, y) { dlgAusencia(null, cuil, 'vac').then(() => { const
 
 /* ---------- Sanciones (del sistema de sueldos) ---------- */
 function vSanciones() {
-  const hoy = hoyISO(), y = UI.anioSan || hoy.slice(0, 4), tipo = UI.tipoSan || '';
+  const hoy = hoyISO(), r = UI.anioSan || hoy.slice(0, 4), tipo = UI.tipoSan || '';
   const anios = [...new Set(SAN.map(x => x.fecha.slice(0, 4)).concat([hoy.slice(0, 4)]))].sort().reverse();
-  const base = SAN.filter(x => x.fecha.slice(0, 4) === y);
+  const [mi, mf] = rangoDe(r, hoy.slice(0, 7), SAN.length ? SAN.map(x => x.fecha).sort()[0].slice(0, 7) : null);
+  const y = /^\d{4}$/.test(r) ? r : '', todo = !y, base = SAN.filter(x => x.fecha.slice(0, 7) >= mi && x.fecha.slice(0, 7) <= mf);
   const l = base.filter(x => !tipo || String(x.tipo) === tipo);
   const motivoN = m => {
     const s = sinAcentos(m).replace(/\s+/g, ' ').trim();
@@ -731,22 +808,26 @@ function vSanciones() {
     const k = motivoN(x.motivo); porM[k] = (porM[k] || 0) + 1;
     porMes[x.fecha.slice(0, 7)] = (porMes[x.fecha.slice(0, 7)] || 0) + 1;
   }
-  const meses = []; for (let i = 1; i <= 12; i++) { const m = y + '-' + p2(i); if (m <= hoy.slice(0, 7)) meses.push({ k: MESES[i - 1], v: porMes[m] || 0 }); }
+  const meses = [];
+  const porAnio = todo && mesMas(mi, 24) <= mf;
+  if (porAnio) { const ys = [...new Set(l.map(x => x.fecha.slice(0, 4)))].sort(); for (const a of ys) meses.push({ k: a, v: l.filter(x => x.fecha.slice(0, 4) === a).length }); }
+  else if (todo) for (let m = mi; m <= mf; m = mesMas(m, 1)) meses.push({ k: mesTxt(m), v: porMes[m] || 0 });
+  else for (let i = 1; i <= 12; i++) { const m = y + '-' + p2(i); if (m <= hoy.slice(0, 7)) meses.push({ k: MESES[i - 1], v: porMes[m] || 0 }); }
   const susp = base.filter(x => x.tipo === 3), act = activos(hoy).length;
   const reinc = Object.values(porP).filter(p => p.n >= 3).length;
   setTimeout(() => {
-    const a = $('f-anio-san'); if (a) a.onchange = () => { UI.anioSan = a.value; refrescar(); };
+    engancharRango('f-anio-san', v => { UI.anioSan = v; });
     const t = $('f-tipo-san'); if (t) t.onchange = () => { UI.tipoSan = t.value; refrescar(); };
   }, 0);
   if (!SAN.length) return cab('Sanciones', '') + '<section class="empty">Todavía no llegaron las sanciones del sistema de sueldos (las sube la notebook a las 7, 13 y 19 h).</section>';
-  return cab('Sanciones ' + y, 'Apercibimientos, actas de constatación y suspensiones cargadas en el <b>sistema de sueldos</b> (se actualizan solas). Clic en una persona para ver su ficha.',
-    '<select id="f-anio-san">' + anios.map(a => '<option' + (a === y ? ' selected' : '') + '>' + a + '</option>').join('') + '</select>' +
-    '<select id="f-tipo-san"><option value="">Todas</option>' + Object.keys(TIPOS_SAN).map(k => '<option value="' + k + '"' + (k === tipo ? ' selected' : '') + '>' + TIPOS_SAN[k] + '</option>').join('') + '</select>' + botonXl('san,san-p,san-m', 'Sanciones ' + y)) +
+  return cab('Sanciones · ' + (y ? y : rangoTxt(mi, mf)), 'Apercibimientos, actas de constatación y suspensiones cargadas en el <b>sistema de sueldos</b> (se actualizan solas). Clic en una persona para ver su ficha.',
+    selRango('f-anio-san', r, anios) +
+    '<select id="f-tipo-san"><option value="">Todas</option>' + Object.keys(TIPOS_SAN).map(k => '<option value="' + k + '"' + (k === tipo ? ' selected' : '') + '>' + TIPOS_SAN[k] + '</option>').join('') + '</select>' + botonXl('san,san-p,san-m', todo ? 'Sanciones total' : 'Sanciones ' + y)) +
     '<div class="kpis">' + kpi('Apercibimientos', n0(base.filter(x => x.tipo === 1).length)) + kpi('Actas de constatación', n0(base.filter(x => x.tipo === 2).length)) +
     kpi('Suspensiones', n0(susp.length), susp.reduce((s, x) => s + x.dias, 0) + ' días de suspensión', { warn: susp.length > 0 }) +
     kpi('Personas sancionadas', n0(new Set(base.map(x => x.cuil)).size), act ? pct(new Set(base.filter(x => activo(N[x.cuil] || {}, hoy)).map(x => x.cuil)).size / act * 100, 0) + ' del personal activo' : '') +
     kpi('Con 3 o más', n0(reinc), 'personas' + (tipo ? ' (de este tipo)' : ''), { warn: reinc > 0 }) + '</div>' +
-    '<div class="g2"><section><p class="graf-t">Sanciones por mes' + (tipo ? ' · ' + TIPOS_SAN[tipo] : '') + '</p>' + graf(meses, n0) + '</section>' +
+    '<div class="g2"><section><p class="graf-t">Sanciones por ' + (porAnio ? 'año' : 'mes') + (tipo ? ' · ' + TIPOS_SAN[tipo] : '') + '</p>' + graf(meses, n0) + '</section>' +
     '<section><h2>Por motivo</h2>' + tabla('san-m', [{ t: 'Motivo', v: x => x.k }, { t: 'Cantidad', num: 1, v: x => x.n }, { t: '%', num: 1, v: x => l.length ? x.n / l.length * 100 : 0, f: v => pct(v, 0) }],
       Object.keys(porM).map(k => ({ k, n: porM[k] })), { orden: 1, limite: 8, hoja: 'Por motivo' }) + '</section></div>' +
     '<section><h2>Por persona</h2>' + tabla('san-p', [
@@ -759,7 +840,7 @@ function vSanciones() {
       { t: 'Fecha', v: x => x.fecha, f: fec }, { t: 'Persona', v: x => nomDe(x.cuil) }, { t: 'Sector', v: x => secDe(x.cuil) },
       { t: 'Tipo', v: x => TIPOS_SAN[x.tipo] || '', h: x => chipSan(x.tipo) }, { t: 'Motivo', v: x => x.motivo }, { t: 'Días', num: 1, v: x => x.dias || '' },
       { t: 'Desde', v: x => x.tipo === 3 ? x.desde : '', f: fec }, { t: 'Hasta', v: x => x.tipo === 3 ? x.hasta : '', f: fec }
-    ], l, { orden: 0, limite: 100, clase: 'compacta', click: x => ficha(x.cuil, 'sanciones'), hoja: 'Sanciones ' + y, vacio: 'Sin sanciones este año.' }) + '</section>';
+    ], l, { orden: 0, limite: 100, clase: 'compacta', click: x => ficha(x.cuil, 'sanciones'), hoja: todo ? 'Sanciones total' : 'Sanciones ' + y, vacio: 'Sin sanciones.' }) + '</section>';
 }
 
 /* ---------- Indicadores ---------- */

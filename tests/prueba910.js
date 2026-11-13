@@ -108,7 +108,12 @@ await p.close();}
  await p.click('#dlg-f button:has-text("Cerrar")');
  await p.click('#nav a[data-t="ausencias"]');await p.waitForTimeout(300);
  console.log('sis ausencias:',await p.evaluate(()=>document.querySelector('main h2').innerText+' | '+[...document.querySelectorAll('.kpi')].map(k=>k.innerText.replace(/\n/g,' ')).join(' | ')),'· tabla',await p.locator('#tw-aus-sis tbody tr').count(),'· sector visible',await p.isVisible('#tw-aus-s'));
- await p.click('#nav a[data-t="sanciones"]');await p.waitForTimeout(300);await p.selectOption('#f-anio-san','2026');await p.waitForTimeout(300);
+ await p.click('#aus-todo');await p.waitForTimeout(400);
+ console.log('sis total:',await p.innerText('main h2'),'·',await p.evaluate(()=>[...document.querySelectorAll('#tw-aus-tot tbody tr')].map(r=>r.cells[1].innerText+' '+r.cells[8].innerText).join(', ')));
+ await p.selectOption('#f-rango-aus','u3');await p.waitForTimeout(300);console.log('sis rango u3:',await p.innerText('main h2'));
+ await p.click('#aus-mes');await p.waitForTimeout(300);
+ await p.click('#nav a[data-t="sanciones"]');await p.waitForTimeout(300);await p.selectOption('#f-anio-san','2026');
+ await p.selectOption('#f-anio-san','todo');await p.waitForTimeout(300);console.log('sis sanciones todo:',await p.innerText('main h2'),await p.locator('#tw-san tbody tr').count());await p.selectOption('#f-anio-san','2026');await p.waitForTimeout(300);await p.waitForTimeout(300);
  console.log('sis sanciones:',await p.evaluate(()=>[...document.querySelectorAll('.kpi')].map(k=>k.innerText.replace(/\n/g,' ')).join(' | ')),'· motivos',await p.evaluate(()=>[...document.querySelectorAll('#tw-san-m tbody tr')].map(r=>r.cells[0].innerText+'='+r.cells[1].innerText).join(', ')));
  await p.click('#nav a[data-t="vacaciones"]');await p.waitForTimeout(200);await p.selectOption('#f-anio','2025');await p.waitForTimeout(300);
  console.log('sis vacaciones 2025:',await p.evaluate(()=>[...document.querySelectorAll('#tw-vac tbody tr')].map(r=>r.cells[1].innerText+' '+r.cells[6].innerText).join(', ')));
