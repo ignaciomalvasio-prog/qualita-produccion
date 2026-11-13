@@ -28,7 +28,7 @@ function nomLeg(l) { const c = legCuil(l); if (c && N[c]) return N[c].nombre; fo
 /* sector de CC-Cloud de cada legajo (el último visto); si nunca fichó, el del sistema de sueldos */
 const SECCC = {};
 function secLeg(l) { if (SECCC[l]) return SECCC[l]; const c = legCuil(l); return c && N[c] && N[c].sector ? limpiarSec(N[c].sector) : 'Sin sector'; }
-function limpiarSec(s) { s = String(s || '').trim(); const m = /^\d+\s*-\s*(.+)$/.exec(s); return m ? lindo(m[1]) : lindo(s); }
+function limpiarSec(s) { s = String(s || '').trim(); const m = /^\d+\s*-\s*(.+)$/.exec(s); return lindo(m ? m[1] : s).replace(/(\S) (Y|De|Del|La|Las|Los|E|En)\b/g, (a, b, c) => b + ' ' + c.toLowerCase()); }
 
 /* ---------- leer los meses ---------- */
 async function relojMes(m) {
