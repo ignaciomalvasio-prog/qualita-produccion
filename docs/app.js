@@ -3345,7 +3345,13 @@
   // Un camión completo, como se ve en Logística (clientes, cortes, cantidades, precios y notas), para mandarlo en PDF (pedido de Renzo, 12/11/2026).
   function camionPDFDatos(f, camId) {
     var lg = logDe(f) || {}, cam = ((lg.camiones) || []).filter(function (c) { return c.id === camId; })[0]; if (!cam) return null;
-    var o = cam.orden || [], peds = (lg.pedidos || []).filter(function (p) { return p.camion === camId; }).sort(function (a, b) { var i = o.indexOf(a.id), j = o.indexOf(b.id); return (i < 0 ? 1e6 : i) - (j < 0 ? 1e6 : j); });
+    var x = camPDFRenglones(lg, cam);
+    return { cab: { sup: 'Logística · ' + diaCorto(f), tit: camPDFTit(cam), dato: x.dato, estado: '' }, renglones: x.rs, nom: nomCam(cam) };
+  }
+  function camPDFTit(cam) { return cam ? ((cam.num && nomLimpio(cam.nombre) ? 'N° ' + cam.num + ' · ' : '') + nomCam(cam)).toUpperCase() + (cam.hora ? ' · ' + cam.hora + ' HS' : '') : 'SIN CAMIÓN'; }
+  // Los renglones de un camión (o de los pedidos sin camión, con cam = null) para el PDF.
+  function camPDFRenglones(lg, cam) {
+    var camId = cam ? cam.id : '', o = (cam && cam.orden) || [], peds = (lg.pedidos || []).filter(function (p) { return (p.camion || '') === camId; }).sort(function (a, b) { var i = o.indexOf(a.id), j = o.indexOf(b.id); return (i < 0 ? 1e6 : i) - (j < 0 ? 1e6 : j); });
     var tMed = 0, rs = [];
     peds.forEach(function (p, i) {
       tMed += +p.medias || 0;
@@ -3363,9 +3369,17 @@
       if (p.nota) rs.push({ tipo: 'nota', trozos: [{ t: 'Nota: ', b: true }, { t: p.nota }] });
     });
     if (!peds.length) rs.push({ tipo: 'nota', trozos: [{ t: 'Sin pedidos', gris: true }] });
-    if (cam.nota) rs.unshift({ tipo: 'nota', trozos: [{ t: 'Nota del camión: ', b: true }, { t: cam.nota }] });
+    if (cam && cam.nota) rs.unshift({ tipo: 'nota', trozos: [{ t: 'Nota del camión: ', b: true }, { t: cam.nota }] });
     var kgT = kgPedidos(peds), dato = [peds.length + (peds.length === 1 ? ' pedido' : ' pedidos'), tMed ? n(tMed) + ' medias' : '', kgT ? '~' + n(Math.round(kgT)) + ' kg' : ''].filter(Boolean).join(' · ');
-    return { cab: { sup: 'Logística · ' + diaCorto(f), tit: ((cam.num && nomLimpio(cam.nombre) ? 'N° ' + cam.num + ' · ' : '') + nomCam(cam)).toUpperCase() + (cam.hora ? ' · ' + cam.hora + ' HS' : ''), dato: dato, estado: '' }, renglones: rs, nom: nomCam(cam) };
+    return { rs: rs, dato: dato, n: peds.length };
+  }
+  // Todo el día de Logística, camión por camión, en un PDF para WhatsApp (pedido de Renzo, 13/11/2026).
+  function logDiaPDFDatos(f) {
+    var lg = logDe(f) || {}, cams = lg.camiones || [], rs = [], tp = lg.pedidos || [];
+    cams.forEach(function (c, k) { var x = camPDFRenglones(lg, c); rs.push({ tipo: 'cam', trozos: [{ t: (k + 1) + ' · ' + camPDFTit(c) }], der: x.dato }); rs = rs.concat(x.rs); });
+    var sc = camPDFRenglones(lg, null); if (sc.n) { rs.push({ tipo: 'cam', trozos: [{ t: 'SIN CAMIÓN' }], der: sc.dato }); rs = rs.concat(sc.rs); }
+    var tMed = tp.reduce(function (t, p) { return t + (+p.medias || 0); }, 0), kgT = kgPedidos(tp);
+    return { cab: { sup: 'Logística', tit: 'LOGÍSTICA · ' + tituloDe(f), dato: [cams.length + (cams.length === 1 ? ' camión' : ' camiones'), tMed ? n(tMed) + ' medias' : '', kgT ? '~' + n(Math.round(kgT)) + ' kg' : ''].filter(Boolean).join(' · '), estado: '' }, renglones: rs };
   }
   function resumenLog(lista) {
     var tm = lista.reduce(function (t, p) { return t + (+p.medias || 0); }, 0), tc = kgPedidos(lista);
@@ -3407,7 +3421,7 @@
     // Quien mira por el link ve todo, también los que todavía no tienen camión (pedido de Renzo, para ir adelantando); solo lee.
     var h = '<div class="nav"><button class="btn step" data-act="fl" data-d="-1" aria-label="Día anterior">‹</button><span class="tit">' + fechaTit(f) + '</span><button class="btn step" data-act="fl" data-d="1" aria-label="Día siguiente">›</button>'
       + '<input type="date" id="l-fecha" value="' + esc(f) + '" aria-label="Ir a una fecha">'
-      + (peds.length ? '<button class="btn" data-act="resumen" aria-pressed="' + !!S.resumen + '">' + (S.resumen ? 'Ver por camión' : 'Resumen del día') + '</button><span class="imp-grupo"><button class="btn" data-act="imprimir">' + (S.resumen ? 'Imprimir resumen' : 'Imprimir') + '</button>' + ((!S.resumen && cams.length > 1) || impEstado() ? menuHTML('log-imp', '▾', (!S.resumen && cams.length > 1 ? '<button class="btn sm" data-act="imprimir-camiones">Cada camión en su hoja</button>' : '') + (impEstado() ? '<button class="btn sm" data-act="imprimir-remoto">🖨 En la compu' + (S.impresora && S.impresora.nombre ? ' (' + esc(S.impresora.nombre) + ')' : '') + (impEstado() === 'off' ? ' · apagada' : '') + '</button>' : ''), 'Más formas de imprimir') : '') + '</span>' : '')
+      + (peds.length ? '<button class="btn" data-act="resumen" aria-pressed="' + !!S.resumen + '">' + (S.resumen ? 'Ver por camión' : 'Resumen del día') + '</button><span class="imp-grupo"><button class="btn" data-act="imprimir">' + (S.resumen ? 'Imprimir resumen' : 'Imprimir') + '</button>' + ((!S.resumen && cams.length > 1) || impEstado() ? menuHTML('log-imp', '▾', (!S.resumen && cams.length > 1 ? '<button class="btn sm" data-act="imprimir-camiones">Cada camión en su hoja</button>' : '') + (impEstado() ? '<button class="btn sm" data-act="imprimir-remoto">🖨 En la compu' + (S.impresora && S.impresora.nombre ? ' (' + esc(S.impresora.nombre) + ')' : '') + (impEstado() === 'off' ? ' · apagada' : '') + '</button>' : ''), 'Más formas de imprimir') : '') + '</span>' + (S.resumen ? '' : '<button class="btn wa" data-act="log-pdf" data-f="' + esc(f) + '" title="Todo el día, camión por camión, en PDF para mandar por WhatsApp">WhatsApp</button>') : '')
       + (S.editor && cams.filter(function (c) { return c.hora; }).length > 1 ? '<button class="btn" data-act="cam-por-hora" title="Ordenar los camiones por horario">Ordenar x hora</button>' : '')
       + (S.editor ? '<button class="btn" data-act="cam-nuevo" title="Camión para este día">+ Camión</button><button class="btn" data-act="link-log" title="Copiar link para compartir">Copiar link</button><span class="guardado" id="g-log"></span>' : '') + '</div>';
     h += '<div class="pd-busca"><input type="search" id="lg-buscar" value="' + esc(S.lgBuscar || '') + '" placeholder="Buscar cliente" aria-label="Buscar un cliente en Logística (en todos los días)" autocomplete="off">'
@@ -4327,6 +4341,10 @@
       var camsW = camionesDe(fw).filter(function (c) { return idsW && idsW.indexOf(c.id) >= 0; }), telsW = camsW.map(function (c) { return telChofer(nomCam(c)); });
       var telW = telsW.length && telsW[0] && telsW.every(function (x) { return telWA(x) === telWA(telsW[0]); }) ? telsW[0] : '';
       compartirWhatsApp(resumenTexto(fw, idsW), telW);
+    }
+    else if (a === 'log-pdf') {
+      var dL = logDiaPDFDatos(D.f), xL = String(D.f).split('-');
+      compartirPDF(function () { return armarPDF([dL]); }, b, true, 'Logistica ' + xL[2] + '-' + xL[1] + '.pdf');
     }
     else if (a === 'cam-pdf') {
       var dC = camionPDFDatos(D.f, D.id), xC = String(D.f).split('-'); if (!dC) return;

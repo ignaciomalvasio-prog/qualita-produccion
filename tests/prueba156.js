@@ -20,5 +20,9 @@ await p.evaluate(()=>document.querySelector('[data-act="cam-pdf"][data-id="c1"]'
 await p.waitForFunction(()=>window.__mock.ultimoPDF||window.__comp,null,{timeout:15000});
 const r=await p.evaluate(async()=>{const x=window.__mock.ultimoPDF;const a=new Uint8Array(await x.blob.arrayBuffer());let s='';a.forEach(c=>s+=String.fromCharCode(c));return {n:x.nombre,b:btoa(s)};});
 console.log(w,'pdf:',r.n);if(SP&&w===400){require('fs').writeFileSync(SP+'/p156.pdf',Buffer.from(r.b,'base64'));require('child_process').execSync('pdftoppm -r 70 -png -f 1 -l 1 '+SP+'/p156.pdf '+SP+'/p156');}
+await p.evaluate(()=>{window.__mock.ultimoPDF=null;document.querySelector('.nav [data-act="log-pdf"]').click();});
+await p.waitForFunction(()=>window.__mock.ultimoPDF,null,{timeout:15000});
+const r2=await p.evaluate(async()=>{const x=window.__mock.ultimoPDF;const a=new Uint8Array(await x.blob.arrayBuffer());let s='';a.forEach(c=>s+=String.fromCharCode(c));return {n:x.nombre,b:btoa(s)};});
+console.log(w,'pdf día:',r2.n);if(SP&&w===400){require('fs').writeFileSync(SP+'/p156d.pdf',Buffer.from(r2.b,'base64'));require('child_process').execSync('pdftoppm -r 70 -png -f 1 -l 1 '+SP+'/p156d.pdf '+SP+'/p156d');}
 console.log(w,'desborde:',await p.evaluate(()=>document.documentElement.scrollWidth),'errores:',errs);await p.close();}
 await b.close();})();
