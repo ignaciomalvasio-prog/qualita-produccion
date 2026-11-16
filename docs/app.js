@@ -3374,6 +3374,111 @@
     return { rs: rs, dato: dato, n: peds.length };
   }
   // Todo el día de Logística, camión por camión, en un PDF para WhatsApp (pedido de Renzo, 13/11/2026).
+  /* PDF a color de Logística para mandar por WhatsApp (pedido de Renzo, 15/11/2026): se ve como en la pantalla
+     (camión con número amarillo y nombre en recuadro oscuro, horario, clientes numerados, FRESCO/CONGELADO, cantidades
+     resaltadas y notas en amarillo). Imprimir sigue en blanco y negro. camId vacío = todo el día. */
+  function logColorDatos(f, camId) {
+    var lg = logDe(f) || {}, cams = (lg.camiones || []).filter(function (c) { return !camId || c.id === camId; }), out = [];
+    var arma = function (cam, k) {
+      var id = cam ? cam.id : '', o = (cam && cam.orden) || [];
+      var peds = (lg.pedidos || []).filter(function (p) { return (p.camion || '') === id; }).sort(function (a, b) { var i = o.indexOf(a.id), j = o.indexOf(b.id); return (i < 0 ? 1e6 : i) - (j < 0 ? 1e6 : j); });
+      if (!cam && !peds.length) return;
+      var med = 0, caj = 0;
+      var ps = peds.map(function (p) {
+        med += +p.medias || 0;
+        var filas = (p.cortes || []).map(function (c) { return { corte: c.corte, texto: sinCorteTxt(sinCliente(c.texto, p.cliente), c.corte), precio: precioTxt(c.precio, c.iva, tasaIva(c)) }; });
+        if (+p.medias) filas.unshift({ corte: 'MEDIAS', texto: mediasCorto(p), precio: precioTxt(p.precioMedias, p.ivaMedias) });
+        return { cliente: String(p.cliente || 'Sin cliente').toUpperCase(), cuenta: p.cuenta || '', frio: frioPed(p), kg: kgTxt({ kg: +p.kg || 0, falta: p.kgFalta, manual: p.kgManual }).replace(' + renglones sin peso', ''), nota: p.nota || '',
+          filas: filas.map(function (c) { var m = String(c.texto || '').match(RE_CANT); return { corte: String(c.corte || '').toUpperCase(), cant: m ? (m[1] + (m[2] ? ' ' + m[2] : '')).toUpperCase() : '', resto: m ? String(c.texto).slice(m[0].length).trim() : String(c.texto || ''), precio: c.precio || '' }; }) };
+      });
+      var kgT = kgPedidos(peds);
+      out.push({ num: cam ? (k + 1) : '', nom: cam ? nomCam(cam).toUpperCase() : 'SIN CAMIÓN', hora: cam && cam.hora ? cam.hora : '', nota: cam && cam.nota || '', peds: ps,
+        res: [peds.length + (peds.length === 1 ? ' pedido' : ' pedidos'), med ? n(med) + ' medias' : '', kgT ? '~' + n(Math.round(kgT)) + ' kg' : ''].filter(Boolean).join(' · ') });
+    };
+    cams.forEach(function (c) { arma(c, (lg.camiones || []).indexOf(c)); });
+    if (!camId) arma(null, 0);
+    var tp = lg.pedidos || [], tMed = tp.reduce(function (t, p) { return t + (+p.medias || 0); }, 0), kgD = kgPedidos(tp);
+    return { tit: 'LOGÍSTICA · ' + tituloDe(f), res: camId ? '' : [cams.length + (cams.length === 1 ? ' camión' : ' camiones'), tMed ? n(tMed) + ' medias' : '', kgD ? '~' + n(Math.round(kgD)) + ' kg' : ''].filter(Boolean).join(' · '), cams: out };
+  }
+  function logColorPDF(d) {
+    var L = window.PDFLib;
+    return L.PDFDocument.create().then(function (doc) {
+      return Promise.all([doc.embedFont(L.StandardFonts.Helvetica), doc.embedFont(L.StandardFonts.HelveticaBold)]).then(function (fs) {
+        var F = fs[0], FB = fs[1], AN = 595.28, AL = 841.89, M = 32, maxX = AN - M, pag, y, pags = [], cache = {};
+        var hex = function (h) { return L.rgb(parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255); };
+        var C = { tinta: hex('#1b2a38'), navy: hex('#1d3a52'), amarillo: hex('#e8b730'), celeste: hex('#e4f0f8'), celBorde: hex('#9cc4de'), azul: hex('#4a8db5'), azulOsc: hex('#1f5f86'),
+          gris: hex('#6b7783'), linea: hex('#d5dde4'), blanco: hex('#ffffff'), verdeF: hex('#dff2e3'), verdeT: hex('#2e7d3e'), azulF: hex('#e0edf8'), azulT: hex('#1f6f9e'), notaF: hex('#fdf3c8'), notaB: hex('#d4a72c'), notaT: hex('#4a3a08'), fondoCli: hex('#f7fafc') };
+        var REEMPLAZO = { '≈': '~', '✓': 'v', '✗': 'x', '→': '->' };
+        var lim = function (t) { return Array.from(String(t || '')).map(function (ch) { if (cache[ch] != null) return cache[ch]; var v = ch; try { F.encodeText(ch); } catch (e) { v = REEMPLAZO[ch] != null ? REEMPLAZO[ch] : '?'; } cache[ch] = v; return v; }).join(''); };
+        var an = function (fu, t, tm) { return fu.widthOfTextAtSize(lim(t), tm); };
+        var txt = function (t, x, yy, tm, fu, col) { pag.drawText(lim(t), { x: x, y: yy, size: tm, font: fu, color: col }); };
+        var partir = function (t, fu, tm, w) { var r = [], act = ''; lim(t).split(/\s+/).forEach(function (pa) { if (!pa) return; var pr = act ? act + ' ' + pa : pa; if (act && an(fu, pr, tm) > w) { r.push(act); act = pa; } else act = pr; }); if (act) r.push(act); return r.length ? r : ['']; };
+        var nueva = function () { pag = doc.addPage([AN, AL]); pags.push(pag); y = AL - M; };
+        var lugar = function (h) { if (y - h < M + 16) nueva(); };
+        var pill = function (x, yy, w, h, fondo, borde, r) { pag.drawRectangle({ x: x, y: yy, width: w, height: h, color: fondo, borderColor: borde || undefined, borderWidth: borde ? 0.8 : 0 }); };
+        nueva();
+        // Encabezado del día
+        txt(d.tit, M, y - 16, 16, FB, C.tinta);
+        if (d.res) txt(d.res.toUpperCase(), M, y - 33, 10.5, FB, C.gris);
+        y -= d.res ? 42 : 26; pag.drawLine({ start: { x: M, y: y }, end: { x: maxX, y: y }, thickness: 1.5, color: C.tinta }); y -= 14;
+        d.cams.forEach(function (cam, ci) {
+          if (ci) y -= 10;
+          lugar(110);
+          // Banda del camión: número en círculo amarillo, nombre en recuadro oscuro, horario en celeste y el resumen a la derecha.
+          var hB = 40, yB = y - hB;
+          pag.drawRectangle({ x: M, y: yB, width: maxX - M, height: hB, color: C.celeste, borderColor: C.tinta, borderWidth: 1.6 });
+          var cx = M + 22, cy = yB + hB / 2;
+          if (cam.num !== '') { pag.drawCircle({ x: cx, y: cy, size: 13, color: C.amarillo }); var ns = String(cam.num); txt(ns, cx - an(FB, ns, 13) / 2, cy - 4.6, 13, FB, C.tinta); }
+          var xN = cam.num !== '' ? cx + 22 : M + 10, tN = 14, wMax = maxX - xN - 150;
+          while (tN > 9 && an(FB, cam.nom, tN) > wMax) tN -= 0.5;
+          var wN = an(FB, cam.nom, tN) + 18; pill(xN, cy - 11, wN, 22, C.navy); txt(cam.nom, xN + 9, cy - tN * 0.36, tN, FB, C.blanco);
+          var xH = xN + wN + 8;
+          if (cam.hora) { var wH = an(FB, cam.hora, 11.5) + 14; pill(xH, cy - 9, wH, 18, hex('#c5def0'), C.celBorde); txt(cam.hora, xH + 7, cy - 4, 11.5, FB, C.navy); }
+          var wR = an(FB, cam.res, 9.5); txt(cam.res, maxX - 10 - wR, cy - 3.4, 9.5, FB, C.gris);
+          y = yB - 8;
+          if (cam.nota) { var lnC = partir('Nota del camión: ' + cam.nota, FB, 10.5, maxX - M - 22); lugar(lnC.length * 13 + 10); pill(M, y - lnC.length * 13 - 6, maxX - M, lnC.length * 13 + 6, C.notaF); pag.drawRectangle({ x: M, y: y - lnC.length * 13 - 6, width: 3, height: lnC.length * 13 + 6, color: C.notaB }); lnC.forEach(function (l, i) { txt(l, M + 10, y - 12 - i * 13, 10.5, FB, C.notaT); }); y -= lnC.length * 13 + 12; }
+          if (!cam.peds.length) { txt('Sin pedidos', M + 10, y - 12, 10.5, F, C.gris); y -= 20; }
+          cam.peds.forEach(function (p, pi) {
+            lugar(48);
+            // Cliente: número en círculo azul, nombre en azul subrayado, FRESCO/CONGELADO y los kilos a la derecha.
+            var yC = y - 16, xC = M + 16;
+            pag.drawCircle({ x: xC, y: yC + 4, size: 9.5, color: C.azul }); var ps = String(pi + 1); txt(ps, xC - an(FB, ps, 10) / 2, yC + 0.5, 10, FB, C.blanco);
+            var xT = xC + 16, tC = 13, wK = an(FB, p.kg, 10), wMx = maxX - xT - wK - 90;
+            while (tC > 9 && an(FB, p.cliente, tC) > wMx) tC -= 0.5;
+            txt(p.cliente, xT, yC, tC, FB, C.tinta); var wC = an(FB, p.cliente, tC);
+            pag.drawLine({ start: { x: xT, y: yC - 3.5 }, end: { x: xT + wC, y: yC - 3.5 }, thickness: 2, color: C.azul });
+            var xB = xT + wC + 8;
+            if (p.frio) { var fr = String(p.frio).toUpperCase(), esF = /FRES/.test(fr), wF = an(FB, fr, 8.5) + 10; pill(xB, yC - 3, wF, 14, esF ? C.verdeF : C.azulF); txt(fr, xB + 5, yC + 0.8, 8.5, FB, esF ? C.verdeT : C.azulT); }
+            txt(p.kg, maxX - wK, yC, 10, F, C.gris);
+            y = yC - 10; pag.drawLine({ start: { x: xT, y: y }, end: { x: maxX, y: y }, thickness: 0.6, color: C.linea }); y -= 4;
+            p.filas.forEach(function (fi) {
+              var xR = xT, tR = 11, wCo = an(FB, fi.corte, tR);
+              var xCant = xR + Math.max(wCo + 8, 90), wCa = fi.cant ? an(FB, fi.cant, tR) + 12 : 0, xRes = xCant + (wCa ? wCa + 6 : 0);
+              var pr = fi.precio ? fi.precio : '', wP = pr ? an(F, pr, 9) : 0;
+              var lns = partir(fi.resto, F, tR, Math.max(80, maxX - xRes - (wP ? wP + 10 : 0)));
+              var hF = Math.max(1, lns.length) * 14 + 6; lugar(hF);
+              var yF = y - 13;
+              txt(fi.corte, xR, yF, tR, FB, C.tinta); pag.drawLine({ start: { x: xR, y: yF - 2.5 }, end: { x: xR + wCo, y: yF - 2.5 }, thickness: 0.9, color: C.tinta });
+              if (fi.cant) { pill(xCant, yF - 4, wCa, 16, C.azulF, C.celBorde); txt(fi.cant, xCant + 6, yF, tR, FB, C.navy); }
+              lns.forEach(function (l, i) { if (l) txt(l, xRes, yF - i * 14, tR, F, C.tinta); });
+              if (pr) txt(pr, maxX - wP, yF, 9, F, C.gris);
+              y -= hF;
+            });
+            if (p.nota) {
+              var ln = partir(p.nota, FB, 10.5, maxX - xT - 20), hN = ln.length * 13 + 8; lugar(hN + 4);
+              pill(xT, y - hN, maxX - xT, hN, C.notaF); pag.drawRectangle({ x: xT, y: y - hN, width: 3, height: hN, color: C.notaB });
+              ln.forEach(function (l, i) { txt(l, xT + 10, y - 13 - i * 13, 10.5, FB, C.notaT); }); y -= hN + 6;
+            }
+            y -= 6;
+          });
+        });
+        var ah = new Date(), pie = 'Frigorífico Qualitá · ' + ah.toLocaleDateString('es-AR') + ' ' + ah.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+        pags.forEach(function (pp, i) { pp.drawText(lim(pie), { x: M, y: 18, size: 8, font: F, color: C.gris }); var t = (i + 1) + ' / ' + pags.length; pp.drawText(t, { x: maxX - F.widthOfTextAtSize(t, 8), y: 18, size: 8, font: F, color: C.gris }); });
+        doc.setTitle(lim(d.tit)); doc.setCreator('Producción Qualitá');
+        return doc.save();
+      });
+    });
+  }
   function logDiaPDFDatos(f) {
     var lg = logDe(f) || {}, cams = lg.camiones || [], rs = [], tp = lg.pedidos || [];
     cams.forEach(function (c, k) { var x = camPDFRenglones(lg, c); rs.push({ tipo: 'cam', trozos: [{ t: (k + 1) + ' · ' + camPDFTit(c) }], der: x.dato }); rs = rs.concat(x.rs); });
@@ -4343,12 +4448,12 @@
       compartirWhatsApp(resumenTexto(fw, idsW), telW);
     }
     else if (a === 'log-pdf') {
-      var dL = logDiaPDFDatos(D.f), xL = String(D.f).split('-');
-      compartirPDF(function () { return armarPDF([dL]); }, b, true, 'Logistica ' + xL[2] + '-' + xL[1] + '.pdf');
+      var dL = logColorDatos(D.f, ''), xL = String(D.f).split('-');
+      compartirPDF(function () { return logColorPDF(dL); }, b, true, 'Logistica ' + xL[2] + '-' + xL[1] + '.pdf');
     }
     else if (a === 'cam-pdf') {
       var dC = camionPDFDatos(D.f, D.id), xC = String(D.f).split('-'); if (!dC) return;
-      compartirPDF(function () { return armarPDF([dC]); }, b, true, 'Camion ' + String(dC.nom || '').replace(/[\\/:*?"<>|]/g, '') + ' ' + xC[2] + '-' + xC[1] + '.pdf');
+      var dCc = logColorDatos(D.f, D.id); compartirPDF(function () { return logColorPDF(dCc); }, b, true, 'Camion ' + String(dC.nom || '').replace(/[\\/:*?"<>|]/g, '') + ' ' + xC[2] + '-' + xC[1] + '.pdf');
     }
     else if (a === 'res-pdf') {
       var fp = D.f, idsP = D.cual ? [D.cual] : camionesDe(fp).filter(function (c) { return (S.resSel || {})[fp + '|' + c.id]; }).map(function (c) { return c.id; }).concat((S.resSel || {})[fp + '|_sin'] ? ['_sin'] : []);
