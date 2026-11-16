@@ -2751,6 +2751,24 @@
     while (nt < 6) { ops.push(d); if (!esFeriado(d)) nt++; d = habilAnterior(d); }
     return '<span class="mf-menu"><span class="small muted">Son faena del:</span>' + ops.map(function (x) { return esFeriado(x) ? '<span class="mf-fer" title="Feriado: no hay actividad">' + esc(diaCorto(x)) + ' · feriado</span>' : '<button class="btn sm' + (x === fa ? ' pri' : '') + '" data-act="mf-set" data-id="' + id + '" data-f="' + x + '">' + esc(diaCorto(x)) + '</button>'; }).join('') + '<button class="btn sm lnk" data-act="mf-abrir" data-id="' + id + '">Cancelar</button></span>';
   }
+  /* Recordatorio propio en el renglón del pedido (pedido de Renzo, 16/11/2026): una nota para él, ej. "hacer producir el miércoles".
+     Queda solo en Pedidos (no va a Logística, ni a producción, ni al link público). */
+  function recChipHTML(p) {
+    if (!S.editor || S.solo) return '';
+    var t = String(p.recordatorio || '').trim();
+    return '<span class="rec-chip' + (t ? ' con' : '') + '" data-act="rec-menu" data-id="' + esc(p.id) + '" role="button" tabindex="0" title="' + (t ? 'Tocá para cambiar o borrar tu recordatorio' : 'Agregar un recordatorio para vos') + '">' + (t ? '📝 ' + esc(t) : '+ recordatorio') + '</span>';
+  }
+  function recMenuHTML(p) {
+    var t = String(p.recordatorio || '');
+    return '<div class="frio-menu rec-menu"><span class="small muted">Recordatorio (solo lo ves vos acá):</span><input type="text" id="rec-in" data-id="' + esc(p.id) + '" value="' + esc(t) + '" placeholder="Ej.: hacer producir el miércoles" maxlength="160" autocomplete="off"><button class="btn sm pri" data-act="rec-guardar" data-id="' + esc(p.id) + '">Guardar</button>' + (t ? '<button class="btn sm" data-act="rec-borrar" data-id="' + esc(p.id) + '">Borrar</button>' : '') + '<button class="btn sm lnk" data-act="rec-menu" data-id="' + esc(p.id) + '">Cerrar</button></div>';
+  }
+  function guardarRecordatorio(id, t) {
+    var p = pedidoDe(id); if (!p) return Promise.resolve();
+    var doc = clone(p); delete doc.id; t = String(t || '').trim();
+    if (t) doc.recordatorio = t; else delete doc.recordatorio;
+    S.pedidos = poner(S.pedidos, id, doc); S.recMenu = null; renderPedidos();
+    return store.set('pedidos', id, doc).then(null, function () { avisar('!No se pudo guardar el recordatorio. Revisá la conexión.', 6000); });
+  }
   function frioMenuHTML(p) {
     var b = function (v, t) { return '<button class="btn sm' + ((p.frio || '') === v ? ' pri' : '') + '" data-act="frio-set" data-id="' + esc(p.id) + '" data-v="' + v + '">' + t + '</button>'; };
     return '<div class="frio-menu"><span class="small muted">Este pedido es:</span>' + b('FRESCO', 'Fresco') + b('CONGELADO', 'Congelado') + b('', 'Sin aclarar') + '<button class="btn sm lnk" data-act="frio-menu" data-id="' + esc(p.id) + '">Cerrar</button></div>';
@@ -2786,9 +2804,10 @@
     var h = '<div class="ped' + (ab ? ' abierto' : '') + (sel ? ' sel' : '') + '" data-ped="' + id + '"><div class="ped-cab">'
       + (mov ? '<button class="ped-mover" data-parr="' + id + '" aria-label="Arrastrar a ' + esc(p.cliente) + ' para cambiar el orden de bajada (o usar las flechas del teclado)" title="Arrastrar para ordenar">⠿</button>' : '')
       + '<label class="chk"><input type="checkbox" data-sel="' + id + '"' + (sel ? ' checked' : '') + ' aria-label="Tildar el pedido de ' + esc(p.cliente) + ' para un camión"></label>'
-      + '<button class="ped-tit" data-act="ped-abrir" data-id="' + id + '" aria-expanded="' + ab + '"><span class="nom">' + esc(p.cliente || 'Sin cliente') + '</span>' + ctaHTML(cuentaPedido(p), true) + '<span class="res">' + res.join(' · ') + ' ' + frioChipHTML(p) + '</span>'
+      + '<button class="ped-tit" data-act="ped-abrir" data-id="' + id + '" aria-expanded="' + ab + '"><span class="nom">' + esc(p.cliente || 'Sin cliente') + '</span>' + ctaHTML(cuentaPedido(p), true) + '<span class="res">' + res.join(' · ') + ' ' + frioChipHTML(p) + '</span>' + recChipHTML(p)
       + (cam || (VENDEDORES && p.vendedor) ? '<span class="marcas">' + (VENDEDORES && p.vendedor ? '<span class="badge vend" title="' + esc(p.vendedor) + '">Vendedor: ' + esc(p.vendedorNombre || p.vendedor.split('@')[0]) + '</span>' : '') + (cam && !(S.editor && !S.solo) ? '<span class="badge cam-ped">' + esc(cam) + '</span>' : '') + '</span>' : '') + (S.editor && !S.solo ? '<span class="col-cam">' + camChipHTML(p) + sacarCamHTML(p) + '</span>' : '') + '<span class="col-kg">' + kgPedHTML(p) + '</span><span class="col-prod">' + prodBadgeHTML(enP, cs.length, cs.length > 0 && cs.every(function (c) { return (c.frio || p.frio) === 'CONGELADO'; })) + '</span><span class="chev" aria-hidden="true">' + (ab ? '▴' : '▾') + '</span></button></div>';
     if (S.frioMenu === p.id) h += frioMenuHTML(p);
+    if (S.recMenu === p.id) h += recMenuHTML(p);
     if (S.camMenu === p.id) h += camMenuHTML(p);
     if (!ab) return h + '</div>';
     h += '<div class="ped-det">' + elegirCuentaHTML(p) + '<div class="op-ped">';
@@ -4756,6 +4775,9 @@
       e.preventDefault(); e.stopPropagation(); var ps = pedidoDe(D.id); S.camMenu = null; if (!ps) return;
       asignarCamion(ps.entrega, [ps.id], '').then(function () { avisar(ps.cliente + ' quedó sin camión.', 3000); renderPedidos(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); renderPedidos(); });
     }
+    else if (a === 'rec-menu') { e.preventDefault(); e.stopPropagation(); S.camMenu = null; S.frioMenu = null; S.recMenu = S.recMenu === D.id ? null : D.id; renderPedidos(); if (S.recMenu) { var ri = document.getElementById('rec-in'); if (ri) { ri.focus(); ri.setSelectionRange(ri.value.length, ri.value.length); } } }
+    else if (a === 'rec-guardar') { var riG = document.getElementById('rec-in'); guardarRecordatorio(D.id, riG ? riG.value : ''); }
+    else if (a === 'rec-borrar') { guardarRecordatorio(D.id, ''); }
     else if (a === 'frio-menu') { S.camMenu = null; e.preventDefault(); e.stopPropagation(); S.frioMenu = S.frioMenu === D.id ? null : D.id; renderPedidos(); }
     else if (a === 'frio-set') {
       var pf = pedidoDe(D.id); S.frioMenu = null; if (!pf) { renderPedidos(); return; }
@@ -4828,6 +4850,7 @@
   });
 
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && S.menuAb) cerrarMenus(); });
+  document.addEventListener('keydown', function (e) { var t = e.target; if (!t || t.id !== 'rec-in') return; if (e.key === 'Enter') { e.preventDefault(); guardarRecordatorio(t.dataset.id, t.value); } else if (e.key === 'Escape') { S.recMenu = null; renderPedidos(); } });
   document.addEventListener('keydown', function (e) { var t = e.target; if ((e.key === 'Enter' || e.key === ' ') && t && t.classList && t.classList.contains('busq-f') && t.dataset.act) { e.preventDefault(); t.click(); } });
   document.addEventListener('keydown', function (e) { var t = e.target; if (e.key === 'Enter' && t && t.matches && t.matches('input.lc-desc-ed')) { e.preventDefault(); t.blur(); } });
   // Túnel: Enter baja al mismo casillero del renglón de abajo (pedido de Renzo, 06/11/2026).
