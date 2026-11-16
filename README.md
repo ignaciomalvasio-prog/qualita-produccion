@@ -420,3 +420,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Centro de control › Ciclo III › Producción: números con un decimal (como Insumos).
 - (16/11/2026) Pedidos: una "C" sola después del número se toma como CAJAS ("2 c pecho" = 2 cajas, 40 kg), también al leer pedidos con IA.
 - (16/11/2026) Pedidos: "+ recordatorio" en el medio del renglón de cada pedido, para una nota propia (ej. "hacer producir el miércoles"); queda en amarillo y no va a Logística, producción ni al link público. En el celu se agrega abriendo el pedido.
+- (16/11/2026) Logística, Resumen del día: al lado del título del día dice cuántos camiones hay (también al imprimir).

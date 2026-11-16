@@ -3097,7 +3097,7 @@
       comp += '<div class="res-tels"><p class="small muted">Cargá el celular de cada chofer una sola vez (con característica, ej.: 351 1234567). El botón WhatsApp de su camión abre directo su chat con el mensaje escrito: solo apretás Enviar. Se guardan solos y no se ven en el link para compartir.</p><div class="res-tels-l">'
         + ks.map(function (k) { return '<label class="campo"><span>' + esc(k) + '</span><input type="tel" inputmode="tel" data-tel="' + esc(k) + '" value="' + esc(((S.choferes || {}).tel || {})[k] || '') + '" placeholder="Celular" autocomplete="off"></label>'; }).join('') + '</div></div>';
     }
-    var h = '<div class="resumen-dia">' + comp + '<h2 class="res-dia"><mark>' + esc(titulo) + '</mark></h2>' + (ed && cams.length > 1 ? '<p class="small muted res-ayuda">Arrastrá cada camión desde ⠿ para ordenarlos (queda igual en "Ver por camión"). La hora se cambia tocándola.</p>' : '') + '<div class="res-grilla">';
+    var h = '<div class="resumen-dia">' + comp + '<h2 class="res-dia"><mark>' + esc(titulo) + '</mark>' + (cams.length ? ' <span class="cam-cuenta res-cams">🚚 <b>' + cams.length + '</b> ' + (cams.length === 1 ? 'camión' : 'camiones') + '</span>' : '') + '</h2>' + (ed && cams.length > 1 ? '<p class="small muted res-ayuda">Arrastrá cada camión desde ⠿ para ordenarlos (queda igual en "Ver por camión"). La hora se cambia tocándola.</p>' : '') + '<div class="res-grilla">';
     cams.forEach(function (c) {
       var tit = (c.num && nomLimpio(c.nombre) ? 'N° ' + c.num + ' · ' : '') + nomCam(c);
       h += bloque(tit, c.hora, peds.filter(function (p) { return p.camion === c.id; }), c.nota, c.id);
