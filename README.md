@@ -418,3 +418,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - (15/11/2026) Logística: el PDF por WhatsApp (del día o de un camión) sale a color y como se ve en pantalla: camión con número amarillo y nombre en recuadro oscuro, horario, clientes numerados, FRESCO/CONGELADO, cantidades resaltadas y notas en amarillo. Imprimir sigue en blanco y negro.
 - (16/11/2026) Logística, PDF a color: cada cliente con fondo sombreado; medias y cortes sin subrayar.
 - Centro de control › Ciclo III › Producción: números con un decimal (como Insumos).
+- (16/11/2026) Pedidos: una "C" sola después del número se toma como CAJAS ("2 c pecho" = 2 cajas, 40 kg), también al leer pedidos con IA.

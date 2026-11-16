@@ -598,7 +598,7 @@
   function lineaHojaHTML(t) {
     var s = String(t || ''), cli = '', m = s.match(/\s*[“"]([^”"]+)[”"]\s*/);
     if (m) { cli = m[1].trim(); s = (s.slice(0, m.index) + ' ' + s.slice(m.index + m[0].length)).replace(/\s+/g, ' ').trim(); }
-    var q = s.match(/^\s*([\d.,½]+)\s*((?:KGS?|KILOS?|K|CAJAS?|CJS?|UND|UNIDAD(?:ES)?|UNID|U|CANASTOS?|BINES?|PALLETS?)\b\.?)?/i), cant = '', desc = s;
+    var q = s.match(/^\s*([\d.,½]+)\s*((?:KGS?|KILOS?|K|CAJAS?|CJS?|C|UND|UNIDAD(?:ES)?|UNID|U|CANASTOS?|BINES?|PALLETS?)\b\.?)?/i), cant = '', desc = s;
     if (q && q[0].trim()) { cant = (q[1] + (q[2] ? ' ' + q[2].toUpperCase().replace(/^KGS?$|^KILOS?$/, 'KG') : '')).trim(); desc = s.slice(q[0].length).trim(); }
     return '<span class="h-cli' + (cli ? '' : ' vacio') + '">' + esc(cli) + '</span><span class="h-txt">' + (cant ? '<b class="h-cant">' + esc(cant) + '</b> ' : '') + esc(desc) + '</span>';
   }
@@ -629,7 +629,7 @@
       if (porU) { var resto0 = su.slice(mu[0].length).trim(); return String(Math.round(numero(mu[1]) * porU * 100) / 100).replace('.', ',') + 'KG' + (resto0 ? ' ' + resto0 : ''); }
       return su;
     }
-    var s = su, m = s.match(/^\s*([\d.,]+)\s*(CANASTOS?|CANASTAS?|CAJAS?|CJS?\.?)(?:\s+(?:DE|X)\s*([\d.,]+)\s*(?:KGS?|KILOS?)\.?)?(?=\s|$)/i);
+    var s = su, m = s.match(/^\s*([\d.,]+)\s*(CANASTOS?|CANASTAS?|CAJAS?|CJS?|C\.?)(?:\s+(?:DE|X)\s*([\d.,]+)\s*(?:KGS?|KILOS?)\.?)?(?=\s|$)/i);
     if (!m) return s;
     var canasto = /^CANAST/i.test(m[2]), por = m[3] ? numero(m[3]) : canasto ? kgCanasto() : kgCaja();
     var kg = Math.round(numero(m[1]) * por * 100) / 100, resto = s.slice(m[0].length).trim();
@@ -638,7 +638,7 @@
   // Cantidad de un renglón con su unidad, tal como se pidió, y cuántos kilos son (null si no se sabe el peso).
   function cantRenglon(t, corte) {
     var su = String(t || '').replace(/\s*[“"][^”"]*[”"]\s*/g, ' ').trim();
-    var m = su.match(/^([\d.,]+)\s*(KGS?|KILOS?|K|CAJAS?|CJS?|CANASTOS?|CANASTAS?|UND|UNIDAD(?:ES)?|UNID|U|BINES?|PALLETS?)\.?(?:\s+(?:DE|X)\s*([\d.,]+)\s*(?:KGS?|KILOS?)\.?)?(?=\s|$)/i);
+    var m = su.match(/^([\d.,]+)\s*(KGS?|KILOS?|K|CAJAS?|CJS?|C|CANASTOS?|CANASTAS?|UND|UNIDAD(?:ES)?|UNID|U|BINES?|PALLETS?)\.?(?:\s+(?:DE|X)\s*([\d.,]+)\s*(?:KGS?|KILOS?)\.?)?(?=\s|$)/i);
     if (!m) return null;
     var q = numero(m[1]), w = norm(m[2]), u = /^K/.test(w) ? 'kg' : /^CANAST/.test(w) ? 'canastos' : /^C/.test(w) ? 'cajas' : /^B/.test(w) ? 'bines' : /^P/.test(w) ? 'pallets' : 'und';
     var kg = u === 'kg' ? q : u === 'cajas' ? q * (m[3] ? numero(m[3]) : kgCaja()) : u === 'canastos' ? q * (m[3] ? numero(m[3]) : kgCanasto()) : u === 'und' ? (kgUnidadDe(su.slice(m[0].length), corte) * q || null) : null;
@@ -1467,7 +1467,7 @@
     return { dias: dias, filas: Object.keys(filas).map(function (k) { return filas[k]; }).sort(function (a, b) { return a.suc.localeCompare(b.suc); }) };
   }
   // Nombre del corte sin la cantidad del principio ni el cliente entre comillas: "100KG JAMON 4 MUSC (COD 341)" → "JAMON 4 MUSC (COD 341)".
-  function repNomCorte(t) { return norm(String(t || '').replace(/["“”][^"“”]*["“”]\s*$/, '').replace(/^\s*[\d.,½]+\s*(KGS?|KILOS?|K|CAJAS?|CJS?|CANASTOS?|CANASTAS?|UNIDADES|UNIDAD|UNID|UND|U)?\.?\s*(DE\s+|X\s+)?/i, '')) || 'SIN NOMBRE'; }
+  function repNomCorte(t) { return norm(String(t || '').replace(/["“”][^"“”]*["“”]\s*$/, '').replace(/^\s*[\d.,½]+\s*(KGS?|KILOS?|K|CAJAS?|CJS?|C|CANASTOS?|CANASTAS?|UNIDADES|UNIDAD|UNID|UND|U)?\.?\s*(DE\s+|X\s+)?/i, '')) || 'SIN NOMBRE'; }
   function repCortesDe(r) { return Object.keys(r.cortes || {}).map(function (k) { return { n: k, kg: Math.round(r.cortes[k].kg), sin: r.cortes[k].sin }; }).sort(function (a, b) { return b.kg - a.kg || a.n.localeCompare(b.n); }); }
   // Total unificado por corte (JAMON, PECHO, BONDIOLA…, sin importar el código de cada sucursal).
   function repOrdenGrupos(nombres) { return nombres.sort(function (a, b) { var oa = a === 'MEDIAS RES' ? -1 : a === 'SIN DETALLE' ? 1e4 : ordenCorte(a), ob = b === 'MEDIAS RES' ? -1 : b === 'SIN DETALLE' ? 1e4 : ordenCorte(b); return oa - ob || a.localeCompare(b); }); }
@@ -1656,7 +1656,7 @@
   /* Unidad de un renglón ("20 JAMON" → sin unidad; "20 KG JAMON" → kg). Se elige en Logística y se escribe en el texto,
      así los kilos, la planilla de producción y los totales la toman igual que si hubiera venido en el pedido. */
   var UNIDADES = [['kg', 'KG'], ['cajas', 'CAJAS'], ['und', 'UNIDADES'], ['bines', 'BINES'], ['pallets', 'PALLETS']];
-  var RE_UNI = /^(\s*[\d.,]+)\s*(?:(KGS?|KILOS?|K|CAJAS?|CJS?|UND|UNIDAD(?:ES)?|UNID|U|BINES?|PALLETS?)\.?(?:\s+(?:DE|X)\s*[\d.,]+\s*(?:KGS?|KILOS?)\.?)?)?(?=\s|$)/i;
+  var RE_UNI = /^(\s*[\d.,]+)\s*(?:(KGS?|KILOS?|K|CAJAS?|CJS?|C|UND|UNIDAD(?:ES)?|UNID|U|BINES?|PALLETS?)\.?(?:\s+(?:DE|X)\s*[\d.,]+\s*(?:KGS?|KILOS?)\.?)?)?(?=\s|$)/i;
   function unidadDe(t) {
     var m = String(t || '').match(RE_UNI); if (!m) return null;
     var u = (m[2] || '').toUpperCase();
@@ -1971,7 +1971,7 @@
   function kgDeTexto(t, corte) {
     var s = norm(enKg(t, corte)), m = s.match(/^([\d.,]+)\s*(KGS?|KILOS?|K)\b/);
     if (m) return { kg: numero(m[1]) };
-    m = s.match(/^([\d.,]+)\s*(CAJAS?|CJS?)\b/);
+    m = s.match(/^([\d.,]+)\s*(CAJAS?|CJS?|C)\b/);
     if (m) return { kg: numero(m[1]) * kgCaja() };
     return { kg: 0, falta: true };
   }
@@ -2308,7 +2308,7 @@
       + '- medias: cantidad de medias reses, número. 0 si no pide medias. Si un cliente figura en la planilla con 0 medias o con la cantidad en blanco, cargalo igual con medias 0: no lo saltees.\n'
       + '- peso: aclaración de peso de las medias (livianas, pesadas, rango de kg), o "".\n'
       + '- frio: "FRESCO" o "CONGELADO" cuando en cualquier parte de la imagen o del mensaje dice que la mercadería es fresca o congelada: en el título, el encabezado, el nombre de la planilla o de la hoja, una columna, una nota al margen, al lado del cliente o en la frase inicial de un mensaje. También valen las abreviaturas ("CONG.", "CGDO", "FCO", "FRESC."). Si lo dice una sola vez en general, vale para TODOS los pedidos de esa imagen o mensaje: ponelo en cada uno. Si no lo dice en ningún lado, "" (no lo supongas). Si en un mismo pedido hay cortes frescos y cortes congelados, dejá frio en "" y escribí FRESCO o CONGELADO dentro del texto de cada corte.\n'
-      + '- cortes: un elemento por cada corte pedido. "corte" es el rubro de la orden de producción, uno de: ' + CORTES_BASE.join(', ') + '. Todo pecho o pechito (con manta, manta doble, con o sin cuero) va en PECHO, y también la costilla (costilla, costillar, costillita) va en PECHO. Los cortes del jamón 5 músculos (bola de lomo, nalga, cuadril, cuadrada, peceto) van en JAMON, nunca en TAPA DE JAMON; TAPA DE JAMON es solo cuando dice "tapa". "texto" es lo que pide de ese corte, en mayúsculas: primero la cantidad, tal cual figura en el pedido, con su unidad si el pedido la dice (ej. "600KG", "10 CAJAS", "50 UND"), después la presentación o variante si se aclara (ej. "15 CAJAS PIERNA S/C", "107 CAJAS DE 20KG CARRE CON HUESO") y el código si figura (ej. "(ART 276)"). Cargá el pedido como aparece: la unidad (CAJAS, KG, UND, BINES, PALLETS) se escribe solo cuando el pedido la aclara, sea en el renglón, en el encabezado de la columna, en la fila de totales o en la frase general ("por caja", "en kilos", "cj", "x kg"); en ese caso escribila en cada corte al que le corresponde. Si el pedido no aclara si es caja o kg, NO pongas ninguna unidad: dejá la cantidad sola (ej. "2 MATAMBRE"). Nunca la supongas ni la deduzcas por costumbre. NO pongas el nombre del cliente ni de la sucursal en el texto, ni entre comillas ni suelto: ya va en "cliente". Si el cliente pide TODO el corte, la línea va sin cantidad (ej. "TODO FRESCO EN BINES").\n'
+      + '- cortes: un elemento por cada corte pedido. "corte" es el rubro de la orden de producción, uno de: ' + CORTES_BASE.join(', ') + '. Todo pecho o pechito (con manta, manta doble, con o sin cuero) va en PECHO, y también la costilla (costilla, costillar, costillita) va en PECHO. Los cortes del jamón 5 músculos (bola de lomo, nalga, cuadril, cuadrada, peceto) van en JAMON, nunca en TAPA DE JAMON; TAPA DE JAMON es solo cuando dice "tapa". "texto" es lo que pide de ese corte, en mayúsculas: primero la cantidad, tal cual figura en el pedido, con su unidad si el pedido la dice (ej. "600KG", "10 CAJAS", "50 UND"), después la presentación o variante si se aclara (ej. "15 CAJAS PIERNA S/C", "107 CAJAS DE 20KG CARRE CON HUESO") y el código si figura (ej. "(ART 276)"). Cargá el pedido como aparece: la unidad (CAJAS, KG, UND, BINES, PALLETS; una "C" sola después del número es CAJAS: "2 C PECHO" = 2 CAJAS) se escribe solo cuando el pedido la aclara, sea en el renglón, en el encabezado de la columna, en la fila de totales o en la frase general ("por caja", "en kilos", "cj", "x kg"); en ese caso escribila en cada corte al que le corresponde. Si el pedido no aclara si es caja o kg, NO pongas ninguna unidad: dejá la cantidad sola (ej. "2 MATAMBRE"). Nunca la supongas ni la deduzcas por costumbre. NO pongas el nombre del cliente ni de la sucursal en el texto, ni entre comillas ni suelto: ya va en "cliente". Si el cliente pide TODO el corte, la línea va sin cantidad (ej. "TODO FRESCO EN BINES").\n'
       + '- orden: true si es un corte fresco que hay que producir ese día; false si es mercadería congelada que sale de stock, o productos que no salen del desposte (chorizo, morcilla, salchicha).\n'
       + '- precio (en cada corte) y precioMedias (de las medias): el precio por kilo en pesos, solo el número ("$4.200/kg" o "4200 + IVA" → 4200; "$ 2.850,50" → 2850.5). 0 si no figura. Si el precio es por caja, por unidad o por bulto (no por kilo), dejá 0 y anotalo en la nota.\n'
       + '- iva (en cada corte) e ivaMedias: "iva" si el precio es sin IVA (dice + IVA, más IVA, sin IVA, s/IVA, neto); "final" si es con IVA (dice final, con IVA, IVA incluido, c/IVA); "" si no lo aclara o no hay precio. Si una aclaración vale para todo el pedido ("todos los precios + IVA"), ponela en todos.\n'
@@ -3301,7 +3301,7 @@
     return h + '</div>';
   }
   // Cantidad al principio del renglón ("20 KG", "6 CAJAS", "100 MEDIAS"), para resaltarla. Con selector de unidad, va en su lugar.
-  var RE_CANT = /^\s*([\d.,½]+)\s*((?:KGS?|KILOS?|K|CAJAS?|CJS?|UND|UNIDAD(?:ES)?|UNID|U|MEDIAS?|CANASTOS?|CANASTAS?|BINES?|PALLETS?)\.?(?:\s+(?:DE|X)\s*[\d.,]+\s*(?:KGS?|KILOS?)\.?)?)?(?=\s|$)/i;
+  var RE_CANT = /^\s*([\d.,½]+)\s*((?:KGS?|KILOS?|K|CAJAS?|CJS?|C|UND|UNIDAD(?:ES)?|UNID|U|MEDIAS?|CANASTOS?|CANASTAS?|BINES?|PALLETS?)\.?(?:\s+(?:DE|X)\s*[\d.,]+\s*(?:KGS?|KILOS?)\.?)?)?(?=\s|$)/i;
   /* Para no repetir (pedido de Renzo): al lado del nombre del corte, el texto sin volver a decir el corte
      ("BONDIOLA · 20 KG BONDIOLA" → "BONDIOLA · 20 KG"), y en las medias solo el número ("MEDIAS · 4"). Solo para mostrar. */
   function sinCorteTxt(t, corte) {
@@ -3557,7 +3557,7 @@
           + '<button class="btn sm" data-act="cam-pdf" data-f="' + esc(f) + '" data-id="' + esc(cam.id) + '">📄 Mandar este camión por WhatsApp (PDF)</button>'
           + (S.editor ? '<button class="btn sm" data-act="cam-editar" data-id="' + esc(cam.id) + '">Editar camión</button>' + botonBorrar('cam-borrar', cam.id, 'Borrar camión') : ''), 'Opciones del camión ' + nomCam(cam)) + '</span>' : '') + '</header>';
       var tMed = 0, tCaj = 0;
-      suyos.forEach(function (p) { tMed += +p.medias || 0; (p.cortes || []).forEach(function (c) { var mc = String(c.texto || '').match(/^\s*([\d.,½]+)\s*(?:CAJAS?|CJS?)\b/i); if (mc) tCaj += numero(mc[1].replace('½', '.5')); }); });
+      suyos.forEach(function (p) { tMed += +p.medias || 0; (p.cortes || []).forEach(function (c) { var mc = String(c.texto || '').match(/^\s*([\d.,½]+)\s*(?:CAJAS?|CJS?|C)\b/i); if (mc) tCaj += numero(mc[1].replace('½', '.5')); }); });
       h += '<div class="cam-datos"><div class="cam-res"><b>' + suyos.length + '</b><span>' + (suyos.length === 1 ? 'pedido' : 'pedidos') + '</span></div>'
         + (tMed ? '<div class="cam-res"><b>' + n(tMed) + '</b><span>' + (tMed === 1 ? 'media' : 'medias') + '</span></div>' : '')
         + (tCaj ? '<div class="cam-res"><b>' + n(tCaj) + '</b><span>' + (tCaj === 1 ? 'caja' : 'cajas') + '</span></div>' : '')
