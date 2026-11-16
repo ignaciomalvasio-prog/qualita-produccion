@@ -3441,16 +3441,19 @@
           cam.peds.forEach(function (p, pi) {
             lugar(48);
             // Cliente: número en círculo azul, nombre en azul subrayado, FRESCO/CONGELADO y los kilos a la derecha.
-            var yC = y - 16, xC = M + 16;
+            var yC = y - 18, xC = M + 16;
+            // Sombreado del cliente (pedido de Renzo, 16/11/2026).
+            pag.drawRectangle({ x: M, y: yC - 8, width: maxX - M, height: 26, color: C.celeste });
+            pag.drawRectangle({ x: M, y: yC - 8, width: 3, height: 26, color: C.azul });
             pag.drawCircle({ x: xC, y: yC + 4, size: 9.5, color: C.azul }); var ps = String(pi + 1); txt(ps, xC - an(FB, ps, 10) / 2, yC + 0.5, 10, FB, C.blanco);
             var xT = xC + 16, tC = 13, wK = an(FB, p.kg, 10), wMx = maxX - xT - wK - 90;
             while (tC > 9 && an(FB, p.cliente, tC) > wMx) tC -= 0.5;
             txt(p.cliente, xT, yC, tC, FB, C.tinta); var wC = an(FB, p.cliente, tC);
             pag.drawLine({ start: { x: xT, y: yC - 3.5 }, end: { x: xT + wC, y: yC - 3.5 }, thickness: 2, color: C.azul });
             var xB = xT + wC + 8;
-            if (p.frio) { var fr = String(p.frio).toUpperCase(), esF = /FRES/.test(fr), wF = an(FB, fr, 8.5) + 10; pill(xB, yC - 3, wF, 14, esF ? C.verdeF : C.azulF); txt(fr, xB + 5, yC + 0.8, 8.5, FB, esF ? C.verdeT : C.azulT); }
-            txt(p.kg, maxX - wK, yC, 10, F, C.gris);
-            y = yC - 10; pag.drawLine({ start: { x: xT, y: y }, end: { x: maxX, y: y }, thickness: 0.6, color: C.linea }); y -= 4;
+            if (p.frio) { var fr = String(p.frio).toUpperCase(), esF = /FRES/.test(fr), wF = an(FB, fr, 8.5) + 10; pill(xB, yC - 3, wF, 14, C.blanco, esF ? C.verdeT : C.azulT); txt(fr, xB + 5, yC + 0.8, 8.5, FB, esF ? C.verdeT : C.azulT); }
+            txt(p.kg, maxX - 8 - wK, yC, 10, F, C.gris);
+            y = yC - 12;
             p.filas.forEach(function (fi) {
               var xR = xT, tR = 11, wCo = an(FB, fi.corte, tR);
               var xCant = xR + Math.max(wCo + 8, 90), wCa = fi.cant ? an(FB, fi.cant, tR) + 12 : 0, xRes = xCant + (wCa ? wCa + 6 : 0);
@@ -3458,7 +3461,7 @@
               var lns = partir(fi.resto, F, tR, Math.max(80, maxX - xRes - (wP ? wP + 10 : 0)));
               var hF = Math.max(1, lns.length) * 14 + 6; lugar(hF);
               var yF = y - 13;
-              txt(fi.corte, xR, yF, tR, FB, C.tinta); pag.drawLine({ start: { x: xR, y: yF - 2.5 }, end: { x: xR + wCo, y: yF - 2.5 }, thickness: 0.9, color: C.tinta });
+              txt(fi.corte, xR, yF, tR, FB, C.tinta);   // sin subrayar (pedido de Renzo)
               if (fi.cant) { pill(xCant, yF - 4, wCa, 16, C.azulF, C.celBorde); txt(fi.cant, xCant + 6, yF, tR, FB, C.navy); }
               lns.forEach(function (l, i) { if (l) txt(l, xRes, yF - i * 14, tR, F, C.tinta); });
               if (pr) txt(pr, maxX - wP, yF, 9, F, C.gris);
