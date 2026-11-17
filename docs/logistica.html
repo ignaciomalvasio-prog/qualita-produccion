@@ -605,7 +605,7 @@ h1 a{color:inherit;text-decoration:none}
 .op-ped{gap:0}
 .op-ped p.lp{padding:8px 0;border-bottom:1px dashed var(--line)}
 .op-ped p.lp:last-child{border-bottom:0}
-.op-ped .lp-izq{display:grid;grid-template-columns:minmax(140px,max-content) minmax(0,1fr);gap:12px;align-items:baseline;flex:1 1 auto}
+.op-ped .lp-izq{display:grid;grid-template-columns:215px minmax(0,1fr);gap:12px;align-items:baseline;flex:1 1 auto}
 .op-ped .lc-txt{font-weight:600}
 .op-ped p.lp b.lc-cant{color:#000;font-weight:800;margin-right:4px}
 @media (max-width:560px){ .op-ped .lp-izq{grid-template-columns:minmax(0,1fr);gap:2px} .op-ped .lp-der{justify-content:flex-start} }
@@ -751,7 +751,7 @@ button.cam-num{background:none;color:inherit;cursor:pointer}
 @media (max-width:700px){ .rend-grid{grid-template-columns:1fr} .rend-in{width:90px} }
 .log-edit{margin-top:8px}.log-edit .card{border:1.5px solid var(--accent);border-radius:6px}
 .log-precio{display:inline-block;text-transform:none;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:4px;padding:0 6px;margin-left:4px;white-space:nowrap}
-.log-cortes p:has(.log-pre-ed){grid-template-columns:140px minmax(0,1fr) auto}
+.log-cortes p:has(.log-pre-ed){grid-template-columns:215px minmax(0,1fr) auto}
 .log-pre-ed{display:inline-flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;text-transform:none}
 .lp-pre{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap}
 .lp-pre input{width:96px;padding:3px 6px;font:600 14px var(--body);text-align:right}
@@ -823,7 +823,7 @@ body:has(.res-cam.arrastrando){cursor:grabbing;user-select:none}
 .log-pos{flex:0 0 auto;min-width:26px;height:26px;padding:0 6px;border-radius:13px;background:var(--accent);color:var(--accent-ink);font:700 15px var(--display);display:inline-flex;align-items:center;justify-content:center}
 .btn.ord{min-width:36px;padding-left:0;padding-right:0;font-size:17px;line-height:1}
 .log-cortes{text-transform:uppercase;font-size:15px;line-height:1.35;overflow-wrap:anywhere;border-top:1px solid var(--line)}
-.log-cortes p{margin:0;display:grid;grid-template-columns:140px minmax(0,1fr);gap:12px;align-items:baseline;padding:5px 0;border-bottom:1px dashed var(--line)}
+.log-cortes p{margin:0;display:grid;grid-template-columns:215px minmax(0,1fr);gap:12px;align-items:baseline;padding:5px 0;border-bottom:1px dashed var(--line)}
 .log-cortes p:last-child{border-bottom:0}
 .lc-corte{font-size:16px;font-weight:800;letter-spacing:.03em;color:#000;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px}
 .lc-corte-sel{field-sizing:content;appearance:none;-webkit-appearance:none;border:0;background:transparent;font-family:inherit;padding:0 14px 0 0;margin:0;cursor:pointer;max-width:100%;background-image:linear-gradient(45deg,transparent 50%,#555 50%),linear-gradient(135deg,#555 50%,transparent 50%);background-position:right 4px center,right 0 center;background-size:4px 4px,4px 4px;background-repeat:no-repeat}
@@ -1182,6 +1182,14 @@ input[data-h24]{width:6.2ch!important;min-width:6.2ch;text-align:center;font-var
 @media (min-width:561px) and (max-width:1500px){ #view-produccion{padding-right:162px!important} }
 @media (max-width:560px){ #view-produccion{padding-right:0!important} .pasado-box{top:auto;bottom:10px;transform:none;flex-direction:row;width:auto;left:10px;right:10px;padding:6px;gap:6px}.pasado-tit{display:none}.pasado-b{flex:1;padding:5px 2px}.pasado-b .t{font-size:13px} #view-produccion{padding-bottom:80px} }
 @media print{ .pasado-box{display:none} }
+
+/* Renglones de cortes alternados (uno clarito, otro sin color) para diferenciarlos, en Pedidos y Logística (pedido de Renzo, 16/11/2026). */
+@media screen{
+  .log-cortes p{padding-left:8px;padding-right:8px}
+  .log-cortes p:nth-child(even){background:#edf5fb}
+  .op-ped p.lp{padding-left:8px;padding-right:8px}
+  .op-ped p.lp:nth-of-type(even){background:#edf5fb}
+}
 </style>
 </head>
 <body>

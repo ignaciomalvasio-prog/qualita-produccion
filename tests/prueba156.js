@@ -4,7 +4,7 @@ const F='2026-10-22';const K=(k,corte,texto,precio)=>Object.assign({k,corte,text
 function dia(nCam,porCam,R){const cams=[],peds=[];let id=0;
  for(let c=0;c<nCam;c++){const orden=[];for(let i=0;i<porCam;i++){const pid='p'+(id++);orden.push(pid);
   peds.push({id:pid,cliente:'CLIENTE '+pid.toUpperCase(),entrega:F,medias:i%3===0?14:0,peso:'',nota:i%4===1?'ALLEN, RIO NEGRO':'',origen:'manual',kg:400+i*50,camion:'c'+c,frio:i%2?'CONGELADO':'FRESCO',
-   cortes:(R&&i%3!==2)?[]:i%3===0?[]:[K('k0','CARRE','15 CAJAS CARRE CON HUESO CONGELADO',5200),K('k1','PECHO','15 CAJAS PECHITO CON HUESO'),K('k2','MATAMBRE','30 CAJAS MATAMBRE CONGELADAS')]});}
+   cortes:(R&&i%3!==2)?[]:i%3===0?[]:[K('k0','CARRE','15 CAJAS CARRE CON HUESO CONGELADO',5200),K('k1','CARRE SIN SOLOMILLO','4 CAJAS'),K('k3','PECHO','15 CAJAS PECHITO CON HUESO'),K('k2','MATAMBRE','30 CAJAS MATAMBRE CONGELADAS')]});}
   cams.push({id:'c'+c,nombre:['SURFRIGO (RETIRA EN PLANTA)','MAXIMO (PRIMER VIAJE)','SEMI PASSERI 1','CHAVEZ','LOVAIZA 1','JMC (RETIRA EN PLANTA)','SEBA DIAZ (AGRALE)','MOREIRA','LAGUI','BRINGAS','DIGAR','COTO'][c%12],hora:String(c).padStart(2,'0')+':00',kg:6000,orden});}
  const ped={};peds.forEach(p=>{const q=Object.assign({},p);delete q.id;ped[p.id]=q;});
  return {faena:{'2026-10-19':{desde:'2026-10-19',stockInicial:0,dias:[0,1,2,3,4].map(i=>({fecha:'2026-10-'+(19+i),faena:[],clientes:[]}))}},produccion:{},privado:{},pedidos:ped,config:{general:{},['log-'+F]:{fecha:F,camiones:cams,pedidos:[]}}};}

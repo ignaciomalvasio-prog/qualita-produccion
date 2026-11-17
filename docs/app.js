@@ -3473,14 +3473,18 @@
             if (p.frio) { var fr = String(p.frio).toUpperCase(), esF = /FRES/.test(fr), wF = an(FB, fr, 8.5) + 10; pill(xB, yC - 3, wF, 14, C.blanco, esF ? C.verdeT : C.azulT); txt(fr, xB + 5, yC + 0.8, 8.5, FB, esF ? C.verdeT : C.azulT); }
             txt(p.kg, maxX - 8 - wK, yC, 10, F, C.gris);
             y = yC - 12;
-            p.filas.forEach(function (fi) {
+            // Cantidades en una misma columna y renglones alternados (clarito / sin color), pedido de Renzo 16/11/2026.
+            var colC = Math.min(170, Math.max(90, p.filas.reduce(function (mx, fi) { return Math.max(mx, an(FB, fi.corte, 11) + 14); }, 0)));
+            p.filas.forEach(function (fi, fiI) {
               var xR = xT, tR = 11, wCo = an(FB, fi.corte, tR);
-              var xCant = xR + Math.max(wCo + 8, 90), wCa = fi.cant ? an(FB, fi.cant, tR) + 12 : 0, xRes = xCant + (wCa ? wCa + 6 : 0);
+              var xCant = xR + colC, wCa = fi.cant ? an(FB, fi.cant, tR) + 12 : 0, xRes = xCant + (wCa ? wCa + 6 : 0);
               var pr = fi.precio ? fi.precio : '', wP = pr ? an(F, pr, 9) : 0;
               var lns = partir(fi.resto, F, tR, Math.max(80, maxX - xRes - (wP ? wP + 10 : 0)));
-              var hF = Math.max(1, lns.length) * 14 + 6; lugar(hF);
+              var hF = Math.max(1, lns.length, an(FB, fi.corte, tR) > colC - 8 ? partir(fi.corte, FB, tR, colC - 8).length : 1) * 14 + 8; lugar(hF);
               var yF = y - 13;
-              txt(fi.corte, xR, yF, tR, FB, C.tinta);   // sin subrayar (pedido de Renzo)
+              if (fiI % 2) pag.drawRectangle({ x: xR - 6, y: y - hF + 1, width: maxX - xR + 6, height: hF - 1, color: hex('#edf5fb') });
+              var cLn = an(FB, fi.corte, tR) > colC - 8 ? partir(fi.corte, FB, tR, colC - 8) : [fi.corte];
+              cLn.forEach(function (l, i) { txt(l, xR, yF - i * 14, tR, FB, C.tinta); });   // sin subrayar (pedido de Renzo)
               if (fi.cant) { pill(xCant, yF - 4, wCa, 16, C.azulF, C.celBorde); txt(fi.cant, xCant + 6, yF, tR, FB, C.navy); }
               lns.forEach(function (l, i) { if (l) txt(l, xRes, yF - i * 14, tR, F, C.tinta); });
               if (pr) txt(pr, maxX - wP, yF, 9, F, C.gris);
