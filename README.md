@@ -426,3 +426,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - (17/11/2026) Celular: en el pedido abierto ya no aparece el recuadro de N° de cuenta cuando el cliente la tiene (se ve arriba junto al nombre; tocándola se cambia). Logística en el celu con las mismas tarjetas: corte y cantidad arriba, detalle y precios abajo, renglones alternados.
 - (17/11/2026) Pedidos: cada pedido en su recuadro negro (abierto o cerrado); en Logística cada cliente con recuadro negro. En el celu "EN PRODUCCIÓN" ya no se pisa con el botón Final.
 - (17/11/2026) Pedidos: los que están "Sin camión" van sin recuadro negro y con fondo clarito, distintos de los que ya tienen camión.
+- (17/11/2026) Pedidos: "pulpa" o "pulpa 5 músculos" va en JAMON, no en RECORTE (también al leer con IA; los pedidos que ya estaban se pasan solos).
