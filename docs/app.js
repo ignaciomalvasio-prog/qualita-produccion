@@ -2816,7 +2816,7 @@
       var f = fechaProdDe(m, p, c);
       h += '<p class="lp"><span class="lp-izq">' + (S.editor && !S.solo && c.k ? rubroSelHTML(p.id, c) : '<span class="lc-corte">' + esc(c.corte) + '</span>') + '<span class="lc-txt">' + (S.editor && !S.solo && c.k ? cantEdHTML(sinCorteTxt(sinCliente(c.texto, p.cliente), c.corte), unidadSelHTML(p.id, c), p.id, c.k) : cantHTML(sinCorteTxt(sinCliente(c.texto, p.cliente), c.corte), unidadSelHTML(p.id, c))) + (c.frio && c.frio !== p.frio ? ' ' + frioBadge(c.frio) : '') + '</span></span><span class="lp-der">' + precioHTML(p.id, c.k, c.precio, c.corte, c.iva) + (f
         ? '<span class="en"><span class="badge ok">' + (esC3(f) ? 'En producción · embutidos' : 'En producción') + '</span><button class="btn sm" data-act="c-quitar" data-id="' + id + '" data-k="' + esc(c.k) + '">Quitar</button></span>'
-        : '<button class="btn sm pri" data-act="c-sumar" data-id="' + id + '" data-k="' + esc(c.k) + '">' + 'Sumar a producción' + '</button>') + '</span></p>';
+        : '<button class="btn sm pri" data-act="c-sumar" data-id="' + id + '" data-k="' + esc(c.k) + '">Sumar<span class="no-cel"> a producción</span></button>') + '</span></p>';
     });
     h += '</div>';
     // La nota se escribe ahí mismo, igual que en Logística (pedido de Renzo): se guarda sola al salir o con Enter.
@@ -3327,6 +3327,12 @@
     var s = String(t || ''), c = String(corte || '').trim(); if (!c || norm(c) === 'CORTES') return s;
     var pat = c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/A/gi, '[AÁ]').replace(/E/gi, '[EÉ]').replace(/I/gi, '[IÍ]').replace(/O/gi, '[OÓ]').replace(/U/gi, '[UÚ]').replace(/\s+/g, '\\s+');
     var r = s.replace(new RegExp('(^|\\s)' + pat + '(?=\\s|$|[,.;:)])', 'i'), '$1').replace(/\s{2,}/g, ' ').replace(/\s+([,.;:])/g, '$1').replace(/^[,.;:]\s*/, '').trim();
+    // Tampoco repetir el corte con otra forma: PECHO "PECHITO(S)", CARRE SIN SOLOMILLO "CARRE", CHURRASCO "CHURRASQUITOS" (pedido de Renzo, 17/11/2026).
+    var raiz = function (w) { return norm(w).replace(/QU/g, 'C').replace(/S$/, '').replace(/(IT[OA]|IN[OA]|ON|[OAE])$/, ''); };
+    var raices = norm(c).split(/\s+/).filter(function (w) { return w.length >= 4; }).map(raiz);
+    // Solo cuando el detalle es nada más que esa palabra (si dice "PECHITO CON MANTA" queda como está).
+    var mC = r.match(RE_CANT), cab = mC ? mC[0] : '', det = (mC ? r.slice(cab.length) : r).trim();
+    if (raices.length && det && !/\s/.test(det)) { var x = raiz(det.replace(/[,.;:]+$/, '')); if (x.length >= 3 && raices.indexOf(x) >= 0) r = cab.trim(); }
     return /[A-Z0-9]/i.test(r) ? r : s;
   }
   function mediasCorto(p) { return +p.medias ? n(+p.medias) + (p.peso ? ' ' + String(p.peso).toUpperCase() : '') : ''; }
