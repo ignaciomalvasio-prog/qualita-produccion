@@ -1223,6 +1223,20 @@ input[data-h24]{width:6.2ch!important;min-width:6.2ch;text-align:center;font-var
   .log-cortes p .lc-txt>:not(.lc-cant){grid-column:1/-1;justify-self:start}
   .log-cortes p .log-pre-ed{grid-column:1/-1}
 }
+
+/* Recuadro del pedido (cliente) remarcado en negro, en Pedidos y Logística (pedido de Renzo, 17/11/2026). Los camiones ya van en negro. */
+@media screen{
+  .ped.abierto{border-color:#1b1b1b}
+  .log-ped{border:2px solid #1b1b1b;border-left-width:5px}
+  /* Opción 2: cada pedido en su recuadro negro, abierto o cerrado. */
+  #view-pedidos .grupo-cam .ped{border:2px solid #1b1b1b;border-radius:9px;margin:8px 6px;background:#fff}
+  #view-pedidos .grupo-cam .ped.abierto{border-width:3px}
+}
+@media screen and (max-width:560px){
+  /* "EN PRODUCCIÓN" ya no se pisa con el botón Final: baja al renglón de abajo si no entra. */
+  #view-pedidos .ped-det .op-ped .lp-der{flex-wrap:wrap}
+  #view-pedidos .ped-det .op-ped .lp-der .en{margin-left:auto;display:inline-flex;align-items:center;gap:6px}
+}
 </style>
 </head>
 <body>
