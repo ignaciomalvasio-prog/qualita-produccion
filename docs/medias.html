@@ -1208,6 +1208,21 @@ input[data-h24]{width:6.2ch!important;min-width:6.2ch;text-align:center;font-var
   #view-pedidos .ped-det .op-ped .lp-der>.btn{margin-left:auto;white-space:nowrap;padding:5px 14px;font-size:13px}
   .no-cel{display:none}
 }
+
+/* Celular (pedido de Renzo, 17/11/2026): la cuenta ya se ve arriba junto al nombre (N° …), así que el recuadro de cuenta se esconde;
+   tocando el N° de arriba se abre para cambiarla. Logística con las mismas tarjetas que Pedidos: corte y cantidad arriba, detalle y precios abajo. */
+@media screen and (max-width:560px){
+  #view-pedidos .ped-det .lp.sin-cta.con:not(.ver){display:none}
+  #view-pedidos .ped-det .op-ped .lp-izq .lc-txt>*{justify-self:start}
+  .log-cortes{border-top:0}
+  .log-cortes p,.log-cortes p:has(.log-pre-ed){display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 8px;align-items:center;border:1px solid #d3e1eb;border-left:5px solid #4a8db5;border-radius:9px;padding:8px 10px;margin:0 0 7px;background:#fff}
+  .log-cortes p:nth-child(even){background:#edf5fb}
+  .log-cortes p .lc-corte,.log-cortes p .lc-corte-sel{grid-column:1;grid-row:1;font-size:14px;letter-spacing:0;justify-self:start}
+  .log-cortes p .lc-txt{display:contents}
+  .log-cortes p .lc-cant{grid-column:2;grid-row:1;justify-self:end}
+  .log-cortes p .lc-txt>:not(.lc-cant){grid-column:1/-1;justify-self:start}
+  .log-cortes p .log-pre-ed{grid-column:1/-1}
+}
 </style>
 </head>
 <body>

@@ -1252,7 +1252,7 @@
   // Renglón del número de cuenta en el pedido abierto: siempre se puede elegir otro de la base o escribir uno.
   function elegirCuentaHTML(p) {
     var id = esc(p.id), actual = cuentaPedido(p), cand = buscarCuenta(p.cliente).cand, ops = cand.filter(function (e) { return e.c !== actual; });
-    var h = '<p class="lp sin-cta' + (actual ? ' con' : '') + '"><span><b>N° de cuenta</b> ';
+    var h = '<p class="lp sin-cta' + (actual ? ' con' : '') + (S.ctaVer === p.id || S.ctaOtro === p.id ? ' ver' : '') + '"><span><b>N° de cuenta</b> ';
     var nombreDe = function (c) { var e = indiceClientes().lista.filter(function (x) { return x.c === c && x.nn !== norm(p.cliente); })[0]; return e ? e.n : ''; };
     h += (actual ? '<strong class="cta-num">' + esc(actual) + '</strong>' + (nombreDe(actual) ? ' <span class="small muted">' + esc(nombreDe(actual)) + '</span>' : '')
       : ops.length ? 'Elegí cuál es: queda para este cliente.' : 'No está en la base: poné el número y queda guardado.') + '</span><span class="lp-der">';
@@ -4668,7 +4668,7 @@
     else if (a === 'ped-abrir') {
       var enCta = !!(e.target.closest && e.target.closest('.cta'));
       // Un solo pedido abierto a la vez: al abrir uno se cierra el que estaba.
-      var estaba = !!S.abierto[D.id]; S.abierto = {}; S.abierto[D.id] = enCta ? true : !estaba; S.pedDia = null; S.ctaOtro = null; renderPedidos();
+      var estaba = !!S.abierto[D.id]; S.abierto = {}; S.abierto[D.id] = enCta ? true : !estaba; S.pedDia = null; S.ctaOtro = null; S.ctaVer = enCta ? D.id : null; renderPedidos();
       // El pedido que se abre queda a la vista entero, sin mover la pantalla si ya lo está.
       if (S.abierto[D.id] && !enCta) { var cab = document.querySelector('[data-act="ped-abrir"][data-id="' + D.id + '"]'), tar = cab && cab.closest('.ped'); if (tar && tar.scrollIntoView) tar.scrollIntoView({ block: 'nearest' }); }
       if (enCta) { var sc = document.querySelector('select[data-cta="' + D.id + '"], [data-cta-in="' + D.id + '"], [data-act="cta-otro"][data-id="' + D.id + '"]'); if (sc) { sc.focus(); if (sc.scrollIntoView) sc.scrollIntoView({ block: 'center' }); } }
