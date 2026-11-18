@@ -2,7 +2,7 @@
 const {chromium}=require('playwright');const F='2026-11-04';
 const C=(c,ls)=>({corte:c,lineas:ls.map(t=>({t}))});
 const data={faena:{},privado:{},config:{general:{}},
- pedidos:{a:{cliente:'X',entrega:F,medias:0,peso:'',nota:'',origen:'manual',kg:'',camion:'',cuenta:'',cortes:[{k:'1',corte:'COSTILLA',texto:'100KG COSTILLA'},{k:'2',corte:'BONDIOLA',texto:'10KG'},{k:'3',corte:'TAPA DE JAMON',texto:'50KG NALGA'},{k:'7',corte:'RECORTE',texto:'100KG PULPA 5 MUSCULOS'},{k:'8',corte:'RECORTE',texto:'30KG 80/20'},{k:'4',corte:'TAPA DE JAMON',texto:'20KG TAPA DE JAMON'},{k:'5',corte:'GRASA BUENA',texto:'2 CAJAS GRASA'}]}},
+ pedidos:{a:{cliente:'X',entrega:F,medias:0,peso:'',nota:'',origen:'manual',kg:'',camion:'',cuenta:'',cortes:[{k:'1',corte:'COSTILLA',texto:'100KG COSTILLA'},{k:'2',corte:'BONDIOLA',texto:'10KG'},{k:'3',corte:'TAPA DE JAMON',texto:'50KG NALGA'},{k:'7',corte:'RECORTE',texto:'100KG PULPA 5 MUSCULOS'},{k:'8',corte:'RECORTE',texto:'30KG 80/20'},{k:'9',corte:'COSTELETAS',texto:'5 CAJAS COSTELETAS'},{k:'4',corte:'TAPA DE JAMON',texto:'20KG TAPA DE JAMON'},{k:'5',corte:'GRASA BUENA',texto:'2 CAJAS GRASA'}]}},
  produccion:{[F]:{medias:700,mercado:'',estado:'borrador',cortes:[C('PECHO',['1 CAJAS PECHO "A"']),C('GRASA MALA',['1 CANASTO GRASA "B"']),C('GRASA BUENA',['2 CAJAS GRASA "C"']),C('COSTILLA',['100 KG COSTILLA "X"']),C('TAPA DE JAMON',['50 KG NALGA "X"','20 KG TAPA DE JAMON "Y"','10 KG PECETO "Z"'])]}}};
 (async()=>{const b=await chromium.launch();const errs=[];const p=await b.newPage({viewport:{width:1100,height:900}});p.on('pageerror',e=>errs.push(e.message));
  await p.clock.install({time:new Date('2026-11-03T10:00:00-03:00')});
