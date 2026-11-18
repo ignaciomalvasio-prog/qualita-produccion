@@ -10,6 +10,9 @@
 if (-not $Base) { $Base = $PSScriptRoot }
 $Raiz = Split-Path -Parent $Base
 $TicdC3 = 4                                             # tipo de ciclo de desposte de Ciclo III
+$TicdEmb = 7                                            # desde el 19/11/2026 Ciclo III se carga como ciclo 07 "Producción embutidos" (aviso de Dadi, 18/11/2026)
+$DesdeEmb = '2026-11-19'
+$FiltroC3 = "((d.ticd_codigo=$TicdC3 AND d.desp_fecha<TO_DATE('$DesdeEmb','YYYY-MM-DD')) OR (d.ticd_codigo=$TicdEmb AND d.desp_fecha>=TO_DATE('$DesdeEmb','YYYY-MM-DD')))"
 $__cfg = Join-Path $Base 'config_local.ps1'
 if (Test-Path $__cfg) { . $__cfg }
 else {

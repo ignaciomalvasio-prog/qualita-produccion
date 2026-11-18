@@ -83,11 +83,11 @@ SELECT 'EN|'||TO_CHAR(d.desp_fecha,'YYYY-MM-DD')||'|'||r.art_codigo||'|'||TRIM(N
  GROUP BY d.desp_fecha, r.art_codigo, r.despr_tropa;
 SELECT 'C3|'||TO_CHAR(d.desp_fecha,'YYYY-MM-DD')||'|'||r.art_codigo||'|'||$Den||'|'||SUM(NVL(r.despr_canuni,0))||'|'||TO_CHAR(ROUND(SUM(r.despr_kilos),2))
   FROM desposte d JOIN desposteres r ON r.desp_numero=d.desp_numero LEFT JOIN articulos a ON a.art_codigo=r.art_codigo
- WHERE d.ticd_codigo=$TicdC3 AND d.desp_fecha>=$d0 AND d.desp_fecha<$d1
+ WHERE $FiltroC3 AND d.desp_fecha>=$d0 AND d.desp_fecha<$d1
  GROUP BY d.desp_fecha, r.art_codigo, a.art_denom;
 SELECT 'C3I|'||TO_CHAR(d.desp_fecha,'YYYY-MM-DD')||'|'||i.art_codigo||'|'||$Den||'|'||SUM(NVL(i.despi_canuni,0))||'|'||TO_CHAR(ROUND(SUM(i.despi_kilos),2))
   FROM desposte d JOIN desposteing i ON i.desp_numero=d.desp_numero LEFT JOIN articulos a ON a.art_codigo=i.art_codigo
- WHERE d.ticd_codigo=$TicdC3 AND d.desp_fecha>=$d0 AND d.desp_fecha<$d1
+ WHERE $FiltroC3 AND d.desp_fecha>=$d0 AND d.desp_fecha<$d1
  GROUP BY d.desp_fecha, i.art_codigo, a.art_denom;
 SELECT 'ME|'||TO_CHAR(d.desp_fecha,'YYYY-MM-DD')||'|'||d.ticd_codigo||'|'||r.art_codigo||'|'||$Den||'|'||SUM(NVL(r.despr_canuni,0))||'|'||TO_CHAR(ROUND(SUM(r.despr_kilos),2))
   FROM desposte d JOIN desposteres r ON r.desp_numero=d.desp_numero LEFT JOIN articulos a ON a.art_codigo=r.art_codigo

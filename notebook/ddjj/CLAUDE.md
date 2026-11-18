@@ -22,7 +22,7 @@ Estos programas están en el mismo repositorio, carpeta `notebook/ddjj/`, y en l
 ## De dónde sale cada dato
 - Tropas (hoja Ingreso): `DESPOSTEING` con artículos 18 (Capón) y 19 (M.E.I) → `PRODUCTOS` (pro_numero, pro_item) → `TROPAS`. Fecha de faena = `MIN(PRODUCTOS.pro_fecha)`; total de tropa = `tro_cabezas`.
 - Cortes (hoja Producción): `DESPOSTERES` (kilos, unidades, piezas, contrato, `despr_tropa` para las medias enteras art. 22). Los reprocesos que reingresan se restan del mismo corte.
-- Ciclo III: `ticd_codigo = 4`. Menudencias `ticd 3`, rendering `ticd 6` (renglones ME).
+- Ciclo III: `ticd_codigo = 4` hasta el 18/11/2026 y `ticd_codigo = 7` ("Producción embutidos") desde el 19/11/2026 (`$FiltroC3` en dj_comun.ps1). Menudencias `ticd 3`, rendering `ticd 6` (renglones ME).
 - Ventas: `REMITOSDET`/`REMITOS` por (pro_numero, pro_item); remitos internos `REMITOSINT`/`REMITOSINTDET`.
 - Qué artículo va en cada renglón: `c3docs/ddjj-equiv` (pestaña Equivalencias). Lo corregido a mano: `c3docs/ddjj-AAAA-MM`.
 
