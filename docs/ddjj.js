@@ -335,6 +335,7 @@ function render() {
   document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.t === S.tab));
   if (S.tab === 'equiv') return renderEquiv();
   if (S.tab === 'c3') return renderC3();
+  if (S.tab === 'rd' && typeof renderRd === 'function') return renderRd();
   if (S.tab === 'rend') return renderRend();
   if (S.tab === 'faena') return renderFaena();
   if (S.tab === 'men') return renderMen();
@@ -617,6 +618,7 @@ function renderEquiv() {
   h += '<h3 class="dj-h3">Cuentas</h3><p><label><input type="checkbox"' + (E.restar !== false ? ' checked' : '') + ' onchange="cambiarEq(d=>{d.restar=this.checked},\'restar reproceso \'+this.checked)"> A cada corte restarle lo que de ese mismo corte reingresó al desposte (reproceso)</label></p>';
   h += '<p>Merma del ingreso: <input class="w-cp" value="' + fmtE(r2((1 - (E.merma || 1)) * 100)) + '" onchange="eqMerma(this.value)"> %</p></section>';
   h += equivC3();
+  if (typeof equivRd === 'function') h += equivRd();
   h += equivRend();
   const aj = E.ajuste || { arriba: 0, izq: 0 };
   h += '<section><h2>Impresión</h2><p class="sub">Si al imprimir sobre el formulario la planilla queda corrida, corregilo acá en milímetros (positivo = más abajo / más a la derecha) y volvé a imprimir.</p>' +
