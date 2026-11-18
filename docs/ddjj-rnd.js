@@ -249,17 +249,17 @@ function verImpresionRd() {
   w.document.close();
 }
 
-/* ---------- Excel (con formato, como la hoja impresa; ddjj-xlsx.js) — del día o del mes (una hoja por día) ---------- */
-function excelRd(mes) {
-  const dias = mes ? Object.keys(sisRd()).filter(f => f.slice(0, 7) === S.mes).sort() : [S.fechaRd];
-  if (!dias.length || !dias[0]) { toast('No hay días con producción de rendering.', true); return; }
-  const L = XL.libro(), E = eqRd(), T = 'thin', bd = { l: T, r: T, t: T, b: T };
+/* ---------- Excel (con formato, como la hoja impresa; ddjj-xlsx.js) — del día o del mes (una hoja por día) ----------
+   Lo usan Rendering y Chacinados (Sabi 18/11). o = { dias, planilla(f), estab, km, titulo, hoja, nombre } */
+function excelHojaDJ(o) {
+  if (!o.dias.length || !o.dias[0]) { toast('No hay días con producción.', true); return; }
+  const L = XL.libro(), T = 'thin', bd = { l: T, r: T, t: T, b: T };
   const tit = { sz: 14, b: 1, h: 'center', v: 'center' }, cab = { sz: 11, b: 1, h: 'center', v: 'center', wrap: 1, bd }, cel = { sz: 11, v: 'center', bd };
-  for (const f of dias) {
-    const P = planillaRd(f), h = L.hoja(dias.length > 1 ? ddmm(f).replace('/', '-') : 'RENDERING', {
+  for (const f of o.dias) {
+    const P = o.planilla(f), h = L.hoja(o.dias.length > 1 ? ddmm(f).replace('/', '-') : o.hoja, {
       anchos: { A: 2, B: 38, C: 16, D: 22, E: 34 }, altos: { 1: 20, 2: 14, 3: 14, 5: 20, 6: 18, 7: 30, 9: 16, 11: 36 }, ajustar: true, margenes: { l: 0.6, r: 0.6, t: 0.7, b: 0.7 } });
-    h.set('B1', 'Frigorífico Qualita S.A', { sz: 16, b: 1 }).set('B2', 'Ruta Nacional N.º 9 Norte / Km. 745 Colonia Caroya / Córdoba / Argentina', { sz: 9 }).set('B3', 'Establecimiento N.º Oficial ' + (E.estab || ''), { sz: 9 });
-    h.set('B5', 'Producción Rendering FRIGORIFICO QUALITA S.A.', tit).merge('B5:E5').set('B6', 'DECLARACIÓN JURADA', tit).merge('B6:E6');
+    h.set('B1', 'Frigorífico Qualita S.A', { sz: 16, b: 1 }).set('B2', 'Ruta Nacional N.º 9 Norte / Km. ' + o.km + ' Colonia Caroya / Córdoba / Argentina', { sz: 9 }).set('B3', 'Establecimiento N.º Oficial ' + (o.estab || ''), { sz: 9 });
+    h.set('B5', o.titulo, tit).merge('B5:E5').set('B6', 'DECLARACIÓN JURADA', tit).merge('B6:E6');
     h.set('B7', 'La presente planilla reviste el carácter de Declaración Jurada y está sujeta al Artículo 293 Primera Parte del Código Penal.', { sz: 9, h: 'center', v: 'center', wrap: 1 }).merge('B7:E7');
     h.set('B9', 'Fecha: ' + f.slice(8, 10) + '.' + f.slice(5, 7) + '.' + f.slice(0, 4), { sz: 11, b: 1 }).set('E9', 'N.º de Lote: ' + P.lote, { sz: 11, b: 1, h: 'right' });
     ['NOMBRE DEL PRODUCTO', 'MARCA', 'TOTAL DE KILOGRAMOS PRODUCIDOS', 'OBSERVACIONES / DESTINO'].forEach((t, i) => h.set('BCDE'[i] + '11', t, cab));
@@ -274,5 +274,15 @@ function excelRd(mes) {
     h.set('B' + (ft + 5), '.......................................................................', { sz: 11, h: 'center' }).merge('B' + (ft + 5) + ':E' + (ft + 5));
     h.set('B' + (ft + 6), 'Firma del responsable de la Empresa', { sz: 11, h: 'center' }).merge('B' + (ft + 6) + ':E' + (ft + 6));
   }
-  guardarBytes(L.bytes(), mes ? 'DDJJ rendering ' + nombreMes(S.mes) + '.xlsx' : 'DDJJ rendering ' + ddmmaaaa(S.fechaRd).replace(/\//g, '-') + '.xlsx');
+  guardarBytes(L.bytes(), o.nombre);
+}
+function excelRd(mes) {
+  const dias = mes ? Object.keys(sisRd()).filter(f => f.slice(0, 7) === S.mes).sort() : [S.fechaRd];
+  excelHojaDJ({ dias, planilla: planillaRd, estab: eqRd().estab, km: '745', titulo: 'Producción Rendering FRIGORIFICO QUALITA S.A.', hoja: 'RENDERING',
+    nombre: mes ? 'DDJJ rendering ' + nombreMes(S.mes) + '.xlsx' : 'DDJJ rendering ' + ddmmaaaa(S.fechaRd).replace(/\//g, '-') + '.xlsx' });
+}
+function excel3(mes) {
+  const dias = mes ? Object.keys(S.sis.c3).filter(f => f.slice(0, 7) === S.mes).sort() : [S.fecha3];
+  excelHojaDJ({ dias, planilla: planilla3, estab: eq3().estab, km: '748', titulo: 'Producción Fábrica de Chacinados Qualita S.A', hoja: 'CHACINADOS',
+    nombre: mes ? 'DDJJ chacinados ' + nombreMes(S.mes) + '.xlsx' : 'DDJJ chacinados ' + ddmmaaaa(S.fecha3).replace(/\//g, '-') + '.xlsx' });
 }

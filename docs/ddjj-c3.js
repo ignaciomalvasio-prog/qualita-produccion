@@ -88,7 +88,7 @@ function renderC3() {
   const f = S.fecha3, P = planilla3(f), x = P.x;
   h += '<section class="dj-top"><div><h2>Chacinados · ' + esc(fechaLarga(f)) + '</h2><p class="sub" style="margin:0">' + fmt2(P.tot) + ' kg producidos · Lote <a href="#" onclick="editarLote();return false"><b>' + esc(P.lote) + '</b></a>' +
     (x.por ? ' · último cambio: ' + esc(x.por) + ' ' + esc(horaDe(x.ts)) : '') + (x.impreso ? ' · impresa ' + esc(horaDe(x.impreso)) : '') + '</p></div>' +
-    '<div class="row"><button onclick="verImpresion3()">👁 Ver cómo sale</button><button class="primary big" onclick="imprimir3()">🖨 Imprimir</button></div></section>';
+    '<div class="row"><button onclick="verImpresion3()">👁 Ver cómo sale</button><button onclick="excel3(false)" title="La DDJJ de este día en Excel">⬇ Excel del día</button><button onclick="excel3(true)" title="Una hoja por cada día con producción del mes">⬇ Excel del mes</button><button class="primary big" onclick="imprimir3()">🖨 Imprimir</button></div></section>';
   if (P.c.nuevos.length) {
     h += '<div class="alerta warn"><div><b>Hay productos del sistema que no se reconocen.</b> Decí a qué renglón van (queda guardado):<table class="dj-nuevos">' +
       P.c.nuevos.map(r => '<tr><td>' + r.art + ' · ' + esc(r.den) + '</td><td class="num">' + fmt2(r.kg) + ' kg</td><td>' + selectMover3(r.art, '', true) + '</td></tr>').join('') + '</table></div></div>';

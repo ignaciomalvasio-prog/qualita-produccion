@@ -433,3 +433,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Centro de desposte › DDJJ Rendering (Sabi 18/11): la hoja impresa lleva la dirección de la planta de rendering, Ruta Nacional N.º 9 Norte Km. 745 (chacinados sigue con Km. 748).
 - Centro de desposte › DDJJ Rendering (Sabi 18/11): la hoja dice "Producción Rendering FRIGORIFICO QUALITA S.A.".
 - Centro de desposte › DDJJ Rendering (Sabi 18/11): botones "Excel del día" y "Excel del mes" (una hoja por día), con el formato de la hoja impresa (encabezado, establecimiento 4886, Km. 745, tabla de 9 renglones, total con fórmula y firma). Prueba: tests/prueba913.js.
+- Centro de desposte › DDJJ Chacinados (Sabi 18/11): botones "Excel del día" y "Excel del mes" (una hoja por día) con el formato de la hoja impresa (Km. 748, establecimiento de chacinados). Usa el mismo armado que Rendering (excelHojaDJ en ddjj-rnd.js). Prueba: tests/prueba915.js.
