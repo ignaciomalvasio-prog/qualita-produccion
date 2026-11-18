@@ -10,6 +10,7 @@ const C3_DEF = {
   estab: '5036',
   marca: 'QUALITA',
   restar: false,   // a cada producto restarle lo que de ese producto reingresó (reproceso)
+  restarDesde: '2026-10-28',   // desde esta fecha se resta siempre (Sabi 18/11)
   lineas: [
     { n: 'CHORIZO FRESCO DE CERDO', arts: [], pat: 'CHORIZO(?!.*BOMB)' },
     { n: 'CHORIZO FRESCO DE CERDO TIPO BOMBÓN', arts: [], pat: 'CHORIZO.*BOMB' },
@@ -44,7 +45,7 @@ function calcular3(f) {
     const re = d.re.filter(r => destino3(r.art, r.den, f) === n);
     if (!re.length) continue;
     const bruto = re.reduce((a, r) => a + r.kg, 0);
-    let ing = E.restar ? d.in.filter(r => destino3(r.art, r.den, f) === n) : [];
+    let ing = (E.restar || f >= (E.restarDesde || C3_DEF.restarDesde)) ? d.in.filter(r => destino3(r.art, r.den, f) === n) : [];
     if (bruto - ing.reduce((a, r) => a + r.kg, 0) <= 0) ing = [];
     prod[n] = { n, kg: r2(bruto - ing.reduce((a, r) => a + r.kg, 0)), marca: E.marca || 'QUALITA', dest: 'CONSUMO', re, ing };
   }
@@ -200,7 +201,7 @@ function equivC3() {
   });
   h += '<tr><td colspan="3"><button class="small" onclick="eqNueva3()">+ Producto nuevo</button></td></tr></tbody></table></div>';
   h += '<h3 class="dj-h3">No van en la declaración</h3><p>' + ((E.ignorar || []).map(a => chip(a)).join(' ') || '<span class="muted">ninguno</span>') + '</p>';
-  h += '<p><label><input type="checkbox"' + (E.restar ? ' checked' : '') + ' onchange="cambiarEq(d=>{d.c3=d.c3||JSON.parse(JSON.stringify(C3_DEF));d.c3.restar=this.checked},\'Chacinados restar reproceso \'+this.checked)"> A cada producto restarle lo que de ese mismo producto reingresó (reproceso)</label></p>';
+  h += '<p><label><input type="checkbox"' + (E.restar ? ' checked' : '') + ' onchange="cambiarEq(d=>{d.c3=d.c3||JSON.parse(JSON.stringify(C3_DEF));d.c3.restar=this.checked},\'Chacinados restar reproceso \'+this.checked)"> A cada producto restarle lo que de ese mismo producto reingresó (reproceso)</label> <span class="muted">— desde el ' + ddmmaaaa(E.restarDesde || C3_DEF.restarDesde) + ' se resta siempre</span></p>';
   h += '<p>Establecimiento N.º Oficial: <input class="w-cp" value="' + esc(E.estab || '') + '" onchange="cambiarEq(d=>{d.c3=d.c3||JSON.parse(JSON.stringify(C3_DEF));d.c3.estab=this.value.trim()},\'Chacinados establecimiento\')"></p></section>';
   return h;
 }
