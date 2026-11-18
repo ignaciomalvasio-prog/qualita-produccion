@@ -222,7 +222,7 @@ function hojaRd(f) {
   const P = planillaRd(f), E = eqRd(), filas = P.filas.slice();
   const N = Math.max(9, filas.length);
   let h = '<div class="hoja h3"><div class="h3-cab"><img src="/logo.png" alt=""><div><div class="h3-t">Frigorífico Qualita S.A</div><div class="h3-s">Ruta Nacional N.º 9 Norte / Km. 745 Colonia Caroya / Córdoba / Argentina</div><div class="h3-s">&nbsp;Establecimiento N.º Oficial ' + esc(E.estab || '') + '</div></div></div>' +
-    '<div class="h3-c b">Producción Rendering Qualita S.A</div><div class="h3-c">DECLARACIÓN JURADA</div>' +
+    '<div class="h3-c b">Producción Rendering FRIGORIFICO QUALITA S.A.</div><div class="h3-c">DECLARACIÓN JURADA</div>' +
     '<div class="h3-leg">La presente planilla reviste el carácter de <b>Declaración Jurada</b> y está sujeta al Artículo 293 Primera Parte del Código Penal.</div>' +
     '<div class="h3-f"><span>Fecha:' + f.slice(8, 10) + '.' + f.slice(5, 7) + '.' + f.slice(0, 4) + '</span><span>N.º de Lote: ' + esc(P.lote) + '</span></div>' +
     '<table class="h3-tab"><colgroup><col style="width:25.4%"><col style="width:19.8%"><col style="width:25.6%"><col style="width:29.2%"></colgroup>' +

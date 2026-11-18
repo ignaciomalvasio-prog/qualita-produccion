@@ -23,7 +23,7 @@ for(const w of [1300,400]){const p=await b.newPage({viewport:{width:w,height:900
   // corregir destino
   await p.locator('tr:has-text("HARINA") td.ed').nth(2).click();await p.fill('#dlg-v','VENTA');await p.click('#dlg-ok');await p.waitForTimeout(300);
   const hoja=await p.evaluate(()=>hojaRd(S.fechaRd));
-  ok(/Km. 745 Colonia Caroya/.test(hoja)&&/Establecimiento N.º Oficial 4886/.test(hoja)&&/Producción Rendering Qualita S.A/.test(hoja)&&/DECLARACIÓN JURADA/.test(hoja),'hoja: encabezado con establecimiento 4886');
+  ok(/Km. 745 Colonia Caroya/.test(hoja)&&/Establecimiento N.º Oficial 4886/.test(hoja)&&/Producción Rendering FRIGORIFICO QUALITA S\.A\./.test(hoja)&&/DECLARACIÓN JURADA/.test(hoja),'hoja: encabezado con establecimiento 4886');
   ok(/HARINA DE CARNE Y HUESO PORCINA<\/td><td>QUALITA<\/td><td>1210\.00<\/td><td>VENTA/.test(hoja),'hoja: renglón con kg y destino corregido');
   ok(/Fecha:17\.11\.2026/.test(hoja)&&/N.º de Lote: 171126/.test(hoja),'hoja: fecha y lote');
   // equivalencias
