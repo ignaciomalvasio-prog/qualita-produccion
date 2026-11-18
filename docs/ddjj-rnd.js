@@ -91,7 +91,7 @@ function renderRd() {
   const f = S.fechaRd, P = planillaRd(f), x = P.x;
   h += '<section class="dj-top"><div><h2>Rendering · ' + esc(fechaLarga(f)) + '</h2><p class="sub" style="margin:0">' + fmt2(P.tot) + ' kg producidos · Lote <a href="#" onclick="editarLoteRd();return false"><b>' + esc(P.lote) + '</b></a>' +
     (x.por ? ' · último cambio: ' + esc(x.por) + ' ' + esc(horaDe(x.ts)) : '') + (x.impreso ? ' · impresa ' + esc(horaDe(x.impreso)) : '') + '</p></div>' +
-    '<div class="row"><button onclick="verImpresionRd()">👁 Ver cómo sale</button><button class="primary big" onclick="imprimirRd()">🖨 Imprimir</button></div></section>';
+    '<div class="row"><button onclick="verImpresionRd()">👁 Ver cómo sale</button><button onclick="excelRd(false)" title="La DDJJ de este día en Excel">⬇ Excel del día</button><button onclick="excelRd(true)" title="Una hoja por cada día con producción del mes">⬇ Excel del mes</button><button class="primary big" onclick="imprimirRd()">🖨 Imprimir</button></div></section>';
   if (P.c.nuevos.length) {
     h += '<div class="alerta warn"><div><b>Hay productos del sistema que no se reconocen.</b> Decí a qué renglón van (queda guardado):<table class="dj-nuevos">' +
       P.c.nuevos.map(r => '<tr><td>' + r.art + ' · ' + esc(r.den) + '</td><td class="num">' + fmt2(r.kg) + ' kg</td><td>' + selectMoverRd(r.art, '', true) + '</td></tr>').join('') + '</table></div></div>';
@@ -247,4 +247,32 @@ function verImpresionRd() {
   w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>DDJJ Rendering ' + ddmm(S.fechaRd) + '</title><base href="' + location.origin + '/"><link rel="stylesheet" href="' + location.origin + '/ddjj.css"></head><body class="vista">' +
     '<div class="vista-bar">Así sale impresa la DDJJ de rendering del ' + esc(fechaLarga(S.fechaRd)) + '.</div>' + hojaRd(S.fechaRd) + '</body></html>');
   w.document.close();
+}
+
+/* ---------- Excel (con formato, como la hoja impresa; ddjj-xlsx.js) — del día o del mes (una hoja por día) ---------- */
+function excelRd(mes) {
+  const dias = mes ? Object.keys(sisRd()).filter(f => f.slice(0, 7) === S.mes).sort() : [S.fechaRd];
+  if (!dias.length || !dias[0]) { toast('No hay días con producción de rendering.', true); return; }
+  const L = XL.libro(), E = eqRd(), T = 'thin', bd = { l: T, r: T, t: T, b: T };
+  const tit = { sz: 14, b: 1, h: 'center', v: 'center' }, cab = { sz: 11, b: 1, h: 'center', v: 'center', wrap: 1, bd }, cel = { sz: 11, v: 'center', bd };
+  for (const f of dias) {
+    const P = planillaRd(f), h = L.hoja(dias.length > 1 ? ddmm(f).replace('/', '-') : 'RENDERING', {
+      anchos: { A: 2, B: 38, C: 16, D: 22, E: 34 }, altos: { 1: 20, 2: 14, 3: 14, 5: 20, 6: 18, 7: 30, 9: 16, 11: 36 }, ajustar: true, margenes: { l: 0.6, r: 0.6, t: 0.7, b: 0.7 } });
+    h.set('B1', 'Frigorífico Qualita S.A', { sz: 16, b: 1 }).set('B2', 'Ruta Nacional N.º 9 Norte / Km. 745 Colonia Caroya / Córdoba / Argentina', { sz: 9 }).set('B3', 'Establecimiento N.º Oficial ' + (E.estab || ''), { sz: 9 });
+    h.set('B5', 'Producción Rendering FRIGORIFICO QUALITA S.A.', tit).merge('B5:E5').set('B6', 'DECLARACIÓN JURADA', tit).merge('B6:E6');
+    h.set('B7', 'La presente planilla reviste el carácter de Declaración Jurada y está sujeta al Artículo 293 Primera Parte del Código Penal.', { sz: 9, h: 'center', v: 'center', wrap: 1 }).merge('B7:E7');
+    h.set('B9', 'Fecha: ' + f.slice(8, 10) + '.' + f.slice(5, 7) + '.' + f.slice(0, 4), { sz: 11, b: 1 }).set('E9', 'N.º de Lote: ' + P.lote, { sz: 11, b: 1, h: 'right' });
+    ['NOMBRE DEL PRODUCTO', 'MARCA', 'TOTAL DE KILOGRAMOS PRODUCIDOS', 'OBSERVACIONES / DESTINO'].forEach((t, i) => h.set('BCDE'[i] + '11', t, cab));
+    const N = Math.max(9, P.filas.length);
+    for (let i = 0; i < N; i++) {
+      const r = P.filas[i], fila = 12 + i; h.op.altos[fila] = 22;
+      h.set('B' + fila, r ? r.n : null, cel).set('C' + fila, r ? (r.marca || '') : null, Object.assign({ h: 'center' }, cel))
+        .set('D' + fila, r && r.kg != null && r.kg !== '' ? Number(r.kg) : null, Object.assign({ h: 'center', fmt: '0.00' }, cel)).set('E' + fila, r ? (r.dest || '') : null, Object.assign({ h: 'center' }, cel));
+    }
+    const ft = 12 + N; h.op.altos[ft] = 24;
+    h.set('B' + ft, 'TOTAL', Object.assign({ b: 1 }, cel)).set('C' + ft, null, cel).set('D' + ft, { f: 'SUM(D12:D' + (ft - 1) + ')', v: P.tot }, Object.assign({ b: 1, h: 'center', fmt: '0.00' }, cel)).set('E' + ft, null, cel);
+    h.set('B' + (ft + 5), '.......................................................................', { sz: 11, h: 'center' }).merge('B' + (ft + 5) + ':E' + (ft + 5));
+    h.set('B' + (ft + 6), 'Firma del responsable de la Empresa', { sz: 11, h: 'center' }).merge('B' + (ft + 6) + ':E' + (ft + 6));
+  }
+  guardarBytes(L.bytes(), mes ? 'DDJJ rendering ' + nombreMes(S.mes) + '.xlsx' : 'DDJJ rendering ' + ddmmaaaa(S.fechaRd).replace(/\//g, '-') + '.xlsx');
 }

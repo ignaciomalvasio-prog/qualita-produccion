@@ -26,6 +26,13 @@ for(const w of [1300,400]){const p=await b.newPage({viewport:{width:w,height:900
   ok(/Km. 745 Colonia Caroya/.test(hoja)&&/Establecimiento N.º Oficial 4886/.test(hoja)&&/Producción Rendering FRIGORIFICO QUALITA S\.A\./.test(hoja)&&/DECLARACIÓN JURADA/.test(hoja),'hoja: encabezado con establecimiento 4886');
   ok(/HARINA DE CARNE Y HUESO PORCINA<\/td><td>QUALITA<\/td><td>1210\.00<\/td><td>VENTA/.test(hoja),'hoja: renglón con kg y destino corregido');
   ok(/Fecha:17\.11\.2026/.test(hoja)&&/N.º de Lote: 171126/.test(hoja),'hoja: fecha y lote');
+  // Excel del día y del mes (el .xlsx va sin comprimir: se lee el XML)
+  await p.evaluate(()=>{window.__auto={hecho:true};window.__autoOut=[];});
+  await p.click('text=Excel del día');await p.click('text=Excel del mes');
+  const xl=await p.evaluate(()=>window.__autoOut);const d1=Buffer.from(xl[0].b64,'base64').toString('utf8'),d2=Buffer.from(xl[1].b64,'base64').toString('utf8');
+  ok(xl[0].nombre==='DDJJ rendering 17-11-2026.xlsx'&&/HARINA DE CARNE Y HUESO PORCINA/.test(d1)&&/<v>1210<\/v>/.test(d1)&&/Km. 745/.test(d1)&&/Oficial 4886/.test(d1),'Excel del día: '+xl[0].nombre);
+  ok(/DDJJ rendering Noviembre 2026\.xlsx/i.test(xl[1].nombre)&&/name="17-11"/.test(d2)&&/name="16-11"/.test(d2),'Excel del mes: una hoja por día ('+xl[1].nombre+')');
+  await p.evaluate(()=>{delete window.__auto;});
   // equivalencias
   await p.click('#nav a[data-t="equiv"]');await p.waitForTimeout(300);
   ok(/Equivalencias de rendering/.test(await p.evaluate(()=>document.getElementById('main').innerText)),'equivalencias de rendering en la pestaña Equivalencias');
