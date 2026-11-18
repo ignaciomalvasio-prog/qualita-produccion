@@ -283,6 +283,6 @@ function excelRd(mes) {
 }
 function excel3(mes) {
   const dias = mes ? Object.keys(S.sis.c3).filter(f => f.slice(0, 7) === S.mes).sort() : [S.fecha3];
-  excelHojaDJ({ dias, planilla: planilla3, estab: eq3().estab, km: '748', titulo: 'Producción Fábrica de Chacinados Qualita S.A', hoja: 'CHACINADOS',
+  excelHojaDJ({ dias, planilla: planilla3, estab: eq3().estab, km: '748', titulo: 'Producción Fábrica de Chacinados FRIGORIFICO QUALITA S.A.', hoja: 'CHACINADOS',
     nombre: mes ? 'DDJJ chacinados ' + nombreMes(S.mes) + '.xlsx' : 'DDJJ chacinados ' + ddmmaaaa(S.fecha3).replace(/\//g, '-') + '.xlsx' });
 }
