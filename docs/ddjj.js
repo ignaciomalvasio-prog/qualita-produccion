@@ -363,7 +363,8 @@ function renderDia() {
   h += '<section class="dj-top"><div><h2>' + esc(fechaLarga(S.fecha)) + '</h2><p class="sub" style="margin:0">' +
     fmt0(P.tot.medias) + ' medias reses · ' + fmt2(P.tot.cons + P.tot.exp) + ' kg producidos' +
     (x.por ? ' · último cambio: ' + esc(x.por) + ' ' + esc(horaDe(x.ts)) : '') + (x.impreso ? ' · impresa ' + esc(horaDe(x.impreso)) : '') + '</p></div>' +
-    '<div class="row"><button onclick="verImpresion()">👁 Ver cómo sale</button><button onclick="excelDJ(false)" title="La planilla de este día (ingreso y producción) en Excel">⬇ Excel del día</button><button onclick="excelDJ(true)" title="Una hoja por cada día con desposte del mes">⬇ Excel del mes</button><button class="primary big" onclick="imprimir()">🖨 Imprimir</button></div></section>';
+    '<div class="row"><button onclick="verImpresion()">👁 Ver cómo sale</button><button onclick="excelDJ(false)" title="La planilla de este día (ingreso y producción) en Excel">⬇ Excel del día</button><button onclick="excelDJ(true)" title="Una hoja por cada día con desposte del mes">⬇ Excel del mes</button><button class="primary big" onclick="imprimir()">🖨 Imprimir</button></div>' +
+    (window.showDirectoryPicker ? '<p class="muted" style="font-size:12px">Los Excel de desposte se guardan en la carpeta DDJJ (en la subcarpeta del mes), no en Descargas. <a href="#" onclick="elegirCarpetaDJ();return false">Cambiar carpeta</a></p>' : '') + '</section>';
 
   if (P.c.nuevos.length) {
     h += '<div class="alerta warn"><div><b>Hay artículos nuevos que todavía no están asignados a ningún renglón.</b> Decí a qué renglón van (queda guardado para los próximos días):<table class="dj-nuevos">' +
@@ -692,7 +693,52 @@ function excelDJ(mes) {
   const dias = mes ? Object.keys((S.sis && S.sis.dias) || {}).sort().filter(f => calcular(f).hay) : [S.fecha];
   if (!dias.length || !dias[0]) { toast('No hay días con desposte.', true); return; }
   /* con el formato de la planilla (hojas INGRESO y PROD; del mes, dos hojas por día) — ddjj-xlsx.js */
-  guardarBytes(libroDJ(dias), mes ? 'DDJJ desposte ' + nombreMes(S.mes) + '.xlsx' : 'DDJJ desposte ' + ddmmaaaa(S.fecha).replace(/\//g, '-') + '.xlsx');
+  const nombre = mes ? 'DDJJ desposte ' + nombreMes(S.mes) + '.xlsx' : 'DDJJ desposte ' + ddmmaaaa(S.fecha).replace(/\//g, '-') + '.xlsx';
+  if (window.__auto) return guardarBytes(libroDJ(dias), nombre);
+  guardarEnCarpeta(libroDJ(dias), nombre, mes ? S.mes : S.fecha.slice(0, 7));
+}
+
+/* Excel de desposte directo a la carpeta DDJJ (la misma que usa la descarga automática: DDJJ\AAAA-MM Mes),
+   sin pasar por Descargas (Sabi 19/11). La primera vez se elige la carpeta DDJJ del Escritorio y queda recordada
+   en este navegador; si el navegador no lo permite o se cancela, se descarga como siempre. */
+const MESES_DJ = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+function idbCarpeta(modo, valor) {
+  return new Promise(res => {
+    try {
+      const rq = indexedDB.open('ddjj-carpeta', 1);
+      rq.onupgradeneeded = () => rq.result.createObjectStore('k');
+      rq.onerror = () => res(null);
+      rq.onsuccess = () => {
+        try {
+          const tx = rq.result.transaction('k', modo === 'get' ? 'readonly' : 'readwrite'), st = tx.objectStore('k');
+          const r = modo === 'get' ? st.get('dir') : modo === 'del' ? st.delete('dir') : st.put(valor, 'dir');
+          r.onsuccess = () => res(modo === 'get' ? r.result || null : true); r.onerror = () => res(null);
+        } catch (e) { res(null); }
+      };
+    } catch (e) { res(null); }
+  });
+}
+async function elegirCarpetaDJ() {
+  if (!window.showDirectoryPicker) { toast('Este navegador no deja elegir carpeta: usá Chrome o Edge.', true); return null; }
+  try { const d = await window.showDirectoryPicker({ id: 'ddjj', mode: 'readwrite', startIn: 'desktop' }); await idbCarpeta('put', d); toast('Carpeta elegida: ' + d.name); render(); return d; }
+  catch (e) { return null; }
+}
+async function guardarEnCarpeta(u8, nombre, mesIso) {
+  if (!window.showDirectoryPicker) return guardarBytes(u8, nombre);
+  try {
+    let dir = await idbCarpeta('get');
+    if (dir && (await dir.queryPermission({ mode: 'readwrite' })) !== 'granted' && (await dir.requestPermission({ mode: 'readwrite' })) !== 'granted') dir = null;
+    if (!dir) { toast('Elegí la carpeta DDJJ del Escritorio (se pide una sola vez).'); dir = await elegirCarpetaDJ(); }
+    if (!dir) return guardarBytes(u8, nombre);
+    const sub = mesIso.slice(0, 7) + ' ' + MESES_DJ[+mesIso.slice(5, 7) - 1];
+    const dm = dir.name === sub ? dir : await dir.getDirectoryHandle(sub, { create: true });
+    const w = await (await dm.getFileHandle(nombre, { create: true })).createWritable();
+    await w.write(u8); await w.close();
+    toast('Guardado en ' + dir.name + (dm === dir ? '' : '\\' + sub) + ': ' + nombre);
+  } catch (e) {
+    toast('No se pudo guardar en la carpeta (' + (e && e.name === 'NoModificationAllowedError' ? '¿está abierto en Excel?' : (e && e.message) || e) + '). Se descarga.', true);
+    guardarBytes(u8, nombre);
+  }
 }
 
 /* Las medidas (en puntos, hoja A4 de 595 × 842) son las de la planilla de Excel impresa: el formulario
