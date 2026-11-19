@@ -27,7 +27,7 @@
 
   var SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
   var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-  var TABS = ['inicio', 'pedidos', 'produccion', 'ciclo3', 'logistica', 'medias', 'rendering', 'stock', 'clientes', 'camara', 'tunel'];
+  var TABS = ['inicio', 'pedidos', 'produccion', 'ciclo3', 'logistica', 'medias', 'rendering', 'stock', 'clientes', 'camara', 'tunel', 'fichas'];
   // Artículos que solo se eligen a mano (no los usa la IA al leer pedidos): "CORTES", para casos eventuales (pedido de Renzo).
   var CORTES_A_MANO = ['CORTES'];
   var CORTES_BASE = ['JAMON', 'PALETA', 'PECHO', 'PANCETA CON CUERO', 'PANCETA SIN CUERO', 'CARRE SIN SOLOMILLO', 'CARRE CON SOLOMILLO', 'SOLOMILLO', 'CINTA DE LOMO', 'MATAMBRE', 'VACIO', 'BONDIOLA', 'RECORTE', 'GRASA', 'CUERO', 'TAPA DE PALETA', 'TAPA DE JAMON', 'TORTUGA', 'GARRON', 'TOCINO', 'CHURRASCO', 'PAPADA', 'HUESITOS', 'UNTO', 'CABEZA', 'OREJAS', 'PULMON', 'HIGADO', 'PATAS Y MANOS', 'LENGUA', 'CORAZON', 'CHINCHULIN', 'RIÑON', 'RABO', 'MENUDENCIAS', 'EMBUTIDOS', 'CHORIZO', 'MORCILLA', 'SALCHICHA'];
@@ -3841,6 +3841,30 @@
   function tuPegarHTML() {
     return S.tuPegar ? '<div class="panel tu-pegar"><p><b>Pegá acá</b> el mensaje (WhatsApp, mail…) o una captura <span class="small muted">— Ctrl+V o mantené apretado y "Pegar"</span></p><textarea id="tu-pegar-txt" rows="6" placeholder="Ej.: COTO: carré 8.100 kg, solomillo 2.700 kg…"></textarea><div class="acciones"><button class="btn pri" data-act="tu-pegar-leer">Leer</button><button class="btn" data-act="tu-pegar-x">Cancelar</button></div></div>' : '';
   }
+  /* Fichas técnicas (pedido de Renzo, 19/11/2026): pestaña que solo ve él (misma cuenta que Cámara y Túnel).
+     Los PDF están en fichas/ y la lista en fichas/lista.json; el link /fichas es para compartirlas. */
+  function renderFichas() {
+    var el = $('view-fichas');
+    if (!S.fichas) {
+      el.innerHTML = '<div class="panel"><p class="state">Cargando fichas…</p></div>';
+      if (!S.fichasPidiendo) { S.fichasPidiendo = true; fetch('fichas/lista.json', { cache: 'no-cache' }).then(function (r) { return r.json(); }).then(function (l) { S.fichas = l; S.fichasPidiendo = false; if (S.tab === 'fichas') renderFichas(); }, function () { S.fichasPidiendo = false; el.innerHTML = '<div class="panel"><p class="state">No se pudieron cargar las fichas. Revisá la conexión.</p></div>'; }); }
+      return;
+    }
+    var q = norm(S.fichaQ || ''), base = location.origin + '/', l = S.fichas.filter(function (f) { return !q || norm(f.nom).indexOf(q) >= 0 || String(f.cod).indexOf(q) >= 0; });
+    var h = '<div class="nav"><h2 class="tit">Fichas técnicas <small>' + S.fichas.length + '</small></h2><div class="acc">'
+      + '<a class="btn wa" href="https://wa.me/?text=' + encodeURIComponent('Fichas técnicas · Frigorífico Qualitá: ' + base + 'fichas') + '" target="_blank" rel="noopener">Compartir todas por WhatsApp</a>'
+      + '<a class="btn" href="fichas" target="_blank" rel="noopener">Abrir la carpeta para compartir</a></div></div>'
+      + '<div class="panel"><input type="search" id="ficha-q" value="' + esc(S.fichaQ || '') + '" placeholder="Buscar corte… (ej. bondiola)" aria-label="Buscar ficha" autocomplete="off" class="ficha-q">'
+      + '<div class="fichas-grilla">' + (l.length ? l.map(function (f) {
+        var pdf = 'fichas/' + f.arch + '.pdf';
+        return '<div class="ficha-c"><a class="ficha-prev" href="' + pdf + '" target="_blank" rel="noopener"><img src="fichas/img/' + esc(f.arch) + '.jpg" alt="Ficha técnica ' + esc(f.nom) + '" loading="lazy"></a>'
+          + '<div class="ficha-i"><span class="ficha-cod">FT.' + esc(f.cod) + '</span><b>' + esc(f.nom) + '</b><div class="ficha-acc">'
+          + '<a class="btn sm pri" href="' + pdf + '" target="_blank" rel="noopener">Ver</a>'
+          + '<a class="btn sm" href="' + pdf + '" download="' + esc(f.arch) + '.pdf">Descargar</a>'
+          + '<a class="btn sm wa" href="https://wa.me/?text=' + encodeURIComponent('Ficha técnica ' + f.nom + ' · Frigorífico Qualitá: ' + base + pdf) + '" target="_blank" rel="noopener">WhatsApp</a></div></div></div>';
+      }).join('') : '<p class="muted">No hay fichas con ese nombre.</p>') + '</div></div>';
+    el.innerHTML = h;
+  }
   function renderTunel() {
     var el = $('view-tunel');
     if (!S.camaraOk) { el.innerHTML = '<div class="panel"><p class="state">Esta sección es privada.</p></div>'; return; }
@@ -4412,14 +4436,15 @@
     if (!store || !store.signIn || S.solo) e.innerHTML = '';
     else if (!S.user) e.innerHTML = '<button class="btn sm lnk" data-act="ingresar">Ingresar para cargar</button>';
     else e.innerHTML = '<span>' + esc(S.user.email) + (S.editor ? '' : ' · sin permiso para cargar') + '</span><button class="btn sm lnk" data-act="salir">Salir</button>';
-    $('tab-pedidos').hidden = !S.editor; $('tab-clientes').hidden = !S.editor; $('tab-stock').hidden = !S.editor; $('tab-camara').hidden = !S.camaraOk || !!S.solo; $('tab-tunel').hidden = !S.camaraOk || !!S.solo;
+    $('tab-pedidos').hidden = !S.editor; $('tab-clientes').hidden = !S.editor; $('tab-stock').hidden = !S.editor; $('tab-camara').hidden = !S.camaraOk || !!S.solo; $('tab-tunel').hidden = !S.camaraOk || !!S.solo; $('tab-fichas').hidden = !S.camaraOk || !!S.solo;
     if (S.tab === 'camara' && (!S.camaraOk || S.solo)) { if (!S.solo) S.volver = 'camara'; S.tab = 'inicio'; }
     if (S.tab === 'tunel' && (!S.camaraOk || S.solo)) { if (!S.solo) S.volver = 'tunel'; S.tab = 'inicio'; }
+    if (S.tab === 'fichas' && (!S.camaraOk || S.solo)) { if (!S.solo) S.volver = 'fichas'; S.tab = 'inicio'; }
     $('tabs').classList.toggle('muchas', !!S.editor);
     // Si la página se abrió (o se recargó sola) en Pedidos o Clientes, se vuelve ahí apenas se confirma el permiso.
     if ((S.tab === 'pedidos' || S.tab === 'clientes' || S.tab === 'stock') && !S.editor) { S.volver = S.tab; S.tab = 'inicio'; }
     TABS.forEach(function (t) { $('view-' + t).hidden = S.tab !== t; if (S.tab !== t) $('view-' + t).innerHTML = ''; var tb = $('tab-' + t); if (tb) tb.setAttribute('aria-selected', String(S.tab === t)); });
-    if (S.tab === 'medias') renderMedias(); else if (S.tab === 'pedidos') renderPedidos(); else if (S.tab === 'produccion' || S.tab === 'ciclo3') renderProduccion(); else if (S.tab === 'logistica') renderLogistica(); else if (S.tab === 'rendering') renderRendering(); else if (S.tab === 'clientes') renderClientes(); else if (S.tab === 'stock') renderStock(); else if (S.tab === 'camara') renderCamara(); else if (S.tab === 'tunel') renderTunel(); else renderInicio();
+    if (S.tab === 'medias') renderMedias(); else if (S.tab === 'pedidos') renderPedidos(); else if (S.tab === 'produccion' || S.tab === 'ciclo3') renderProduccion(); else if (S.tab === 'logistica') renderLogistica(); else if (S.tab === 'fichas') renderFichas(); else if (S.tab === 'rendering') renderRendering(); else if (S.tab === 'clientes') renderClientes(); else if (S.tab === 'stock') renderStock(); else if (S.tab === 'camara') renderCamara(); else if (S.tab === 'tunel') renderTunel(); else renderInicio();
   }
   // Cuando llegan datos nuevos no se redibuja la pantalla en la que se está escribiendo.
   function renderDatos() {
@@ -4886,6 +4911,7 @@
   });
 
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && S.menuAb) cerrarMenus(); });
+  document.addEventListener('input', function (e) { if (e.target && e.target.id === 'ficha-q') { S.fichaQ = e.target.value; var pos = e.target.selectionStart; renderFichas(); var x = $('ficha-q'); if (x) { x.focus(); try { x.setSelectionRange(pos, pos); } catch (er) {} } } });
   document.addEventListener('keydown', function (e) { var t = e.target; if (!t || t.id !== 'rec-in') return; if (e.key === 'Enter') { e.preventDefault(); guardarRecordatorio(t.dataset.id, t.value); } else if (e.key === 'Escape') { S.recMenu = null; renderPedidos(); } });
   document.addEventListener('keydown', function (e) { var t = e.target; if ((e.key === 'Enter' || e.key === ' ') && t && t.classList && t.classList.contains('busq-f') && t.dataset.act) { e.preventDefault(); t.click(); } });
   document.addEventListener('keydown', function (e) { var t = e.target; if (e.key === 'Enter' && t && t.matches && t.matches('input.lc-desc-ed')) { e.preventDefault(); t.blur(); } });
@@ -5537,7 +5563,7 @@
       if (!u) { S.em = null; S.ep = null; S.prop = []; S.camaraOk = false; S.cam = {}; render(); return; }
       if (store.puedeCamara) store.puedeCamara(u.email).then(function (c) {
         S.camaraOk = !!c;
-        if (c && (S.volver === 'camara' || S.volver === 'tunel')) { S.tab = S.volver; S.volver = null; }
+        if (c && (S.volver === 'camara' || S.volver === 'tunel' || S.volver === 'fichas')) { S.tab = S.volver; S.volver = null; }
         render();
       });
       (store.renovar ? store.renovar() : Promise.resolve()).then(null, function () {}).then(function () { return store.esEditor(u.email); }).then(function (ok) {

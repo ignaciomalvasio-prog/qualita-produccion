@@ -1243,6 +1243,18 @@ input[data-h24]{width:6.2ch!important;min-width:6.2ch;text-align:center;font-var
 
 .uni-todos{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:6px 0 2px;padding:6px 10px;border:1px dashed #e0b84a;border-radius:8px;background:#fff8e1;font-size:13px;color:#7a5a00;font-weight:600}
 @media print{.uni-todos{display:none}}
+
+.ficha-q{width:100%;padding:10px 12px;font-size:16px;margin-bottom:12px}
+.fichas-grilla{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.ficha-c{border:2px solid #1b1b1b;border-radius:10px;overflow:hidden;background:#fff;display:flex;flex-direction:column}
+.ficha-prev{display:block;aspect-ratio:3/4;overflow:hidden;background:#e4f0f8;border-bottom:1px solid #d3e1eb}
+.ficha-prev img{width:100%;height:100%;object-fit:cover;object-position:top}
+.ficha-i{padding:8px 10px 10px;display:flex;flex-direction:column;gap:6px;flex:1}
+.ficha-i b{font-size:15px;text-transform:uppercase}
+.ficha-cod{font-size:11.5px;font-weight:800;color:#4a8db5;letter-spacing:.05em}
+.ficha-acc{display:flex;gap:5px;flex-wrap:wrap;margin-top:auto}
+.ficha-acc .btn{flex:1 1 auto}
+#view-fichas a.btn{text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
 </style>
 </head>
 <body>
@@ -1260,6 +1272,7 @@ input[data-h24]{width:6.2ch!important;min-width:6.2ch;text-align:center;font-var
       <button class="tab" role="tab" id="tab-clientes" data-tab="clientes" aria-selected="false" hidden>Clientes</button>
       <button class="tab tab-cam" role="tab" id="tab-camara" data-tab="camara" aria-selected="false" hidden>Cámara 🔒</button>
       <button class="tab tab-cam" role="tab" id="tab-tunel" data-tab="tunel" aria-selected="false" hidden>Túnel 🔒</button>
+      <button class="tab tab-cam" role="tab" id="tab-fichas" data-tab="fichas" aria-selected="false" hidden>Fichas 🔒</button>
     </nav>
   </header>
   <main>
@@ -1274,6 +1287,7 @@ input[data-h24]{width:6.2ch!important;min-width:6.2ch;text-align:center;font-var
     <section class="view" id="view-clientes" hidden></section>
     <section class="view" id="view-camara" hidden></section>
     <section class="view" id="view-tunel" hidden></section>
+    <section class="view" id="view-fichas" hidden></section>
   </main>
   <footer class="pie small muted"><span id="stamp"></span><span id="sesion" class="acciones"></span></footer>
 </div>

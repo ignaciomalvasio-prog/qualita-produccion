@@ -441,3 +441,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - (19/11/2026) Pedidos y Logística: si un pedido tiene renglones con "¿Unidad?", aparece "Todo en KG / CAJAS / UNIDADES" para ponerla a todos de una vez.
 - Centro de desposte › DDJJ desposte (Sabi 19/11): "Excel del día/mes" se guarda directo en la carpeta DDJJ (subcarpeta "AAAA-MM Mes", la misma de la descarga automática) y no en Descargas. La primera vez se elige la carpeta (queda recordada en el navegador; "Cambiar carpeta"); si el navegador no lo permite, se descarga como antes. Prueba: tests/prueba917.js.
 - (19/11/2026) Fichas técnicas: página pública /fichas con las fichas de los cortes (ver, descargar y mandar por WhatsApp cada una o todas).
+- (19/11/2026) Pestaña "Fichas 🔒" (solo la ve Renzo, como Cámara y Túnel) con las fichas técnicas: buscar, ver, descargar y mandar por WhatsApp. La lista está en docs/fichas/lista.json (la usa también la página /fichas para compartir).

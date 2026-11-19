@@ -1,0 +1,47 @@
+[
+ {
+  "cod": "002",
+  "nom": "Bondiola",
+  "arch": "FT_002_BONDIOLA"
+ },
+ {
+  "cod": "004",
+  "nom": "Carré con hueso",
+  "arch": "FT_004_CARRE_CON_HUESO"
+ },
+ {
+  "cod": "005",
+  "nom": "Churrasquito",
+  "arch": "FT_005_CHURRASQUITO"
+ },
+ {
+  "cod": "006",
+  "nom": "Cinta de lomo",
+  "arch": "FT_006_CINTA_DE_LOMO"
+ },
+ {
+  "cod": "012",
+  "nom": "Jamón sin hueso",
+  "arch": "FT_012_JAMON_SIN_HUESO"
+ },
+ {
+  "cod": "013",
+  "nom": "Matambrito",
+  "arch": "FT_013_MATAMBRITO"
+ },
+ {
+  "cod": "019",
+  "nom": "Paleta sin hueso",
+  "arch": "FT_019_PALETA_SIN_HUESO"
+ },
+ {
+  "cod": "021",
+  "nom": "Pechito con manta",
+  "arch": "FT_021_PECHITO_CON_MANTA"
+ },
+ {
+  "cod": "030",
+  "nom": "Solomillo",
+  "arch": "FT_030_SOLOMILLO"
+ }
+]
