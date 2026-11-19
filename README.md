@@ -438,3 +438,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Centro de desposte › DDJJ Chacinados (Sabi 18/11): desde el 28/10/2026 a cada producto se le restan siempre los kilos que de ese mismo producto ingresaron (eq().c3.restarDesde). Prueba: tests/prueba916.js.
 - DDJJ Ciclo III (notebook/ddjj): desde el 19/11/2026 la producción de chacinados se lee del ciclo 07 "Producción embutidos" (antes 04), igual que el Centro de control.
 - (18/11/2026) Pedidos: "costeleta(s)" va en CARRE SIN SOLOMILLO (también al leer con IA; los pedidos que ya estaban se pasan solos). Costilla sigue yendo en PECHO.
+- (19/11/2026) Pedidos y Logística: si un pedido tiene renglones con "¿Unidad?", aparece "Todo en KG / CAJAS / UNIDADES" para ponerla a todos de una vez.

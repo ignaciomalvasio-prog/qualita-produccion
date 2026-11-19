@@ -1673,6 +1673,24 @@
     var resto = s.slice(m[0].length).trim();
     return m[1].trim() + ' ' + uu[1] + (resto ? ' ' + resto : '');
   }
+  // Poner la unidad a todos los renglones que dicen ¿Unidad? de una vez (pedido de Renzo, 19/11/2026).
+  function uniTodosHTML(p) {
+    if (!S.editor || S.solo) return '';
+    var n = cortesDe(p).filter(function (c) { return c.k && unidadDe(c.texto) === ''; }).length;
+    if (!n) return '';
+    return '<p class="uni-todos"><span>' + n + (n === 1 ? ' renglón sin unidad:' : ' renglones sin unidad:') + '</span>'
+      + '<button class="btn sm pri" data-act="uni-todos" data-id="' + esc(p.id) + '" data-u="kg">Todo en KG</button>'
+      + '<button class="btn sm" data-act="uni-todos" data-id="' + esc(p.id) + '" data-u="cajas">Todo en CAJAS</button>'
+      + '<button class="btn sm" data-act="uni-todos" data-id="' + esc(p.id) + '" data-u="und">Todo en UNIDADES</button></p>';
+  }
+  function guardarUnidadTodos(id, u) {
+    var p = pedidoDe(id); if (!p) return Promise.resolve();
+    var antes = clone(p), doc = clone(p); delete doc.id;
+    doc.cortes = cortesDe(doc).map(function (c) { if (c.k && unidadDe(c.texto) === '') c.texto = conUnidad(c.texto, u); return c; });
+    var nuevo = clone(doc); nuevo.id = id;
+    S.pedidos = poner(S.pedidos, id, doc);
+    return store.set('pedidos', id, doc).then(function () { return revincularProduccion(nuevo, antes); }).then(function () { return publicarLog(doc.entrega); });
+  }
   function guardarUnidad(id, k, u) {
     var p = pedidoDe(id); if (!p) return Promise.resolve();
     var antes = clone(p), doc = clone(p); delete doc.id;
@@ -2824,6 +2842,7 @@
         : '<button class="btn sm pri" data-act="c-sumar" data-id="' + id + '" data-k="' + esc(c.k) + '">Sumar<span class="no-cel"> a producción</span></button>') + '</span></p>';
     });
     h += '</div>';
+    h += uniTodosHTML(p);
     // La nota se escribe ahí mismo, igual que en Logística (pedido de Renzo): se guarda sola al salir o con Enter.
     if (S.editor && !S.solo && (p.nota || S.notaAbierta === p.id)) h += '<textarea class="log-nota log-nota-ed" rows="1" data-nota-ped="' + id + '" placeholder="Escribí la nota…" aria-label="Nota de ' + esc(p.cliente) + '">' + esc(p.nota || '') + '</textarea>' + (p.nota ? '<p class="log-nota solo-print">' + esc(p.nota) + '</p>' : '');
     else if (S.editor && !S.solo) h += '<button class="btn lnk sm log-nota-mas" data-act="nota-abrir" data-id="' + id + '">+ Nota</button>';
@@ -3366,6 +3385,7 @@
     // Editar el pedido ahí mismo, sin ir a Pedidos.
     if (ke >= 0) return h + '<div class="log-edit">' + propHTML(S.prop[ke], ke) + '</div></div></div>';
     if (filas.length) h += '<div class="log-cortes">' + filas.map(function (c) { return '<p><span class="lc-corte">' + esc(c.corte) + '</span><span class="lc-txt">' + cantHTML(c.corte === 'MEDIAS' ? c.texto : sinCorteTxt(c.texto, c.corte), c.uni) + (c.precio ? ' <span class="log-precio' + (edPre && c.k ? ' solo-print' : '') + '">' + esc(c.precio) + '</span>' : '') + '</span>' + (edPre && c.k ? precioLogHTML(p.id, c.k, c.v, c.iv, c.corte, c.tasa) : '') + '</p>'; }).join('') + '</div>';
+    if (edPre) h += uniTodosHTML(p);
     // La nota se escribe ahí mismo (sin apretar Editar): se guarda sola al salir del recuadro o con Enter.
     if (edPre && (p.nota || S.notaAbierta === p.id)) h += '<textarea class="log-nota log-nota-ed" rows="1" data-nota-ped="' + id + '" placeholder="Escribí la nota…" aria-label="Nota de ' + esc(p.cliente) + '">' + esc(p.nota || '') + '</textarea>' + (p.nota ? '<p class="log-nota solo-print">' + esc(p.nota) + '</p>' : '');
     else if (edPre) h += '<button class="btn lnk sm log-nota-mas" data-act="nota-abrir" data-id="' + id + '">+ Nota</button>';
@@ -4790,6 +4810,7 @@
       e.preventDefault(); e.stopPropagation(); var ps = pedidoDe(D.id); S.camMenu = null; if (!ps) return;
       asignarCamion(ps.entrega, [ps.id], '').then(function () { avisar(ps.cliente + ' quedó sin camión.', 3000); renderPedidos(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); renderPedidos(); });
     }
+    else if (a === 'uni-todos') { guardarUnidadTodos(D.id, D.u).then(function () { render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); }); render(); }
     else if (a === 'rec-menu') { e.preventDefault(); e.stopPropagation(); S.camMenu = null; S.frioMenu = null; S.recMenu = S.recMenu === D.id ? null : D.id; renderPedidos(); if (S.recMenu) { var ri = document.getElementById('rec-in'); if (ri) { ri.focus(); ri.setSelectionRange(ri.value.length, ri.value.length); } } }
     else if (a === 'rec-guardar') { var riG = document.getElementById('rec-in'); guardarRecordatorio(D.id, riG ? riG.value : ''); }
     else if (a === 'rec-borrar') { guardarRecordatorio(D.id, ''); }
