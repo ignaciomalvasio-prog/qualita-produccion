@@ -3160,7 +3160,7 @@
   function pedidosAgrupadosHTML(f, lista, m) {
     var cams = camionesDe(f), hay = {}; cams.forEach(function (c) { hay[c.id] = c; });
     if (!cams.length) return '<div class="peds">' + ultimosArriba(lista).map(function (p) { return pedidoHTML(p, m); }).join('') + '</div>';
-    var grupo = function (tit, extra, l, cls, camId, tot) { return '<div class="grupo-cam' + (cls ? ' ' + cls : '') + '" data-gcam="' + esc(camId || '') + '"><h3 class="grupo-tit">' + tit + ' <span class="small muted">' + esc(extra) + '</span>' + (tot || '') + (camId && S.editor && !S.solo ? '<span class="pcam-acc">' + menuHTML('pcam-' + camId, '⋯', '<button class="btn sm" data-act="pcam-editar" data-id="' + esc(camId) + '">Editar camión</button>' + camDiaSelHTML(camId) + botonBorrar('pcam-borrar', camId, 'Borrar camión'), 'Opciones del camión') + '</span>' : '') + '</h3>' + (camId && S.pec === camId ? pcamEdHTML() : '') + '<div class="peds">' + l.map(function (p) { return pedidoHTML(p, m, true); }).join('') + '</div></div>'; };
+    var grupo = function (tit, extra, l, cls, camId, tot) { return '<div class="grupo-cam' + (cls ? ' ' + cls : '') + '" data-gcam="' + esc(camId || '') + '"><h3 class="grupo-tit">' + tit + ' <span class="small muted">' + esc(extra) + '</span>' + (tot || '') + (camId && S.editor && !S.solo ? '<span class="pcam-acc">' + menuHTML('pcam-' + camId, '⋯', '<button class="btn sm" data-act="ver-carga" data-src="ped" data-id="' + esc(camId) + '">📦 Ver carga</button>' + '<button class="btn sm" data-act="pcam-editar" data-id="' + esc(camId) + '">Editar camión</button>' + camDiaSelHTML(camId) + botonBorrar('pcam-borrar', camId, 'Borrar camión'), 'Opciones del camión') + '</span>' : '') + '</h3>' + (camId && S.pec === camId ? pcamEdHTML() : '') + '<div class="peds">' + l.map(function (p) { return pedidoHTML(p, m, true); }).join('') + '</div></div>'; };
     var h = '<p class="cam-cuenta">🚚 <b>' + cams.length + '</b> ' + (cams.length === 1 ? 'camión' : 'camiones') + '</p>', sin = ultimosArriba(lista.filter(function (p) { return !(p.camion && hay[p.camion]); }));
     if (sin.length) h += grupo('Sin camión', resumenLog(sin), sin, 'sin-cam', '');
     cams.forEach(function (c, kc) {
@@ -3606,7 +3606,7 @@
       h += '<section class="cam' + (pasa ? ' pasa' : '') + '" data-cam="' + esc(cam.id) + '"><header class="cam-cab">'
         + '<span class="cam-n" title="Camión ' + (k + 1) + ' de ' + cams.length + '">' + (k + 1) + '</span><h2>' + esc(nomCam(cam)) + '</h2>' + (S.editor && !S.solo && !ed ? (cam.hora || S.horaAbierta === cam.id ? '<input type="text" inputmode="numeric" maxlength="5" placeholder="hh:mm" autocomplete="off" data-h24="1" class="cam-hora cam-hora-in" data-hora-cam="' + esc(cam.id) + '" value="' + esc(cam.hora || '') + '" aria-label="Horario de salida de ' + esc(nomCam(cam)) + '" title="Tocá para cambiar el horario">' + (cam.hora ? '<span class="cam-hora solo-print">' + esc(cam.hora) + ' hs</span>' : '') : '<button class="btn sm cam-hora-mas" data-act="hora-abrir" data-id="' + esc(cam.id) + '">+ Horario</button>') : cam.hora ? '<span class="cam-hora">' + esc(cam.hora) + ' hs</span>' : '')
         + (cam.nota && !ed ? '<span class="cam-nota">' + esc(cam.nota) + '</span>' : '')
-        + (!ed ? '<span class="log-acc">' + menuHTML('cam-' + cam.id, '⋯', (S.editor && cams.length > 1 ? '<button class="btn sm" data-act="camion-subir" data-id="' + esc(cam.id) + '"' + (k === 0 ? ' disabled' : '') + '>↑ Subir el camión</button><button class="btn sm" data-act="camion-bajar" data-id="' + esc(cam.id) + '"' + (k === cams.length - 1 ? ' disabled' : '') + '>↓ Bajar el camión</button>' : '') + '<button class="btn sm" data-act="cam-imprimir" data-id="' + esc(cam.id) + '">Imprimir este camión</button>'
+        + (!ed ? '<span class="log-acc">' + menuHTML('cam-' + cam.id, '⋯', (S.editor && cams.length > 1 ? '<button class="btn sm" data-act="camion-subir" data-id="' + esc(cam.id) + '"' + (k === 0 ? ' disabled' : '') + '>↑ Subir el camión</button><button class="btn sm" data-act="camion-bajar" data-id="' + esc(cam.id) + '"' + (k === cams.length - 1 ? ' disabled' : '') + '>↓ Bajar el camión</button>' : '') + '<button class="btn sm" data-act="ver-carga" data-src="log" data-f="' + esc(f) + '" data-id="' + esc(cam.id) + '">📦 Ver carga</button>' + '<button class="btn sm" data-act="cam-imprimir" data-id="' + esc(cam.id) + '">Imprimir este camión</button>'
           // Mandar un solo camión por WhatsApp (pedido de Renzo, 12/11/2026).
           + '<button class="btn sm" data-act="cam-pdf" data-f="' + esc(f) + '" data-id="' + esc(cam.id) + '">📄 Mandar este camión por WhatsApp (PDF)</button>'
           + (S.editor ? '<button class="btn sm" data-act="cam-editar" data-id="' + esc(cam.id) + '">Editar camión</button>' + botonBorrar('cam-borrar', cam.id, 'Borrar camión') : ''), 'Opciones del camión ' + nomCam(cam)) + '</span>' : '') + '</header>';
@@ -3843,6 +3843,51 @@
   }
   /* Fichas técnicas (pedido de Renzo, 19/11/2026): pestaña que solo ve él (misma cuenta que Cámara y Túnel).
      Los PDF están en fichas/ y la lista en fichas/lista.json; el link /fichas es para compartirlas. */
+  /* Resumen de la carga de un camión (pedido de Renzo, 19/11/2026): totales por corte y unidad, ej. 17 CAJAS de PECHO, 40 MEDIAS. */
+  var UNI_CARGA = [[/^MEDIA/, 'MEDIAS'], [/^K/, 'KG'], [/^CANAST/, 'CANASTOS'], [/^C/, 'CAJAS'], [/^B/, 'BINES'], [/^P/, 'PALLETS'], [/^U/, 'UNIDADES']];
+  function cargaCamion(peds) {
+    var med = 0, t = {}, orden = [], sinCant = [];
+    peds.forEach(function (p) {
+      med += +p.medias || 0;
+      cortesDe(p).forEach(function (c) {
+        var tx = String(c.texto || ''), m = tx.match(RE_CANT), corte = norm(c.corte || '');
+        if (!m) { sinCant.push(corte + (tx ? ' ' + tx : '') + ' (' + String(p.cliente || '').toUpperCase() + ')'); return; }
+        var n = parseFloat(String(m[1]).replace('½', '.5').replace(/\.(?=\d{3}\b)/g, '').replace(',', '.')) || 0;
+        var u = String(m[2] || '').toUpperCase().trim(), un = '';
+        UNI_CARGA.some(function (x) { if (x[0].test(u)) { un = x[1]; return true; } });
+        if (un === 'MEDIAS') { med += n; return; }
+        var k = corte + '|' + un;
+        if (!t[k]) { t[k] = { corte: corte, un: un, n: 0 }; orden.push(k); }
+        t[k].n += n;
+      });
+    });
+    var l = orden.map(function (k) { return t[k]; }).sort(function (a, b) { return ordenCorte(a.corte) - ordenCorte(b.corte) || a.corte.localeCompare(b.corte); });
+    return { medias: med, l: l, sinCant: sinCant, kg: peds.reduce(function (t, p) { return t + (kgPedido(p).kg || 0); }, 0) };
+  }
+  function cargaTexto(tit, c) {
+    var r = ['🚚 ' + tit];
+    if (c.medias) r.push(n(c.medias) + ' MEDIAS');
+    c.l.forEach(function (x) { r.push(n(x.n) + ' ' + (x.un || '') + (x.un ? ' ' : '') + x.corte); });
+    c.sinCant.forEach(function (x) { r.push(x); });
+    if (c.kg) r.push('Total aprox.: ' + n(Math.round(c.kg)) + ' kg');
+    return r.join('\n');
+  }
+  function verCargaHTML() {
+    var v = S.verCarga; if (!v) return '';
+    var peds, cam;
+    if (v.src === 'log') { var lg = logDe(v.f) || {}; peds = (lg.pedidos || []).filter(function (p) { return p.camion === v.id; }); cam = (lg.camiones || []).filter(function (c) { return c.id === v.id; })[0]; }
+    else { peds = (S.pedidos || []).filter(function (p) { return p.entrega === v.f && p.camion === v.id; }); cam = camionesDe(v.f).filter(function (c) { return c.id === v.id; })[0]; }
+    var c = cargaCamion(peds), tit = (cam ? nomCam(cam).toUpperCase() : 'CAMIÓN') + (cam && cam.hora ? ' · ' + cam.hora : '') + ' · ' + diaCorto(v.f);
+    var filas = (c.medias ? '<tr><td class="cg-n">' + n(c.medias) + '</td><td class="cg-u">MEDIAS</td><td></td></tr>' : '')
+      + c.l.map(function (x) { return '<tr><td class="cg-n">' + n(x.n) + '</td><td class="cg-u">' + esc(x.un || '¿unidad?') + '</td><td class="cg-c">' + esc(x.corte) + '</td></tr>'; }).join('');
+    return '<div class="rec-ov carga-ov" data-act="carga-cerrar"><div class="carga-box" role="dialog" aria-label="Carga del camión">'
+      + '<div class="carga-cab"><div><p class="small muted">Carga del camión · ' + peds.length + (peds.length === 1 ? ' pedido' : ' pedidos') + '</p><h3>🚚 ' + esc(tit) + '</h3></div><button class="btn sm" data-act="carga-cerrar" aria-label="Cerrar">✕</button></div>'
+      + (filas ? '<table class="carga-t"><tbody>' + filas + '</tbody></table>' : '<p class="muted">Este camión no tiene carga.</p>')
+      + (c.sinCant.length ? '<p class="small muted">Sin cantidad: ' + c.sinCant.map(esc).join(' · ') + '</p>' : '')
+      + (c.kg ? '<p class="carga-kg">Total aprox.: <b>' + n(Math.round(c.kg)) + ' kg</b></p>' : '')
+      + '<div class="acciones"><a class="btn wa" href="https://wa.me/?text=' + encodeURIComponent(cargaTexto(tit, c)) + '" target="_blank" rel="noopener">Mandar por WhatsApp</a><button class="btn" data-act="carga-copiar">Copiar</button></div></div></div>';
+  }
+  function pintarCarga() { var o = document.querySelector('.carga-ov'); if (o) o.remove(); if (S.verCarga) document.body.insertAdjacentHTML('beforeend', verCargaHTML()); }
   function renderFichas() {
     var el = $('view-fichas');
     if (!S.fichas) {
@@ -4835,6 +4880,9 @@
       e.preventDefault(); e.stopPropagation(); var ps = pedidoDe(D.id); S.camMenu = null; if (!ps) return;
       asignarCamion(ps.entrega, [ps.id], '').then(function () { avisar(ps.cliente + ' quedó sin camión.', 3000); renderPedidos(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); renderPedidos(); });
     }
+    else if (a === 'ver-carga') { cerrarMenus(); S.verCarga = { src: D.src, id: D.id, f: D.src === 'log' ? D.f : S.pd }; pintarCarga(); }
+    else if (a === 'carga-cerrar') { if (e.target.closest('.carga-box') && !e.target.closest('[data-act="carga-cerrar"].btn')) return; S.verCarga = null; pintarCarga(); }
+    else if (a === 'carga-copiar') { var vc = S.verCarga; if (vc) { var bx = document.querySelector('.carga-box h3'), wa = document.querySelector('.carga-box a.wa'); var txC = wa ? decodeURIComponent(wa.href.split('text=')[1] || '') : ''; (navigator.clipboard ? navigator.clipboard.writeText(txC) : Promise.reject()).then(function () { avisar('Carga copiada.', 2500); }, function () { avisar('!No se pudo copiar.', 3000); }); } }
     else if (a === 'uni-todos') { guardarUnidadTodos(D.id, D.u).then(function () { render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); }); render(); }
     else if (a === 'rec-menu') { e.preventDefault(); e.stopPropagation(); S.camMenu = null; S.frioMenu = null; S.recMenu = S.recMenu === D.id ? null : D.id; renderPedidos(); if (S.recMenu) { var ri = document.getElementById('rec-in'); if (ri) { ri.focus(); ri.setSelectionRange(ri.value.length, ri.value.length); } } }
     else if (a === 'rec-guardar') { var riG = document.getElementById('rec-in'); guardarRecordatorio(D.id, riG ? riG.value : ''); }
