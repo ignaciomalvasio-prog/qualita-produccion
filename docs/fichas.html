@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fichas técnicas · Frigorífico Qualitá</title>
+<meta name="description" content="Fichas técnicas de los cortes de cerdo del Frigorífico Qualitá.">
+<meta property="og:title" content="Fichas técnicas · Frigorífico Qualitá">
+<meta property="og:description" content="Fichas técnicas de los cortes de cerdo. Tocá para ver o descargar.">
+<meta property="og:image" content="https://qualita-produccion.web.app/icon-512.png">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{--tinta:#1b2a38;--navy:#1d3a52;--azul:#4a8db5;--cel:#e4f0f8;--fondo:#f4f7fa;--linea:#d3e1eb}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fondo);color:var(--tinta);font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+header{background:#fff;border-bottom:4px solid var(--azul)}
+.cab{max-width:1100px;margin:0 auto;padding:14px 16px;display:flex;align-items:center;gap:14px}
+.cab img{width:44px;height:auto}
+.cab h1{margin:0;font-size:22px;letter-spacing:.02em;text-transform:uppercase}
+.cab p{margin:2px 0 0;color:#5b6b78;font-size:14px}
+main{max-width:1100px;margin:0 auto;padding:16px}
+.barra{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
+.barra input{flex:1 1 220px;min-width:0;padding:10px 12px;border:1px solid var(--linea);border-radius:8px;font-size:16px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 12px;border-radius:8px;border:1px solid var(--linea);background:#fff;color:var(--tinta);font-weight:700;font-size:14px;text-decoration:none;cursor:pointer}
+.btn.pri{background:var(--navy);border-color:var(--navy);color:#fff}
+.btn.wa{background:#25d366;border-color:#25d366;color:#fff}
+.grilla{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+.ficha{background:#fff;border:2px solid var(--tinta);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
+.ficha a.prev{display:block;background:var(--cel);aspect-ratio:3/4;overflow:hidden;border-bottom:1px solid var(--linea)}
+.ficha a.prev img{width:100%;height:100%;object-fit:cover;object-position:top}
+.ficha .info{padding:10px 12px 12px;display:flex;flex-direction:column;gap:8px;flex:1}
+.ficha .cod{font-size:12px;font-weight:800;color:var(--azul);letter-spacing:.05em}
+.ficha h2{margin:0;font-size:17px;text-transform:uppercase}
+.ficha .acc{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto}
+.ficha .acc .btn{flex:1 1 auto;padding:7px 8px;font-size:13px}
+.vacio{color:#5b6b78;padding:20px 0}
+.aviso{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 16px;border-radius:8px;font-weight:700;display:none}
+footer{max-width:1100px;margin:0 auto;padding:10px 16px 24px;color:#7a8794;font-size:12px}
+</style>
+</head>
+<body>
+<header><div class="cab"><img src="logo.png" alt="Qualitá"><div><h1>Fichas técnicas</h1><p>Frigorífico Qualitá · cortes de cerdo</p></div></div></header>
+<main>
+  <div class="barra">
+    <input id="q" type="search" placeholder="Buscar corte… (ej. bondiola)" aria-label="Buscar ficha" autocomplete="off">
+    <button class="btn wa" id="todas">Compartir todas por WhatsApp</button>
+    <button class="btn" id="copiar">Copiar link</button>
+  </div>
+  <div class="grilla" id="lista"></div>
+</main>
+<footer>Para agregar o cambiar una ficha, pedíselo a Renzo.</footer>
+<div class="aviso" id="aviso"></div>
+<script>
+// Fichas técnicas (pedido de Renzo, 19/11/2026). Para sumar una: copiar el PDF a fichas/ y su imagen a fichas/img/ y agregar un renglón acá.
+var FICHAS = [
+  ['002', 'Bondiola', 'FT_002_BONDIOLA'],
+  ['004', 'Carré con hueso', 'FT_004_CARRE_CON_HUESO'],
+  ['005', 'Churrasquito', 'FT_005_CHURRASQUITO'],
+  ['006', 'Cinta de lomo', 'FT_006_CINTA_DE_LOMO'],
+  ['012', 'Jamón sin hueso', 'FT_012_JAMON_SIN_HUESO'],
+  ['013', 'Matambrito', 'FT_013_MATAMBRITO'],
+  ['019', 'Paleta sin hueso', 'FT_019_PALETA_SIN_HUESO'],
+  ['021', 'Pechito con manta', 'FT_021_PECHITO_CON_MANTA'],
+  ['030', 'Solomillo', 'FT_030_SOLOMILLO']
+];
+var BASE = location.origin + '/';
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function norm(s){return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');}
+function avisar(t){var a=document.getElementById('aviso');a.textContent=t;a.style.display='block';clearTimeout(avisar.t);avisar.t=setTimeout(function(){a.style.display='none';},2200);}
+function dibujar(){
+  var q=norm(document.getElementById('q').value.trim());
+  var l=FICHAS.filter(function(f){return !q||norm(f[1]).indexOf(q)>=0||f[0].indexOf(q)>=0;});
+  document.getElementById('lista').innerHTML=l.length?l.map(function(f){
+    var pdf='fichas/'+f[2]+'.pdf';
+    return '<div class="ficha"><a class="prev" href="'+pdf+'" target="_blank" rel="noopener"><img src="fichas/img/'+f[2]+'.jpg" alt="Ficha técnica '+esc(f[1])+'" loading="lazy"></a>'
+      +'<div class="info"><span class="cod">FT.'+f[0]+'</span><h2>'+esc(f[1])+'</h2><div class="acc">'
+      +'<a class="btn pri" href="'+pdf+'" target="_blank" rel="noopener">Ver</a>'
+      +'<a class="btn" href="'+pdf+'" download="'+f[2]+'.pdf">Descargar</a>'
+      +'<a class="btn wa" href="https://wa.me/?text='+encodeURIComponent('Ficha técnica '+f[1]+' · Frigorífico Qualitá: '+BASE+pdf)+'" target="_blank" rel="noopener">WhatsApp</a>'
+      +'</div></div></div>';}).join(''):'<p class="vacio">No hay fichas con ese nombre.</p>';
+}
+document.getElementById('q').addEventListener('input',dibujar);
+document.getElementById('todas').addEventListener('click',function(){window.open('https://wa.me/?text='+encodeURIComponent('Fichas técnicas · Frigorífico Qualitá: '+BASE+'fichas'),'_blank');});
+document.getElementById('copiar').addEventListener('click',function(){var u=BASE+'fichas';(navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject()).then(function(){avisar('Link copiado: '+u);},function(){prompt('Copiá el link:',u);});});
+dibujar();
+</script>
+</body>
+</html>
