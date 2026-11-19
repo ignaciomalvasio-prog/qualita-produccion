@@ -14,6 +14,8 @@ for(const [w,tab] of [[1366,'pedidos'],[400,'logistica']]){const p=await b.newPa
  await p.evaluate(()=>document.querySelector('[data-act="ver-carga"]').click());await p.waitForTimeout(300);
  console.log(w,tab,'→',await p.evaluate(()=>document.querySelector('.carga-box')?.innerText.replace(/\n+/g,' | ')));
  await p.screenshot({path:(process.argv[2]||'.')+'/p163-'+w+'.png'});
+ const ins=p.locator('.carga-in');await ins.nth(1).fill('+2 cajas');await ins.nth(1).press('Enter');await p.waitForTimeout(300);
+ console.log(w,'guardado:',await p.evaluate(()=>JSON.stringify(window.__mock.data.privado.cargas)),'| wa:',await p.evaluate(()=>decodeURIComponent(document.querySelector('.carga-box a.wa').href).includes('→ +2 cajas')));
  await p.evaluate(()=>document.querySelector('.carga-box').click());await p.waitForTimeout(100);const sig=await p.locator('.carga-ov').count();
  await p.click('.carga-cab [data-act="carga-cerrar"]');await p.waitForTimeout(100);console.log(w,'sigue al tocar adentro:',sig,'| cerrado:',await p.locator('.carga-ov').count()===0,'| desborde:',await p.evaluate(()=>document.documentElement.scrollWidth));
  await p.close();}

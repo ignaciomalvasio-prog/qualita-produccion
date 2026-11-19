@@ -3864,10 +3864,11 @@
     var l = orden.map(function (k) { return t[k]; }).sort(function (a, b) { return ordenCorte(a.corte) - ordenCorte(b.corte) || a.corte.localeCompare(b.corte); });
     return { medias: med, l: l, sinCant: sinCant, kg: peds.reduce(function (t, p) { return t + (kgPedido(p).kg || 0); }, 0) };
   }
-  function cargaTexto(tit, c) {
+  function cargaTexto(tit, c, notas) {
+    notas = notas || {}; var nt = function (k) { return notas[k] ? '  → ' + notas[k] : ''; };
     var r = ['🚚 ' + tit];
-    if (c.medias) r.push(n(c.medias) + ' MEDIAS');
-    c.l.forEach(function (x) { r.push(n(x.n) + ' ' + (x.un || '') + (x.un ? ' ' : '') + x.corte); });
+    if (c.medias) r.push(n(c.medias) + ' MEDIAS' + nt('MEDIAS'));
+    c.l.forEach(function (x) { r.push(n(x.n) + ' ' + (x.un || '') + (x.un ? ' ' : '') + x.corte + nt(x.corte + '|' + x.un)); });
     c.sinCant.forEach(function (x) { r.push(x); });
     if (c.kg) r.push('Total aprox.: ' + n(Math.round(c.kg)) + ' kg');
     return r.join('\n');
@@ -3878,14 +3879,18 @@
     if (v.src === 'log') { var lg = logDe(v.f) || {}; peds = (lg.pedidos || []).filter(function (p) { return p.camion === v.id; }); cam = (lg.camiones || []).filter(function (c) { return c.id === v.id; })[0]; }
     else { peds = (S.pedidos || []).filter(function (p) { return p.entrega === v.f && p.camion === v.id; }); cam = camionesDe(v.f).filter(function (c) { return c.id === v.id; })[0]; }
     var c = cargaCamion(peds), tit = (cam ? nomCam(cam).toUpperCase() : 'CAMIÓN') + (cam && cam.hora ? ' · ' + cam.hora : '') + ' · ' + diaCorto(v.f);
-    var filas = (c.medias ? '<tr><td class="cg-n">' + n(c.medias) + '</td><td class="cg-u">MEDIAS</td><td></td></tr>' : '')
-      + c.l.map(function (x) { return '<tr><td class="cg-n">' + n(x.n) + '</td><td class="cg-u">' + esc(x.un || '¿unidad?') + '</td><td class="cg-c">' + esc(x.corte) + '</td></tr>'; }).join('');
+    // Columna para anotar lo que sobra o falta para producir (pedido de Renzo, 19/11/2026): se guarda sola por día y camión.
+    var notas = ((S.cargas || {})[v.f] || {})[v.id] || {};
+    var inp = function (k) { return '<td class="cg-in"><input type="text" class="carga-in" data-k="' + esc(k) + '" value="' + esc(notas[k] || '') + '" placeholder="+ / −" autocomplete="off" aria-label="Sobra o falta"></td>'; };
+    var filas = (c.medias ? '<tr><td class="cg-n">' + n(c.medias) + '</td><td class="cg-u">MEDIAS</td><td></td>' + inp('MEDIAS') + '</tr>' : '')
+      + c.l.map(function (x) { return '<tr><td class="cg-n">' + n(x.n) + '</td><td class="cg-u">' + esc(x.un || '¿unidad?') + '</td><td class="cg-c">' + esc(x.corte) + '</td>' + inp(x.corte + '|' + x.un) + '</tr>'; }).join('');
+    if (filas) filas = '<thead><tr><th colspan="3"></th><th class="cg-in">Sobra / falta</th></tr></thead><tbody>' + filas + '</tbody>';
     return '<div class="rec-ov carga-ov" data-act="carga-cerrar"><div class="carga-box" role="dialog" aria-label="Carga del camión">'
       + '<div class="carga-cab"><div><p class="small muted">Carga del camión · ' + peds.length + (peds.length === 1 ? ' pedido' : ' pedidos') + '</p><h3>🚚 ' + esc(tit) + '</h3></div><button class="btn sm" data-act="carga-cerrar" aria-label="Cerrar">✕</button></div>'
-      + (filas ? '<table class="carga-t"><tbody>' + filas + '</tbody></table>' : '<p class="muted">Este camión no tiene carga.</p>')
+      + (filas ? '<table class="carga-t">' + filas + '</table>' : '<p class="muted">Este camión no tiene carga.</p>')
       + (c.sinCant.length ? '<p class="small muted">Sin cantidad: ' + c.sinCant.map(esc).join(' · ') + '</p>' : '')
       + (c.kg ? '<p class="carga-kg">Total aprox.: <b>' + n(Math.round(c.kg)) + ' kg</b></p>' : '')
-      + '<div class="acciones"><a class="btn wa" href="https://wa.me/?text=' + encodeURIComponent(cargaTexto(tit, c)) + '" target="_blank" rel="noopener">Mandar por WhatsApp</a><button class="btn" data-act="carga-copiar">Copiar</button></div></div></div>';
+      + '<div class="acciones"><a class="btn wa" href="https://wa.me/?text=' + encodeURIComponent(cargaTexto(tit, c, notas)) + '" target="_blank" rel="noopener">Mandar por WhatsApp</a><button class="btn" data-act="carga-copiar">Copiar</button></div></div></div>';
   }
   function pintarCarga() { var o = document.querySelector('.carga-ov'); if (o) o.remove(); if (S.verCarga) document.body.insertAdjacentHTML('beforeend', verCargaHTML()); }
   function renderFichas() {
@@ -4959,6 +4964,17 @@
   });
 
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && S.menuAb) cerrarMenus(); });
+  document.addEventListener('change', function (e) {
+    var t = e.target; if (!t || !t.classList || !t.classList.contains('carga-in') || !S.verCarga) return;
+    var v = S.verCarga, doc = clone(S.cargas || {}); delete doc.id;
+    var dia = doc[v.f] = doc[v.f] || {}, cam = dia[v.id] = dia[v.id] || {}, val = String(t.value || '').trim();
+    if (val) cam[t.dataset.k] = val; else delete cam[t.dataset.k];
+    Object.keys(doc).forEach(function (k) { if (k < mas(hoy(), -30)) delete doc[k]; });
+    S.cargas = doc;
+    var wa = document.querySelector('.carga-box a.wa'); if (wa) { var o = document.querySelector('.carga-ov'); var nuevo = document.createElement('div'); nuevo.innerHTML = verCargaHTML(); var w2 = nuevo.querySelector('a.wa'); if (w2) wa.href = w2.href; }
+    store.set('privado', 'cargas', doc).then(function () { avisar('Guardado.', 1500); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); });
+  });
+  document.addEventListener('keydown', function (e) { var t = e.target; if (t && t.classList && t.classList.contains('carga-in') && e.key === 'Enter') { e.preventDefault(); var ins = [].slice.call(document.querySelectorAll('.carga-in')), i = ins.indexOf(t); t.blur(); if (ins[i + 1]) ins[i + 1].focus(); } });
   document.addEventListener('input', function (e) { if (e.target && e.target.id === 'ficha-q') { S.fichaQ = e.target.value; var pos = e.target.selectionStart; renderFichas(); var x = $('ficha-q'); if (x) { x.focus(); try { x.setSelectionRange(pos, pos); } catch (er) {} } } });
   document.addEventListener('keydown', function (e) { var t = e.target; if (!t || t.id !== 'rec-in') return; if (e.key === 'Enter') { e.preventDefault(); guardarRecordatorio(t.dataset.id, t.value); } else if (e.key === 'Escape') { S.recMenu = null; renderPedidos(); } });
   document.addEventListener('keydown', function (e) { var t = e.target; if ((e.key === 'Enter' || e.key === ' ') && t && t.classList && t.classList.contains('busq-f') && t.dataset.act) { e.preventDefault(); t.click(); } });
@@ -5641,6 +5657,7 @@
               var stk = l.filter(function (x) { return x.id === 'stock'; })[0], antesSt = S.stock ? S.stock.ts : null; S.stock = stk || null;
               if ((S.stock ? S.stock.ts : null) !== antesSt && S.tab === 'stock' && !escribiendo()) renderStock(); stkMandar();
               var pas = l.filter(function (x) { return x.id === 'pasados'; })[0], antesPa = JSON.stringify(S.pasados || {}); S.pasados = pas ? clone(pas) : {}; delete S.pasados.id; if (JSON.stringify(S.pasados) !== antesPa && S.tab === 'produccion' && !ocupado()) render();
+              var cgs = l.filter(function (x) { return x.id === 'cargas'; })[0]; S.cargas = cgs ? clone(cgs) : {}; delete S.cargas.id;
               var chf = l.filter(function (x) { return x.id === 'choferes'; })[0], antesCh = JSON.stringify(S.choferes || null); S.choferes = chf || null;
               if (JSON.stringify(S.choferes || null) !== antesCh && S.tab === 'logistica' && S.resumen && !ocupado()) render();
               var imp = l.filter(function (x) { return x.id === 'impresora'; })[0], antesI = impEstado(); S.impresora = imp || null;
