@@ -3864,11 +3864,18 @@
     var l = orden.map(function (k) { return t[k]; }).sort(function (a, b) { return ordenCorte(a.corte) - ordenCorte(b.corte) || a.corte.localeCompare(b.corte); });
     return { medias: med, l: l, sinCant: sinCant, kg: peds.reduce(function (t, p) { return t + (kgPedido(p).kg || 0); }, 0) };
   }
+  function cargaNum(v) { var t = String(v == null ? '' : v).trim().replace(',', '.'); return /^[+-]?\d+(\.\d+)?$/.test(t) ? parseFloat(t) : null; }
+  function cargaDif(v, cant) { var x = cargaNum(v); return x == null ? null : Math.round((x - cant) * 100) / 100; }
+  function cargaDifHTML(v, cant) {
+    var d = cargaDif(v, cant); if (d == null) return v ? '' : '';
+    return d > 0 ? '<span class="dif falta">Falta ' + n(d) + '</span>' : d < 0 ? '<span class="dif sobra">Sobra ' + n(-d) + '</span>' : '<span class="dif ok">Igual</span>';
+  }
   function cargaTexto(tit, c, notas) {
-    notas = notas || {}; var nt = function (k) { return notas[k] ? '  → ' + notas[k] : ''; };
+    notas = notas || {};
+    var nt = function (k, cant) { var v = notas[k]; if (!v) return ''; var d = cargaDif(v, cant); return '  → pide ' + v + (d == null ? '' : d > 0 ? ' (falta ' + n(d) + ')' : d < 0 ? ' (sobra ' + n(-d) + ')' : ' (igual)'); };
     var r = ['🚚 ' + tit];
-    if (c.medias) r.push(n(c.medias) + ' MEDIAS' + nt('MEDIAS'));
-    c.l.forEach(function (x) { r.push(n(x.n) + ' ' + (x.un || '') + (x.un ? ' ' : '') + x.corte + nt(x.corte + '|' + x.un)); });
+    if (c.medias) r.push(n(c.medias) + ' MEDIAS' + nt('MEDIAS', c.medias));
+    c.l.forEach(function (x) { r.push(n(x.n) + ' ' + (x.un || '') + (x.un ? ' ' : '') + x.corte + nt(x.corte + '|' + x.un, x.n)); });
     c.sinCant.forEach(function (x) { r.push(x); });
     if (c.kg) r.push('Total aprox.: ' + n(Math.round(c.kg)) + ' kg');
     return r.join('\n');
@@ -3881,10 +3888,11 @@
     var c = cargaCamion(peds), tit = (cam ? nomCam(cam).toUpperCase() : 'CAMIÓN') + (cam && cam.hora ? ' · ' + cam.hora : '') + ' · ' + diaCorto(v.f);
     // Columna para anotar lo que sobra o falta para producir (pedido de Renzo, 19/11/2026): se guarda sola por día y camión.
     var notas = ((S.cargas || {})[v.f] || {})[v.id] || {};
-    var inp = function (k) { return '<td class="cg-in"><input type="text" class="carga-in" data-k="' + esc(k) + '" value="' + esc(notas[k] || '') + '" placeholder="+ / −" autocomplete="off" aria-label="Sobra o falta"></td>'; };
-    var filas = (c.medias ? '<tr><td class="cg-n">' + n(c.medias) + '</td><td class="cg-u">MEDIAS</td><td></td>' + inp('MEDIAS') + '</tr>' : '')
-      + c.l.map(function (x) { return '<tr><td class="cg-n">' + n(x.n) + '</td><td class="cg-u">' + esc(x.un || '¿unidad?') + '</td><td class="cg-c">' + esc(x.corte) + '</td>' + inp(x.corte + '|' + x.un) + '</tr>'; }).join('');
-    if (filas) filas = '<thead><tr><th colspan="3"></th><th class="cg-in">Sobra / falta</th></tr></thead><tbody>' + filas + '</tbody>';
+    // Se anota lo que el cliente pide ahora y al lado sale la diferencia con lo que está en el camión (pedido de Renzo, 19/11/2026).
+    var inp = function (k, cant) { return '<td class="cg-in"><input type="text" inputmode="decimal" class="carga-in" data-k="' + esc(k) + '" data-cant="' + cant + '" value="' + esc(notas[k] || '') + '" placeholder="pide…" autocomplete="off" aria-label="Lo que pide ahora"></td><td class="cg-dif">' + cargaDifHTML(notas[k], cant) + '</td>'; };
+    var filas = (c.medias ? '<tr><td class="cg-n">' + n(c.medias) + '</td><td class="cg-u">MEDIAS</td><td></td>' + inp('MEDIAS', c.medias) + '</tr>' : '')
+      + c.l.map(function (x) { return '<tr><td class="cg-n">' + n(x.n) + '</td><td class="cg-u">' + esc(x.un || '¿unidad?') + '</td><td class="cg-c">' + esc(x.corte) + '</td>' + inp(x.corte + '|' + x.un, x.n) + '</tr>'; }).join('');
+    if (filas) filas = '<thead><tr><th colspan="3"></th><th class="cg-in">Pide ahora</th><th class="cg-dif">Diferencia</th></tr></thead><tbody>' + filas + '</tbody>';
     return '<div class="rec-ov carga-ov" data-act="carga-cerrar"><div class="carga-box" role="dialog" aria-label="Carga del camión">'
       + '<div class="carga-cab"><div><p class="small muted">Carga del camión · ' + peds.length + (peds.length === 1 ? ' pedido' : ' pedidos') + '</p><h3>🚚 ' + esc(tit) + '</h3></div><button class="btn sm" data-act="carga-cerrar" aria-label="Cerrar">✕</button></div>'
       + (filas ? '<table class="carga-t">' + filas + '</table>' : '<p class="muted">Este camión no tiene carga.</p>')
@@ -4974,6 +4982,7 @@
     var wa = document.querySelector('.carga-box a.wa'); if (wa) { var o = document.querySelector('.carga-ov'); var nuevo = document.createElement('div'); nuevo.innerHTML = verCargaHTML(); var w2 = nuevo.querySelector('a.wa'); if (w2) wa.href = w2.href; }
     store.set('privado', 'cargas', doc).then(function () { avisar('Guardado.', 1500); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); });
   });
+  document.addEventListener('input', function (e) { var t = e.target; if (t && t.classList && t.classList.contains('carga-in')) { var td = t.closest('tr') && t.closest('tr').querySelector('.cg-dif'); if (td) td.innerHTML = cargaDifHTML(t.value, +t.dataset.cant); } });
   document.addEventListener('keydown', function (e) { var t = e.target; if (t && t.classList && t.classList.contains('carga-in') && e.key === 'Enter') { e.preventDefault(); var ins = [].slice.call(document.querySelectorAll('.carga-in')), i = ins.indexOf(t); t.blur(); if (ins[i + 1]) ins[i + 1].focus(); } });
   document.addEventListener('input', function (e) { if (e.target && e.target.id === 'ficha-q') { S.fichaQ = e.target.value; var pos = e.target.selectionStart; renderFichas(); var x = $('ficha-q'); if (x) { x.focus(); try { x.setSelectionRange(pos, pos); } catch (er) {} } } });
   document.addEventListener('keydown', function (e) { var t = e.target; if (!t || t.id !== 'rec-in') return; if (e.key === 'Enter') { e.preventDefault(); guardarRecordatorio(t.dataset.id, t.value); } else if (e.key === 'Escape') { S.recMenu = null; renderPedidos(); } });

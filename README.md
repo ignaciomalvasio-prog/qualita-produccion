@@ -444,3 +444,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - (19/11/2026) Pestaña "Fichas 🔒" (solo la ve Renzo, como Cámara y Túnel) con las fichas técnicas: buscar, ver, descargar y mandar por WhatsApp. La lista está en docs/fichas/lista.json (la usa también la página /fichas para compartir).
 - (19/11/2026) "📦 Ver carga" en los ⋯ del camión (Pedidos y Logística): totales de la carga por corte y unidad (ej. 17 CAJAS PECHO, 40 MEDIAS), kilos aproximados, y para copiar o mandar por WhatsApp.
 - (19/11/2026) Ver carga: columna "Sobra / falta" para anotar al lado de cada renglón lo que sobra o falta producir; se guarda sola (privado/cargas, por día y camión) y sale en el WhatsApp.
+- (19/11/2026) Ver carga: la columna pasa a "Pide ahora" (lo que el cliente pide de verdad) y al lado sale sola la "Diferencia" con lo cargado: Falta N (rojo), Sobra N (verde) o Igual.
