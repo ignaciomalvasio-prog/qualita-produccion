@@ -3702,7 +3702,7 @@
   // Código de congelado según el corte (pedido de Renzo, 06/11/2026). La grasa se elige: 479 o 482.
   var TU_CODS = [[/RECORTE.*70\s*\/?\s*30/, '376'], [/RECORTE.*80\s*\/?\s*20/, '364'], [/RECORTE.*50\s*\/?\s*50/, '369'], [/RECORTE.*60\s*\/?\s*40/, '373'],
     [/TAPA (DE )?JAMON/, '336'], [/TAPA (DE )?PALETA/, '156'], [/PALETA/, '377'], [/JAMON/, '326'], [/CARRE/, '30276'], [/PECH|COSTILL/, '30216'], [/MATAMBRE/, '30236'],
-    [/CHURRASC/, '30246'], [/SOLOMILLO|LOMO/, '30287'], [/TOCINO/, '466']];
+    [/CHURRASC/, '30246'], [/SOLOMILLO|LOMO/, '30287'], [/TOCINO/, '466'], [/CUERO/, '412']];   // cuero 412 (Renzo, 20/11/2026)
   function tuEsGrasa(corte) { return /GRASA/.test(norm(corte || '')); }
   function tuCodDe(corte) { var t = norm(corte || ''); if (!t || tuEsGrasa(t)) return ''; for (var i = 0; i < TU_CODS.length; i++) if (TU_CODS[i][0].test(t)) return TU_CODS[i][1]; return ''; }
   function tuFecha() { return S.tuF || fechaProdInicial(); }
