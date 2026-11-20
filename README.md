@@ -447,3 +447,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - (19/11/2026) Ver carga: la columna pasa a "Pide ahora" (lo que el cliente pide de verdad) y al lado sale sola la "Diferencia" con lo cargado: Falta N (rojo), Sobra N (verde) o Igual.
 - (20/11/2026) Túnel: CUERO toma solo el código 412.
 - (20/11/2026) Túnel: unidad "pallets" (en el selector, en los totales y al leer fotos o texto con IA).
+- (20/11/2026) Orden de producción: los renglones de JAMÓN, PALETA, TOCINO y RECORTE de los pedidos pasan solos a la orden del día en que se producen (según "Producir el"), con el cliente. Si cambia el pedido se actualizan, si se borra o cambia de día se van; lo corregido o borrado a mano en la orden se respeta. Solo de hoy en adelante.

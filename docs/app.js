@@ -503,7 +503,7 @@
   function opNueva(f, desde) {
     var ant = desde === 'ant' ? opAnterior(f) : null, o = opVacia(f);
     var emp = prodGuardada(f);
-    if (ant) { o.medias = emp && +emp.medias ? +emp.medias : ant.medias; o.mercado = ant.mercado || 'CONSUMO'; o.cortes = clone(ant.cortes || []); return o; }
+    if (ant) { o.medias = emp && +emp.medias ? +emp.medias : ant.medias; o.mercado = ant.mercado || 'CONSUMO'; o.cortes = clone(ant.cortes || []).map(function (c) { c.lineas = (c.lineas || []).filter(function (l) { return !l.op; }); return c; }); return o; }
     return parsearOrden(opBaseTxt(), o);
   }
   function opTexto(o) { return [diaDe(o.fecha).toUpperCase() + ' ' + fechaCorta(o.fecha), docDeOrden(o)].join('\n\n'); }
@@ -567,7 +567,7 @@
   // Mapa "pedido|corte" → fecha de la planilla donde está sumado.
   function enProduccion() {
     var m = {};
-    (S.prod || []).forEach(function (o) { (o.cortes || []).forEach(function (c) { (c.lineas || []).forEach(function (l) { if (l.p) m[l.p + '|' + (l.ck || 't:' + norm(l.t))] = o.id; }); }); });
+    (S.prod || []).forEach(function (o) { if (esOP(o.id)) return; (o.cortes || []).forEach(function (c) { (c.lineas || []).forEach(function (l) { if (l.p) m[l.p + '|' + (l.ck || 't:' + norm(l.t))] = o.id; }); }); });
     return m;
   }
   function fechaProdDe(m, p, c) { return m[p.id + '|' + c.k] || m[p.id + '|t:' + norm(c.texto)] || m[p.id + '|t:' + norm(textoProd(p, c))] || null; }
@@ -592,6 +592,47 @@
       insertarLinea(o, esC3(id) ? corteC3(c) : c.corte, textoProd(p, c), p.id, c.k, c.frio || p.frio);
     });
     return Promise.all(Object.keys(docs).map(function (id) { return guardarOrden(id, docs[id]); })).then(tocar);
+  }
+  /* Jamón, paleta, tocino y recorte de los pedidos pasan solos a la Orden de producción del día en que se producen
+     (pedido de Renzo, 20/11/2026). Cada renglón queda unido a su pedido (op: 1, ot: el texto que puso la app):
+     si el pedido cambia se actualiza, si se borra o cambia de día se va. Lo que Renzo corrige a mano en la orden se respeta
+     (si cambió el texto no se pisa; si lo borró, queda anotado en opNo y no vuelve). Solo de hoy en adelante. */
+  var OP_AUTO = /^(JAMON|PALETA|TOCINO|RECORTE)\b/;
+  function opAutoCorte(c) { var k = norm(c.corte || ''); return OP_AUTO.test(k) && !/^TAPA/.test(k); }
+  var tOpSync = null;
+  function opSyncLuego() { if (!S.editor || S.solo || window.__mock && window.__mock.sinOpAuto) return; clearTimeout(tOpSync); tOpSync = setTimeout(opSync, 900); }
+  function opSync() {
+    if (!S.editor || S.solo || !S.pedidos || !S.prod || S.ep) return;
+    var h = hoy(), quiero = {}, docs = {};
+    (S.pedidos || []).forEach(function (p) {
+      if (!p.entrega) return; var dia = prodDiaPedido(p); if (dia < h) return;
+      cortesDe(p).forEach(function (c) { if (c.texto && opAutoCorte(c)) quiero[p.id + '|' + c.k] = { dia: dia, corte: norm(c.corte).replace(/^(JAMON|PALETA|TOCINO|RECORTE).*/, '$1'), t: String(textoProd(p, c)).toUpperCase().replace(/\s+/g, ' ').trim(), p: p.id, ck: c.k }; });
+    });
+    var doc = function (f) { var id = 'op-' + f; if (docs[id]) return docs[id]; var o = prodGuardada(id); if (o) return (docs[id] = clone(o));
+      var ant = opAnterior(f), d = opNueva(f, ant ? 'ant' : ''); if (ant) d.copiadaDe = ant.id.slice(3); d.estado = 'borrador'; S.opAuto = S.opAuto || {}; S.opAuto[f] = true; return (docs[id] = d); };
+    var cambio = {}, hay = {};
+    // Lo que ya está en las órdenes de hoy en adelante: actualizar o sacar.
+    (S.prod || []).forEach(function (o) {
+      if (!esOP(o.id) || o.id.slice(3) < h) return;
+      (o.cortes || []).forEach(function (c) { (c.lineas || []).forEach(function (l) {
+        if (!l.op) return; var k = l.p + '|' + l.ck, q = quiero[k];
+        if (!q || q.dia !== o.id.slice(3)) { var d = doc(o.id.slice(3)); d.cortes.forEach(function (cc) { cc.lineas = cc.lineas.filter(function (x) { return !(x.op && x.p === l.p && x.ck === l.ck); }); }); d.cortes = d.cortes.filter(function (cc) { return cc.lineas.length || !OP_AUTO.test(norm(cc.corte)) || (prodGuardada(o.id).cortes || []).some(function (z) { return z.corte === cc.corte && z.lineas.some(function (y) { return !y.op; }); }); }); cambio[o.id] = 1; return; }
+        hay[k] = 1;
+        if (norm(l.ot || '') !== norm(q.t) && norm(l.t) === norm(l.ot || '')) { var d2 = doc(o.id.slice(3)); d2.cortes.forEach(function (cc) { cc.lineas.forEach(function (x) { if (x.op && x.p === l.p && x.ck === l.ck) { x.t = q.t; x.ot = q.t; } }); }); cambio[o.id] = 1; }
+        else if (norm(l.ot || '') !== norm(q.t)) { var d3 = doc(o.id.slice(3)); d3.cortes.forEach(function (cc) { cc.lineas.forEach(function (x) { if (x.op && x.p === l.p && x.ck === l.ck) x.ot = q.t; }); }); cambio[o.id] = 1; }
+      }); });
+    });
+    // Lo que falta agregar.
+    Object.keys(quiero).forEach(function (k) {
+      if (hay[k]) return; var q = quiero[k], g = prodGuardada('op-' + q.dia);
+      if (g && g.opNo && g.opNo[k]) return;
+      var d = doc(q.dia); if (d.opNo && d.opNo[k]) return;
+      insertarLinea(d, q.corte, q.t, q.p, q.ck);
+      d.cortes.forEach(function (cc) { cc.lineas.forEach(function (x) { if (x.p === q.p && x.ck === q.ck && !x.op) { x.op = 1; x.ot = q.t; } }); });
+      cambio['op-' + q.dia] = 1;
+    });
+    var ids = Object.keys(cambio); if (!ids.length) return;
+    Promise.all(ids.map(function (id) { return guardarOrden(id, docs[id]); })).then(function () { if (S.tab === 'produccion' && !ocupado()) render(); }, function () {});
   }
   function quitarCorte(p, c) {
     var f = fechaProdDe(enProduccion(), p, c), o = f && prodGuardada(f);
@@ -1077,7 +1118,7 @@
       if (!cur) { cur = { corte: '', lineas: [] }; cortes.push(cur); }
       cur.lineas.push({ t: l });
     });
-    var usados = {}, lleva = function (de, a) { if (de.p) a.p = de.p; if (de.ck) a.ck = de.ck; if (de.f) a.f = de.f; };
+    var usados = {}, lleva = function (de, a) { if (de.p) a.p = de.p; if (de.ck) a.ck = de.ck; if (de.f) a.f = de.f; if (de.op) { a.op = 1; a.ot = de.ot; } };
     cortes.forEach(function (c) {
       var k = norm(c.corte), prev = (base.cortes || []).filter(function (x, i) { return norm(x.corte) === k && !usados[i]; })[0];
       if (!prev) return;
@@ -1086,6 +1127,9 @@
       else { var ya = {}; c.lineas.forEach(function (l) { var mm = prev.lineas.filter(function (x, i) { return x.p && !ya[i] && norm(x.t) === norm(l.t); })[0]; if (mm) { ya[prev.lineas.indexOf(mm)] = 1; lleva(mm, l); } }); }
     });
     o.cortes = cortes;
+    // Renglones que pasaron solos a la Orden de producción y se borraron a mano: no vuelven a aparecer.
+    var quedan = {}; cortes.forEach(function (c) { c.lineas.forEach(function (l) { if (l.op) quedan[l.p + '|' + l.ck] = 1; }); });
+    (base.cortes || []).forEach(function (c) { (c.lineas || []).forEach(function (l) { if (l.op && !quedan[l.p + '|' + l.ck]) { o.opNo = o.opNo || {}; o.opNo[l.p + '|' + l.ck] = 1; } }); });
     return o;
   }
   // Agranda el cuadro de texto a su contenido. Al medir se achica un instante y la página saltaba al final:
@@ -5612,7 +5656,7 @@
     }
     var fallo = function () { if (!got.faena || !got.prod) { var c = cache(true); if (c && c.produccion) aplicar(c, 'cache'); else S.status = 'error'; render(); } };
     store.sub('faena', function (l) { if (S.fuente === 'respaldo' && !l.length) return; S.faena = ordenar(l.map(function (x) { x.desde = x.desde || x.id; return x; })); llego('faena'); conciliarMedias(); reubicarMedias(); }, fallo);
-    store.sub('produccion', function (l) { if (S.fuente === 'respaldo' && !l.length) return; S.prod = ordenar(l.map(function (x) { x.fecha = x.fecha || x.id; return x; })); llego('prod'); migrarPecho(); moverPorFeriado(); }, fallo);
+    store.sub('produccion', function (l) { if (S.fuente === 'respaldo' && !l.length) return; S.prod = ordenar(l.map(function (x) { x.fecha = x.fecha || x.id; return x; })); llego('prod'); migrarPecho(); moverPorFeriado(); opSyncLuego(); }, fallo);
     // config: 'general', 'rendering2', la logística de los últimos 45 días (y lo que viene) y el rendering de los últimos 150 días.
     var hace = function (n) { var d = new Date(); d.setDate(d.getDate() - n); return iso(d); };
     var rangosConfig = ['general', 'rendering2', ['log-' + hace(45), 'log-~'], ['rend-' + hace(150), 'rend-~']];
@@ -5646,7 +5690,7 @@
           if (S.fuente === 'respaldo' || vacia) traer();
           if (!suscripto) {
             suscripto = true;
-            store.sub('pedidos', function (l) { S.pedidos = ordenar(l.filter(function (x) { return !pedidoVacio2(x); })); conciliarLog(); renderDatos(); conciliarMedias(); reubicarMedias(); migrarPecho(); moverPorFeriado(); });
+            store.sub('pedidos', function (l) { S.pedidos = ordenar(l.filter(function (x) { return !pedidoVacio2(x); })); conciliarLog(); renderDatos(); conciliarMedias(); reubicarMedias(); migrarPecho(); moverPorFeriado(); opSyncLuego(); });
             store.sub('ventas', function (l) { var antes = ventasPendientes(true).length; S.ventas = l; if (antes !== ventasPendientes(true).length && (S.tab === 'pedidos' || S.tab === 'inicio')) renderDatos(); });
             store.sub('privado', function (l) {
               var fl = {}, antesF = JSON.stringify(S.fletes || {});
