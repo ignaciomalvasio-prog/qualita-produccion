@@ -599,6 +599,14 @@
      (si cambió el texto no se pisa; si lo borró, queda anotado en opNo y no vuelve). Solo de hoy en adelante. */
   var OP_AUTO = /^(JAMON|PALETA|TOCINO|RECORTE)\b/;
   function opAutoCorte(c) { var k = norm(c.corte || ''); return OP_AUTO.test(k) && !/^TAPA/.test(k); }
+  // Recorte de jamón va en la línea de JAMON y recorte de paleta en la de PALETA (pedido de Renzo, 20/11/2026): que diga
+  // "recorte" no quiere decir que vaya en RECORTE. El resto, en la línea de su corte.
+  function opLineaDe(c) {
+    var k = norm(c.corte || '').replace(/^(JAMON|PALETA|TOCINO|RECORTE).*/, '$1'), t = norm((c.texto || '') + ' ' + (c.corte || ''));
+    if (/RECORTE/.test(t) && /JAMON/.test(t)) return 'JAMON';
+    if (/RECORTE/.test(t) && /PALETA/.test(t)) return 'PALETA';
+    return k;
+  }
   var tOpSync = null;
   function opSyncLuego() { if (!S.editor || S.solo || window.__mock && window.__mock.sinOpAuto) return; clearTimeout(tOpSync); tOpSync = setTimeout(opSync, 900); }
   function opSync() {
@@ -606,7 +614,7 @@
     var h = hoy(), quiero = {}, docs = {};
     (S.pedidos || []).forEach(function (p) {
       if (!p.entrega) return; var dia = prodDiaPedido(p); if (dia < h) return;
-      cortesDe(p).forEach(function (c) { if (c.texto && opAutoCorte(c)) quiero[p.id + '|' + c.k] = { dia: dia, corte: norm(c.corte).replace(/^(JAMON|PALETA|TOCINO|RECORTE).*/, '$1'), t: String(textoProd(p, c)).toUpperCase().replace(/\s+/g, ' ').trim(), p: p.id, ck: c.k }; });
+      cortesDe(p).forEach(function (c) { if (c.texto && opAutoCorte(c)) quiero[p.id + '|' + c.k] = { dia: dia, corte: opLineaDe(c), t: String(textoProd(p, c)).toUpperCase().replace(/\s+/g, ' ').trim(), p: p.id, ck: c.k }; });
     });
     var doc = function (f) { var id = 'op-' + f; if (docs[id]) return docs[id]; var o = prodGuardada(id); if (o) return (docs[id] = clone(o));
       var ant = opAnterior(f), d = opNueva(f, ant ? 'ant' : ''); if (ant) d.copiadaDe = ant.id.slice(3); d.estado = 'borrador'; S.opAuto = S.opAuto || {}; S.opAuto[f] = true; return (docs[id] = d); };
@@ -616,7 +624,7 @@
       if (!esOP(o.id) || o.id.slice(3) < h) return;
       (o.cortes || []).forEach(function (c) { (c.lineas || []).forEach(function (l) {
         if (!l.op) return; var k = l.p + '|' + l.ck, q = quiero[k];
-        if (!q || q.dia !== o.id.slice(3)) { var d = doc(o.id.slice(3)); d.cortes.forEach(function (cc) { cc.lineas = cc.lineas.filter(function (x) { return !(x.op && x.p === l.p && x.ck === l.ck); }); }); d.cortes = d.cortes.filter(function (cc) { return cc.lineas.length || !OP_AUTO.test(norm(cc.corte)) || (prodGuardada(o.id).cortes || []).some(function (z) { return z.corte === cc.corte && z.lineas.some(function (y) { return !y.op; }); }); }); cambio[o.id] = 1; return; }
+        if (!q || q.dia !== o.id.slice(3) || norm(c.corte) !== q.corte) { var d = doc(o.id.slice(3)); d.cortes.forEach(function (cc) { cc.lineas = cc.lineas.filter(function (x) { return !(x.op && x.p === l.p && x.ck === l.ck); }); }); d.cortes = d.cortes.filter(function (cc) { return cc.lineas.length || !OP_AUTO.test(norm(cc.corte)) || (prodGuardada(o.id).cortes || []).some(function (z) { return z.corte === cc.corte && z.lineas.some(function (y) { return !y.op; }); }); }); cambio[o.id] = 1; return; }
         hay[k] = 1;
         if (norm(l.ot || '') !== norm(q.t) && norm(l.t) === norm(l.ot || '')) { var d2 = doc(o.id.slice(3)); d2.cortes.forEach(function (cc) { cc.lineas.forEach(function (x) { if (x.op && x.p === l.p && x.ck === l.ck) { x.t = q.t; x.ot = q.t; } }); }); cambio[o.id] = 1; }
         else if (norm(l.ot || '') !== norm(q.t)) { var d3 = doc(o.id.slice(3)); d3.cortes.forEach(function (cc) { cc.lineas.forEach(function (x) { if (x.op && x.p === l.p && x.ck === l.ck) x.ot = q.t; }); }); cambio[o.id] = 1; }

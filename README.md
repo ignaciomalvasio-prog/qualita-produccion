@@ -448,3 +448,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - (20/11/2026) Túnel: CUERO toma solo el código 412.
 - (20/11/2026) Túnel: unidad "pallets" (en el selector, en los totales y al leer fotos o texto con IA).
 - (20/11/2026) Orden de producción: los renglones de JAMÓN, PALETA, TOCINO y RECORTE de los pedidos pasan solos a la orden del día en que se producen (según "Producir el"), con el cliente. Si cambia el pedido se actualizan, si se borra o cambia de día se van; lo corregido o borrado a mano en la orden se respeta. Solo de hoy en adelante.
+- (20/11/2026) Orden de producción: "recorte de jamón" va en la línea de JAMÓN y "recorte de paleta" en la de PALETA; solo el recorte común (80/20, 60/40…) va en RECORTE.
