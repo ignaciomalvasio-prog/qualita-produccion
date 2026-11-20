@@ -3696,9 +3696,9 @@
   function camDiaRef() { var h = hoy(), g = fecha(h).getDay(); return g > 0 && g < 6 ? h : habilSiguiente(h); }
   /* Túnel (pestaña privada, pedido de Renzo 30/10/2026): la hoja "Guardar túnel contenedor" que hoy escribe a mano,
      armada por día, por cliente y por corte. Se guarda en privado/tunel-AAAA-MM-DD:
-     { clientes: [{ nombre, items: [{ corte, cod, cant, uni ('kg' | 'cajas' | 'unid.'), nota }] }], actualizado, por }.
+     { clientes: [{ nombre, items: [{ corte, cod, cant, uni ('kg' | 'cajas' | 'unid.' | 'pallets'), nota }] }], actualizado, por }.
      Se muestra solo a las mismas cuentas que Cámara (CAM_CUENTAS). */
-  var TU_UNI = ['kg', 'cajas', 'unid.'];
+  var TU_UNI = ['kg', 'cajas', 'unid.', 'pallets'];   // pallets: pedido de Renzo, 20/11/2026
   // Código de congelado según el corte (pedido de Renzo, 06/11/2026). La grasa se elige: 479 o 482.
   var TU_CODS = [[/RECORTE.*70\s*\/?\s*30/, '376'], [/RECORTE.*80\s*\/?\s*20/, '364'], [/RECORTE.*50\s*\/?\s*50/, '369'], [/RECORTE.*60\s*\/?\s*40/, '373'],
     [/TAPA (DE )?JAMON/, '336'], [/TAPA (DE )?PALETA/, '156'], [/PALETA/, '377'], [/JAMON/, '326'], [/CARRE/, '30276'], [/PECH|COSTILL/, '30216'], [/MATAMBRE/, '30236'],
@@ -3726,7 +3726,7 @@
   function tuTodos(d) { var r = []; (d.clientes || []).forEach(function (c) { r = r.concat(c.items || []); }); return r; }
   function tuCant(it) { return (it.cant === '' || it.cant == null ? '' : n(+it.cant) + ' ' + String(it.uni || 'kg').toUpperCase() + ' '); }
   function tuRenglon(it) { return tuCant(it) + String(it.corte || '').toUpperCase() + (it.cod ? ' (COD ' + it.cod + ')' : '') + (it.nota ? ' – ' + String(it.nota).toUpperCase() : ''); }
-  function tuTotTxt(items) { var k = tuSuma(items, 'kg'), c = tuSuma(items, 'cajas'); return [k ? n(k) + ' kg' : '', c ? n(c) + ' cajas' : ''].filter(Boolean).join(' + '); }
+  function tuTotTxt(items) { var k = tuSuma(items, 'kg'), c = tuSuma(items, 'cajas'), pl = tuSuma(items, 'pallets'); return [k ? n(k) + ' kg' : '', c ? n(c) + ' cajas' : '', pl ? n(pl) + (pl === 1 ? ' pallet' : ' pallets') : ''].filter(Boolean).join(' + '); }
   function tuTexto(f) {
     var d = tuDoc(f); if (!d) return '';
     return 'GUARDAR TÚNEL CONTENEDOR · ' + tituloDe(f).toUpperCase() + '\n' + d.clientes.map(function (c) {
@@ -3785,7 +3785,7 @@
       nombre: { type: 'string' },
       items: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['corte', 'cod', 'cant', 'uni', 'nota'], properties: {
         corte: { type: 'string' }, cod: { type: 'string', description: 'Código del artículo si figura; vacío si no' }, cant: { type: 'number', description: '0 si no figura' },
-        uni: { type: 'string', enum: ['kg', 'cajas', 'unid.'] }, nota: { type: 'string' } } } } } } },
+        uni: { type: 'string', enum: ['kg', 'cajas', 'unid.', 'pallets'] }, nota: { type: 'string' } } } } } } },
     dudas: { type: 'array', items: { type: 'string' } } } };
   function leerTunelFoto(file) {
     if (window.__mock && window.__mock.iaTunel) return Promise.resolve(window.__mock.iaTunel(file.name));
@@ -3801,7 +3801,7 @@
       return fetch('https://api.anthropic.com/v1/messages', { method: 'POST',
         headers: { 'content-type': 'application/json', 'x-api-key': S.ia.clave, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
         body: JSON.stringify({ model: S.ia.modelo || IA_MODELO, max_tokens: 8000,
-          system: 'Sos el asistente del Frigorífico Qualitá (cerdo). Recibís una foto o captura con la mercadería que hay que GUARDAR EN EL TÚNEL CONTENEDOR (congelado), agrupada por cliente. Devolvé un elemento por cliente con un renglón por corte: corte (en mayúsculas, como figura: CARRE, PECHO, MATAMBRE, CHURRASCO, SOLOMILLO, GRASA, TAPA DE JAMON, RECORTE 70/30…), cod (el código si figura, si no vacío), cant (número; si dice 8.100 son ocho mil cien), uni (kg, cajas o unid.), nota (aclaraciones). Si no hay cliente, nombre vacío. No inventes datos: lo dudoso va en dudas.',
+          system: 'Sos el asistente del Frigorífico Qualitá (cerdo). Recibís una foto o captura con la mercadería que hay que GUARDAR EN EL TÚNEL CONTENEDOR (congelado), agrupada por cliente. Devolvé un elemento por cliente con un renglón por corte: corte (en mayúsculas, como figura: CARRE, PECHO, MATAMBRE, CHURRASCO, SOLOMILLO, GRASA, TAPA DE JAMON, RECORTE 70/30…), cod (el código si figura, si no vacío), cant (número; si dice 8.100 son ocho mil cien), uni (kg, cajas, unid. o pallets), nota (aclaraciones). Si no hay cliente, nombre vacío. No inventes datos: lo dudoso va en dudas.',
           output_config: { format: { type: 'json_schema', schema: ESQUEMA_TUNEL } },
           messages: [{ role: 'user', content: contenido }] }) })
         .then(function (r) { return r.json().then(function (j) {
