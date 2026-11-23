@@ -593,8 +593,8 @@
     });
     return Promise.all(Object.keys(docs).map(function (id) { return guardarOrden(id, docs[id]); })).then(tocar);
   }
-  /* Jamón, paleta, tocino y recorte que se suman a producción (botón "Sumar a producción") pasan también a la Orden de producción
-     de ese mismo día (pedido de Renzo, 20/11 y 22/11/2026: solo cuando él lo suma, no apenas se carga el pedido). Cada renglón queda unido a su pedido (op: 1, ot: el texto que puso la app):
+  /* Cortes que Renzo manda a la Orden de producción con su selector "+ Orden de producción" (campo op del corte = día),
+     aparte de empaque (pedido de Renzo, 20/11 y 22/11/2026). Recorte de jamón/paleta va en la línea de JAMON/PALETA. Cada renglón queda unido a su pedido (op: 1, ot: el texto que puso la app):
      si el pedido cambia se actualiza, si se borra o cambia de día se va. Lo que Renzo corrige a mano en la orden se respeta
      (si cambió el texto no se pisa; si lo borró, queda anotado en opNo y no vuelve). Solo de hoy en adelante. */
   var OP_AUTO = /^(JAMON|PALETA|TOCINO|RECORTE)\b/;
@@ -611,11 +611,11 @@
   function opSyncLuego() { if (!S.editor || S.solo || window.__mock && window.__mock.sinOpAuto) return; clearTimeout(tOpSync); tOpSync = setTimeout(opSync, 900); }
   function opSync() {
     if (!S.editor || S.solo || !S.pedidos || !S.prod || S.ep) return;
-    // Solo lo que Renzo sumó a producción (pedido de Renzo, 22/11/2026): va a la orden del mismo día de la planilla donde lo sumó.
+    // Solo lo que Renzo manda a la orden con su botón "Orden de producción" en cada corte, al día que eligió (pedido de Renzo, 22/11/2026).
     var h = hoy(), quiero = {}, docs = {}, enP = enProduccion();
     (S.pedidos || []).forEach(function (p) {
       if (!p.entrega) return;
-      cortesDe(p).forEach(function (c) { var dia = c.texto && opAutoCorte(c) && fechaProdDe(enP, p, c); if (!dia || esC3(dia) || dia < h) return; quiero[p.id + '|' + c.k] = { dia: dia, corte: opLineaDe(c), t: String(textoProd(p, c)).toUpperCase().replace(/\s+/g, ' ').trim(), p: p.id, ck: c.k }; });
+      cortesDe(p).forEach(function (c) { var dia = c.texto && c.op; if (!dia || dia < h) return; quiero[p.id + '|' + c.k] = { dia: dia, corte: opLineaDe(c), t: String(textoProd(p, c)).toUpperCase().replace(/\s+/g, ' ').trim(), p: p.id, ck: c.k }; });
     });
     var doc = function (f) { var id = 'op-' + f; if (docs[id]) return docs[id]; var o = prodGuardada(id); if (o) return (docs[id] = clone(o));
       var ant = opAnterior(f), d = opNueva(f, ant ? 'ant' : ''); if (ant) d.copiadaDe = ant.id.slice(3); d.estado = 'borrador'; S.opAuto = S.opAuto || {}; S.opAuto[f] = true; return (docs[id] = d); };
@@ -625,7 +625,7 @@
       if (!esOP(o.id) || o.id.slice(3) < h) return;
       (o.cortes || []).forEach(function (c) { (c.lineas || []).forEach(function (l) {
         if (!l.op) return; var k = l.p + '|' + l.ck, q = quiero[k];
-        if (!q || q.dia !== o.id.slice(3) || norm(c.corte) !== q.corte) { var d = doc(o.id.slice(3)); d.cortes.forEach(function (cc) { cc.lineas = cc.lineas.filter(function (x) { return !(x.op && x.p === l.p && x.ck === l.ck); }); }); d.cortes = d.cortes.filter(function (cc) { return cc.lineas.length || !OP_AUTO.test(norm(cc.corte)) || (prodGuardada(o.id).cortes || []).some(function (z) { return z.corte === cc.corte && z.lineas.some(function (y) { return !y.op; }); }); }); cambio[o.id] = 1; return; }
+        if (!q || q.dia !== o.id.slice(3) || norm(c.corte) !== q.corte) { var d = doc(o.id.slice(3)); d.cortes.forEach(function (cc) { cc.lineas = cc.lineas.filter(function (x) { return !(x.op && x.p === l.p && x.ck === l.ck); }); }); d.cortes = d.cortes.filter(function (cc) { return cc.lineas.length || (prodGuardada(o.id).cortes || []).some(function (z) { return z.corte === cc.corte && z.lineas.some(function (y) { return !y.op; }); }); }); cambio[o.id] = 1; return; }
         hay[k] = 1;
         if (norm(l.ot || '') !== norm(q.t) && norm(l.t) === norm(l.ot || '')) { var d2 = doc(o.id.slice(3)); d2.cortes.forEach(function (cc) { cc.lineas.forEach(function (x) { if (x.op && x.p === l.p && x.ck === l.ck) { x.t = q.t; x.ot = q.t; } }); }); cambio[o.id] = 1; }
         else if (norm(l.ot || '') !== norm(q.t)) { var d3 = doc(o.id.slice(3)); d3.cortes.forEach(function (cc) { cc.lineas.forEach(function (x) { if (x.op && x.p === l.p && x.ck === l.ck) x.ot = q.t; }); }); cambio[o.id] = 1; }
@@ -1904,6 +1904,24 @@
   }
   function diaCorto(f) { var x = String(f).split('-'); return diaDe(f) + ' ' + (+x[2]) + '/' + (+x[1]); }
   // Elegir en qué día se producen los cortes del pedido (pedido de Renzo, 06/11/2026): el de la entrega o los días hábiles anteriores.
+  // Mandar un corte a la Orden de producción, aparte de empaque, el día que Renzo elija (pedido de Renzo, 22/11/2026).
+  function opSelHTML(p, c) {
+    if (!S.editor || S.solo || !c.k || !c.texto) return '';
+    var ops = [p.entrega], d = p.entrega; while (ops.length < 4) { d = trabajoAnterior(d); ops.push(d); }
+    ops = ops.filter(function (x) { return x >= hoy(); });
+    if (c.op && ops.indexOf(c.op) < 0) ops.push(c.op);
+    ops.sort();
+    return '<select class="op-sel' + (c.op ? ' con' : '') + '" data-op-ped="' + esc(p.id) + '" data-k="' + esc(c.k) + '" aria-label="Mandar a la orden de producción">'
+      + '<option value=""' + (c.op ? '' : ' selected') + '>' + (c.op ? 'Quitar de la orden' : '+ Orden de producción') + '</option>'
+      + ops.map(function (x) { return '<option value="' + x + '"' + (x === c.op ? ' selected' : '') + '>' + (x === c.op ? 'En orden · ' : 'Orden del ') + esc(diaCorto(x)) + '</option>'; }).join('') + '</select>';
+  }
+  function guardarOpCorte(id, k, f) {
+    var p = pedidoDe(id); if (!p) return Promise.resolve();
+    var doc = clone(p); delete doc.id;
+    doc.cortes = cortesDe(doc).map(function (c) { if (c.k === k) { if (f) c.op = f; else delete c.op; } return c; });
+    S.pedidos = poner(S.pedidos, id, doc);
+    return store.set('pedidos', id, doc).then(function () { opSyncLuego(); });
+  }
   function diaProdSelHTML(p) {
     var act = prodDiaPedido(p), ops = [p.entrega], d = p.entrega;
     while (ops.length < 3) { d = trabajoAnterior(d); ops.push(d); }
@@ -2891,8 +2909,8 @@
     cs.forEach(function (c) {
       var f = fechaProdDe(m, p, c);
       h += '<p class="lp"><span class="lp-izq">' + (S.editor && !S.solo && c.k ? rubroSelHTML(p.id, c) : '<span class="lc-corte">' + esc(c.corte) + '</span>') + '<span class="lc-txt">' + (S.editor && !S.solo && c.k ? cantEdHTML(sinCorteTxt(sinCliente(c.texto, p.cliente), c.corte), unidadSelHTML(p.id, c), p.id, c.k) : cantHTML(sinCorteTxt(sinCliente(c.texto, p.cliente), c.corte), unidadSelHTML(p.id, c))) + (c.frio && c.frio !== p.frio ? ' ' + frioBadge(c.frio) : '') + '</span></span><span class="lp-der">' + precioHTML(p.id, c.k, c.precio, c.corte, c.iva) + (f
-        ? '<span class="en"><span class="badge ok">' + (esC3(f) ? 'En producción · embutidos' : 'En producción') + '</span><button class="btn sm" data-act="c-quitar" data-id="' + id + '" data-k="' + esc(c.k) + '">Quitar</button></span>'
-        : '<button class="btn sm pri" data-act="c-sumar" data-id="' + id + '" data-k="' + esc(c.k) + '">Sumar<span class="no-cel"> a producción</span></button>') + '</span></p>';
+        ? '<span class="en"><span class="badge ok">' + (esC3(f) ? 'En empaque · embutidos' : 'En empaque') + '</span><button class="btn sm" data-act="c-quitar" data-id="' + id + '" data-k="' + esc(c.k) + '">Quitar</button></span>'
+        : '<button class="btn sm pri" data-act="c-sumar" data-id="' + id + '" data-k="' + esc(c.k) + '">Sumar<span class="no-cel"> a empaque</span></button>') + opSelHTML(p, c) + '</span></p>';
     });
     h += '</div>';
     h += uniTodosHTML(p);
@@ -2900,7 +2918,7 @@
     if (S.editor && !S.solo && (p.nota || S.notaAbierta === p.id)) h += '<textarea class="log-nota log-nota-ed" rows="1" data-nota-ped="' + id + '" placeholder="Escribí la nota…" aria-label="Nota de ' + esc(p.cliente) + '">' + esc(p.nota || '') + '</textarea>' + (p.nota ? '<p class="log-nota solo-print">' + esc(p.nota) + '</p>' : '');
     else if (S.editor && !S.solo) h += '<button class="btn lnk sm log-nota-mas" data-act="nota-abrir" data-id="' + id + '">+ Nota</button>';
     else if (p.nota) h += '<p class="log-nota">' + esc(p.nota) + '</p>';
-    h += '<div class="acciones">' + (cs.length ? diaProdSelHTML(p) : '') + (cs.length - enP > 1 ? '<button class="btn sm" data-act="c-todos" data-id="' + id + '">Sumar todos a producción</button>' : '')
+    h += '<div class="acciones">' + (cs.length ? diaProdSelHTML(p) : '') + (cs.length - enP > 1 ? '<button class="btn sm" data-act="c-todos" data-id="' + id + '">Sumar todos a empaque</button>' : '')
       + '<button class="btn sm" data-act="ped-editar" data-id="' + id + '">Editar</button><button class="btn sm" data-act="ped-dup" data-id="' + id + '" title="Hace otro pedido igual, para cambiarlo antes de guardar">Duplicar</button><button class="btn sm" data-act="ped-txt" data-id="' + id + '" title="Copia el pedido como texto para pegarlo en WhatsApp o en Pegar texto">Copiar texto</button>' + opcionesDia(p)
       + '<button class="btn sm rojo" data-act="ped-borrar" data-id="' + id + '" data-i="' + id + '">' + (S._c2 === 'ped-borrar' + p.id ? 'Tocá de nuevo para confirmar' : 'Quitar') + '</button></div>';
     return h + '</div></div>';
@@ -5309,6 +5327,9 @@
       guardarDesc(D.desc, D.k, t.value).then(function () { render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); render(); });
     }
     else if (D.repN) { S[D.repN] = +t.value || 0; render(); }
+    else if (D.opPed) {
+      var vOp = t.value; guardarOpCorte(D.opPed, D.k, vOp).then(function () { avisar(vOp ? 'Va a la orden de producción del ' + diaCorto(vOp).toLowerCase() + '.' : 'Se saca de la orden de producción.', 3000); render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); render(); });
+    }
     else if (D.diaProd && t.value) {
       guardarDiaProd(D.diaProd, t.value).then(function () { avisar('Los cortes de este pedido se producen el ' + diaCorto(t.value).toLowerCase() + '.', 3500); render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); render(); });
     }
