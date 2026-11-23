@@ -593,8 +593,8 @@
     });
     return Promise.all(Object.keys(docs).map(function (id) { return guardarOrden(id, docs[id]); })).then(tocar);
   }
-  /* Jamón, paleta, tocino y recorte de los pedidos pasan solos a la Orden de producción del día en que se producen
-     (pedido de Renzo, 20/11/2026). Cada renglón queda unido a su pedido (op: 1, ot: el texto que puso la app):
+  /* Jamón, paleta, tocino y recorte que se suman a producción (botón "Sumar a producción") pasan también a la Orden de producción
+     de ese mismo día (pedido de Renzo, 20/11 y 22/11/2026: solo cuando él lo suma, no apenas se carga el pedido). Cada renglón queda unido a su pedido (op: 1, ot: el texto que puso la app):
      si el pedido cambia se actualiza, si se borra o cambia de día se va. Lo que Renzo corrige a mano en la orden se respeta
      (si cambió el texto no se pisa; si lo borró, queda anotado en opNo y no vuelve). Solo de hoy en adelante. */
   var OP_AUTO = /^(JAMON|PALETA|TOCINO|RECORTE)\b/;
@@ -611,10 +611,11 @@
   function opSyncLuego() { if (!S.editor || S.solo || window.__mock && window.__mock.sinOpAuto) return; clearTimeout(tOpSync); tOpSync = setTimeout(opSync, 900); }
   function opSync() {
     if (!S.editor || S.solo || !S.pedidos || !S.prod || S.ep) return;
-    var h = hoy(), quiero = {}, docs = {};
+    // Solo lo que Renzo sumó a producción (pedido de Renzo, 22/11/2026): va a la orden del mismo día de la planilla donde lo sumó.
+    var h = hoy(), quiero = {}, docs = {}, enP = enProduccion();
     (S.pedidos || []).forEach(function (p) {
-      if (!p.entrega) return; var dia = prodDiaPedido(p); if (dia < h) return;
-      cortesDe(p).forEach(function (c) { if (c.texto && opAutoCorte(c)) quiero[p.id + '|' + c.k] = { dia: dia, corte: opLineaDe(c), t: String(textoProd(p, c)).toUpperCase().replace(/\s+/g, ' ').trim(), p: p.id, ck: c.k }; });
+      if (!p.entrega) return;
+      cortesDe(p).forEach(function (c) { var dia = c.texto && opAutoCorte(c) && fechaProdDe(enP, p, c); if (!dia || esC3(dia) || dia < h) return; quiero[p.id + '|' + c.k] = { dia: dia, corte: opLineaDe(c), t: String(textoProd(p, c)).toUpperCase().replace(/\s+/g, ' ').trim(), p: p.id, ck: c.k }; });
     });
     var doc = function (f) { var id = 'op-' + f; if (docs[id]) return docs[id]; var o = prodGuardada(id); if (o) return (docs[id] = clone(o));
       var ant = opAnterior(f), d = opNueva(f, ant ? 'ant' : ''); if (ant) d.copiadaDe = ant.id.slice(3); d.estado = 'borrador'; S.opAuto = S.opAuto || {}; S.opAuto[f] = true; return (docs[id] = d); };
