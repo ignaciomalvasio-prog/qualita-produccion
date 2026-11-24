@@ -541,13 +541,13 @@
   function prodGuardada(f) { return (S.prod || []).filter(function (o) { return o.id === f; })[0] || null; }
   function prodVacia(f) { return esC3(f) ? { fecha: diaProd(f), linea: 'ciclo3', medias: 0, mercado: '', estado: 'borrador', cortes: [] } : { fecha: f, medias: +S.config.desposteHabitual || 750, mercado: '', estado: 'borrador', cortes: [] }; }
   // Un renglón nuevo dentro de su corte. Los que llevan cantidad van arriba de los que no.
-  function insertarLinea(o, corte, texto, pid, ck, frio) {
+  function insertarLinea(o, corte, texto, pid, ck, frio, entrega) {
     var c = corteDe(o, corte);
     if (!c) {
       c = { corte: norm(corte) || 'SIN UBICAR', lineas: [] }; o.cortes.push(c);
       o.cortes = o.cortes.map(function (x, i) { return [x, i]; }).sort(function (a, b) { return ordenCorte(a[0].corte) - ordenCorte(b[0].corte) || a[1] - b[1]; }).map(function (x) { return x[0]; });
     }
-    var linea = { t: texto }, pos = c.lineas.length; if (pid) linea.p = pid; if (ck) linea.ck = ck; if (frio) linea.f = frio;
+    var linea = { t: texto }, pos = c.lineas.length; if (pid) linea.p = pid; if (ck) linea.ck = ck; if (frio) linea.f = frio; if (entrega) linea.e = entrega;
     if (esPedido(texto)) for (var i = 0; i < c.lineas.length; i++) if (!esPedido(c.lineas[i].t)) { pos = i; break; }
     c.lineas.splice(pos, 0, linea);
   }
@@ -589,7 +589,7 @@
     cuales.forEach(function (c) {
       if (!c.texto || fechaProdDe(m, p, c)) return;
       var id = idPara(p, c), o = docs[id] || (docs[id] = clone(prodGuardada(id) || prodVacia(id)));
-      insertarLinea(o, esC3(id) ? corteC3(c) : c.corte, textoProd(p, c), p.id, c.k, c.frio || p.frio);
+      insertarLinea(o, esC3(id) ? corteC3(c) : c.corte, textoProd(p, c), p.id, c.k, c.frio || p.frio, p.entrega);
     });
     return Promise.all(Object.keys(docs).map(function (id) { return guardarOrden(id, docs[id]); })).then(tocar);
   }
@@ -609,7 +609,18 @@
   }
   var tOpSync = null;
   function opSyncLuego() { if (!S.editor || S.solo || window.__mock && window.__mock.sinOpAuto) return; clearTimeout(tOpSync); tOpSync = setTimeout(opSync, 900); }
+  // Los embutidos sumados antes de que existiera "SALE …" se completan con la entrega del pedido (para el link del Ciclo III).
+  function completarSale() {
+    var h = hoy();
+    (S.prod || []).forEach(function (o) {
+      if (!esC3(o.id) || diaProd(o.id) < h || (S.ep && S.ep.fecha === o.id)) return;
+      var x = null;
+      (o.cortes || []).forEach(function (c, i) { (c.lineas || []).forEach(function (l, j) { var pe = !l.e && l.p && pedidoDe(l.p); if (pe && pe.entrega) { x = x || clone(o); x.cortes[i].lineas[j].e = pe.entrega; } }); });
+      if (x) guardarOrden(o.id, x).catch(function () {});
+    });
+  }
   function opSync() {
+    completarSale();
     if (!S.editor || S.solo || !S.pedidos || !S.prod || S.ep) return;
     // Solo lo que Renzo manda a la orden con su botón "Orden de producción" en cada corte, al día que eligió (pedido de Renzo, 22/11/2026).
     var h = hoy(), quiero = {}, docs = {}, enP = enProduccion();
@@ -790,6 +801,12 @@
     });
     return h;
   }
+  // En embutidos, al lado de cada cliente el día que sale (entrega), para que la fábrica sepa cuándo producirlo (pedido de Renzo, 23/11/2026).
+  function saleTagHTML(l) {
+    var e = l.e || (l.p && (pedidoDe(l.p) || {}).entrega) || '';
+    if (!e) return '';
+    return ' <span class="badge sale-tag">SALE ' + esc(diaCorto(e).toUpperCase()) + '</span>';
+  }
   // La planilla de un día, para leer (la de desposte o la de embutidos).
   function hojaHTML(o, f, c3, fae, agr) {
     var nl = (o.cortes || []).reduce(function (t, c) { return t + c.lineas.length; }, 0), k = agr ? 'agr-' + agr.parte : c3 ? 'c3' : fae ? 'faena' : 'orden';
@@ -815,7 +832,7 @@
         var kk = norm(c.corte) + '|' + norm(l.t); cu[kk] = (cu[kk] || 0) + 1; var es = base && cu[kk] > (base[kk] || 0);
         var man = !agr && im && S.editor && !es && (im.man || []).indexOf(kk) >= 0 ? ' <button class="btn agr-volver" data-act="agr-volver" data-doc="' + esc(docId) + '" data-k="' + esc(kk) + '" title="Lo sacaste de Agregado: volver a ponerlo">↩ Volver a Agregado</button>' : '';
         var ya = agr && !agr.d.ult && S.editor ? ' <button class="btn agr-ya" data-act="agr-ya" data-doc="' + esc(c._doc || docId) + '" data-k="' + esc(kk) + '" title="Ya lo había pasado: sacarlo de Agregado">✓ Ya lo tenía pasado</button>' : '';
-        return '<li' + (es ? ' class="li-agr"' : '') + '>' + lineaHojaHTML(l.t) + (l.f ? ' ' + frioBadge(l.f) : '') + (es ? ' <span class="badge agr-tag">AGREGADO</span>' : '') + ya + man + '</li>'; }).join('') + '</ul></div>';
+        return '<li' + (es ? ' class="li-agr"' : '') + '>' + lineaHojaHTML(l.t) + (l.f ? ' ' + frioBadge(l.f) : '') + (c3 ? saleTagHTML(l) : '') + (es ? ' <span class="badge agr-tag">AGREGADO</span>' : '') + ya + man + '</li>'; }).join('') + '</ul></div>';
     }).join('') + '</div>';
     // Hoja que todavía no figura como impresa (se pasó antes de que existiera Agregado, o la imprimió otro): marcarla a mano.
     if (!agr && !im && S.editor && !S.solo && nl && S.tab === 'produccion') h += '<div class="acciones agr-todo-acc"><button class="btn agr-base" data-act="agr-base" data-doc="' + esc(docId) + '" title="Para que lo que se sume después aparezca en Agregado">✓ Esta hoja ya la pasé</button> <span class="small muted">Si ya la pasaste, tocá acá; lo que se sume después aparece en Agregado. Si algo de acá es nuevo, después tocá "↩ Volver a Agregado" en ese renglón.</span></div>';
