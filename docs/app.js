@@ -609,11 +609,11 @@
   }
   var tOpSync = null;
   function opSyncLuego() { if (!S.editor || S.solo || window.__mock && window.__mock.sinOpAuto) return; clearTimeout(tOpSync); tOpSync = setTimeout(opSync, 900); }
-  // Los embutidos sumados antes de que existiera "SALE …" se completan con la entrega del pedido (para el link del Ciclo III).
+  // Lo sumado antes de que existiera "SALE …" se completa con la entrega del pedido (para los links que no ven los pedidos).
   function completarSale() {
     var h = hoy();
     (S.prod || []).forEach(function (o) {
-      if (!esC3(o.id) || diaProd(o.id) < h || (S.ep && S.ep.fecha === o.id)) return;
+      if (esOP(o.id) || diaProd(o.id) < h || (S.ep && S.ep.fecha === o.id)) return;
       var x = null;
       (o.cortes || []).forEach(function (c, i) { (c.lineas || []).forEach(function (l, j) { var pe = !l.e && l.p && pedidoDe(l.p); if (pe && pe.entrega) { x = x || clone(o); x.cortes[i].lineas[j].e = pe.entrega; } }); });
       if (x) guardarOrden(o.id, x).catch(function () {});
@@ -801,7 +801,7 @@
     });
     return h;
   }
-  // En embutidos, al lado de cada cliente el día que sale (entrega), para que la fábrica sepa cuándo producirlo (pedido de Renzo, 23/11/2026).
+  // Al lado de cada cliente el día que sale (entrega), en embutidos y en la planilla de empaque (pedido de Renzo, 23/11/2026).
   // Embutidos ordenados por día de salida: arriba los que salen primero (pedido de Renzo, 23/11/2026).
   function salidaDe(l) { return l.e || (l.p && (pedidoDe(l.p) || {}).entrega) || '9999'; }
   function porSalida(ls) { return ls.map(function (l, i) { return [l, i]; }).sort(function (a, b) { var x = salidaDe(a[0]), y = salidaDe(b[0]); return x < y ? -1 : x > y ? 1 : a[1] - b[1]; }).map(function (x) { return x[0]; }); }
@@ -831,11 +831,11 @@
     else h += '<div class="hoja-cortes">' + (o.cortes || []).map(function (c) {
       var td = totalCorteDet(c), tot = td.kg != null ? n(td.kg) + ' kg' : '';
       var det = [td.det, td.sin ? (tot ? '+ ' : '') + td.sin : ''].filter(Boolean).join(' ');
-      return '<div class="hoja-corte"><div class="hoja-nom"><h3>' + esc(c.corte || 'Sin corte') + '</h3>' + (tot || det ? '<p class="hoja-tot"><span>Total</span> ' + esc(tot) + (det ? '<small class="hoja-det"> (' + esc(det) + ')</small>' : '') + '</p>' : '') + '</div><ul>' + (c3 ? porSalida(c.lineas) : c.lineas).map(function (l) {
+      return '<div class="hoja-corte"><div class="hoja-nom"><h3>' + esc(c.corte || 'Sin corte') + '</h3>' + (tot || det ? '<p class="hoja-tot"><span>Total</span> ' + esc(tot) + (det ? '<small class="hoja-det"> (' + esc(det) + ')</small>' : '') + '</p>' : '') + '</div><ul>' + porSalida(c.lineas).map(function (l) {
         var kk = norm(c.corte) + '|' + norm(l.t); cu[kk] = (cu[kk] || 0) + 1; var es = base && cu[kk] > (base[kk] || 0);
         var man = !agr && im && S.editor && !es && (im.man || []).indexOf(kk) >= 0 ? ' <button class="btn agr-volver" data-act="agr-volver" data-doc="' + esc(docId) + '" data-k="' + esc(kk) + '" title="Lo sacaste de Agregado: volver a ponerlo">↩ Volver a Agregado</button>' : '';
         var ya = agr && !agr.d.ult && S.editor ? ' <button class="btn agr-ya" data-act="agr-ya" data-doc="' + esc(c._doc || docId) + '" data-k="' + esc(kk) + '" title="Ya lo había pasado: sacarlo de Agregado">✓ Ya lo tenía pasado</button>' : '';
-        return '<li' + (es ? ' class="li-agr"' : '') + '>' + lineaHojaHTML(l.t) + (l.f ? ' ' + frioBadge(l.f) : '') + (c3 ? saleTagHTML(l) : '') + (es ? ' <span class="badge agr-tag">AGREGADO</span>' : '') + ya + man + '</li>'; }).join('') + '</ul></div>';
+        return '<li' + (es ? ' class="li-agr"' : '') + '>' + lineaHojaHTML(l.t) + (l.f ? ' ' + frioBadge(l.f) : '') + saleTagHTML(l) + (es ? ' <span class="badge agr-tag">AGREGADO</span>' : '') + ya + man + '</li>'; }).join('') + '</ul></div>';
     }).join('') + '</div>';
     // Hoja que todavía no figura como impresa (se pasó antes de que existiera Agregado, o la imprimió otro): marcarla a mano.
     if (!agr && !im && S.editor && !S.solo && nl && S.tab === 'produccion') h += '<div class="acciones agr-todo-acc"><button class="btn agr-base" data-act="agr-base" data-doc="' + esc(docId) + '" title="Para que lo que se sume después aparezca en Agregado">✓ Esta hoja ya la pasé</button> <span class="small muted">Si ya la pasaste, tocá acá; lo que se sume después aparece en Agregado. Si algo de acá es nuevo, después tocá "↩ Volver a Agregado" en ese renglón.</span></div>';

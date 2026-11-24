@@ -455,3 +455,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - (23/11/2026) Camiones: se muestran siempre por horario (también los días que ya estaban armados): sin horario arriba, el resto por hora, en Pedidos, Logística, Resumen y PDF.
 - (23/11/2026) Embutidos: al lado de cada cliente aparece "SALE <día de entrega>" (en pantalla, impresión, PDF y link del Ciclo III), para que la fábrica sepa cuándo producirlo.
 - (23/11/2026) Embutidos: dentro de cada producto (chorizo, morcilla…) los clientes van ordenados por día de salida, primero los que salen antes.
+- (23/11/2026) Planilla de empaque y faena: igual que embutidos, cada cliente con "SALE <día de entrega>" y ordenados dentro de cada corte por día de salida.
