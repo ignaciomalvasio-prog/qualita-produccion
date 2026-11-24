@@ -465,3 +465,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - (24/11/2026) Producción en la compu igual que en el celular: un renglón por cliente y el día de salida alineado a la derecha.
 - (24/11/2026) Planilla de producción: filas rayadas (una sombreada y otra no), como en Pedidos.
 - (24/11/2026) PDF por WhatsApp de la planilla de producción a color, como se ve en la app: recuadro del corte con total, desglose y un renglón por cliente con SALE, rayado. Imprimir sigue igual.
+- (24/11/2026) Faena: entraña vuelve a la planilla de faena; se suman pericardio, hocico y recorte de cabeza (un "recorte" que dice "de cabeza" pasa a RECORTE DE CABEZA).
