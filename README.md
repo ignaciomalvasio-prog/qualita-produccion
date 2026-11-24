@@ -452,3 +452,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - (22/11/2026) Orden de producción: jamón, paleta, tocino y recorte pasan a la orden solo cuando se tocan con "Sumar a producción" (no apenas se carga el pedido), al mismo día de la planilla donde se sumaron; si se quitan de producción, se van de la orden.
 - (22/11/2026) Pedidos: en cada corte, aparte de "Sumar a empaque" (antes "Sumar a producción"), un selector "+ Orden de producción" para mandar ese corte a la Orden de producción del día que se elija (entrega o hasta 3 días hábiles antes); "Quitar de la orden" lo saca. Ya no pasa nada solo.
 - (23/11/2026) Camiones: al poner o cambiar el horario se ordenan solos por hora, y los que todavía no tienen horario (y los nuevos) quedan arriba para ponérselo.
+- (23/11/2026) Camiones: se muestran siempre por horario (también los días que ya estaban armados): sin horario arriba, el resto por hora, en Pedidos, Logística, Resumen y PDF.

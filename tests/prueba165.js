@@ -7,7 +7,8 @@ const data={faena:{},privado:{},config:{general:{feriados:[]},['log-'+F]:{fecha:
  await p.addInitScript(d=>{window.__mock={data:JSON.parse(JSON.stringify(d)),user:{email:'yo@x.com'},editores:['yo@x.com']}},data);
  await p.goto('http://127.0.0.1:8765/index.html#pedidos');await p.clock.runFor(2000);await p.waitForTimeout(400);await p.fill('#pd-fecha',F);await p.dispatchEvent('#pd-fecha','change');await p.waitForTimeout(400);
  const orden=()=>p.evaluate(()=>window.__mock.data.config['log-2026-11-25'].camiones.map(c=>c.nombre+(c.hora?' '+c.hora:'')).join(' | '));
- console.log('antes:',await orden());
+ console.log('antes (guardado):',await orden());
+ console.log('se ve:',await p.evaluate(()=>[...document.querySelectorAll('.grupo-cam:not(.sin-cam) h3, .grupo-cam:not(.sin-cam) .grupo-tit')].map(x=>x.textContent.replace(/\s+/g,' ').trim().slice(0,30)).join(' | ')));
  await p.evaluate(()=>{const b=document.querySelector('[data-act="hora-abrir"][data-id="c"]');b&&b.click();});await p.waitForTimeout(200);
  await p.fill('input[data-hora-cam="c"]','03:00');await p.press('input[data-hora-cam="c"]','Enter');await p.waitForTimeout(600);
  console.log('después:',await orden());
