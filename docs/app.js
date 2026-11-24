@@ -724,11 +724,22 @@
   }
   /* Detalle de lo pedido de un corte, un renglón por forma de pedirlo: "700 kg", "12 cajas", "150 und", "3 und parrilleros"
      (pedido de Renzo, 23/11/2026: que en producción no tengan que mirar renglón por renglón). */
+  /* Formas de pedir que son lo mismo (pedido de Renzo, 23/11/2026): PECHO = "cod 211" = "manta doble"; CARRE = "cod 271" = "sin hueso sin solomillo";
+     SOLOMILLO, MATAMBRE y BONDIOLA solo se separan por unidad (kg, cajas…). */
+  function unificarDet(corte, x) {
+    var c = norm(corte), t = String(x || '');
+    if (/^(SOLOMILLO|MATAMBRE|BONDIOLA)/.test(c)) return '';
+    if (/^PECHO/.test(c)) t = t.replace(/\bCOD(IGO)?\.?\s*211\b|\b211\b|\bMANTA\s+DOBLE\b|\bPECHO\b/gi, ' ');
+    if (/^CARRE/.test(c)) t = t.replace(/\bCOD(IGO)?\.?\s*271\b|\b271\b|\b(SIN|S\/)\s*HUESO\b|\b(SIN|S\/)\s*SOLOMILLO\b|\bCARR[EÉ]\b/gi, ' ');
+    t = t.replace(/\s+/g, ' ').replace(/^[\s,.;:\-]+|[\s,.;:\-]+$/g, '').replace(/^Y\s+|\s+Y$/gi, '').trim();
+    return /[A-Z0-9]/i.test(t) ? t : '';
+  }
   function detalleCorte(c, orden, nom) {
     var g = {}, ks = [];
     (c.lineas || []).forEach(function (l) {
       var r = cantRenglon(l.t, l.c || c.corte); if (!r) return;
       var x = r.resto ? sinCorteTxt('1 ' + r.resto, l.c || c.corte).replace(/^1\s*/, '').replace(/^(DE|X)\s+/i, '').trim() : '';
+      x = unificarDet(l.c || c.corte, x);
       var k = r.u + '|' + norm(x);
       if (!g[k]) { g[k] = { u: r.u, x: x.toLowerCase(), n: 0 }; ks.push(k); }
       g[k].n += r.n;
