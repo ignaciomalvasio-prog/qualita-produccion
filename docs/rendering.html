@@ -1313,6 +1313,12 @@ input[data-h24]{width:6.2ch!important;min-width:6.2ch;text-align:center;font-var
   #view-produccion .hoja-corte li .badge,#view-produccion .hoja-corte li .btn{flex:none;margin-left:0}
   #view-produccion .hoja-corte li .sale-tag{min-width:150px;text-align:center}
 }
+/* Filas rayadas en la planilla de producción, como en Pedidos (pedido de Renzo, 24/11/2026). */
+@media screen{
+  #view-produccion .hoja-corte ul{gap:0}
+  #view-produccion .hoja-corte li{padding:4px 6px;border-radius:5px}
+  #view-produccion .hoja-corte li:nth-child(even):not(.li-agr){background:#e3ecf1}
+}
 </style>
 </head>
 <body>
