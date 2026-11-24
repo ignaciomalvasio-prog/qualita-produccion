@@ -461,3 +461,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - (24/11/2026) Detalle del total: también junta "pechito con manta", saca "de cerdo" y los códigos entre paréntesis (ej. "80 kg en tiras").
 - (24/11/2026) Planilla de producción: el corte y su total en un recuadro oscuro y abajo el desglose, un ítem por renglón (opción 1 de Renzo).
 - (24/11/2026) Producción en el celular: cada cliente en un solo renglón y el día de salida abreviado (SALE MAR 24/11, MIER, JUE…).
+- (24/11/2026) Entraña cargada como "menudencias" pasa a ser el corte ENTRAÑA y va en la planilla de desposte (empaque), en pedidos nuevos y en lo ya sumado.

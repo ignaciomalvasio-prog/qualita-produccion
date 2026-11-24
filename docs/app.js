@@ -30,7 +30,7 @@
   var TABS = ['inicio', 'pedidos', 'produccion', 'ciclo3', 'logistica', 'medias', 'rendering', 'stock', 'clientes', 'camara', 'tunel', 'fichas'];
   // Artículos que solo se eligen a mano (no los usa la IA al leer pedidos): "CORTES", para casos eventuales (pedido de Renzo).
   var CORTES_A_MANO = ['CORTES'];
-  var CORTES_BASE = ['JAMON', 'PALETA', 'PECHO', 'PANCETA CON CUERO', 'PANCETA SIN CUERO', 'CARRE SIN SOLOMILLO', 'CARRE CON SOLOMILLO', 'SOLOMILLO', 'CINTA DE LOMO', 'MATAMBRE', 'VACIO', 'BONDIOLA', 'RECORTE', 'GRASA', 'CUERO', 'TAPA DE PALETA', 'TAPA DE JAMON', 'TORTUGA', 'GARRON', 'TOCINO', 'CHURRASCO', 'PAPADA', 'HUESITOS', 'UNTO', 'CABEZA', 'OREJAS', 'PULMON', 'HIGADO', 'PATAS Y MANOS', 'LENGUA', 'CORAZON', 'CHINCHULIN', 'RIÑON', 'RABO', 'MENUDENCIAS', 'EMBUTIDOS', 'CHORIZO', 'MORCILLA', 'SALCHICHA'];
+  var CORTES_BASE = ['JAMON', 'PALETA', 'PECHO', 'PANCETA CON CUERO', 'PANCETA SIN CUERO', 'CARRE SIN SOLOMILLO', 'CARRE CON SOLOMILLO', 'SOLOMILLO', 'CINTA DE LOMO', 'MATAMBRE', 'VACIO', 'BONDIOLA', 'RECORTE', 'GRASA', 'CUERO', 'TAPA DE PALETA', 'TAPA DE JAMON', 'TORTUGA', 'GARRON', 'TOCINO', 'CHURRASCO', 'ENTRAÑA', 'PAPADA', 'HUESITOS', 'UNTO', 'CABEZA', 'OREJAS', 'PULMON', 'HIGADO', 'PATAS Y MANOS', 'LENGUA', 'CORAZON', 'CHINCHULIN', 'RIÑON', 'RABO', 'MENUDENCIAS', 'EMBUTIDOS', 'CHORIZO', 'MORCILLA', 'SALCHICHA'];
 
   var S = {
     faena: null, prod: null, pedidos: null, config: {}, ia: {}, status: 'loading', fuente: '',
@@ -415,26 +415,29 @@
   // Costeleta(s) es carré (pedido de Renzo, 18/11/2026): va en CARRE SIN SOLOMILLO.
   var COSTELETAS = ['COSTELETA', 'COSTELETAS', 'COSTELETITA', 'COSTELETITAS'];
   function esCosteleta(c) { return COSTELETAS.indexOf(norm(c || '')) >= 0; }
-  function rubroBien(corte, texto) { return esCosteleta(corte) ? 'CARRE SIN SOLOMILLO' : esPechoViejo(corte) ? 'PECHO' : esGrasaVieja(corte) ? 'GRASA' : esDeJamon5(corte, texto) ? 'JAMON' : norm(corte); }
+  // Entraña cargada como "menudencias": va como corte ENTRAÑA, en la planilla de desposte (pedido de Renzo, 24/11/2026).
+  function esEntrana(corte, texto) { return /^MENUDENCIAS?$/.test(norm(corte || '')) && /\bENTRA(Ñ|N)AS?\b/.test(norm(texto || '')); }
+  function rubroBien(corte, texto) { return esEntrana(corte, texto) ? 'ENTRAÑA' : esCosteleta(corte) ? 'CARRE SIN SOLOMILLO' : esPechoViejo(corte) ? 'PECHO' : esGrasaVieja(corte) ? 'GRASA' : esDeJamon5(corte, texto) ? 'JAMON' : norm(corte); }
   var migrandoPecho = {};
   function migrarPecho() {
     if (!S.editor) return;
     var fechas = {}, t = [];
     (S.pedidos || []).forEach(function (p) {
-      if (migrandoPecho['p' + p.id] || !(p.cortes || []).some(function (c) { return esCosteleta(c.corte) || esPechoViejo(c.corte) || esGrasaVieja(c.corte) || esDeJamon5(c.corte, c.texto); })) return;
+      if (migrandoPecho['p' + p.id] || !(p.cortes || []).some(function (c) { return esEntrana(c.corte, c.texto) || esCosteleta(c.corte) || esPechoViejo(c.corte) || esGrasaVieja(c.corte) || esDeJamon5(c.corte, c.texto); })) return;
       migrandoPecho['p' + p.id] = 1;
       var doc = clone(p), id = doc.id; delete doc.id;
-      doc.cortes = doc.cortes.map(function (c) { if (esCosteleta(c.corte) || esPechoViejo(c.corte) || esGrasaVieja(c.corte) || esDeJamon5(c.corte, c.texto)) c.corte = rubroBien(c.corte, c.texto); return c; });
+      doc.cortes = doc.cortes.map(function (c) { if (esEntrana(c.corte, c.texto) || esCosteleta(c.corte) || esPechoViejo(c.corte) || esGrasaVieja(c.corte) || esDeJamon5(c.corte, c.texto)) c.corte = rubroBien(c.corte, c.texto); return c; });
       S.pedidos = poner(S.pedidos, id, doc); t.push(store.set('pedidos', id, doc)); if (doc.entrega) fechas[doc.entrega] = 1;
     });
     (S.prod || []).forEach(function (o) {
-      if (migrandoPecho['o' + o.id] || !(o.cortes || []).some(function (c) { return esPechoViejo(c.corte) || (c.lineas || []).some(function (l) { return esDeJamon5(c.corte, l.t); }); })) return;
+      if (migrandoPecho['o' + o.id] || !(o.cortes || []).some(function (c) { return esPechoViejo(c.corte) || (c.lineas || []).some(function (l) { return esDeJamon5(c.corte, l.t) || esEntrana(c.corte, l.t); }); })) return;
       migrandoPecho['o' + o.id] = 1;
       var x = clone(o), id = x.id, pe = x.cortes.filter(function (c) { return norm(c.corte) === 'PECHO'; })[0];
       x.cortes.forEach(function (c) { if (!esPechoViejo(c.corte)) return; if (pe) { pe.lineas = pe.lineas.concat(c.lineas); c.lineas = []; } else { c.corte = 'PECHO'; pe = c; } });
       var tj = x.cortes.filter(function (c) { return norm(c.corte) === 'TAPA DE JAMON'; })[0];
       if (tj) { var pasan = tj.lineas.filter(function (l) { return esDeJamon5(tj.corte, l.t); }); if (pasan.length) { var ja = x.cortes.filter(function (c) { return norm(c.corte) === 'JAMON'; })[0]; if (!ja) { ja = { corte: 'JAMON', lineas: [] }; x.cortes.unshift(ja); } ja.lineas = ja.lineas.concat(pasan); tj.lineas = tj.lineas.filter(function (l) { return pasan.indexOf(l) < 0; }); } }
-      x.cortes = x.cortes.filter(function (c) { return !(esPechoViejo(c.corte) || norm(c.corte) === 'TAPA DE JAMON') || c.lineas.length; });
+      x.cortes.slice().forEach(function (me) { if (!/^MENUDENCIAS?$/.test(norm(me.corte))) return; var pasan = me.lineas.filter(function (l) { return esEntrana(me.corte, l.t); }); if (!pasan.length) return; var en = x.cortes.filter(function (c) { return norm(c.corte) === norm('ENTRAÑA'); })[0]; if (!en) { en = { corte: 'ENTRAÑA', lineas: [] }; x.cortes.splice(x.cortes.indexOf(me), 0, en); } en.lineas = en.lineas.concat(pasan); me.lineas = me.lineas.filter(function (l) { return pasan.indexOf(l) < 0; }); });
+      x.cortes = x.cortes.filter(function (c) { return !(esPechoViejo(c.corte) || norm(c.corte) === 'TAPA DE JAMON' || /^MENUDENCIAS?$/.test(norm(c.corte))) || c.lineas.length; });
       var dl = limpiarOrden(x); S.prod = poner(S.prod, id, dl); t.push(store.set('produccion', id, dl));
     });
     if (!t.length) return;
