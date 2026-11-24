@@ -459,3 +459,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - (23/11/2026) Planilla de producción: debajo del total de cada corte, el detalle de lo pedido en renglones (ej. 700 kg / 12 cajas / 150 und / 3 und parrilleros), sumando igual forma de pedir.
 - (23/11/2026) Detalle del total: pecho = cod 211 = manta doble; carre = cod 271 = sin hueso sin solomillo; solomillo, matambre y bondiola solo se separan por kg, cajas o unidades.
 - (24/11/2026) Detalle del total: también junta "pechito con manta", saca "de cerdo" y los códigos entre paréntesis (ej. "80 kg en tiras").
+- (24/11/2026) Planilla de producción: el corte y su total en un recuadro oscuro y abajo el desglose, un ítem por renglón (opción 1 de Renzo).

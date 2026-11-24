@@ -857,8 +857,9 @@
     else h += '<div class="hoja-cortes">' + (o.cortes || []).map(function (c) {
       var td = totalCorteDet(c), tot = td.kg != null ? n(td.kg) + ' kg' : '';
       var li = td.lista, ver = li.length > 1 || (li.length === 1 && (td.kg == null || !/^[\d.,]+ kg$/.test(li[0])));
-      var det = ver ? '<span class="hoja-det">' + li.map(function (x, i) { return '<span class="hd-l">' + (i ? '<span class="hd-sep">· </span>' : '') + esc(x) + '</span>'; }).join('') + '</span>' : '';
-      return '<div class="hoja-corte"><div class="hoja-nom"><h3>' + esc(c.corte || 'Sin corte') + '</h3>' + (tot || det ? '<p class="hoja-tot"><span>Total</span> ' + esc(tot) + det + '</p>' : '') + '</div><ul>' + porSalida(c.lineas).map(function (l) {
+      // Corte y total en un recuadro, y abajo el desglose por ítem (pedido de Renzo, opción 1, 24/11/2026).
+      var det = ver ? '<div class="hn-det">' + li.map(function (x, i) { return '<span class="hd-l">' + (i ? '<span class="hd-sep">· </span>' : '') + esc(x) + '</span>'; }).join('') + '</div>' : '';
+      return '<div class="hoja-corte"><div class="hoja-nom"><div class="hn-box"><h3>' + esc(c.corte || 'Sin corte') + '</h3>' + (tot ? '<p class="hoja-tot"><span>Total</span> ' + esc(tot) + '</p>' : '') + '</div>' + det + '</div><ul>' + porSalida(c.lineas).map(function (l) {
         var kk = norm(c.corte) + '|' + norm(l.t); cu[kk] = (cu[kk] || 0) + 1; var es = base && cu[kk] > (base[kk] || 0);
         var man = !agr && im && S.editor && !es && (im.man || []).indexOf(kk) >= 0 ? ' <button class="btn agr-volver" data-act="agr-volver" data-doc="' + esc(docId) + '" data-k="' + esc(kk) + '" title="Lo sacaste de Agregado: volver a ponerlo">↩ Volver a Agregado</button>' : '';
         var ya = agr && !agr.d.ult && S.editor ? ' <button class="btn agr-ya" data-act="agr-ya" data-doc="' + esc(c._doc || docId) + '" data-k="' + esc(kk) + '" title="Ya lo había pasado: sacarlo de Agregado">✓ Ya lo tenía pasado</button>' : '';
