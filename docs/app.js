@@ -2179,6 +2179,7 @@
   function crearCamion(f, nombre, nota, ids, kg, idFijo, num) {
     var cams = camionesDe(f).slice(), cam = { id: idFijo || 'c' + uid(), nombre: String(nombre || '').trim(), num: String(num || '').trim(), nota: String(nota || '').trim(), kg: +kg || 0 };
     cams.push(cam);
+    if (cams.some(function (c) { return c.hora; })) cams = porHorario(cams);   // uno nuevo, sin hora, va arriba
     return asignarCamion(f, ids || [], cam.id, cams).then(function () { return cam; });
   }
   // Usa ese día un camión del stock: si todavía no estaba en el día, lo agrega con su capacidad.
@@ -2194,12 +2195,12 @@
     if (hora != null && String(hora).trim() !== antes) cams = porHorario(cams);
     return publicarLog(f, cams).then(tocar);
   }
-  // Los camiones se ordenan por hora de salida; los que no tienen hora quedan al final, en el orden que tenían.
+  // Los camiones se ordenan por hora de salida; los que no tienen hora quedan arriba, en el orden que tenían.
   function porHorario(cams) {
     return cams.map(function (c, i) { return [c, i]; }).sort(function (a, b) {
       var ha = a[0].hora || '', hb = b[0].hora || '';
       if (ha && hb && ha !== hb) return ha < hb ? -1 : 1;
-      if (!!ha !== !!hb) return ha ? -1 : 1;
+      if (!!ha !== !!hb) return ha ? 1 : -1;   // los que no tienen hora, arriba, para ponérsela (pedido de Renzo, 23/11/2026)
       return a[1] - b[1];
     }).map(function (x) { return x[0]; });
   }
