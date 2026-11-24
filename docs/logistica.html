@@ -1285,6 +1285,11 @@ input[data-h24]{width:6.2ch!important;min-width:6.2ch;text-align:center;font-var
 
 .sale-tag{background:#1d3a52;color:#fff;font-size:11px;padding:2px 7px;border-radius:5px;letter-spacing:.03em;vertical-align:middle;white-space:nowrap}
 @media print{.sale-tag{background:none;color:#000;border:1.5px solid #000}}
+/* Detalle del total, un renglón por forma de pedir (pedido de Renzo, 23/11/2026). */
+.hoja-tot .hoja-det,.hoja-tot .hoja-det .hd-l{font:700 15px var(--body);color:#2f4a5a;letter-spacing:0;text-transform:none}
+.hoja-tot .hoja-det{display:block;margin-top:5px;line-height:1.4}
+.hoja-tot .hoja-det .hd-l{display:block}.hoja-tot .hoja-det .hd-sep{display:none}
+@media print{.hoja-tot .hoja-det,.hoja-tot .hoja-det .hd-l{font-size:12.5px;color:#000}}
 </style>
 </head>
 <body>

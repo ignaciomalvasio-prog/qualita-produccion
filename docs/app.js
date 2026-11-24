@@ -708,7 +708,7 @@
     if (!m) return null;
     var q = numero(m[1]), w = norm(m[2]), u = /^K/.test(w) ? 'kg' : /^CANAST/.test(w) ? 'canastos' : /^C/.test(w) ? 'cajas' : /^B/.test(w) ? 'bines' : /^P/.test(w) ? 'pallets' : 'und';
     var kg = u === 'kg' ? q : u === 'cajas' ? q * (m[3] ? numero(m[3]) : kgCaja()) : u === 'canastos' ? q * (m[3] ? numero(m[3]) : kgCanasto()) : u === 'und' ? (kgUnidadDe(su.slice(m[0].length), corte) * q || null) : null;
-    return { n: q, u: u, kg: kg == null ? null : Math.round(kg * 100) / 100 };
+    return { n: q, u: u, kg: kg == null ? null : Math.round(kg * 100) / 100, resto: su.slice(m[0].length).trim() };
   }
   /* Total de un corte: un solo total en kilos (cajas, canastos y unidades pasados a kilos) y, si se pidió en otras unidades,
      el detalle de lo pedido (ej. "230 kg" · "100 kg · 5 cajas · 2 und"). Lo que no tiene peso conocido va aparte. */
@@ -720,7 +720,21 @@
     });
     var nom = function (u, v) { return n(v) + ' ' + (v === 1 ? { cajas: 'caja', canastos: 'canasto', bines: 'bin', pallets: 'pallet' }[u] || u : u); };
     var tipos = orden.filter(function (u) { return d[u]; });
-    return { kg: hayKg ? Math.round(kg * 100) / 100 : null, det: tipos.length > 1 || (tipos.length === 1 && tipos[0] !== 'kg') ? tipos.map(function (u) { return nom(u, d[u]); }).join(' · ') : '', sin: orden.filter(function (u) { return sin[u]; }).map(function (u) { return nom(u, sin[u]) + (u === 'und' ? ' sin peso' : ''); }).join(' · ') };
+    return { lista: detalleCorte(c, orden, nom), kg: hayKg ? Math.round(kg * 100) / 100 : null, det: tipos.length > 1 || (tipos.length === 1 && tipos[0] !== 'kg') ? tipos.map(function (u) { return nom(u, d[u]); }).join(' · ') : '', sin: orden.filter(function (u) { return sin[u]; }).map(function (u) { return nom(u, sin[u]) + (u === 'und' ? ' sin peso' : ''); }).join(' · ') };
+  }
+  /* Detalle de lo pedido de un corte, un renglón por forma de pedirlo: "700 kg", "12 cajas", "150 und", "3 und parrilleros"
+     (pedido de Renzo, 23/11/2026: que en producción no tengan que mirar renglón por renglón). */
+  function detalleCorte(c, orden, nom) {
+    var g = {}, ks = [];
+    (c.lineas || []).forEach(function (l) {
+      var r = cantRenglon(l.t, l.c || c.corte); if (!r) return;
+      var x = r.resto ? sinCorteTxt('1 ' + r.resto, l.c || c.corte).replace(/^1\s*/, '').replace(/^(DE|X)\s+/i, '').trim() : '';
+      var k = r.u + '|' + norm(x);
+      if (!g[k]) { g[k] = { u: r.u, x: x.toLowerCase(), n: 0 }; ks.push(k); }
+      g[k].n += r.n;
+    });
+    return ks.map(function (k) { return g[k]; }).sort(function (a, b) { return orden.indexOf(a.u) - orden.indexOf(b.u) || (a.x ? 1 : 0) - (b.x ? 1 : 0) || ks.indexOf(a.u + '|' + norm(a.x)) - ks.indexOf(b.u + '|' + norm(b.x)); })
+      .map(function (x) { return nom(x.u, x.n) + (x.x ? ' ' + x.x : ''); });
   }
   function totalCorte(c) {
     var t = totalCorteDet(c), s = t.kg != null ? n(t.kg) + ' kg' : '';
@@ -830,8 +844,9 @@
     else if (!nl) h += '<p class="muted">Todavía no se sumó ningún ' + (c3 ? 'embutido' : 'corte') + '.</p>';
     else h += '<div class="hoja-cortes">' + (o.cortes || []).map(function (c) {
       var td = totalCorteDet(c), tot = td.kg != null ? n(td.kg) + ' kg' : '';
-      var det = [td.det, td.sin ? (tot ? '+ ' : '') + td.sin : ''].filter(Boolean).join(' ');
-      return '<div class="hoja-corte"><div class="hoja-nom"><h3>' + esc(c.corte || 'Sin corte') + '</h3>' + (tot || det ? '<p class="hoja-tot"><span>Total</span> ' + esc(tot) + (det ? '<small class="hoja-det"> (' + esc(det) + ')</small>' : '') + '</p>' : '') + '</div><ul>' + porSalida(c.lineas).map(function (l) {
+      var li = td.lista, ver = li.length > 1 || (li.length === 1 && (td.kg == null || !/^[\d.,]+ kg$/.test(li[0])));
+      var det = ver ? '<span class="hoja-det">' + li.map(function (x, i) { return '<span class="hd-l">' + (i ? '<span class="hd-sep">· </span>' : '') + esc(x) + '</span>'; }).join('') + '</span>' : '';
+      return '<div class="hoja-corte"><div class="hoja-nom"><h3>' + esc(c.corte || 'Sin corte') + '</h3>' + (tot || det ? '<p class="hoja-tot"><span>Total</span> ' + esc(tot) + det + '</p>' : '') + '</div><ul>' + porSalida(c.lineas).map(function (l) {
         var kk = norm(c.corte) + '|' + norm(l.t); cu[kk] = (cu[kk] || 0) + 1; var es = base && cu[kk] > (base[kk] || 0);
         var man = !agr && im && S.editor && !es && (im.man || []).indexOf(kk) >= 0 ? ' <button class="btn agr-volver" data-act="agr-volver" data-doc="' + esc(docId) + '" data-k="' + esc(kk) + '" title="Lo sacaste de Agregado: volver a ponerlo">↩ Volver a Agregado</button>' : '';
         var ya = agr && !agr.d.ult && S.editor ? ' <button class="btn agr-ya" data-act="agr-ya" data-doc="' + esc(c._doc || docId) + '" data-k="' + esc(kk) + '" title="Ya lo había pasado: sacarlo de Agregado">✓ Ya lo tenía pasado</button>' : '';

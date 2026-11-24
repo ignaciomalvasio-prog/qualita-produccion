@@ -456,3 +456,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - (23/11/2026) Embutidos: al lado de cada cliente aparece "SALE <día de entrega>" (en pantalla, impresión, PDF y link del Ciclo III), para que la fábrica sepa cuándo producirlo.
 - (23/11/2026) Embutidos: dentro de cada producto (chorizo, morcilla…) los clientes van ordenados por día de salida, primero los que salen antes.
 - (23/11/2026) Planilla de empaque y faena: igual que embutidos, cada cliente con "SALE <día de entrega>" y ordenados dentro de cada corte por día de salida.
+- (23/11/2026) Planilla de producción: debajo del total de cada corte, el detalle de lo pedido en renglones (ej. 700 kg / 12 cajas / 150 und / 3 und parrilleros), sumando igual forma de pedir.
