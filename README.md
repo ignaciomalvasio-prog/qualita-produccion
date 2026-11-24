@@ -464,3 +464,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - (24/11/2026) Entraña cargada como "menudencias" pasa a ser el corte ENTRAÑA y va en la planilla de desposte (empaque), en pedidos nuevos y en lo ya sumado.
 - (24/11/2026) Producción en la compu igual que en el celular: un renglón por cliente y el día de salida alineado a la derecha.
 - (24/11/2026) Planilla de producción: filas rayadas (una sombreada y otra no), como en Pedidos.
+- (24/11/2026) PDF por WhatsApp de la planilla de producción a color, como se ve en la app: recuadro del corte con total, desglose y un renglón por cliente con SALE, rayado. Imprimir sigue igual.

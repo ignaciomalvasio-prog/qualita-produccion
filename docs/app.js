@@ -1010,6 +1010,100 @@
       });
     });
   }
+  /* PDF de la planilla de producción a color, como se ve en la app (pedido de Renzo, 24/11/2026): cada corte con su recuadro oscuro
+     (nombre y total), el desglose abajo, y a la derecha un renglón por cliente (cliente, cantidad, detalle y SALE), rayados. */
+  function hojaColorDatos(hoja) {
+    var t = function (el) { return el ? el.textContent.replace(/\s+/g, ' ').trim() : ''; };
+    var sinHijos = function (el, sel) { if (!el) return ''; var c = el.cloneNode(true); Array.prototype.forEach.call(c.querySelectorAll(sel), function (x) { x.remove(); }); return t(c); };
+    var col = hoja.classList.contains('hoja-c3') ? '#c0702f' : hoja.classList.contains('hoja-faena') ? '#2e9e45' : hoja.classList.contains('hoja-agr') ? '#f59e0b' : '#4aa3c4';
+    return {
+      cab: { sup: t(hoja.querySelector('.hoja-sup')), tit: t(hoja.querySelector('.hoja-cab h2')), dato: Array.prototype.map.call((hoja.querySelector('.hoja-dato') || { children: [] }).children, t).join(' '), estado: t(hoja.querySelector('.hoja-cab > .badge')) }, color: col,
+      nota: t(hoja.querySelector(':scope > p.muted')),
+      cortes: Array.prototype.map.call(hoja.querySelectorAll('.hoja-corte'), function (c) {
+        return { nom: t(c.querySelector('.hn-box h3')), tot: sinHijos(c.querySelector('.hn-box .hoja-tot'), 'span'),
+          det: Array.prototype.map.call(c.querySelectorAll('.hn-det .hd-l'), function (x) { return sinHijos(x, '.hd-sep'); }),
+          filas: Array.prototype.map.call(c.querySelectorAll('li'), function (li) {
+            return { cli: t(li.querySelector('.h-cli')), cant: t(li.querySelector('.h-cant')), desc: sinHijos(li.querySelector('.h-txt'), '.h-cant'),
+              sale: t(li.querySelector('.sale-tag .solo-cel')) || t(li.querySelector('.sale-tag')), agr: li.classList.contains('li-agr'),
+              extra: Array.prototype.filter.call(li.querySelectorAll('.badge'), function (b) { return !b.classList.contains('sale-tag') && !b.closest('.sale-tag') && !b.classList.contains('agr-tag'); }).map(t).join(' ') };
+          }) };
+      })
+    };
+  }
+  function hojaColorPDF(d) {
+    var L = window.PDFLib;
+    return L.PDFDocument.create().then(function (doc) {
+      return Promise.all([doc.embedFont(L.StandardFonts.Helvetica), doc.embedFont(L.StandardFonts.HelveticaBold)]).then(function (fs) {
+        var F = fs[0], FB = fs[1], AN = 595.28, AL = 841.89, M = 30, maxX = AN - M, pag, y, pags = [], cache = {};
+        var hex = function (h) { return L.rgb(parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255); };
+        var C = { tinta: hex('#1b2a38'), navy: hex('#17364a'), gris: hex('#6b7783'), linea: hex('#d5dee4'), blanco: hex('#ffffff'), fondo: hex('#f5f9fb'), borde: hex('#e1e8ec'),
+          raya: hex('#e3ecf1'), cliF: hex('#dcebf3'), cliT: hex('#2a6f8f'), punto: hex('#4aa3c4'), det: hex('#2f4a5a'), agr: hex('#fff4e0'), franja: hex(d.color), verde: hex('#2e7d3e'), azulT: hex('#1f6f9e') };
+        var REEMPLAZO = { '≈': '~', '✓': 'v', '✗': 'x', '→': '->', '↩': '' };
+        var lim = function (x) { return Array.from(String(x || '')).map(function (ch) { if (cache[ch] != null) return cache[ch]; var v = ch; try { F.encodeText(ch); } catch (e) { v = REEMPLAZO[ch] != null ? REEMPLAZO[ch] : '?'; } cache[ch] = v; return v; }).join(''); };
+        var an = function (fu, x, tm) { return fu.widthOfTextAtSize(lim(x), tm); };
+        var txt = function (x, xx, yy, tm, fu, co) { pag.drawText(lim(x), { x: xx, y: yy, size: tm, font: fu, color: co }); };
+        var partir = function (x, fu, tm, w) { var r = [], act = ''; lim(x).split(/\s+/).forEach(function (pa) { if (!pa) return; var pr = act ? act + ' ' + pa : pa; if (act && an(fu, pr, tm) > w) { r.push(act); act = pa; } else act = pr; }); if (act) r.push(act); return r.length ? r : ['']; };
+        var achicar = function (x, fu, tm, w, min) { while (tm > min && an(fu, x, tm) > w) tm -= 0.25; return tm; };
+        var piso = M + 18;
+        var nueva = function () { pag = doc.addPage([AN, AL]); pags.push(pag); y = AL - M; };
+        nueva();
+        // Encabezado: qué hoja es, el día y las medias o los kilos.
+        var cab = d.cab;
+        txt(cab.sup.toUpperCase(), M, y - 9, 9, FB, C.gris);
+        if (cab.estado) txt(cab.estado.toUpperCase(), maxX - an(FB, cab.estado.toUpperCase(), 8), y - 9, 8, FB, C.gris);
+        var dat = cab.dato.toUpperCase(), tD = 15, wD = dat ? an(FB, dat, tD) : 0, tit = cab.tit.toUpperCase(), tT = achicar(tit, FB, 19, maxX - M - wD - 16, 12);
+        y -= 30; txt(tit, M, y, tT, FB, C.tinta);
+        if (dat) { if (an(FB, tit, tT) + wD + 16 <= maxX - M) txt(dat, maxX - wD, y, tD, FB, C.tinta); else partir(dat, FB, 12, maxX - M).forEach(function (r) { y -= 16; txt(r, M, y, 12, FB, C.tinta); }); }
+        y -= 10; pag.drawLine({ start: { x: M, y: y }, end: { x: maxX, y: y }, thickness: 1.5, color: C.tinta }); y -= 10;
+        if (d.nota) { txt(d.nota, M, y - 12, 10.5, F, C.gris); y -= 22; }
+        // Columnas: recuadro del corte a la izquierda; a la derecha cliente | cantidad | detalle | sale.
+        var xIz = M + 10, wIz = 128, xR = xIz + wIz + 10, wCli = 106, wCant = 58, wSale = 64, tF = 10, tC = 10.5;
+        var xCant = xR + wCli + 6, xDesc = xCant + wCant, xSale = maxX - 4 - wSale, wDesc = xSale - xDesc - 6;
+        d.cortes.forEach(function (c) {
+          // Medidas: el recuadro y el desglose, y el alto de cada renglón (el detalle largo baja a otro renglón).
+          var nomL = partir(c.nom.toUpperCase(), FB, 12.5, wIz - 16), hBox = 10 + nomL.length * 14 + (c.tot ? 26 : 2);
+          var hDet = c.det.length ? 6 + c.det.length * 15 : 0, hIz = hBox + hDet;
+          var filas = c.filas.map(function (f) { var dl = partir([f.desc, f.extra].filter(Boolean).join(' · '), F, tF, wDesc); return { f: f, dl: dl, h: Math.max(1, dl.length) * 12 + 7 }; });
+          var i = 0, primero = true;
+          while (primero || i < filas.length) {
+            var hMin = primero ? Math.min(hIz, 60) + 16 : 40;
+            if (y - hMin < piso) nueva();
+            var y0 = y - 8, yy = y0, j = i, izq = primero ? hIz : 18;
+            while (j < filas.length && yy - filas[j].h >= piso + 6) { yy -= filas[j].h; j++; }
+            if (j === i && j < filas.length) { nueva(); continue; }
+            var hSeg = Math.max(y0 - yy, Math.min(izq, y0 - piso - 6)) + 16;
+            pag.drawRectangle({ x: M, y: y - hSeg, width: maxX - M, height: hSeg, color: C.fondo, borderColor: C.borde, borderWidth: 0.8 });
+            pag.drawRectangle({ x: M, y: y - hSeg, width: 4, height: hSeg, color: C.franja });
+            if (primero) {
+              var yb = y0 - hBox;
+              pag.drawRectangle({ x: xIz, y: yb, width: wIz, height: hBox, color: C.navy });
+              nomL.forEach(function (l, k) { txt(l, xIz + 8, y0 - 17 - k * 14, 12.5, FB, C.blanco); });
+              if (c.tot) { var yt = y0 - 10 - nomL.length * 14; txt('TOTAL', xIz + 8, yt - 9, 7, FB, C.blanco); txt(c.tot, xIz + 8, yt - 22, 13, FB, C.blanco); }
+              var yd = yb - 6;
+              c.det.forEach(function (x) { yd -= 15; pag.drawCircle({ x: xIz + 4, y: yd + 3.3, size: 2.2, color: C.punto }); txt(x, xIz + 11, yd, achicar(x, FB, 9.5, wIz - 12, 7), FB, C.det); pag.drawLine({ start: { x: xIz, y: yd - 4.5 }, end: { x: xIz + wIz, y: yd - 4.5 }, thickness: 0.6, color: C.linea }); });
+            } else txt(c.nom.toUpperCase() + ' (sigue)', xIz, y0 - 12, 9.5, FB, C.gris);
+            // Renglones: uno sombreado y otro no (lo agregado, en naranja clarito).
+            var yr = y0;
+            for (var k = i; k < j; k++) {
+              var r = filas[k], f = r.f, top = yr;
+              if (f.agr || (k % 2)) pag.drawRectangle({ x: xR - 4, y: top - r.h, width: maxX - xR, height: r.h, color: f.agr ? C.agr : C.raya });
+              var yl = top - 12;
+              if (f.cli) { var tCl = achicar(f.cli, FB, 9, wCli - 10, 6.5); pag.drawRectangle({ x: xR, y: yl - 3.5, width: wCli, height: 14, color: C.cliF }); txt(f.cli, xR + 5, yl, tCl, FB, C.cliT); }
+              if (f.cant) txt(f.cant, xCant, yl, achicar(f.cant, FB, tC, wCant - 4, 7), FB, C.tinta);
+              r.dl.forEach(function (l, m) { txt(l, xDesc, yl - m * 12, tF, F, C.tinta); });
+              if (f.sale) { var tS = achicar(f.sale, FB, 7.5, wSale - 8, 6); pag.drawRectangle({ x: xSale, y: yl - 3, width: wSale, height: 12.5, color: C.navy }); txt(f.sale, xSale + (wSale - an(FB, f.sale, tS)) / 2, yl, tS, FB, C.blanco); }
+              yr -= r.h;
+            }
+            y -= hSeg + 8; i = j; primero = false;
+          }
+        });
+        var ahora = new Date(), pie = 'Frigorífico Qualitá · ' + ahora.toLocaleDateString('es-AR') + ' ' + ahora.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+        pags.forEach(function (p, k) { p.drawText(lim(pie), { x: M, y: 18, size: 8, font: F, color: C.gris }); var pt = (k + 1) + ' / ' + pags.length; p.drawText(pt, { x: maxX - F.widthOfTextAtSize(pt, 8), y: 18, size: 8, font: F, color: C.gris }); });
+        doc.setTitle(lim(cab.sup + ' — ' + cab.tit)); doc.setCreator('Producción Qualitá');
+        return doc.save();
+      });
+    });
+  }
   function compartirPDF(hoja, btn, wa, nombre0) {
     if (!hoja || (btn && btn.disabled)) return;
     var dia = S.fecha || '';
@@ -1017,7 +1111,8 @@
     var txt0 = btn ? btn.textContent : ''; if (btn) { btn.disabled = true; btn.textContent = 'Armando el PDF…'; }
     var fin = function (m) { if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = txt0; } if (m) avisar(m, m.charAt(0) === '!' ? 7000 : 4000); };
     var salio = true;
-    return cargarScript('lib/pdf-lib.min.js').then(function () { return typeof hoja === 'function' ? hoja() : armarPDF(hoja); }).then(function (bytes) {
+    var color = wa && hoja.nodeType && hoja.querySelector('.hoja-corte .hn-box') && !hoja.classList.contains('op-hoja');
+    return cargarScript('lib/pdf-lib.min.js').then(function () { return typeof hoja === 'function' ? hoja() : color ? hojaColorPDF(hojaColorDatos(hoja)) : armarPDF(hoja); }).then(function (bytes) {
       var blob = new Blob([bytes], { type: 'application/pdf' }), file = null; try { file = new File([blob], nombre, { type: 'application/pdf' }); } catch (e) {}
       if (window.__mock) window.__mock.ultimoPDF = { nombre: nombre, blob: blob };
       // Celular, y también la compu cuando el navegador lo permite (Chrome 128+ en Mac/Windows): abre "Compartir" del sistema con el PDF,
