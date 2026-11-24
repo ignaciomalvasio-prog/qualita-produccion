@@ -1296,6 +1296,15 @@ input[data-h24]{width:6.2ch!important;min-width:6.2ch;text-align:center;font-var
 .hn-det .hd-l::before{content:"";position:absolute;left:2px;top:50%;width:6px;height:6px;margin-top:-3px;border-radius:50%;background:#4aa3c4}
 .hn-det .hd-sep{display:none}
 @media print{.hn-box{background:#fff!important;border:2px solid #000;padding:4px 8px}.hn-box h3,.hn-box .hoja-tot,.hn-box .hoja-tot span{color:#000!important}.hn-det{margin-top:4px}.hn-det .hd-l{font-size:12.5px;color:#000;padding:2px 2px 2px 12px;border-bottom-color:#999}.hn-det .hd-l::before{background:#000}}
+/* Producción en el celular: cada cliente en un solo renglón, con el día abreviado (pedido de Renzo, 24/11/2026). */
+.solo-cel{display:none}
+@media screen and (max-width:560px){
+  .sale-tag .solo-cel{display:inline}.sale-tag .no-cel{display:none}
+  #view-produccion .hoja-corte li{display:flex;flex-direction:row;align-items:baseline;gap:6px;white-space:nowrap;overflow:hidden}
+  #view-produccion .hoja-corte li .h-cli{flex:none;align-self:baseline;margin-right:0}
+  #view-produccion .hoja-corte li .h-txt{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+  #view-produccion .hoja-corte li .badge,#view-produccion .hoja-corte li .btn{flex:none}
+}
 </style>
 </head>
 <body>

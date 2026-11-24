@@ -834,7 +834,9 @@
   function saleTagHTML(l) {
     var e = l.e || (l.p && (pedidoDe(l.p) || {}).entrega) || '';
     if (!e) return '';
-    return ' <span class="badge sale-tag">SALE ' + esc(diaCorto(e).toUpperCase()) + '</span>';
+    // En el celular, el día abreviado (LUN, MAR, MIER, JUE, VIE) para que entre en un renglón (pedido de Renzo, 24/11/2026).
+    var x = String(e).split('-'), ab = { Lunes: 'LUN', Martes: 'MAR', 'Miércoles': 'MIER', Jueves: 'JUE', Viernes: 'VIE', 'Sábado': 'SÁB', Domingo: 'DOM' }[diaDe(e)] || diaDe(e).slice(0, 3).toUpperCase();
+    return ' <span class="badge sale-tag"><span class="no-cel">SALE ' + esc(diaCorto(e).toUpperCase()) + '</span><span class="solo-cel">SALE ' + ab + ' ' + (+x[2]) + '/' + (+x[1]) + '</span></span>';
   }
   // La planilla de un día, para leer (la de desposte o la de embutidos).
   function hojaHTML(o, f, c3, fae, agr) {
@@ -891,7 +893,7 @@
           r.push({ t: t, b: !!p.closest('b,strong,h3,.op-corte,.badge'), u: !!p.closest('u'), azul: !!p.closest('.op-cli,.h-cli'), gris: !!p.closest('.muted,.op-resto,.hoja-tot span') });
           return;
         }
-        if (nd.nodeType !== 1 || /^(BUTTON|SELECT|TEXTAREA|SCRIPT)$/.test(nd.tagName) || nd.hidden || nd.classList.contains('solo-print')) return;
+        if (nd.nodeType !== 1 || /^(BUTTON|SELECT|TEXTAREA|SCRIPT)$/.test(nd.tagName) || nd.hidden || nd.classList.contains('solo-print') || nd.classList.contains('solo-cel')) return;
         if (nd.classList.contains('h-cli') && !nd.classList.contains('vacio')) { r.push({ t: nd.textContent.trim(), b: true, azul: true }); r.push({ t: '  ' }); return; }
         if (r.length && /^(P|DIV|H3|LI)$/.test(nd.tagName)) r.push({ t: ' ' });
         for (var k = nd.firstChild; k; k = k.nextSibling) ir(k);
