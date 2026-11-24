@@ -729,8 +729,9 @@
   function unificarDet(corte, x) {
     var c = norm(corte), t = String(x || '');
     if (/^(SOLOMILLO|MATAMBRE|BONDIOLA)/.test(c)) return '';
-    if (/^PECHO/.test(c)) t = t.replace(/\bCOD(IGO)?\.?\s*211\b|\b211\b|\bMANTA\s+DOBLE\b|\bPECHO\b/gi, ' ');
-    if (/^CARRE/.test(c)) t = t.replace(/\bCOD(IGO)?\.?\s*271\b|\b271\b|\b(SIN|S\/)\s*HUESO\b|\b(SIN|S\/)\s*SOLOMILLO\b|\bCARR[EÉ]\b/gi, ' ');
+    t = t.replace(/\(\s*COD(IGO)?\.?\s*[\d\s]*\)|\bCOD(IGO)?\.?\s*\d+\b|\bDE\s+CERDO\b/gi, ' ').replace(/\(\s*\)/g, ' ');
+    if (/^PECHO/.test(c)) t = t.replace(/\b(CON\s+)?MANTA(\s+DOBLE)?\b|\bPECH(O|IT[OA])S?\b/gi, ' ');
+    if (/^CARRE/.test(c)) t = t.replace(/\bCOD(IGO)?\.?\s*271\b|\b271\b|\b(SIN|S\/)\s*HUESO\b|\b(SIN|S\/)\s*SOLOMILLO\b|\bCARR[EÉ]S?\b/gi, ' ');
     t = t.replace(/\s+/g, ' ').replace(/^[\s,.;:\-]+|[\s,.;:\-]+$/g, '').replace(/^Y\s+|\s+Y$/gi, '').trim();
     return /[A-Z0-9]/i.test(t) ? t : '';
   }
