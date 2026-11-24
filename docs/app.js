@@ -802,6 +802,9 @@
     return h;
   }
   // En embutidos, al lado de cada cliente el día que sale (entrega), para que la fábrica sepa cuándo producirlo (pedido de Renzo, 23/11/2026).
+  // Embutidos ordenados por día de salida: arriba los que salen primero (pedido de Renzo, 23/11/2026).
+  function salidaDe(l) { return l.e || (l.p && (pedidoDe(l.p) || {}).entrega) || '9999'; }
+  function porSalida(ls) { return ls.map(function (l, i) { return [l, i]; }).sort(function (a, b) { var x = salidaDe(a[0]), y = salidaDe(b[0]); return x < y ? -1 : x > y ? 1 : a[1] - b[1]; }).map(function (x) { return x[0]; }); }
   function saleTagHTML(l) {
     var e = l.e || (l.p && (pedidoDe(l.p) || {}).entrega) || '';
     if (!e) return '';
@@ -828,7 +831,7 @@
     else h += '<div class="hoja-cortes">' + (o.cortes || []).map(function (c) {
       var td = totalCorteDet(c), tot = td.kg != null ? n(td.kg) + ' kg' : '';
       var det = [td.det, td.sin ? (tot ? '+ ' : '') + td.sin : ''].filter(Boolean).join(' ');
-      return '<div class="hoja-corte"><div class="hoja-nom"><h3>' + esc(c.corte || 'Sin corte') + '</h3>' + (tot || det ? '<p class="hoja-tot"><span>Total</span> ' + esc(tot) + (det ? '<small class="hoja-det"> (' + esc(det) + ')</small>' : '') + '</p>' : '') + '</div><ul>' + c.lineas.map(function (l) {
+      return '<div class="hoja-corte"><div class="hoja-nom"><h3>' + esc(c.corte || 'Sin corte') + '</h3>' + (tot || det ? '<p class="hoja-tot"><span>Total</span> ' + esc(tot) + (det ? '<small class="hoja-det"> (' + esc(det) + ')</small>' : '') + '</p>' : '') + '</div><ul>' + (c3 ? porSalida(c.lineas) : c.lineas).map(function (l) {
         var kk = norm(c.corte) + '|' + norm(l.t); cu[kk] = (cu[kk] || 0) + 1; var es = base && cu[kk] > (base[kk] || 0);
         var man = !agr && im && S.editor && !es && (im.man || []).indexOf(kk) >= 0 ? ' <button class="btn agr-volver" data-act="agr-volver" data-doc="' + esc(docId) + '" data-k="' + esc(kk) + '" title="Lo sacaste de Agregado: volver a ponerlo">↩ Volver a Agregado</button>' : '';
         var ya = agr && !agr.d.ult && S.editor ? ' <button class="btn agr-ya" data-act="agr-ya" data-doc="' + esc(c._doc || docId) + '" data-k="' + esc(kk) + '" title="Ya lo había pasado: sacarlo de Agregado">✓ Ya lo tenía pasado</button>' : '';

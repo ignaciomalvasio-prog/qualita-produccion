@@ -2,7 +2,7 @@
 const {chromium}=require('playwright');const D='2026-11-24';
 const ped={a:{cliente:'BRACCO JAVIER',entrega:'2026-11-25',diaProd:D,medias:0,peso:'',nota:'',frio:'',origen:'manual',kg:'',camion:'',cuenta:'',cortes:[{k:'1',corte:'MORCILLA',texto:'1 CAJA MORCILLA'}]},
  b:{cliente:'ESLAVA',entrega:D,medias:0,peso:'',nota:'',frio:'',origen:'manual',kg:'',camion:'',cuenta:'',cortes:[{k:'1',corte:'CHORIZO',texto:'3 CAJAS CHORI'}]}};
-const data={faena:{},privado:{},config:{general:{feriados:[]}},pedidos:ped,produccion:{['c3-'+D]:{fecha:D,linea:'ciclo3',estado:'borrador',cortes:[{corte:'MORCILLA',lineas:[{t:'1 CAJA MORCILLA “BRACCO JAVIER”',p:'a',ck:'1'}]}]}}};
+const data={faena:{},privado:{},config:{general:{feriados:[]}},pedidos:ped,produccion:{['c3-'+D]:{fecha:D,linea:'ciclo3',estado:'borrador',cortes:[{corte:'MORCILLA',lineas:[{t:'1 CAJA MORCILLA “BRACCO JAVIER”',p:'a',ck:'1'}]},{corte:'CHORIZO',lineas:[{t:'5 CAJAS CHORI “RAMI”',e:'2026-11-26'}]}]}}};
 (async()=>{const b=await chromium.launch();const errs=[];const p=await b.newPage({viewport:{width:1366,height:900}});p.on('pageerror',e=>errs.push(e.message));
  await p.clock.install({time:new Date('2026-11-23T22:00:00-03:00')});
  await p.addInitScript(d=>{window.__mock={data:JSON.parse(JSON.stringify(d)),user:{email:'yo@x.com'},editores:['yo@x.com']}},data);
