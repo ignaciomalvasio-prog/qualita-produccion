@@ -2042,6 +2042,25 @@
     });
     t.reduce(function (pm, p) { return pm.then(function () { return aplicarMedias(p); }); }, Promise.resolve()).then(function () { if (t.length && !escribiendo()) render(); }, function () {});
   }
+  /* El mismo pedido anotado dos veces en la faena (pasó con Don Pedro, 25/11/2026, después del error de "Subir el camión"):
+     queda uno solo, el del día que le corresponde. Revisa desde el lunes de esta semana. */
+  function sinMediasRepetidas() {
+    if (!S.editor || S.solo || !S.faena || !S.pedidos) return;
+    var desde = lunesDe(hoy()), donde = {}, cambios = [], sems = {};
+    S.faena.forEach(function (sem) { if (sem.id < desde) return; (sem.dias || []).forEach(function (d, k) { (d.clientes || []).forEach(function (r, j) { if (r.pedido && +r.cant > 0) (donde[r.pedido] = donde[r.pedido] || []).push({ sem: sem.id, k: k, j: j, f: mas(sem.id, k) }); }); }); });
+    Object.keys(donde).forEach(function (pid) {
+      var l = donde[pid]; if (l.length < 2) return; var p = pedidoDe(pid), bien = p && esFechaOk(p.entrega) ? faenaDe(p) : null;
+      var queda = l.filter(function (x) { return x.f === bien; })[0] || l[0];
+      l.forEach(function (x) { if (x === queda) return; (sems[x.sem] = sems[x.sem] || []).push(x); });
+    });
+    Object.keys(sems).forEach(function (id) {
+      var sem = S.faena.filter(function (x) { return x.id === id; })[0], x = clone(sem); delete x.id;
+      sems[id].forEach(function (q) { x.dias[q.k].clientes[q.j] = null; });
+      x.dias.forEach(function (d) { d.clientes = d.clientes.filter(Boolean); });
+      var sl = limpiarSemana(x); S.faena = poner(S.faena, id, sl); cambios.push(store.set('faena', id, sl));
+    });
+    if (cambios.length) Promise.all(cambios).then(function () { renderDatos(); }, function () {});
+  }
   var mediasConciliadas = false;
   function conciliarMedias() {
     if (mediasConciliadas || !S.editor || !S.faena || !S.pedidos) return;
@@ -5922,7 +5941,7 @@
       renderDatos();
     }
     var fallo = function () { if (!got.faena || !got.prod) { var c = cache(true); if (c && c.produccion) aplicar(c, 'cache'); else S.status = 'error'; render(); } };
-    store.sub('faena', function (l) { if (S.fuente === 'respaldo' && !l.length) return; S.faena = ordenar(l.map(function (x) { x.desde = x.desde || x.id; return x; })); llego('faena'); conciliarMedias(); reubicarMedias(); }, fallo);
+    store.sub('faena', function (l) { if (S.fuente === 'respaldo' && !l.length) return; S.faena = ordenar(l.map(function (x) { x.desde = x.desde || x.id; return x; })); llego('faena'); conciliarMedias(); reubicarMedias(); sinMediasRepetidas(); }, fallo);
     store.sub('produccion', function (l) { if (S.fuente === 'respaldo' && !l.length) return; S.prod = ordenar(l.map(function (x) { x.fecha = x.fecha || x.id; return x; })); llego('prod'); migrarPecho(); moverPorFeriado(); opSyncLuego(); }, fallo);
     // config: 'general', 'rendering2', la logística de los últimos 45 días (y lo que viene) y el rendering de los últimos 150 días.
     var hace = function (n) { var d = new Date(); d.setDate(d.getDate() - n); return iso(d); };
@@ -5957,7 +5976,7 @@
           if (S.fuente === 'respaldo' || vacia) traer();
           if (!suscripto) {
             suscripto = true;
-            store.sub('pedidos', function (l) { S.pedidos = ordenar(l.filter(function (x) { return !pedidoVacio2(x); })); conciliarLog(); renderDatos(); conciliarMedias(); reubicarMedias(); migrarPecho(); moverPorFeriado(); opSyncLuego(); });
+            store.sub('pedidos', function (l) { S.pedidos = ordenar(l.filter(function (x) { return !pedidoVacio2(x); })); conciliarLog(); renderDatos(); conciliarMedias(); reubicarMedias(); sinMediasRepetidas(); migrarPecho(); moverPorFeriado(); opSyncLuego(); });
             store.sub('ventas', function (l) { var antes = ventasPendientes(true).length; S.ventas = l; if (antes !== ventasPendientes(true).length && (S.tab === 'pedidos' || S.tab === 'inicio')) renderDatos(); });
             store.sub('privado', function (l) {
               var fl = {}, antesF = JSON.stringify(S.fletes || {});

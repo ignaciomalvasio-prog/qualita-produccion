@@ -472,3 +472,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - (25/11/2026) Arreglo: "Subir/Bajar el camión" en Logística mandaba los pedidos del camión a un día inválido y se perdían (dos funciones con el mismo nombre). Los pedidos que quedaron así vuelven solos a su camión y día; si no se encuentra el camión, Logística los muestra arriba para recuperarlos eligiendo el día.
 - (25/11/2026) Camiones con "PRIMER VIAJE", "SEGUNDO VIAJE"… del mismo nombre van juntos y en orden (y se suben/bajan juntos).
 - (25/11/2026) Imprimir en Producción sale igual que el PDF de WhatsApp (a color, en filas).
+- (25/11/2026) Medias: si el mismo pedido quedó anotado dos veces en la faena (pasó con Don Pedro), queda uno solo, en el día que le corresponde.
