@@ -543,7 +543,8 @@
   function esEmbutido(c) { var t = norm((c.corte || '') + ' ' + (c.texto || '')); return norm(c.corte) === 'EMBUTIDOS' || /CHORIZ|MORCILL|SALCHICH/.test(t); }
   // Día de producción del pedido: el que eligió Renzo en el pedido (mismo día de la entrega o antes), si no el de siempre.
   function prodDiaPedido(p) { return p.diaProd && p.diaProd <= p.entrega && p.diaProd >= mas(p.entrega, -10) ? p.diaProd : diaProdPara(p.entrega); }
-  function idPara(p, c) { return (esEmbutido(c) ? 'c3-' : '') + prodDiaPedido(p); }
+  // Si el corte va a la Orden de producción de un día, en empaque va el mismo día (pedido de Renzo, 25/11/2026: que vayan de la mano).
+  function idPara(p, c) { return esEmbutido(c) ? 'c3-' + prodDiaPedido(p) : (c && c.op) || prodDiaPedido(p); }
   // En Ciclo III los renglones se agrupan por producto: chorizo, morcilla o salchicha.
   function corteC3(c) { var t = norm((c.texto || '') + ' ' + (c.corte || '')); return /CHORIZ/.test(t) ? 'CHORIZO' : /MORCILL/.test(t) ? 'MORCILLA' : /SALCHICH/.test(t) ? 'SALCHICHA' : 'EMBUTIDOS'; }
   function prodGuardada(f) { return (S.prod || []).filter(function (o) { return o.id === f; })[0] || null; }
@@ -632,6 +633,9 @@
     if (!S.editor || S.solo || !S.pedidos || !S.prod || S.ep) return;
     // Solo lo que Renzo manda a la orden con su botón "Orden de producción" en cada corte, al día que eligió (pedido de Renzo, 22/11/2026).
     var h = hoy(), quiero = {}, docs = {}, enP = enProduccion();
+    // Lo ya sumado a empaque en otro día que el de su orden pasa al día de la orden (pedido de Renzo, 25/11/2026).
+    var mover = (S.pedidos || []).filter(function (p) { return cortesDe(p).some(function (c) { var f = c.op && !esEmbutido(c) && fechaProdDe(enP, p, c); return f && !esC3(f) && f !== c.op && f >= h && c.op >= h; }); });
+    if (mover.length) { Promise.all(mover.map(function (p) { return revincularProduccion(p, p); })).then(opSyncLuego, function () {}); return; }
     (S.pedidos || []).forEach(function (p) {
       if (!p.entrega) return;
       cortesDe(p).forEach(function (c) { var dia = c.texto && c.op; if (!dia || dia < h) return; quiero[p.id + '|' + c.k] = { dia: dia, corte: opLineaDe(c), t: String(textoProd(p, c)).toUpperCase().replace(/\s+/g, ' ').trim(), p: p.id, ck: c.k }; });
@@ -2044,7 +2048,7 @@
     (p.cortes || []).forEach(function (c) {
       if (!estaban[c.k] || !c.texto) return;
       var idp = idPara(p, c), x = tocadas[idp] || clone(prodGuardada(idp) || prodVacia(idp));
-      insertarLinea(x, esC3(idp) ? corteC3(c) : c.corte, textoProd(p, c), p.id, c.k, c.frio || p.frio); tocadas[idp] = x;
+      insertarLinea(x, esC3(idp) ? corteC3(c) : c.corte, textoProd(p, c), p.id, c.k, c.frio || p.frio, p.entrega); tocadas[idp] = x;
     });
     return Promise.all(Object.keys(tocadas).map(function (f) { return guardarOrden(f, tocadas[f], true); }));
   }
@@ -2072,8 +2076,10 @@
     var p = pedidoDe(id); if (!p) return Promise.resolve();
     var doc = clone(p); delete doc.id;
     doc.cortes = cortesDe(doc).map(function (c) { if (c.k === k) { if (f) c.op = f; else delete c.op; } return c; });
+    var antes = clone(p), nu = clone(doc); nu.id = id;
     S.pedidos = poner(S.pedidos, id, doc);
-    return store.set('pedidos', id, doc).then(function () { opSyncLuego(); });
+    // Si ya estaba en empaque, pasa al mismo día de la orden.
+    return store.set('pedidos', id, doc).then(function () { return revincularProduccion(nu, antes); }).then(function () { opSyncLuego(); });
   }
   function diaProdSelHTML(p) {
     var act = prodDiaPedido(p), ops = [p.entrega], d = p.entrega;
