@@ -1046,7 +1046,7 @@
         var F = fs[0], FB = fs[1], AN = 595.28, AL = 841.89, M = 30, maxX = AN - M, pag, y, pags = [], cache = {};
         var hex = function (h) { return L.rgb(parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255); };
         var C = { tinta: hex('#1b2a38'), navy: hex('#17364a'), gris: hex('#6b7783'), linea: hex('#d5dee4'), blanco: hex('#ffffff'), fondo: hex('#f5f9fb'), borde: hex('#e1e8ec'),
-          raya: hex('#e3ecf1'), cliF: hex('#dcebf3'), cliT: hex('#2a6f8f'), punto: hex('#4aa3c4'), det: hex('#2f4a5a'), agr: hex('#fff4e0'), franja: hex(d.color), verde: hex('#2e7d3e'), azulT: hex('#1f6f9e') };
+          raya: hex('#e3ecf1'), cliF: hex('#dcebf3'), cliT: hex('#2a6f8f'), punto: hex('#4aa3c4'), det: hex('#2f4a5a'), agr: hex('#fff4e0'), franja: hex('#4aa3c4'), verde: hex('#2e7d3e'), azulT: hex('#1f6f9e') };
         var REEMPLAZO = { '≈': '~', '✓': 'v', '✗': 'x', '→': '->', '↩': '' };
         var lim = function (x) { return Array.from(String(x || '')).map(function (ch) { if (cache[ch] != null) return cache[ch]; var v = ch; try { F.encodeText(ch); } catch (e) { v = REEMPLAZO[ch] != null ? REEMPLAZO[ch] : '?'; } cache[ch] = v; return v; }).join(''); };
         var an = function (fu, x, tm) { return fu.widthOfTextAtSize(lim(x), tm); };
@@ -1055,6 +1055,8 @@
         var achicar = function (x, fu, tm, w, min) { while (tm > min && an(fu, x, tm) > w) tm -= 0.25; return tm; };
         var piso = M + 18;
         var nueva = function () { pag = doc.addPage([AN, AL]); pags.push(pag); y = AL - M; };
+        var lista = Array.isArray(d) ? d : [d], d0 = lista[0];
+        lista.forEach(function (d) {
         nueva();
         // Encabezado: qué hoja es, el día y las medias o los kilos.
         var cab = d.cab;
@@ -1082,7 +1084,7 @@
             if (j === i && j < filas.length) { nueva(); continue; }
             var hSeg = Math.max(y0 - yy, Math.min(izq, y0 - piso - 6)) + 16;
             pag.drawRectangle({ x: M, y: y - hSeg, width: maxX - M, height: hSeg, color: C.fondo, borderColor: C.borde, borderWidth: 0.8 });
-            pag.drawRectangle({ x: M, y: y - hSeg, width: 4, height: hSeg, color: C.franja });
+            pag.drawRectangle({ x: M, y: y - hSeg, width: 4, height: hSeg, color: hex(d.color || '#4aa3c4') });
             if (primero) {
               var yb = y0 - hBox;
               pag.drawRectangle({ x: xIz, y: yb, width: wIz, height: hBox, color: C.navy });
@@ -1106,9 +1108,10 @@
             y -= hSeg + 8; i = j; primero = false;
           }
         });
+        });
         var ahora = new Date(), pie = 'Frigorífico Qualitá · ' + ahora.toLocaleDateString('es-AR') + ' ' + ahora.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
         pags.forEach(function (p, k) { p.drawText(lim(pie), { x: M, y: 18, size: 8, font: F, color: C.gris }); var pt = (k + 1) + ' / ' + pags.length; p.drawText(pt, { x: maxX - F.widthOfTextAtSize(pt, 8), y: 18, size: 8, font: F, color: C.gris }); });
-        doc.setTitle(lim(cab.sup + ' — ' + cab.tit)); doc.setCreator('Producción Qualitá');
+        doc.setTitle(lim(d0.cab.sup + ' — ' + d0.cab.tit)); doc.setCreator('Producción Qualitá');
         return doc.save();
       });
     });
@@ -1176,7 +1179,9 @@
   function imprimirPDF(hojas, btn, opc) {
     var txt0 = btn ? btn.textContent : ''; if (btn) { btn.disabled = true; btn.textContent = 'Preparando…'; }
     var fin = function (m) { if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = txt0; } if (m) avisar(m, 7000); };
-    return cargarScript('lib/pdf-lib.min.js').then(function () { return armarPDF(hojas, opc); }).then(function (bytes) {
+    // Producción se imprime igual que el PDF de WhatsApp, a color (pedido de Renzo, 25/11/2026).
+    var color = hojas.length && hojas.every(function (h) { return h.nodeType && h.querySelector('.hoja-corte .hn-box') && !h.classList.contains('op-hoja'); });
+    return cargarScript('lib/pdf-lib.min.js').then(function () { return color ? hojaColorPDF(hojas.map(hojaColorDatos)) : armarPDF(hojas, opc); }).then(function (bytes) {
       var blob = new Blob([bytes], { type: 'application/pdf' }), u = URL.createObjectURL(blob);
       if (window.__mock) { window.__mock.ultimoPDF = { nombre: 'imprimir', blob: blob }; fin(); return true; }
       var fr = $('marco-impresion'); if (fr) fr.remove();
@@ -2267,7 +2272,7 @@
   }
   function logDe(f) { return (S.log || {})[f] || (S.logHist || {})[f] || null; }
   // Siempre por horario: los que no tienen hora arriba y el resto por hora (pedido de Renzo, 23/11/2026).
-  function camionesDe(f) { var l = logDe(f), c = (l && l.camiones) || []; return c.some(function (x) { return x.hora; }) ? porHorario(c) : c; }
+  function camionesDe(f) { var l = logDe(f), c = (l && l.camiones) || []; return c.some(function (x) { return x.hora; }) ? porHorario(c) : juntarViajes(c); }
   // El número de camión lo pone Renzo (no se numera solo); sin nombre, el camión se llama por su número.
   // El nombre se muestra tal cual lo puso Renzo, sin la palabra "Camión" adelante.
   function nomLimpio(x) { var s = String(x || '').trim(), r = s.replace(/^cami[oó]n\b[\s:.\-]*/i, '').trim(); return /[A-ZÁÉÍÓÚÑ]/i.test(r) ? r : s; }
@@ -2326,8 +2331,36 @@
     return '<span class="log-pre-ed">' + inp('iva', sin, '$/kg sin IVA') + inp('final', fin, '$/kg final' + (tasa === IVA_EMB ? ' (IVA 21%)' : '')) + '</span>';
   }
   // Si lo publicado no coincide con los pedidos (por ejemplo, pedidos cargados antes de que existiera Logística), se vuelve a publicar.
+  /* Pedidos que quedaron sin día por el error de "Subir el camión" (25/11/2026): se buscan en el camión donde estaban
+     (su orden guarda el pedido) y vuelven a ese día y a ese camión. Si no se encuentra el camión, se avisan en Logística. */
+  function esFechaOk(f) { return typeof f === 'string' && /^\d{4}-\d\d-\d\d$/.test(f); }
+  function repararPerdidos() {
+    var perd = (S.pedidos || []).filter(function (p) { return !esFechaOk(p.entrega); }); S.perdidos = [];
+    if (!perd.length) return;
+    var logs = logsTodos();
+    perd.forEach(function (p) {
+      var f = null, cam = null;
+      Object.keys(logs).sort().reverse().some(function (d) { return (logs[d].camiones || []).some(function (c) { if ((c.orden || []).indexOf(p.id) >= 0) { f = d; cam = c.id; return true; } }); });
+      if (!f) { S.perdidos.push(p); return; }
+      if (S._reparando && S._reparando[p.id]) return; (S._reparando = S._reparando || {})[p.id] = 1;
+      var doc = clone(p); delete doc.id; doc.entrega = f; doc.camion = cam; S.pedidos = poner(S.pedidos, p.id, doc);
+      store.set('pedidos', p.id, doc).then(function () { avisar('Se recuperó el pedido de ' + (p.cliente || '') + ' en su camión (' + diaCorto(f).toLowerCase() + ').', 6000); publicarLog(f).then(renderDatos, function () {}); }, function () {});
+    });
+  }
+  function recuperarPedido(id, f) {
+    var p = pedidoDe(id); if (!p || !esFechaOk(f)) return Promise.resolve();
+    var doc = clone(p); delete doc.id; doc.entrega = f; doc.camion = ''; S.pedidos = poner(S.pedidos, id, doc);
+    return store.set('pedidos', id, doc).then(function () { return publicarLog(f); });
+  }
+  function perdidosHTML() {
+    var l = (S.perdidos || []); if (!l.length || !S.editor || S.solo) return '';
+    return '<div class="panel perdidos"><p><b>⚠ Pedidos que quedaron sin día</b> (por un error al subir un camión). Elegí el día y tocá Recuperar:</p>' + l.map(function (p) {
+      return '<p class="perd-l"><b>' + esc(p.cliente || 'Sin nombre') + '</b> <span class="small muted">' + esc(resumenLog([p])) + '</span> <input type="date" id="perd-' + esc(p.id) + '" value="' + esc(S.fl || hoy()) + '"> <button class="btn pri sm" data-act="perd-rec" data-id="' + esc(p.id) + '">Recuperar</button></p>';
+    }).join('') + '</div>';
+  }
   function conciliarLog() {
     if (!S.editor || !S.pedidos || !S.logListo) return;
+    repararPerdidos();
     var desde = habilAnterior(hoy()), porFecha = {};
     S.pedidos.forEach(function (p) { if (p.entrega && p.entrega >= desde) (porFecha[p.entrega] = porFecha[p.entrega] || []).push(p.id); });
     Object.keys(S.log || {}).forEach(function (f) { if (f >= desde && !porFecha[f]) porFecha[f] = []; });
@@ -2377,20 +2410,38 @@
     return publicarLog(f, cams).then(tocar);
   }
   // Los camiones se ordenan por hora de salida; los que no tienen hora quedan arriba, en el orden que tenían.
+  /* Viajes del mismo camión: "LOVAIZA PRIMER VIAJE", "LOVAIZA SEGUNDO VIAJE"… van juntos y en orden (pedido de Renzo, 25/11/2026). */
+  var VIAJES = [/\b(PRIMER|PRIMERO|1ER|1RO|1°|1º|1)\s*VIAJE\b/, /\b(SEGUNDO|2DO|2°|2º|2)\s*VIAJE\b/, /\b(TERCER|TERCERO|3ER|3RO|3°|3º|3)\s*VIAJE\b/, /\b(CUARTO|4TO|4°|4º|4)\s*VIAJE\b/, /\b(QUINTO|5TO|5°|5º|5)\s*VIAJE\b/];
+  function viajeDe(c) { var t = String(c.nombre || '').toUpperCase(); for (var i = 0; i < VIAJES.length; i++) if (VIAJES[i].test(t)) return { n: i + 1, base: norm(t.replace(VIAJES[i], ' ')).replace(/[^A-Z0-9]+/g, ' ').trim() }; return null; }
+  function juntarViajes(cams) {
+    if (!cams.some(viajeDe)) return cams;
+    var r = [], ya = {};
+    cams.forEach(function (c) {
+      if (ya[c.id]) return; var v = viajeDe(c);
+      if (!v) { r.push(c); ya[c.id] = 1; return; }
+      cams.filter(function (x) { var w = viajeDe(x); return w && w.base === v.base && !ya[x.id]; }).sort(function (a, b) { return viajeDe(a).n - viajeDe(b).n; }).forEach(function (x) { r.push(x); ya[x.id] = 1; });
+    });
+    return r;
+  }
   function porHorario(cams) {
     return cams.map(function (c, i) { return [c, i]; }).sort(function (a, b) {
       var ha = a[0].hora || '', hb = b[0].hora || '';
       if (ha && hb && ha !== hb) return ha < hb ? -1 : 1;
       if (!!ha !== !!hb) return ha ? 1 : -1;   // los que no tienen hora, arriba, para ponérsela (pedido de Renzo, 23/11/2026)
+      var va = viajeDe(a[0]), vb = viajeDe(b[0]); if (va && vb && va.base === vb.base) return va.n - vb.n;
       return a[1] - b[1];
     }).map(function (x) { return x[0]; });
   }
   // Cambia de lugar un camión en la lista del día (el orden en que se muestran e imprimen).
   function moverCamion(f, id, dir) {
-    var cams = clone(camionesDe(f)), i = cams.map(function (c) { return c.id; }).indexOf(id), j = i + dir;
-    if (i < 0 || j < 0 || j >= cams.length) return Promise.resolve();
-    cams.splice(j, 0, cams.splice(i, 1)[0]);
-    return publicarLog(f, cams).then(tocar);
+    if (dir !== 1 && dir !== -1) return Promise.resolve();
+    // Los viajes del mismo camión se mueven juntos (van siempre uno después del otro).
+    var cams = clone(camionesDe(f)), bl = [];
+    cams.forEach(function (c) { var v = viajeDe(c), u = bl[bl.length - 1], vu = u && viajeDe(u[u.length - 1]); if (v && vu && v.base === vu.base) u.push(c); else bl.push([c]); });
+    var i = -1; bl.forEach(function (x, k) { if (x.some(function (c) { return c.id === id; })) i = k; }); var j = i + dir;
+    if (i < 0 || j < 0 || j >= bl.length) return Promise.resolve();
+    bl.splice(j, 0, bl.splice(i, 1)[0]);
+    return publicarLog(f, [].concat.apply([], bl)).then(tocar);
   }
   var tFlota = null;
   function feriadosHTML() {
@@ -3392,7 +3443,9 @@
     while (ops.length < 8) { if (f !== S.pd) ops.push(f); f = habilSiguiente(f); }
     return '<select class="cam-dia" data-cam-dia="' + esc(camId) + '" aria-label="Pasar el camión a otro día"><option value="">Pasar a otro día…</option>' + ops.map(function (x) { return '<option value="' + x + '">' + esc(diaCorto(x)) + (x === hoy() ? ' (hoy)' : x === mas(hoy(), 1) ? ' (mañana)' : '') + (esFeriado(x) ? ' · feriado' : '') + '</option>'; }).join('') + '</select>';
   }
-  function moverCamion(f, camId, g) {
+  // Pasar un camión entero a otro día. Antes se llamaba igual que moverCamion (subir/bajar) y la pisaba: "Subir el camión"
+  // mandaba los pedidos al día "-1" y se perdían (arreglado el 25/11/2026).
+  function moverCamionDia(f, camId, g) {
     var c = camionesDe(f).filter(function (x) { return x.id === camId; })[0]; if (!c || !g || g === f) return Promise.resolve();
     var o = c.orden || [], peds = (S.pedidos || []).filter(function (p) { return p.entrega === f && p.camion === camId; }).sort(function (a, b) { var i = o.indexOf(a.id), j = o.indexOf(b.id); return (i < 0 ? 1e6 : i) - (j < 0 ? 1e6 : j); });
     var ids = peds.map(function (p) { return p.id; });
@@ -3842,6 +3895,7 @@
     h += '<div class="pd-busca"><input type="search" id="lg-buscar" value="' + esc(S.lgBuscar || '') + '" placeholder="Buscar cliente" aria-label="Buscar un cliente en Logística (en todos los días)" autocomplete="off">'
       + '<input type="search" id="lg-cam-buscar" value="' + esc(S.lgCamBuscar || '') + '" placeholder="Buscar camión" aria-label="Buscar un camión en Logística" autocomplete="off">'
       + (S.lgBuscar || S.lgCamBuscar ? '<button class="btn sm" data-act="lbusq-limpiar">Borrar búsqueda</button>' : '') + '</div>';
+    h += perdidosHTML();
     if (String(S.lgBuscar || '').trim() || String(S.lgCamBuscar || '').trim()) { el.innerHTML = h + buscarLogHTML(String(S.lgBuscar || '').trim() ? S.lgBuscar : S.lgCamBuscar, !String(S.lgBuscar || '').trim()); return; }
     if (!peds.length && !cams.length) {
       h += '<div class="panel"><p class="state">No hay pedidos para entregar este día.</p>' + (S.editor ? '<div class="acciones" style="justify-content:center"><button class="btn pri" data-act="ir-pedidos" data-f="' + f + '">Ir a los pedidos de este día</button></div>' : '') + '</div>';
@@ -5197,6 +5251,7 @@
     else if (a === 'pcam-borrar') { if (!confirma('pcam-borrar' + D.i)) { renderPedidos(); return; } S.pec = null; borrarCamion(S.pd, D.i).then(function () { avisar('Camión borrado. Sus clientes quedaron sin camión.', 4000); renderPedidos(); }, function () { avisar('!No se pudo borrar. Revisá la conexión.', 6000); renderPedidos(); }); }
 
     else if (a === 'cam-por-hora') { publicarLog(S.fl, porHorario(clone(camionesDe(S.fl)))).then(function () { tocar(); render(); }, function () { S.msg.log = '!No se pudo guardar.'; render(); }); }
+    else if (a === 'perd-rec') { var fpr = ($('perd-' + D.id) || {}).value; recuperarPedido(D.id, fpr).then(function () { S.perdidos = (S.perdidos || []).filter(function (x) { return x.id !== D.id; }); avisar('Pedido recuperado. Ahora ponelo en su camión.', 5000); S.fl = fpr; render(); }, function () { avisar('!No se pudo recuperar. Revisá la conexión.', 6000); }); }
     else if (a === 'camion-subir' || a === 'camion-bajar') { moverCamion(S.fl, D.id, a === 'camion-subir' ? -1 : 1).then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); }
     else if (a === 'cam-guardar') { var idc = S.ec; S.ec = null; cambiarCamion(S.fl, idc, S.ecNombre, S.ecNota, S.ecKg, S.ecNum || '', h24(S.ecHora)).then(render, function () { S.msg.log = '!No se pudo guardar.'; render(); }); render(); }
     else if (a === 'cam-borrar') { if (!confirma('cam-borrar' + D.i)) { render(); return; } S.ec = null; borrarCamion(S.fl, D.i).then(render, function () { S.msg.log = '!No se pudo borrar.'; render(); }); render(); }
@@ -5517,7 +5572,7 @@
     }
     else if (D.camDia && t.value) {
       var gcd = t.value, fcd = S.pd; cerrarMenus(); avisar('Pasando el camión…', 2000);
-      moverCamion(fcd, D.camDia, gcd).then(function (r) { S.pd = gcd; avisar((r ? r.nombre + ' con ' + r.n + (r.n === 1 ? ' cliente' : ' clientes') : 'El camión') + ' pasó al ' + diaCorto(gcd).toLowerCase() + '.', 5000); render(); }, function () { avisar('!No se pudo pasar el camión. Revisá la conexión.', 6000); render(); });
+      moverCamionDia(fcd, D.camDia, gcd).then(function (r) { S.pd = gcd; avisar((r ? r.nombre + ' con ' + r.n + (r.n === 1 ? ' cliente' : ' clientes') : 'El camión') + ' pasó al ' + diaCorto(gcd).toLowerCase() + '.', 5000); render(); }, function () { avisar('!No se pudo pasar el camión. Revisá la conexión.', 6000); render(); });
     }
     else if (D.rubro && t.value) {
       guardarRubro(D.rubro, D.k, t.value).then(function () { avisar('Corte cambiado a ' + t.value + '.', 2500); render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); render(); });

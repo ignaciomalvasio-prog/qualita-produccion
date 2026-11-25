@@ -469,3 +469,6 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Centro de desposte (Sabi 25/11): se saca la descarga automática diaria de la DDJJ de desposte (tarea "DDJJ Excel diario"); dj_pedido.ps1 la borra de la PC. Los Excel los descarga Sabi con los botones (van a la carpeta DDJJ).
 - (25/11/2026) Orden de producción y empaque de la mano: si un corte va a la orden de un día, en empaque va ese mismo día (y lo ya sumado se mueve).
 - (25/11/2026) Cuadro "¿Pedido?" en la compu: abajo al medio y se puede arrastrar desde ⠿ a donde uno quiera (queda guardado; doble clic lo vuelve abajo al medio).
+- (25/11/2026) Arreglo: "Subir/Bajar el camión" en Logística mandaba los pedidos del camión a un día inválido y se perdían (dos funciones con el mismo nombre). Los pedidos que quedaron así vuelven solos a su camión y día; si no se encuentra el camión, Logística los muestra arriba para recuperarlos eligiendo el día.
+- (25/11/2026) Camiones con "PRIMER VIAJE", "SEGUNDO VIAJE"… del mismo nombre van juntos y en orden (y se suben/bajan juntos).
+- (25/11/2026) Imprimir en Producción sale igual que el PDF de WhatsApp (a color, en filas).
