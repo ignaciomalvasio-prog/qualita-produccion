@@ -1191,11 +1191,32 @@
   function pasadoDe(f) { var d = (S.pasados || {})[f]; return d || {}; }
   function pasadoHTML(f) {
     if (!S.editor || S.solo) return '';
+    moverPasado();
     var d = pasadoDe(f);
-    return '<aside class="pasado-box" aria-label="¿Ya está pedido?"><p class="pasado-tit">¿Pedido?</p>' + PASADOS.map(function (x) {
+    // Abajo al medio; se puede arrastrar desde ⠿ a donde quiera Renzo y queda ahí (doble clic: vuelve abajo al medio) (pedido de Renzo, 25/11/2026).
+    var ps = null; try { ps = JSON.parse(localStorage.getItem('pasadoPos') || 'null'); } catch (e) {}
+    var st = ps && innerWidth > 560 ? ' style="left:' + Math.max(0, Math.min(innerWidth - 120, ps.x)) + 'px;top:' + Math.max(0, Math.min(innerHeight - 60, ps.y)) + 'px;bottom:auto;transform:none"' : '';
+    return '<aside class="pasado-box" aria-label="¿Ya está pedido?"' + st + '><span class="pasado-mover" title="Arrastrá para moverlo · doble clic: vuelve abajo al medio">⠿</span><p class="pasado-tit">¿Pedido?</p>' + PASADOS.map(function (x) {
       var ok = !!d[x[0]];
       return '<button class="pasado-b ' + (ok ? 'si' : 'no') + '" data-act="pasado" data-f="' + f + '" data-k="' + x[0] + '" aria-pressed="' + ok + '" title="Tocá para cambiar">' + '<span class="t">' + x[1] + '</span><span class="e">' + (ok ? '✓ Pedido' : '✗ No pedido') + '</span></button>';
     }).join('') + '</aside>';
+  }
+  function moverPasado() {
+    if (moverPasado.ok) return; moverPasado.ok = true;
+    var arr = null;
+    document.addEventListener('pointerdown', function (e) {
+      var h = e.target.closest && e.target.closest('.pasado-mover'); if (!h) return;
+      var b = h.parentNode, r = b.getBoundingClientRect(); arr = { b: b, dx: e.clientX - r.left, dy: e.clientY - r.top }; e.preventDefault();
+    });
+    document.addEventListener('pointermove', function (e) {
+      if (!arr) return; var b = arr.b, x = Math.max(0, Math.min(innerWidth - b.offsetWidth, e.clientX - arr.dx)), y = Math.max(0, Math.min(innerHeight - b.offsetHeight, e.clientY - arr.dy));
+      b.style.left = x + 'px'; b.style.top = y + 'px'; b.style.bottom = 'auto'; b.style.transform = 'none'; arr.x = x; arr.y = y;
+    });
+    document.addEventListener('pointerup', function () { if (!arr) return; if (arr.x != null) try { localStorage.setItem('pasadoPos', JSON.stringify({ x: Math.round(arr.x), y: Math.round(arr.y) })); } catch (e) {} arr = null; });
+    document.addEventListener('dblclick', function (e) {
+      var h = e.target.closest && e.target.closest('.pasado-mover'); if (!h) return;
+      try { localStorage.removeItem('pasadoPos'); } catch (er) {} var b = h.parentNode; b.style.left = b.style.top = b.style.bottom = b.style.transform = '';
+    });
   }
   function renderProduccion() {
     var solo3 = S.solo === 'ciclo3', el = $(solo3 ? 'view-ciclo3' : 'view-produccion');
