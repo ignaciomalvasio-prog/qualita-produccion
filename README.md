@@ -466,3 +466,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - (24/11/2026) Planilla de producción: filas rayadas (una sombreada y otra no), como en Pedidos.
 - (24/11/2026) PDF por WhatsApp de la planilla de producción a color, como se ve en la app: recuadro del corte con total, desglose y un renglón por cliente con SALE, rayado. Imprimir sigue igual.
 - (24/11/2026) Faena: entraña vuelve a la planilla de faena; se suman pericardio, hocico y recorte de cabeza (un "recorte" que dice "de cabeza" pasa a RECORTE DE CABEZA).
+- Centro de desposte (Sabi 25/11): se saca la descarga automática diaria de la DDJJ de desposte (tarea "DDJJ Excel diario"); dj_pedido.ps1 la borra de la PC. Los Excel los descarga Sabi con los botones (van a la carpeta DDJJ).
