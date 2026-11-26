@@ -5037,6 +5037,7 @@
     }
 
     // medias
+    else if (a === 'fm') { var ym = S.fm || fmInicial(); do { ym = mas(ym, +D.d); } while (!esHabil(ym)); S.fm = ym; S.mdEdit = false; render(); }   // flechas ‹ › de Medias (se había perdido, 26/11/2026)
     else if (a === 'fm-ir') { S.fm = D.f; render(); }
     else if (a === 'm-semana' || a === 'm-editar-dia') {
       S.mv = 'semana'; S.sem = lunesDe(S.fm); S.dia = Math.round((fecha(S.fm) - fecha(S.sem)) / 86400000);

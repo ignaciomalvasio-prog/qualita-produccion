@@ -480,3 +480,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - (26/11/2026) Ver carga: botón "Borrar todo" (se toca dos veces) que limpia lo anotado en "Pedido inicial" de ese camión.
 - (26/11/2026) Ver carga: con las flechas ↑ ↓ se pasa de un casillero de "Pedido inicial" al de arriba o abajo.
 - (26/11/2026) Se sacó el cuadro "Pedidos que quedaron sin día" de Logística y la recuperación automática (Renzo ya los arregló a mano).
+- (26/11/2026) Arreglo: las flechas ‹ › del día en Medias no hacían nada.
