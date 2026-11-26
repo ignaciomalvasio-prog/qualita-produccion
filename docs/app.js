@@ -740,6 +740,7 @@
      SOLOMILLO, MATAMBRE y BONDIOLA solo se separan por unidad (kg, cajas…). */
   function unificarDet(corte, x) {
     var c = norm(corte), t = String(x || '');
+    if (/ROTULADO SUR/i.test(t)) return 'a congelar rotulado sur';   // los del sur van aparte
     if (/^(SOLOMILLO|MATAMBRE|BONDIOLA)/.test(c)) return '';
     t = t.replace(/\(\s*COD(IGO)?\.?\s*[\d\s]*\)|\bCOD(IGO)?\.?\s*\d+\b|\bDE\s+CERDO\b/gi, ' ').replace(/\(\s*\)/g, ' ');
     if (/^PECHO/.test(c)) t = t.replace(/\b(CON\s+)?MANTA(\s+DOBLE)?\b|\bPECH(O|IT[OA])S?\b/gi, ' ');
@@ -2748,9 +2749,18 @@
   function estadoCarga() {
     if (cargas.activas > 0) avisar('Leyendo ' + (cargas.activas === 1 ? '1 archivo' : cargas.activas + ' archivos') + '… Podés seguir trabajando en otra pantalla.');
   }
+  /* Cortes de sur (pedido de Renzo, 26/11/2026): al cargar con "Cortes de sur" marcado, cada corte va a congelar y con
+     rotulado SUR. Los códigos de cada corte se agregan en SUR_COD cuando Renzo los pase. */
+  var SUR_COD = {};
+  function textoSur(c) {
+    var t = String(c.texto || '').replace(/\s*A CONGELAR\b/i, '').replace(/\s*ROTULADO SUR\b/i, '').trim(), cod = SUR_COD[norm(c.corte || '')];
+    if (cod) t = t.replace(/\s*\(COD[^)]*\)/i, '') + ' (COD ' + cod + ')';
+    return t + ' A CONGELAR ROTULADO SUR';
+  }
   function ctxCarga() {
     // Sin fecha en el pedido: va al día hábil siguiente.
-    return { tab: S.tab, porDefecto: habilSiguiente(hoy()), dia: cargaDiaActual(), esperada: S.tab === 'medias' && S.sem ? S.sem : semanaActual() };
+    var sur = !!S.cargaSur && S.tab === 'pedidos'; S.cargaSur = false;   // "Cortes de sur" vale para esta carga
+    return { tab: S.tab, sur: sur, porDefecto: habilSiguiente(hoy()), dia: cargaDiaActual(), esperada: S.tab === 'medias' && S.sem ? S.sem : semanaActual() };
   }
   function escribiendo() {
     var a = document.activeElement, t = a && a.tagName;
@@ -2786,6 +2796,7 @@
       });
       if (x.j.planilla && x.j.planilla.length) planillas.push(x.j.planilla);
     });
+    if (ctx.sur) nuevos.forEach(function (q) { q.cortes = (q.cortes || []).map(function (c) { if (c.texto) c.texto = textoSur(c); return c; }); });
     if (ctx.vendedor) nuevos.forEach(function (q) { q.vendedor = ctx.vendedor.email; q.vendedorNombre = ctx.vendedor.nombre; q.origen = 'vendedor'; });
     nuevos = nuevos.filter(function (q) {
       var prev = (S.pedidos || []).filter(function (x) { return x.entrega === q.entrega && norm(x.cliente) === norm(q.cliente) && norm(q.cliente); });
@@ -3025,7 +3036,7 @@
   }
   function cargaHTML(actMano) {
     var conIA = !!(S.ia && S.ia.clave) || !!(window.__mock && window.__mock.ia);
-    var h = cargaDiaHTML() + '<div class="acciones"><label class="btn pri" style="display:inline-flex;align-items:center' + (conIA ? '' : ';opacity:.45') + '">Subir fotos o capturas<input type="file" id="fotos" accept="image/*" multiple hidden' + (conIA ? '' : ' disabled') + '></label>'
+    var h = cargaDiaHTML() + (actMano === 'q-nuevo' ? '<div class="carga-sur"><button class="btn sm chip' + (S.cargaSur ? ' on' : '') + '" data-act="carga-sur" aria-pressed="' + !!S.cargaSur + '">' + (S.cargaSur ? '✓ ' : '') + '❄ Cortes de sur</button><span class="small muted">' + (S.cargaSur ? 'Lo próximo que subas, pegues o dictes va a congelar con rotulado SUR.' : 'Marcalo antes de subir la foto o pegar el texto si son cortes del sur.') + '</span></div>' : '') + '<div class="acciones"><label class="btn pri" style="display:inline-flex;align-items:center' + (conIA ? '' : ';opacity:.45') + '">Subir fotos o capturas<input type="file" id="fotos" accept="image/*" multiple hidden' + (conIA ? '' : ' disabled') + '></label>'
       + '<button class="btn pri' + (S.pegar ? ' activo' : '') + '" data-act="q-pegar"' + (conIA ? '' : ' disabled') + '>Pegar texto</button>'
       + '<button class="btn pri" data-act="' + actMano + '">Cargar a mano</button>'
       + (actMano === 'q-nuevo' ? '<button class="btn pri' + (S.dictando ? ' dictando' : '') + '" data-act="q-dictar"' + (conIA ? '' : ' disabled') + '>' + (S.dictando ? '⏹ Detener dictado' : '🎤 Dictar pedido') + '</button>' : '')
@@ -5084,6 +5095,7 @@
     else if (a === 'q-pegar') { if (S.dictando) pararDictado(); S.pegar = !S.pegar; if (!S.pegar) { S.pegarTxt = ''; S.pegarCli = ''; S.pegarDia = ''; } S.msg.fotos = ''; renderPedidos(); var ft = $('pegar-txt'); if (ft) ft.focus(); }
     else if (a === 'q-leer-texto') { if (S.dictando) pararDictado(); leerPegado(); }
     else if (a === 'q-dictar') { dictar(); }
+    else if (a === 'carga-sur') { S.cargaSur = !S.cargaSur; render(); }
     else if (a === 'carga-dia') { if (S.tab === 'pedidos') { if (D.v) { S.pd = D.v; S.cargaSegun = false; S.abierto = {}; } else S.cargaSegun = true; } else S.cargaDia = D.v || ''; render(); }
     else if (a === 'q-nuevo') { S.prop.push(pedidoVacio()); renderPedidos(); var fq = $('q' + (S.prop.length - 1) + 'cliente'); if (fq) fq.focus(); }
     else if (a === 'q-corte') { S.prop[+D.q].cortes.push({ corte: CORTES_BASE[0], texto: '', orden: true }); renderPedidos(); }

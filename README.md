@@ -473,3 +473,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - (25/11/2026) Camiones con "PRIMER VIAJE", "SEGUNDO VIAJE"… del mismo nombre van juntos y en orden (y se suben/bajan juntos).
 - (25/11/2026) Imprimir en Producción sale igual que el PDF de WhatsApp (a color, en filas).
 - (25/11/2026) Medias: si el mismo pedido quedó anotado dos veces en la faena (pasó con Don Pedro), queda uno solo, en el día que le corresponde.
+- (26/11/2026) Cargar pedidos: botón "❄ Cortes de sur". Marcado antes de subir una foto, pegar texto o dictar, cada corte se carga "A CONGELAR ROTULADO SUR" (vale para esa carga). En el total de producción van en un renglón aparte. Faltan los códigos del sur (SUR_COD).
