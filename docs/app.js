@@ -740,7 +740,7 @@
      SOLOMILLO, MATAMBRE y BONDIOLA solo se separan por unidad (kg, cajas…). */
   function unificarDet(corte, x) {
     var c = norm(corte), t = String(x || '');
-    if (/ROTULADO SUR/i.test(t)) return 'a congelar rotulado sur';   // los del sur van aparte
+    if (/ROTULADO SUR|\bSUR\b/i.test(t)) { var cs = t.match(/\(COD[^)]*\)/i); return 'sur' + (cs ? ' ' + cs[0].toLowerCase() : ''); }   // los del sur van aparte
     if (/^(SOLOMILLO|MATAMBRE|BONDIOLA)/.test(c)) return '';
     t = t.replace(/\(\s*COD(IGO)?\.?\s*[\d\s]*\)|\bCOD(IGO)?\.?\s*\d+\b|\bDE\s+CERDO\b/gi, ' ').replace(/\(\s*\)/g, ' ');
     if (/^PECHO/.test(c)) t = t.replace(/\b(CON\s+)?MANTA(\s+DOBLE)?\b|\bPECH(O|IT[OA])S?\b/gi, ' ');
@@ -2751,11 +2751,14 @@
   }
   /* Cortes de sur (pedido de Renzo, 26/11/2026): al cargar con "Cortes de sur" marcado, cada corte va a congelar y con
      rotulado SUR. Los códigos de cada corte se agregan en SUR_COD cuando Renzo los pase. */
-  var SUR_COD = {};
+  // Cortes del sur con su nombre y código (pasados por Renzo, 26/11/2026). Los que no están acá van "A CONGELAR ROTULADO SUR".
+  var SUR = [[/^PECHO/, 'PECHO SUR', '305'], [/^CARRE/, 'CARRE SUR', '307'], [/^BONDIOLA/, 'BONDIOLA SUR', '109'], [/^MATAMBRE/, 'MATAMBRE SUR', '240'],
+    [/^RECORTE/, 'RECORTE 80/20 SUR', '372'], [/^CHURRASCO/, 'CHURRASCO SUR', '248']];
   function textoSur(c) {
-    var t = String(c.texto || '').replace(/\s*A CONGELAR\b/i, '').replace(/\s*ROTULADO SUR\b/i, '').trim(), cod = SUR_COD[norm(c.corte || '')];
-    if (cod) t = t.replace(/\s*\(COD[^)]*\)/i, '') + ' (COD ' + cod + ')';
-    return t + ' A CONGELAR ROTULADO SUR';
+    var t = String(c.texto || '').trim(), s = SUR.filter(function (x) { return x[0].test(norm(c.corte || '')); })[0];
+    if (!s) return t.replace(/\s*A CONGELAR\b/i, '').replace(/\s*ROTULADO SUR\b/i, '').trim() + ' A CONGELAR ROTULADO SUR';
+    var m = t.match(/^\s*[\d.,]+\s*(KGS?|KILOS?|CAJAS?|CJS?|C|UNIDADES|UNIDAD|UNID\.?|UND|U|PALLETS?|CANASTOS?|PIEZAS?)?\b\.?/i), q = m ? m[0].trim() : '';
+    return (q ? q + ' ' : '') + s[1] + ' (COD ' + s[2] + ') A CONGELAR';
   }
   function ctxCarga() {
     // Sin fecha en el pedido: va al día hábil siguiente.
