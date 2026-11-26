@@ -5334,7 +5334,13 @@
     store.set('privado', 'cargas', doc).then(function () { avisar('Guardado.', 1500); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); });
   });
   document.addEventListener('input', function (e) { var t = e.target; if (t && t.classList && t.classList.contains('carga-in')) { var td = t.closest('tr') && t.closest('tr').querySelector('.cg-dif'); if (td) td.innerHTML = cargaDifHTML(t.value, +t.dataset.cant); } });
-  document.addEventListener('keydown', function (e) { var t = e.target; if (t && t.classList && t.classList.contains('carga-in') && e.key === 'Enter') { e.preventDefault(); var ins = [].slice.call(document.querySelectorAll('.carga-in')), i = ins.indexOf(t); t.blur(); if (ins[i + 1]) ins[i + 1].focus(); } });
+  // Enter o flecha abajo: renglón siguiente; flecha arriba: el de arriba (pedido de Renzo, 26/11/2026).
+  document.addEventListener('keydown', function (e) {
+    var t = e.target; if (!(t && t.classList && t.classList.contains('carga-in'))) return;
+    var paso = e.key === 'Enter' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0; if (!paso) return;
+    e.preventDefault(); var ins = [].slice.call(document.querySelectorAll('.carga-in')), i = ins.indexOf(t), sig = ins[i + paso];
+    if (!sig) return; t.blur(); sig = [].slice.call(document.querySelectorAll('.carga-in'))[i + paso]; if (sig) { sig.focus(); try { sig.select(); } catch (er) {} }
+  });
   document.addEventListener('input', function (e) { if (e.target && e.target.id === 'ficha-q') { S.fichaQ = e.target.value; var pos = e.target.selectionStart; renderFichas(); var x = $('ficha-q'); if (x) { x.focus(); try { x.setSelectionRange(pos, pos); } catch (er) {} } } });
   document.addEventListener('keydown', function (e) { var t = e.target; if (!t || t.id !== 'rec-in') return; if (e.key === 'Enter') { e.preventDefault(); guardarRecordatorio(t.dataset.id, t.value); } else if (e.key === 'Escape') { S.recMenu = null; renderPedidos(); } });
   document.addEventListener('keydown', function (e) { var t = e.target; if ((e.key === 'Enter' || e.key === ' ') && t && t.classList && t.classList.contains('busq-f') && t.dataset.act) { e.preventDefault(); t.click(); } });

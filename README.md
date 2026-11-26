@@ -478,3 +478,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - (26/11/2026) Cortes de sur sin "a congelar": solo el nombre y el código (los que no tienen código, "ROTULADO SUR").
 - (26/11/2026) Ver carga: la columna pasa a ser "Pedido inicial" y la diferencia es lo del camión menos lo inicial (más = falta, menos = sobra).
 - (26/11/2026) Ver carga: botón "Borrar todo" (se toca dos veces) que limpia lo anotado en "Pedido inicial" de ese camión.
+- (26/11/2026) Ver carga: con las flechas ↑ ↓ se pasa de un casillero de "Pedido inicial" al de arriba o abajo.
