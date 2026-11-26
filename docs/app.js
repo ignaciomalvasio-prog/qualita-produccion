@@ -2751,14 +2751,14 @@
   }
   /* Cortes de sur (pedido de Renzo, 26/11/2026): al cargar con "Cortes de sur" marcado, cada corte va a congelar y con
      rotulado SUR. Los códigos de cada corte se agregan en SUR_COD cuando Renzo los pase. */
-  // Cortes del sur con su nombre y código (pasados por Renzo, 26/11/2026). Los que no están acá van "A CONGELAR ROTULADO SUR".
+  // Cortes del sur con su nombre y código (pasados por Renzo, 26/11/2026). Los que no están acá van "ROTULADO SUR".
   var SUR = [[/^PECHO/, 'PECHO SUR', '305'], [/^CARRE/, 'CARRE SUR', '307'], [/^BONDIOLA/, 'BONDIOLA SUR', '109'], [/^MATAMBRE/, 'MATAMBRE SUR', '240'],
     [/^RECORTE/, 'RECORTE 80/20 SUR', '372'], [/^CHURRASCO/, 'CHURRASCO SUR', '248']];
   function textoSur(c) {
     var t = String(c.texto || '').trim(), s = SUR.filter(function (x) { return x[0].test(norm(c.corte || '')); })[0];
-    if (!s) return t.replace(/\s*A CONGELAR\b/i, '').replace(/\s*ROTULADO SUR\b/i, '').trim() + ' A CONGELAR ROTULADO SUR';
+    if (!s) return t.replace(/\s*ROTULADO SUR\b/i, '').trim() + ' ROTULADO SUR';
     var m = t.match(/^\s*[\d.,]+\s*(KGS?|KILOS?|CAJAS?|CJS?|C|UNIDADES|UNIDAD|UNID\.?|UND|U|PALLETS?|CANASTOS?|PIEZAS?)?\b\.?/i), q = m ? m[0].trim() : '';
-    return (q ? q + ' ' : '') + s[1] + ' (COD ' + s[2] + ') A CONGELAR';
+    return (q ? q + ' ' : '') + s[1] + ' (COD ' + s[2] + ')';   // sin "a congelar" (pedido de Renzo, 26/11/2026)
   }
   function ctxCarga() {
     // Sin fecha en el pedido: va al día hábil siguiente.
@@ -3039,7 +3039,7 @@
   }
   function cargaHTML(actMano) {
     var conIA = !!(S.ia && S.ia.clave) || !!(window.__mock && window.__mock.ia);
-    var h = cargaDiaHTML() + (actMano === 'q-nuevo' ? '<div class="carga-sur"><button class="btn sm chip' + (S.cargaSur ? ' on' : '') + '" data-act="carga-sur" aria-pressed="' + !!S.cargaSur + '">' + (S.cargaSur ? '✓ ' : '') + '❄ Cortes de sur</button><span class="small muted">' + (S.cargaSur ? 'Lo próximo que subas, pegues o dictes va a congelar con rotulado SUR.' : 'Marcalo antes de subir la foto o pegar el texto si son cortes del sur.') + '</span></div>' : '') + '<div class="acciones"><label class="btn pri" style="display:inline-flex;align-items:center' + (conIA ? '' : ';opacity:.45') + '">Subir fotos o capturas<input type="file" id="fotos" accept="image/*" multiple hidden' + (conIA ? '' : ' disabled') + '></label>'
+    var h = cargaDiaHTML() + (actMano === 'q-nuevo' ? '<div class="carga-sur"><button class="btn sm chip' + (S.cargaSur ? ' on' : '') + '" data-act="carga-sur" aria-pressed="' + !!S.cargaSur + '">' + (S.cargaSur ? '✓ ' : '') + '❄ Cortes de sur</button><span class="small muted">' + (S.cargaSur ? 'Lo próximo que subas, pegues o dictes se carga con los cortes y códigos del sur.' : 'Marcalo antes de subir la foto o pegar el texto si son cortes del sur.') + '</span></div>' : '') + '<div class="acciones"><label class="btn pri" style="display:inline-flex;align-items:center' + (conIA ? '' : ';opacity:.45') + '">Subir fotos o capturas<input type="file" id="fotos" accept="image/*" multiple hidden' + (conIA ? '' : ' disabled') + '></label>'
       + '<button class="btn pri' + (S.pegar ? ' activo' : '') + '" data-act="q-pegar"' + (conIA ? '' : ' disabled') + '>Pegar texto</button>'
       + '<button class="btn pri" data-act="' + actMano + '">Cargar a mano</button>'
       + (actMano === 'q-nuevo' ? '<button class="btn pri' + (S.dictando ? ' dictando' : '') + '" data-act="q-dictar"' + (conIA ? '' : ' disabled') + '>' + (S.dictando ? '⏹ Detener dictado' : '🎤 Dictar pedido') + '</button>' : '')
