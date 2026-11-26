@@ -4239,7 +4239,7 @@
       + (filas ? '<table class="carga-t">' + filas + '</table>' : '<p class="muted">Este camión no tiene carga.</p>')
       + (c.sinCant.length ? '<p class="small muted">Sin cantidad: ' + c.sinCant.map(esc).join(' · ') + '</p>' : '')
       + (c.kg ? '<p class="carga-kg">Total aprox.: <b>' + n(Math.round(c.kg)) + ' kg</b></p>' : '')
-      + '<div class="acciones"><a class="btn wa" href="https://wa.me/?text=' + encodeURIComponent(cargaTexto(tit, c, notas)) + '" target="_blank" rel="noopener">Mandar por WhatsApp</a><button class="btn" data-act="carga-copiar">Copiar</button></div></div></div>';
+      + '<div class="acciones"><a class="btn wa" href="https://wa.me/?text=' + encodeURIComponent(cargaTexto(tit, c, notas)) + '" target="_blank" rel="noopener">Mandar por WhatsApp</a><button class="btn" data-act="carga-copiar">Copiar</button><button class="btn rojo" data-act="carga-borrar">' + (S.cargaBorrar ? '¿Seguro? Tocá de nuevo' : 'Borrar todo') + '</button></div></div></div>';
   }
   function pintarCarga() { var o = document.querySelector('.carga-ov'); if (o) o.remove(); if (S.verCarga) document.body.insertAdjacentHTML('beforeend', verCargaHTML()); }
   function renderFichas() {
@@ -5237,6 +5237,14 @@
     }
     else if (a === 'ver-carga') { cerrarMenus(); S.verCarga = { src: D.src, id: D.id, f: D.src === 'log' ? D.f : S.pd }; pintarCarga(); }
     else if (a === 'carga-cerrar') { if (e.target.closest('.carga-box') && !e.target.closest('[data-act="carga-cerrar"].btn')) return; S.verCarga = null; pintarCarga(); }
+    else if (a === 'carga-borrar') {
+      // Borra todo lo anotado en "Pedido inicial" de este camión, para cargarlo de nuevo (pedido de Renzo, 26/11/2026). Se toca dos veces.
+      var vb = S.verCarga; if (!vb) return;
+      if (!S.cargaBorrar) { S.cargaBorrar = true; pintarCarga(); clearTimeout(timers.cgb); timers.cgb = setTimeout(function () { S.cargaBorrar = false; pintarCarga(); }, 4000); return; }
+      S.cargaBorrar = false; clearTimeout(timers.cgb);
+      var dcb = clone(S.cargas || {}); delete dcb.id; if (dcb[vb.f]) delete dcb[vb.f][vb.id]; S.cargas = dcb; pintarCarga();
+      store.set('privado', 'cargas', dcb).then(function () { avisar('Listo, se borró todo. Cargalo de nuevo.', 2500); }, function () { avisar('!No se pudo borrar. Revisá la conexión.', 6000); });
+    }
     else if (a === 'carga-copiar') { var vc = S.verCarga; if (vc) { var bx = document.querySelector('.carga-box h3'), wa = document.querySelector('.carga-box a.wa'); var txC = wa ? decodeURIComponent(wa.href.split('text=')[1] || '') : ''; (navigator.clipboard ? navigator.clipboard.writeText(txC) : Promise.reject()).then(function () { avisar('Carga copiada.', 2500); }, function () { avisar('!No se pudo copiar.', 3000); }); } }
     else if (a === 'uni-todos') { guardarUnidadTodos(D.id, D.u).then(function () { render(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); }); render(); }
     else if (a === 'rec-menu') { e.preventDefault(); e.stopPropagation(); S.camMenu = null; S.frioMenu = null; S.recMenu = S.recMenu === D.id ? null : D.id; renderPedidos(); if (S.recMenu) { var ri = document.getElementById('rec-in'); if (ri) { ri.focus(); ri.setSelectionRange(ri.value.length, ri.value.length); } } }

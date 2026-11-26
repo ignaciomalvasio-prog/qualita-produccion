@@ -16,7 +16,8 @@ for(const [w,tab] of [[1366,'pedidos'],[400,'logistica']]){const p=await b.newPa
  await p.screenshot({path:(process.argv[2]||'.')+'/p163-'+w+'.png'});
  const ins=p.locator('.carga-in');await ins.nth(1).fill('19');await ins.nth(1).press('Enter');await p.waitForTimeout(300);
  console.log(w,'dif:',await p.evaluate(()=>document.querySelectorAll('.cg-dif')[2].textContent));
- console.log(w,'guardado:',await p.evaluate(()=>JSON.stringify(window.__mock.data.privado.cargas)),'| wa:',await p.evaluate(()=>decodeURIComponent(document.querySelector('.carga-box a.wa').href).includes('→ pide 19 (falta 2)')));
+ console.log(w,'guardado:',await p.evaluate(()=>JSON.stringify(window.__mock.data.privado.cargas)),'| wa:',await p.evaluate(()=>decodeURIComponent(document.querySelector('.carga-box a.wa').href).includes('→ inicial 19 (sobra 2)')));
+ await p.click('[data-act=carga-borrar]');console.log(w,'borrar 1:',await p.locator('[data-act=carga-borrar]').innerText());await p.click('[data-act=carga-borrar]');await p.clock.runFor(500);await p.waitForTimeout(200);console.log(w,'tras borrar:',await p.evaluate(()=>JSON.stringify(window.__mock.data.privado.cargas)),'inputs:',await p.evaluate(()=>[...document.querySelectorAll('.carga-in')].map(i=>i.value).join('')));
  await p.evaluate(()=>document.querySelector('.carga-box').click());await p.waitForTimeout(100);const sig=await p.locator('.carga-ov').count();
  await p.click('.carga-cab [data-act="carga-cerrar"]');await p.waitForTimeout(100);console.log(w,'sigue al tocar adentro:',sig,'| cerrado:',await p.locator('.carga-ov').count()===0,'| desborde:',await p.evaluate(()=>document.documentElement.scrollWidth));
  await p.close();}
