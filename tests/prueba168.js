@@ -10,6 +10,7 @@ const data={faena:{},privado:{},config:{general:{feriados:[]},['log-'+F]:{fecha:
  await p.evaluate(()=>document.querySelector('[data-tab="logistica"]').click());await p.waitForTimeout(300);
  await p.evaluate(()=>document.querySelector('#view-logistica [data-act=fl][data-d="1"]').click());await p.clock.runFor(1500);await p.waitForTimeout(400);
  const est=()=>p.evaluate(()=>{const m=window.__mock.data;return JSON.stringify({ped:Object.keys(m.pedidos).map(k=>k+':'+m.pedidos[k].entrega+':'+m.pedidos[k].camion).join(' '),cams:(m.config['log-2026-11-26'].camiones||[]).map(c=>c.nombre).join(' / '),pant:[...document.querySelectorAll('#view-logistica .badge.cam-ped, #view-logistica .log-cam h2, #view-logistica [class*=cam-nom]')].map(x=>x.innerText).join(' / '),perdidos:[...document.querySelectorAll('.perd-l b')].map(x=>x.innerText).join()});});
+ // (recuperar apagado el 26/11)
  console.log('1 recuperado:',await est());
  await p.evaluate(()=>document.querySelector('[data-act=menu][data-k=cam-c1]').click());await p.waitForTimeout(200);
  await p.evaluate(()=>document.querySelector('[data-act=camion-subir][data-id=c1]').click());await p.clock.runFor(1500);await p.waitForTimeout(400);

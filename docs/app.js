@@ -2380,7 +2380,7 @@
   }
   function conciliarLog() {
     if (!S.editor || !S.pedidos || !S.logListo) return;
-    repararPerdidos();
+    // repararPerdidos(): se apagó el 26/11/2026, Renzo ya los arregló a mano (si volviera a correr, duplicaría pedidos).
     var desde = habilAnterior(hoy()), porFecha = {};
     S.pedidos.forEach(function (p) { if (p.entrega && p.entrega >= desde) (porFecha[p.entrega] = porFecha[p.entrega] || []).push(p.id); });
     Object.keys(S.log || {}).forEach(function (f) { if (f >= desde && !porFecha[f]) porFecha[f] = []; });
@@ -3928,7 +3928,6 @@
     h += '<div class="pd-busca"><input type="search" id="lg-buscar" value="' + esc(S.lgBuscar || '') + '" placeholder="Buscar cliente" aria-label="Buscar un cliente en Logística (en todos los días)" autocomplete="off">'
       + '<input type="search" id="lg-cam-buscar" value="' + esc(S.lgCamBuscar || '') + '" placeholder="Buscar camión" aria-label="Buscar un camión en Logística" autocomplete="off">'
       + (S.lgBuscar || S.lgCamBuscar ? '<button class="btn sm" data-act="lbusq-limpiar">Borrar búsqueda</button>' : '') + '</div>';
-    h += perdidosHTML();
     if (String(S.lgBuscar || '').trim() || String(S.lgCamBuscar || '').trim()) { el.innerHTML = h + buscarLogHTML(String(S.lgBuscar || '').trim() ? S.lgBuscar : S.lgCamBuscar, !String(S.lgBuscar || '').trim()); return; }
     if (!peds.length && !cams.length) {
       h += '<div class="panel"><p class="state">No hay pedidos para entregar este día.</p>' + (S.editor ? '<div class="acciones" style="justify-content:center"><button class="btn pri" data-act="ir-pedidos" data-f="' + f + '">Ir a los pedidos de este día</button></div>' : '') + '</div>';
