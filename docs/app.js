@@ -4205,14 +4205,15 @@
     return { medias: med, l: l, sinCant: sinCant, kg: peds.reduce(function (t, p) { return t + (kgPedido(p).kg || 0); }, 0) };
   }
   function cargaNum(v) { var t = String(v == null ? '' : v).trim().replace(',', '.'); return /^[+-]?\d+(\.\d+)?$/.test(t) ? parseFloat(t) : null; }
-  function cargaDif(v, cant) { var x = cargaNum(v); return x == null ? null : Math.round((x - cant) * 100) / 100; }
+  // Diferencia = lo del camión (pedido real) menos lo que se había pasado al principio: si es más, falta producir; si es menos, sobra (Renzo, 26/11/2026).
+  function cargaDif(v, cant) { var x = cargaNum(v); return x == null ? null : Math.round((cant - x) * 100) / 100; }
   function cargaDifHTML(v, cant) {
     var d = cargaDif(v, cant); if (d == null) return v ? '' : '';
     return d > 0 ? '<span class="dif falta">Falta ' + n(d) + '</span>' : d < 0 ? '<span class="dif sobra">Sobra ' + n(-d) + '</span>' : '<span class="dif ok">Igual</span>';
   }
   function cargaTexto(tit, c, notas) {
     notas = notas || {};
-    var nt = function (k, cant) { var v = notas[k]; if (!v) return ''; var d = cargaDif(v, cant); return '  → pide ' + v + (d == null ? '' : d > 0 ? ' (falta ' + n(d) + ')' : d < 0 ? ' (sobra ' + n(-d) + ')' : ' (igual)'); };
+    var nt = function (k, cant) { var v = notas[k]; if (!v) return ''; var d = cargaDif(v, cant); return '  → inicial ' + v + (d == null ? '' : d > 0 ? ' (falta ' + n(d) + ')' : d < 0 ? ' (sobra ' + n(-d) + ')' : ' (igual)'); };
     var r = ['🚚 ' + tit];
     if (c.medias) r.push(n(c.medias) + ' MEDIAS' + nt('MEDIAS', c.medias));
     c.l.forEach(function (x) { r.push(n(x.n) + ' ' + (x.un || '') + (x.un ? ' ' : '') + x.corte + nt(x.corte + '|' + x.un, x.n)); });
@@ -4229,10 +4230,10 @@
     // Columna para anotar lo que sobra o falta para producir (pedido de Renzo, 19/11/2026): se guarda sola por día y camión.
     var notas = ((S.cargas || {})[v.f] || {})[v.id] || {};
     // Se anota lo que el cliente pide ahora y al lado sale la diferencia con lo que está en el camión (pedido de Renzo, 19/11/2026).
-    var inp = function (k, cant) { return '<td class="cg-in"><input type="text" inputmode="decimal" class="carga-in" data-k="' + esc(k) + '" data-cant="' + cant + '" value="' + esc(notas[k] || '') + '" placeholder="pide…" autocomplete="off" aria-label="Lo que pide ahora"></td><td class="cg-dif">' + cargaDifHTML(notas[k], cant) + '</td>'; };
+    var inp = function (k, cant) { return '<td class="cg-in"><input type="text" inputmode="decimal" class="carga-in" data-k="' + esc(k) + '" data-cant="' + cant + '" value="' + esc(notas[k] || '') + '" placeholder="inicial…" autocomplete="off" aria-label="Lo que se pasó al principio"></td><td class="cg-dif">' + cargaDifHTML(notas[k], cant) + '</td>'; };
     var filas = (c.medias ? '<tr><td class="cg-n">' + n(c.medias) + '</td><td class="cg-u">MEDIAS</td><td></td>' + inp('MEDIAS', c.medias) + '</tr>' : '')
       + c.l.map(function (x) { return '<tr><td class="cg-n">' + n(x.n) + '</td><td class="cg-u">' + esc(x.un || '¿unidad?') + '</td><td class="cg-c">' + esc(x.corte) + '</td>' + inp(x.corte + '|' + x.un, x.n) + '</tr>'; }).join('');
-    if (filas) filas = '<thead><tr><th colspan="3"></th><th class="cg-in">Pide ahora</th><th class="cg-dif">Diferencia</th></tr></thead><tbody>' + filas + '</tbody>';
+    if (filas) filas = '<thead><tr><th colspan="3"></th><th class="cg-in">Pedido inicial</th><th class="cg-dif">Diferencia</th></tr></thead><tbody>' + filas + '</tbody>';
     return '<div class="rec-ov carga-ov" data-act="carga-cerrar"><div class="carga-box" role="dialog" aria-label="Carga del camión">'
       + '<div class="carga-cab"><div><p class="small muted">Carga del camión · ' + peds.length + (peds.length === 1 ? ' pedido' : ' pedidos') + '</p><h3>🚚 ' + esc(tit) + '</h3></div><button class="btn sm" data-act="carga-cerrar" aria-label="Cerrar">✕</button></div>'
       + (filas ? '<table class="carga-t">' + filas + '</table>' : '<p class="muted">Este camión no tiene carga.</p>')

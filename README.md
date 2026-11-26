@@ -476,3 +476,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - (26/11/2026) Cargar pedidos: botón "❄ Cortes de sur". Marcado antes de subir una foto, pegar texto o dictar, cada corte se carga "A CONGELAR ROTULADO SUR" (vale para esa carga). En el total de producción van en un renglón aparte. Faltan los códigos del sur (SUR_COD).
 - (26/11/2026) Cortes de sur con su nombre y código: PECHO SUR 305, CARRE SUR 307, BONDIOLA SUR 109, MATAMBRE SUR 240, RECORTE 80/20 SUR 372, CHURRASCO SUR 248 (a congelar). Los demás, "A CONGELAR ROTULADO SUR".
 - (26/11/2026) Cortes de sur sin "a congelar": solo el nombre y el código (los que no tienen código, "ROTULADO SUR").
+- (26/11/2026) Ver carga: la columna pasa a ser "Pedido inicial" y la diferencia es lo del camión menos lo inicial (más = falta, menos = sobra).
