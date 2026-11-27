@@ -5523,7 +5523,8 @@
     var el = hd.closest('.ped'), zona = el && el.closest('.dia-ped'); if (!zona) return;
     e.preventDefault(); S._ocup = true;
     var foto = function () { return Array.prototype.map.call(zona.querySelectorAll('.grupo-cam'), function (g) { return { cam: g.getAttribute('data-gcam') || '', ids: Array.prototype.map.call(g.querySelectorAll('.ped[data-ped]'), function (x) { return x.getAttribute('data-ped'); }) }; }); };
-    arrP = { el: el, zona: zona, antes: JSON.stringify(foto()), foto: foto, y: e.clientY }; el.classList.add('arrastrando');
+    // Arrastrando solo se cambia el orden dentro del mismo camión; para pasarlo a otro, el botón del camión (pedido de Renzo, 27/11/2026).
+    arrP = { el: el, zona: zona, grupo: el.closest('.grupo-cam') || zona, antes: JSON.stringify(foto()), foto: foto, y: e.clientY }; el.classList.add('arrastrando');
     try { hd.setPointerCapture(e.pointerId); } catch (err) {}
     clearInterval(tScroll); tScroll = setInterval(function () { if (!arrP) return; var h = window.innerHeight; if (arrP.y < 60) window.scrollBy(0, -12); else if (arrP.y > h - 60) window.scrollBy(0, 12); }, 30);
   });
@@ -5531,10 +5532,10 @@
     if (!arrP) return; e.preventDefault(); arrP.y = e.clientY;
     var bajo = document.elementFromPoint(e.clientX, e.clientY); if (!bajo || !bajo.closest) return;
     var t = bajo.closest('.ped[data-ped]'), g = bajo.closest('.grupo-cam');
-    if (t && t !== arrP.el && arrP.zona.contains(t)) {
+    if (t && t !== arrP.el && arrP.grupo.contains(t) && t.closest('.grupo-cam') === arrP.el.closest('.grupo-cam')) {
       var r = t.getBoundingClientRect(), antesDe = e.clientY < r.top + r.height / 2;
       t.parentNode.insertBefore(arrP.el, antesDe ? t : t.nextSibling);
-    } else if (g && arrP.zona.contains(g) && !t) { var l = g.querySelector('.peds'); if (l && arrP.el.parentNode !== l) l.appendChild(arrP.el); }
+    }
   });
   function soltarP() {
     if (!arrP) return; var a = arrP; arrP = null; clearInterval(tScroll); a.el.classList.remove('arrastrando'); S._ocup = false;

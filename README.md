@@ -494,3 +494,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Centro de desposte › DDJJ Rendering (Sabi 27/11): kilos centrados también al imprimir desde la página (estilo puesto en la celda; ddjj.css con ?v= en ddjj.html y faena.html).
 - (27/11/2026) Armar camión: en "Hora o nota" alcanza con escribir 3, 330 o 1430 (sin HS); se toma como horario de salida (03:00, 03:30, 14:30).
 - (27/11/2026) Armar camión: botones con los choferes de siempre (de los últimos 45 días, con su hora habitual) y "1er / 2do / 3er viaje"; completan nombre y hora solos.
+- (27/11/2026) Pedidos: arrastrando desde ⠿ solo se cambia el orden dentro del mismo camión; para pasar un cliente a otro camión, el botón 🚚 del pedido.
