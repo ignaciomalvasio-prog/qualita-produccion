@@ -488,3 +488,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Centro de desposte › DDJJ Rendering (Sabi 27/11): la observación del sebo queda "Proviene de las producciones realizadas después del DD.MM.AAAA" (sin "última vez que figuró").
 - Centro de desposte › DDJJ Rendering (Sabi 27/11): en el ingreso, "CUERO "CH"" figura como CUERO.
 - Centro de desposte › DDJJ Rendering (Sabi 27/11): observación del sebo = "Producciones desde el DD.MM.AAAA hasta el DD.MM.AAAA" (desde el primer día con producción después de la vez anterior que figuró el sebo, hasta ese día).
+- Centro de desposte › DDJJ Rendering (Sabi 27/11): kilos centrados en la hoja impresa y en el Excel.

@@ -335,9 +335,9 @@ function excelHojaDJ(o) {
     if (conIng) {
       const i0 = 11; h.op.altos[i0] = 24;
       h.set('B' + i0, 'INGRESO DE MATERIA PRIMA', cab).set('C' + i0, null, cab).set('D' + i0, 'KILOGRAMOS', cab).set('E' + i0, 'OBSERVACIONES', cab).merge('B' + i0 + ':C' + i0);
-      P.ingreso.forEach((r, k) => { const fi = i0 + 1 + k; h.op.altos[fi] = 20; h.set('B' + fi, r.nom || r.n, cel).set('C' + fi, null, cel).merge('B' + fi + ':C' + fi).set('D' + fi, Number(r.kg), Object.assign({ h: 'right', fmt: '#,##0.00' }, cel)).set('E' + fi, r.obs || '', Object.assign({ h: 'center' }, cel)); });
+      P.ingreso.forEach((r, k) => { const fi = i0 + 1 + k; h.op.altos[fi] = 20; h.set('B' + fi, r.nom || r.n, cel).set('C' + fi, null, cel).merge('B' + fi + ':C' + fi).set('D' + fi, Number(r.kg), Object.assign({ h: 'center', fmt: '#,##0.00' }, cel)).set('E' + fi, r.obs || '', Object.assign({ h: 'center' }, cel)); });
       const fz = i0 + 1 + P.ingreso.length; h.op.altos[fz] = 22;
-      h.set('B' + fz, 'TOTAL INGRESADO', Object.assign({ b: 1 }, cel)).set('C' + fz, null, cel).merge('B' + fz + ':C' + fz).set('D' + fz, { f: 'SUM(D' + (i0 + 1) + ':D' + (fz - 1) + ')', v: P.totIng }, Object.assign({ b: 1, h: 'right', fmt: '#,##0.00' }, cel)).set('E' + fz, null, cel);
+      h.set('B' + fz, 'TOTAL INGRESADO', Object.assign({ b: 1 }, cel)).set('C' + fz, null, cel).merge('B' + fz + ':C' + fz).set('D' + fz, { f: 'SUM(D' + (i0 + 1) + ':D' + (fz - 1) + ')', v: P.totIng }, Object.assign({ b: 1, h: 'center', fmt: '#,##0.00' }, cel)).set('E' + fz, null, cel);
       p0 = fz + 2; h.op.altos[p0] = 36;
     }
     ['NOMBRE DEL PRODUCTO', 'MARCA', 'TOTAL DE KILOGRAMOS PRODUCIDOS', 'OBSERVACIONES / DESTINO'].forEach((t, i) => h.set('BCDE'[i] + p0, t, cab));
@@ -345,10 +345,10 @@ function excelHojaDJ(o) {
     for (let i = 0; i < N; i++) {
       const r = P.filas[i], fila = p0 + 1 + i; h.op.altos[fila] = r && U && String(r.dest || '').length > 34 ? 48 : 22;
       h.set('B' + fila, r ? r.n : null, cel).set('C' + fila, r ? (r.marca || '') : null, Object.assign({ h: 'center' }, cel))
-        .set('D' + fila, r && r.kg != null && r.kg !== '' ? Number(r.kg) : null, Object.assign(U ? { h: 'right', fmt: '#,##0.00' } : { h: 'center', fmt: '0.00' }, cel)).set('E' + fila, r ? (r.dest || '') : null, Object.assign({ h: 'center', wrap: U ? 1 : 0 }, cel));
+        .set('D' + fila, r && r.kg != null && r.kg !== '' ? Number(r.kg) : null, Object.assign(U ? { h: 'center', fmt: '#,##0.00' } : { h: 'center', fmt: '0.00' }, cel)).set('E' + fila, r ? (r.dest || '') : null, Object.assign({ h: 'center', wrap: U ? 1 : 0 }, cel));
     }
     const ft = p0 + 1 + N; h.op.altos[ft] = 24;
-    h.set('B' + ft, U ? 'TOTAL PRODUCIDO' : 'TOTAL', Object.assign({ b: 1 }, cel)).set('C' + ft, null, cel).set('D' + ft, { f: 'SUM(D' + (p0 + 1) + ':D' + (ft - 1) + ')', v: P.tot }, Object.assign(U ? { b: 1, h: 'right', fmt: '#,##0.00' } : { b: 1, h: 'center', fmt: '0.00' }, cel)).set('E' + ft, null, cel);
+    h.set('B' + ft, U ? 'TOTAL PRODUCIDO' : 'TOTAL', Object.assign({ b: 1 }, cel)).set('C' + ft, null, cel).set('D' + ft, { f: 'SUM(D' + (p0 + 1) + ':D' + (ft - 1) + ')', v: P.tot }, Object.assign(U ? { b: 1, h: 'center', fmt: '#,##0.00' } : { b: 1, h: 'center', fmt: '0.00' }, cel)).set('E' + ft, null, cel);
     h.set('B' + (ft + 5), '.......................................................................', { sz: 11, h: 'center' }).merge('B' + (ft + 5) + ':E' + (ft + 5));
     h.set('B' + (ft + 6), 'Firma del responsable de la Empresa', { sz: 11, h: 'center' }).merge('B' + (ft + 6) + ':E' + (ft + 6));
   }
