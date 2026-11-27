@@ -10,7 +10,7 @@ const RD_DEF = {
   marca: 'QUALITA',
   lineas: [
     { n: 'HARINA DE CARNE Y HUESO PORCINA', arts: [], pat: 'HARINA' },
-    { n: 'GRASA PORCINA (SEBO)', arts: [], pat: 'SEBO|GRASA' }
+    { n: 'SEBO PORCINO', arts: [], pat: 'SEBO|GRASA' }
   ],
   ignorar: [],
   terceros: { 434: 'DON PEDRO', 443: 'DON PEDRO', 473: 'DON PEDRO' }   // materia prima de terceros: se aclara en el ingreso (Sabi 27/11)
@@ -24,13 +24,19 @@ function sisRd() {
   for (const m of (S.sis && S.sis.mi) || []) if (m.ticd === 6) (o[m.f] = o[m.f] || { re: [], in: [] }).in.push({ art: m.art, den: m.den, uni: m.uni, kg: m.kg });   // materia prima que entra (Sabi 27/11)
   _rdDe = S.sis; _rdCache = o; return o;
 }
-const eqRd = () => (eq().rd || RD_DEF);
+/* aunque el sistema diga "grasa porcina", se declara como SEBO PORCINO (Sabi 27/11); renombra lo guardado con el nombre viejo */
+const RENOMBRE_RD = { 'GRASA PORCINA (SEBO)': 'SEBO PORCINO' };
+const eqRd = () => {
+  const e = eq().rd || RD_DEF;
+  if (!e.lineas.some(l => RENOMBRE_RD[l.n])) return e;
+  return Object.assign({}, e, { lineas: e.lineas.map(l => RENOMBRE_RD[l.n] ? Object.assign({}, l, { n: RENOMBRE_RD[l.n] }) : l) });
+};
 const diaRd = f => ((S.doc && S.doc.rd) || {})[f] || {};
 
 /* producto al que va un artículo de Ciclo III el día f ('#I' = no va, null = sin asignar) */
 function destinoRd(art, den, f) {
   const mv = (diaRd(f).mover || {})[art];
-  if (mv) return mv === 'I' ? '#I' : mv.slice(2);
+  if (mv) return mv === 'I' ? '#I' : (RENOMBRE_RD[mv.slice(2)] || mv.slice(2));
   const E = eqRd();
   if ((E.ignorar || []).includes(art)) return '#I';
   const l = E.lineas.find(z => (z.arts || []).includes(art));
@@ -44,7 +50,7 @@ function calcularRd(f) {
   const d = (S.sis && sisRd()[f]) || { re: [], in: [] };
   const E = eqRd(), prod = {};
   const nombres = E.lineas.map(l => l.n);
-  for (const v of Object.values(diaRd(f).mover || {})) if (v.startsWith('L:') && !nombres.includes(v.slice(2))) nombres.push(v.slice(2));
+  for (const v of Object.values(diaRd(f).mover || {})) { const nv = RENOMBRE_RD[v.slice(2)] || v.slice(2); if (v.startsWith('L:') && !nombres.includes(nv)) nombres.push(nv); }
   for (const n of nombres) {
     const re = d.re.filter(r => destinoRd(r.art, r.den, f) === n);
     if (!re.length) continue;
@@ -52,12 +58,36 @@ function calcularRd(f) {
     let ing = [];
     if (bruto - ing.reduce((a, r) => a + r.kg, 0) <= 0) ing = [];
     prod[n] = { n, kg: r2(bruto - ing.reduce((a, r) => a + r.kg, 0)), marca: E.marca || 'QUALITA', dest: '', re, ing };
+    if (/SEBO/i.test(n)) { const u = ultimoRd(n, f); if (u) prod[n].dest = 'Proviene de las producciones realizadas después del ' + u.slice(8, 10) + '.' + u.slice(5, 7) + '.' + u.slice(0, 4) + ' (última vez que figuró)'; }
   }
   const nuevos = d.re.filter(r => destinoRd(r.art, r.den, f) === null);
   return { prod, nuevos, d, orden: nombres };
 }
+/* el sebo no sale todos los días: lo que figura un día es lo acumulado de las producciones desde la vez anterior que figuró (Sabi 27/11).
+   Busca ese día en el mes y, si no está, en el mes anterior (se lee una vez, en segundo plano). */
+function ultimoRd(n, f) {
+  const dias = sisRd(), ant = Object.keys(dias).filter(d => d < f).sort().reverse();
+  for (const d of ant) if (dias[d].re.some(r => destinoRd(r.art, r.den, d) === n && r.kg > 0)) return d;
+  const mesAnt = prevMesRd(f.slice(0, 7));
+  if (!S.rdAnt || S.rdAnt.mes !== mesAnt) { cargarRdAnt(mesAnt); return null; }
+  return (S.rdAnt.ult || {})[n] || null;
+}
+function prevMesRd(m) { const [a, b] = m.split('-').map(Number); return b === 1 ? (a - 1) + '-12' : a + '-' + String(b - 1).padStart(2, '0'); }
+async function cargarRdAnt(mes) {
+  if (S.rdAntCargando === mes) return; S.rdAntCargando = mes;
+  try {
+    const o = parseDJ(await sisTexto('dj-' + mes)), ult = {}, E = eqRd();
+    for (const m of o.me || []) if (m.ticd === 6 && m.kg > 0) {
+      const l = E.lineas.find(z => (z.arts || []).includes(m.art)) || E.lineas.find(z => z.pat && new RegExp(z.pat).test(String(m.den || '').toUpperCase()));
+      if (l && (!ult[l.n] || m.f > ult[l.n])) ult[l.n] = m.f;
+    }
+    S.rdAnt = { mes, ult };
+  } catch (e) { S.rdAnt = { mes, ult: {} }; }
+  if (S.tab === 'rd' && !(typeof ocupado === 'function' && ocupado())) render();
+}
 function planillaRd(f) {
-  const c = calcularRd(f), x = diaRd(f), ov = x.prod || {}, filas = [];
+  const c = calcularRd(f), x = diaRd(f), ov = Object.assign({}, x.prod || {}), filas = [];
+  for (const v in RENOMBRE_RD) if (ov[v]) { if (!ov[RENOMBRE_RD[v]]) ov[RENOMBRE_RD[v]] = ov[v]; delete ov[v]; }
   const nombres = c.orden.concat(Object.keys(ov).filter(n => !c.orden.includes(n)));
   for (const n of nombres) {
     const s = c.prod[n], o = ov[n] || {};
@@ -73,7 +103,7 @@ function planillaRd(f) {
   const ingSis = {}, oi = x.ing || {};
   for (const r of c.d.in || []) { const k = String(r.art); (ingSis[k] = ingSis[k] || { art: r.art, n: r.den, kg: 0 }).kg = r2(ingSis[k].kg + r.kg); }
   const ter = eqRd().terceros || RD_DEF.terceros;
-  const ingreso = Object.values(ingSis).map(r => ({ art: r.art, n: r.n + (ter[r.art] ? ' (DE TERCEROS: ' + ter[r.art] + ')' : ''), ter: ter[r.art] || '', kgSis: r.kg, kg: oi[r.art] !== undefined ? oi[r.art] : r.kg, aj: oi[r.art] !== undefined }))
+  const ingreso = Object.values(ingSis).map(r => ({ art: r.art, n: r.n + (ter[r.art] ? ' (DE TERCEROS: ' + ter[r.art] + ')' : ''), nom: r.n, obs: ter[r.art] ? 'De terceros (' + ter[r.art].replace(/\b\w+/g, w => w[0] + w.slice(1).toLowerCase()) + ')' : '', kgSis: r.kg, kg: oi[r.art] !== undefined ? oi[r.art] : r.kg, aj: oi[r.art] !== undefined }))
     .filter(r => r.kg !== null && r.kg !== '').sort((a, b) => b.kg - a.kg);
   const totIng = r2(ingreso.reduce((a, r) => a + (Number(r.kg) || 0), 0));
   return { c, filas, tot, lote, x, ingreso, totIng };
@@ -111,6 +141,12 @@ function renderRd() {
     h += '<div class="alerta warn"><div><b>Hay productos del sistema que no se reconocen.</b> Decí a qué renglón van (queda guardado):<table class="dj-nuevos">' +
       P.c.nuevos.map(r => '<tr><td>' + r.art + ' · ' + esc(r.den) + '</td><td class="num">' + fmt2(r.kg) + ' kg</td><td>' + selectMoverRd(r.art, '', true) + '</td></tr>').join('') + '</table></div></div>';
   }
+  h += '<section><h2>Ingreso de materia prima</h2>';
+  if (!P.ingreso.length) h += '<p class="muted">El sistema no tiene ingresos de materia prima al rendering este día' + (S.sis && S.sis.mi && S.sis.mi.length ? '' : ' (o todavía no llegaron: se traen con "Traer datos nuevos")') + '.</p>';
+  else h += '<p class="sub">Tocá un peso para corregirlo.</p><div class="tw"><table class="planilla dj-tab"><thead><tr><th>Materia prima</th><th class="num">Kilogramos</th></tr></thead><tbody>' +
+    P.ingreso.map(r => '<tr><td>' + esc(r.n) + '</td><td class="ed num' + (r.aj ? ' aj' : '') + '" onclick="editarIngRd(' + r.art + ')">' + fmt2(r.kg) + (r.aj ? '<small class="dj-sis">' + fmt2(r.kgSis) + '</small>' : '') + '</td></tr>').join('') +
+    '<tr class="tot"><td>Total ingresado</td><td class="num">' + fmt2(P.totIng) + ' kg</td></tr></tbody></table></div>';
+  h += '</section>';
   h += '<section><h2>Producción de rendering</h2><p class="sub">Tocá un número o un texto para corregirlo. Tocá el nombre del producto para ver de qué artículos del sistema sale y mandar alguno a otro renglón.</p>';
   h += '<div class="tw"><table class="planilla dj-tab"><thead><tr><th>Nombre del producto</th><th>Marca</th><th class="num">Total de kg producidos</th><th>Observaciones / destino</th><th></th></tr></thead><tbody>';
   for (const r of P.filas) {
@@ -125,11 +161,6 @@ function renderRd() {
   h += '<div class="row" style="margin-top:10px"><select id="nuevaRd"><option value="">+ Agregar un renglón…</option>' +
     eqRd().lineas.map(l => l.n).filter(n => !P.filas.some(r => r.n === n)).map(n => '<option>' + esc(n) + '</option>').join('') + '<option value="*">Otro (escribir el nombre)</option></select><button class="small" onclick="agregarRd()">Agregar</button>' +
     (quitados.length ? '<span class="muted" style="font-size:13px">Sacados: ' + quitados.map(n => esc(n) + ' <a href="#" onclick="cambiarDiaRd(x=>{delete x.prod[\'' + jsq(n) + '\']},\'vuelve ' + jsq(n) + '\');return false">volver a poner</a>').join(' · ') + '</span>' : '') + '</div>';
-  h += '</section><section><h2>Ingreso de materia prima</h2>';
-  if (!P.ingreso.length) h += '<p class="muted">El sistema no tiene ingresos de materia prima al rendering este día' + (S.sis && S.sis.mi && S.sis.mi.length ? '' : ' (o todavía no llegaron: se traen con "Traer datos nuevos")') + '.</p>';
-  else h += '<p class="sub">Tocá un peso para corregirlo.</p><div class="tw"><table class="planilla dj-tab"><thead><tr><th>Materia prima</th><th class="num">Kilogramos</th></tr></thead><tbody>' +
-    P.ingreso.map(r => '<tr><td>' + esc(r.n) + '</td><td class="ed num' + (r.aj ? ' aj' : '') + '" onclick="editarIngRd(' + r.art + ')">' + fmt2(r.kg) + (r.aj ? '<small class="dj-sis">' + fmt2(r.kgSis) + '</small>' : '') + '</td></tr>').join('') +
-    '<tr class="tot"><td>Total ingresado</td><td class="num">' + fmt2(P.totIng) + ' kg</td></tr></tbody></table></div>';
   h += '</section></div></div>';
   $('main').innerHTML = h;
 }
@@ -240,21 +271,27 @@ function eqNuevaRd() { pedir('Producto nuevo', '', 'Nombre como tiene que salir 
 /* ---------- impresión: la hoja completa, igual al Word ---------- */
 function hojaRd(f) {
   const P = planillaRd(f), E = eqRd(), filas = P.filas.slice();
-  const N = Math.max(9, filas.length);
-  let h = '<div class="hoja h3"><div class="h3-cab"><img src="/logo.png" alt=""><div><div class="h3-t">Frigorífico Qualita S.A</div><div class="h3-s">Ruta Nacional N.º 9 Norte / Km. 745 Colonia Caroya / Córdoba / Argentina</div><div class="h3-s">&nbsp;Establecimiento N.º Oficial ' + esc(E.estab || '') + '</div></div></div>' +
-    '<div class="h3-c b">Producción Rendering FRIGORIFICO QUALITA S.A.</div><div class="h3-c">DECLARACIÓN JURADA</div>' +
+  /* con ingreso de materia prima (Sabi 27/11): primero los ingresos, en lo producido solo los renglones que hay; un solo tamaño de letra,
+     columnas alineadas entre las dos tablas, kilos con separador de miles, todo en una hoja */
+  const conIng = P.ingreso.length > 0, N = conIng ? Math.max(1, filas.length) : Math.max(9, filas.length);
+  const kg = v => (v == null || v === '' ? '' : fmt2(v));
+  const COLS = '<colgroup><col style="width:35%"><col style="width:13%"><col style="width:22%"><col style="width:30%"></colgroup>';
+  let h = '<div class="hoja h3 h3-rd' + (conIng ? ' h3-comp' : '') + '"><div class="h3-cab"><img src="/logo.png" alt=""><div><div class="h3-t">FRIGORÍFICO QUALITA S.A.</div><div class="h3-s">Ruta Nacional N.º 9 Norte, Km. 745 · Colonia Caroya · Córdoba · Argentina</div><div class="h3-s">Establecimiento N.º Oficial ' + esc(E.estab || '') + '</div></div></div>' +
+    '<div class="h3-c b">PRODUCCIÓN RENDERING FRIGORIFICO QUALITA S.A.</div><div class="h3-c b2">DECLARACIÓN JURADA</div>' +
     '<div class="h3-leg">La presente planilla reviste el carácter de <b>Declaración Jurada</b> y está sujeta al Artículo 293 Primera Parte del Código Penal.</div>' +
-    '<div class="h3-f"><span>Fecha:' + f.slice(8, 10) + '.' + f.slice(5, 7) + '.' + f.slice(0, 4) + '</span><span>N.º de Lote: ' + esc(P.lote) + '</span></div>' +
-    '<table class="h3-tab"><colgroup><col style="width:25.4%"><col style="width:19.8%"><col style="width:25.6%"><col style="width:29.2%"></colgroup>' +
-    '<tr class="th"><td>NOMBRE DEL PRODUCTO</td><td>MARCA</td><td>TOTAL DE KILOGRAMOS PRODUCIDOS</td><td>OBSERVACIONES/ DESTINO</td></tr>';
+    '<div class="h3-f"><span><b>Fecha:</b> ' + f.slice(8, 10) + '.' + f.slice(5, 7) + '.' + f.slice(0, 4) + '</span><span><b>N.º de Lote:</b> ' + esc(P.lote) + '</span></div>';
+  if (conIng) h += '<div class="h3-sec">1. Ingreso de materia prima</div><table class="h3-tab h3-ing">' + COLS + '<tr class="th"><td colspan="2">MATERIA PRIMA</td><td>KILOGRAMOS</td><td>OBSERVACIONES</td></tr>' +
+    P.ingreso.map(r => '<tr class="fi"><td colspan="2" class="l">' + esc(r.nom) + '</td><td class="r">' + kg(r.kg) + '</td><td>' + esc(r.obs) + '</td></tr>').join('') +
+    '<tr class="tt"><td colspan="2">TOTAL INGRESADO</td><td class="r">' + kg(P.totIng) + ' kg</td><td></td></tr></table>' +
+    '<div class="h3-sec">2. Producción</div>';
+  h += '<table class="h3-tab' + (conIng ? ' h3-prod' : '') + '">' + COLS +
+    '<tr class="th"><td>NOMBRE DEL PRODUCTO</td><td>MARCA</td><td>KILOGRAMOS PRODUCIDOS</td><td>OBSERVACIONES / DESTINO</td></tr>';
   for (let i = 0; i < N; i++) {
     const r = filas[i];
-    h += '<tr class="fi">' + (r ? '<td>' + esc(r.n) + '</td><td>' + esc(r.marca || '') + '</td><td>' + (r.kg != null ? fmtP(r.kg) : '') + '</td><td>' + esc(r.dest || '') + '</td>' : '<td></td><td></td><td></td><td></td>') + '</tr>';
+    h += '<tr class="fi">' + (r ? '<td class="l">' + esc(r.n) + '</td><td>' + esc(r.marca || '') + '</td><td class="r">' + kg(r.kg) + '</td><td>' + esc(r.dest || '') + '</td>' : '<td></td><td></td><td></td><td></td>') + '</tr>';
   }
-  h += '<tr class="tt"><td>TOTAL</td><td></td><td>' + fmtP(P.tot) + ' Kg</td><td></td></tr></table>';
-  if (P.ingreso.length) h += '<table class="h3-tab h3-ing"><colgroup><col style="width:70.8%"><col style="width:29.2%"></colgroup><tr class="th"><td>INGRESO DE MATERIA PRIMA</td><td>KILOGRAMOS</td></tr>' +
-    P.ingreso.map(r => '<tr class="fi"><td>' + esc(r.n) + '</td><td>' + fmtP(r.kg) + '</td></tr>').join('') + '<tr class="tt"><td>TOTAL</td><td>' + fmtP(P.totIng) + ' Kg</td></tr></table>';
-  h += '<div class="h3-firma">..........................................................................................................<br>Firma del responsable de la Empresa</div></div>';
+  h += '<tr class="tt"><td>TOTAL PRODUCIDO</td><td></td><td class="r">' + kg(P.tot) + ' kg</td><td></td></tr></table>';
+  h += '<div class="h3-firma"><div class="h3-linea"></div>Firma del responsable de la Empresa</div></div>';
   return h;
 }
 function imprimirRd() {
@@ -276,32 +313,35 @@ function verImpresionRd() {
 function excelHojaDJ(o) {
   if (!o.dias.length || !o.dias[0]) { toast('No hay días con producción.', true); return; }
   const L = XL.libro(), T = 'thin', bd = { l: T, r: T, t: T, b: T };
-  const tit = { sz: 14, b: 1, h: 'center', v: 'center' }, cab = { sz: 11, b: 1, h: 'center', v: 'center', wrap: 1, bd }, cel = { sz: 11, v: 'center', bd };
+  const U = !!o.uniforme;   // rendering (Sabi 27/11): todas las letras del mismo tamaño y menos espacio entre el encabezado y los títulos
+  const tit = { sz: U ? 11 : 14, b: 1, h: 'center', v: 'center' }, cab = { sz: 11, b: 1, h: 'center', v: 'center', wrap: 1, bd }, cel = { sz: 11, v: 'center', bd };
   for (const f of o.dias) {
     const P = o.planilla(f), h = L.hoja(o.dias.length > 1 ? ddmm(f).replace('/', '-') : o.hoja, {
-      anchos: { A: 2, B: 38, C: 16, D: 22, E: 34 }, altos: { 1: 20, 2: 14, 3: 14, 5: 20, 6: 18, 7: 30, 9: 16, 11: 36 }, ajustar: true, margenes: { l: 0.6, r: 0.6, t: 0.7, b: 0.7 } });
-    h.set('B1', 'Frigorífico Qualita S.A', { sz: 16, b: 1 }).set('B2', 'Ruta Nacional N.º 9 Norte / Km. ' + o.km + ' Colonia Caroya / Córdoba / Argentina', { sz: 9 }).set('B3', 'Establecimiento N.º Oficial ' + (o.estab || ''), { sz: 9 });
+      anchos: { A: 2, B: 38, C: 16, D: 22, E: 34 }, altos: U ? { 1: 16, 2: 15, 3: 15, 4: 6, 5: 16, 6: 16, 7: 30, 8: 6, 9: 16, 10: 8, 11: 36 } : { 1: 20, 2: 14, 3: 14, 5: 20, 6: 18, 7: 30, 9: 16, 11: 36 }, ajustar: true, margenes: { l: 0.6, r: 0.6, t: 0.7, b: 0.7 } });
+    h.set('B1', 'Frigorífico Qualita S.A', { sz: U ? 11 : 16, b: 1 }).set('B2', 'Ruta Nacional N.º 9 Norte / Km. ' + o.km + ' Colonia Caroya / Córdoba / Argentina', { sz: U ? 11 : 9 }).set('B3', 'Establecimiento N.º Oficial ' + (o.estab || ''), { sz: U ? 11 : 9 });
     h.set('B5', o.titulo, tit).merge('B5:E5').set('B6', 'DECLARACIÓN JURADA', tit).merge('B6:E6');
-    h.set('B7', 'La presente planilla reviste el carácter de Declaración Jurada y está sujeta al Artículo 293 Primera Parte del Código Penal.', { sz: 9, h: 'center', v: 'center', wrap: 1 }).merge('B7:E7');
+    h.set('B7', 'La presente planilla reviste el carácter de Declaración Jurada y está sujeta al Artículo 293 Primera Parte del Código Penal.', { sz: U ? 11 : 9, h: 'center', v: 'center', wrap: 1 }).merge('B7:E7');
     h.set('B9', 'Fecha: ' + f.slice(8, 10) + '.' + f.slice(5, 7) + '.' + f.slice(0, 4), { sz: 11, b: 1 }).set('E9', 'N.º de Lote: ' + P.lote, { sz: 11, b: 1, h: 'right' });
-    ['NOMBRE DEL PRODUCTO', 'MARCA', 'TOTAL DE KILOGRAMOS PRODUCIDOS', 'OBSERVACIONES / DESTINO'].forEach((t, i) => h.set('BCDE'[i] + '11', t, cab));
-    const N = Math.max(9, P.filas.length);
+    /* rendering con ingreso de materia prima (Sabi 27/11): primero los ingresos y en lo producido solo los renglones que hay */
+    let p0 = 11;
+    const conIng = !!(P.ingreso && P.ingreso.length);
+    if (conIng) {
+      const i0 = 11; h.op.altos[i0] = 24;
+      h.set('B' + i0, 'INGRESO DE MATERIA PRIMA', cab).set('C' + i0, null, cab).set('D' + i0, 'KILOGRAMOS', cab).set('E' + i0, 'OBSERVACIONES', cab).merge('B' + i0 + ':C' + i0);
+      P.ingreso.forEach((r, k) => { const fi = i0 + 1 + k; h.op.altos[fi] = 20; h.set('B' + fi, r.nom || r.n, cel).set('C' + fi, null, cel).merge('B' + fi + ':C' + fi).set('D' + fi, Number(r.kg), Object.assign({ h: 'right', fmt: '#,##0.00' }, cel)).set('E' + fi, r.obs || '', Object.assign({ h: 'center' }, cel)); });
+      const fz = i0 + 1 + P.ingreso.length; h.op.altos[fz] = 22;
+      h.set('B' + fz, 'TOTAL INGRESADO', Object.assign({ b: 1 }, cel)).set('C' + fz, null, cel).merge('B' + fz + ':C' + fz).set('D' + fz, { f: 'SUM(D' + (i0 + 1) + ':D' + (fz - 1) + ')', v: P.totIng }, Object.assign({ b: 1, h: 'right', fmt: '#,##0.00' }, cel)).set('E' + fz, null, cel);
+      p0 = fz + 2; h.op.altos[p0] = 36;
+    }
+    ['NOMBRE DEL PRODUCTO', 'MARCA', 'TOTAL DE KILOGRAMOS PRODUCIDOS', 'OBSERVACIONES / DESTINO'].forEach((t, i) => h.set('BCDE'[i] + p0, t, cab));
+    const N = conIng ? Math.max(1, P.filas.length) : Math.max(9, P.filas.length);
     for (let i = 0; i < N; i++) {
-      const r = P.filas[i], fila = 12 + i; h.op.altos[fila] = 22;
+      const r = P.filas[i], fila = p0 + 1 + i; h.op.altos[fila] = r && U && String(r.dest || '').length > 34 ? 48 : 22;
       h.set('B' + fila, r ? r.n : null, cel).set('C' + fila, r ? (r.marca || '') : null, Object.assign({ h: 'center' }, cel))
-        .set('D' + fila, r && r.kg != null && r.kg !== '' ? Number(r.kg) : null, Object.assign({ h: 'center', fmt: '0.00' }, cel)).set('E' + fila, r ? (r.dest || '') : null, Object.assign({ h: 'center' }, cel));
+        .set('D' + fila, r && r.kg != null && r.kg !== '' ? Number(r.kg) : null, Object.assign(U ? { h: 'right', fmt: '#,##0.00' } : { h: 'center', fmt: '0.00' }, cel)).set('E' + fila, r ? (r.dest || '') : null, Object.assign({ h: 'center', wrap: U ? 1 : 0 }, cel));
     }
-    let ft = 12 + N; h.op.altos[ft] = 24;
-    h.set('B' + ft, 'TOTAL', Object.assign({ b: 1 }, cel)).set('C' + ft, null, cel).set('D' + ft, { f: 'SUM(D12:D' + (ft - 1) + ')', v: P.tot }, Object.assign({ b: 1, h: 'center', fmt: '0.00' }, cel)).set('E' + ft, null, cel);
-    let fz = ft;
-    if (P.ingreso && P.ingreso.length) {   // rendering: ingreso de materia prima (Sabi 27/11)
-      const i0 = ft + 2; h.op.altos[i0] = 24;
-      h.set('B' + i0, 'INGRESO DE MATERIA PRIMA', cab).set('C' + i0, null, cab).set('D' + i0, 'KILOGRAMOS', cab).set('E' + i0, null, cab).merge('B' + i0 + ':C' + i0);
-      P.ingreso.forEach((r, k) => { const fi = i0 + 1 + k; h.op.altos[fi] = 20; h.set('B' + fi, r.n, cel).set('C' + fi, null, cel).merge('B' + fi + ':C' + fi).set('D' + fi, Number(r.kg), Object.assign({ h: 'center', fmt: '0.00' }, cel)); });
-      fz = i0 + 1 + P.ingreso.length; h.op.altos[fz] = 22;
-      h.set('B' + fz, 'TOTAL', Object.assign({ b: 1 }, cel)).set('C' + fz, null, cel).merge('B' + fz + ':C' + fz).set('D' + fz, { f: 'SUM(D' + (i0 + 1) + ':D' + (fz - 1) + ')', v: P.totIng }, Object.assign({ b: 1, h: 'center', fmt: '0.00' }, cel));
-    }
-    ft = fz;
+    const ft = p0 + 1 + N; h.op.altos[ft] = 24;
+    h.set('B' + ft, U ? 'TOTAL PRODUCIDO' : 'TOTAL', Object.assign({ b: 1 }, cel)).set('C' + ft, null, cel).set('D' + ft, { f: 'SUM(D' + (p0 + 1) + ':D' + (ft - 1) + ')', v: P.tot }, Object.assign(U ? { b: 1, h: 'right', fmt: '#,##0.00' } : { b: 1, h: 'center', fmt: '0.00' }, cel)).set('E' + ft, null, cel);
     h.set('B' + (ft + 5), '.......................................................................', { sz: 11, h: 'center' }).merge('B' + (ft + 5) + ':E' + (ft + 5));
     h.set('B' + (ft + 6), 'Firma del responsable de la Empresa', { sz: 11, h: 'center' }).merge('B' + (ft + 6) + ':E' + (ft + 6));
   }
@@ -309,7 +349,7 @@ function excelHojaDJ(o) {
 }
 function excelRd(mes) {
   const dias = mes ? Object.keys(sisRd()).filter(f => f.slice(0, 7) === S.mes).sort() : [S.fechaRd];
-  excelHojaDJ({ dias, planilla: planillaRd, estab: eqRd().estab, km: '745', titulo: 'Producción Rendering FRIGORIFICO QUALITA S.A.', hoja: 'RENDERING',
+  excelHojaDJ({ dias, planilla: planillaRd, estab: eqRd().estab, km: '745', titulo: 'Producción Rendering FRIGORIFICO QUALITA S.A.', hoja: 'RENDERING', uniforme: true,
     nombre: mes ? 'DDJJ rendering ' + nombreMes(S.mes) + '.xlsx' : 'DDJJ rendering ' + ddmmaaaa(S.fechaRd).replace(/\//g, '-') + '.xlsx' });
 }
 function excel3(mes) {

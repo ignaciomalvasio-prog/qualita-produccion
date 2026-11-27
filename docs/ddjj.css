@@ -125,6 +125,23 @@ body.vista-m .hoja::before{display:none}
 .tz-tipo label{display:flex;align-items:center;gap:5px;font-size:15px;cursor:pointer}
 .tz-tipo input{width:auto;margin:0}
 .tz-dest{margin:4px 0 8px 18px;line-height:1.7}
-/* rendering: ingreso de materia prima, más compacto para que entre en la hoja (Sabi 27/11) */
-.h3-ing{margin-top:14pt}.h3-ing tr.th td{height:20pt}.h3-ing tr.fi td{height:16pt}.h3-ing tr.tt td{height:18pt}
-.h3-ing tr.fi td:first-child{text-align:left}
+/* DDJJ de rendering (Sabi 27/11): ingreso primero, un solo tamaño de letra, más prolija (formal) */
+.h3-rd{padding:56pt 62pt 0 70pt;font-size:10pt}
+.h3-rd .h3-cab{margin-left:0;gap:12pt;padding-bottom:10pt;border-bottom:1.2pt solid #000}
+.h3-rd .h3-cab img{height:50pt}
+.h3-rd .h3-t{font-size:10pt;letter-spacing:.6pt}.h3-rd .h3-s{font-size:10pt;margin-top:2pt}
+.h3-rd .h3-c{font-size:10pt;margin-top:0;letter-spacing:.4pt}.h3-rd .h3-c.b{margin-top:14pt;font-weight:bold}.h3-rd .h3-c.b2{margin-top:3pt;font-weight:bold}
+.h3-rd .h3-leg{font-size:10pt;margin-top:8pt;text-align:center;line-height:1.4}
+.h3-rd .h3-f{font-size:10pt;margin-top:14pt;justify-content:space-between;gap:0}
+.h3-sec{font-size:10pt;font-weight:bold;margin:12pt 0 4pt;letter-spacing:.3pt}
+.h3-rd .h3-tab{font-size:10pt;font-weight:normal;margin-top:0}
+.h3-rd .h3-tab td{border:.6pt solid #000;padding:3pt 6pt}
+.h3-rd .h3-tab td.l{text-align:left}.h3-rd .h3-tab td.r{text-align:right;font-variant-numeric:tabular-nums}
+.h3-rd .h3-tab tr.th td{height:auto;padding:5pt 6pt;font-weight:bold;background:#e6e6e6!important}
+.h3-rd .h3-tab tr.fi td{height:15pt}.h3-rd .h3-tab td{line-height:1.25}
+.h3-rd:not(.h3-comp) .h3-tab tr.fi td{height:24pt}
+.h3-rd .h3-tab tr.tt td{height:18pt;font-weight:bold;background:#fff!important}
+.h3-rd .h3-tab tr.tt td:first-child{background:#e6e6e6!important}
+.h3-rd .h3-firma{font-family:Arial,"Liberation Sans",sans-serif;font-size:10pt;margin:36pt auto 0;width:220pt;line-height:1.4}
+.h3-rd .h3-linea{border-top:.8pt solid #000;margin-bottom:4pt}
+@media print{.h3-rd .h3-tab tr.th td,.h3-rd .h3-tab tr.tt td:first-child{-webkit-print-color-adjust:exact;print-color-adjust:exact}}

@@ -12,7 +12,7 @@ for(const w of [1300,400]){const p=await b.newPage({viewport:{width:w,height:900
  const t=await p.evaluate(()=>document.getElementById('main').innerText.replace(/\s+/g,' '));
  if(w===1300){console.log(t.slice(0,600));
   ok(/Rendering · martes, 17 de noviembre/i.test(t)||/Rendering · .*17/.test(t),'abre el último día con producción (17/11)');
-  ok(/HARINA DE CARNE Y HUESO PORCINA QUALITA 1\.200,00/.test(t)&&/GRASA PORCINA \(SEBO\) QUALITA 350,50/.test(t),'harina y sebo con sus kg');
+  ok(/HARINA DE CARNE Y HUESO PORCINA QUALITA 1\.200,00/.test(t)&&/SEBO PORCINO QUALITA 350,50/.test(t),'harina y sebo con sus kg');
   ok(/Total 1\.550,50 kg/.test(t),'total 1.550,50 kg (sin el producto que no se reconoce ni las menudencias)');
   ok(/no se reconocen/.test(t)&&/905 · PRODUCTO RARO/.test(t),'avisa el producto que no se reconoce');
   // asignarlo para siempre a harina
@@ -23,9 +23,9 @@ for(const w of [1300,400]){const p=await b.newPage({viewport:{width:w,height:900
   // corregir destino
   await p.locator('tr:has-text("HARINA") td.ed').nth(2).click();await p.fill('#dlg-v','VENTA');await p.click('#dlg-ok');await p.waitForTimeout(300);
   const hoja=await p.evaluate(()=>hojaRd(S.fechaRd));
-  ok(/Km. 745 Colonia Caroya/.test(hoja)&&/Establecimiento N.º Oficial 4886/.test(hoja)&&/Producción Rendering FRIGORIFICO QUALITA S\.A\./.test(hoja)&&/DECLARACIÓN JURADA/.test(hoja),'hoja: encabezado con establecimiento 4886');
-  ok(/HARINA DE CARNE Y HUESO PORCINA<\/td><td>QUALITA<\/td><td>1210\.00<\/td><td>VENTA/.test(hoja),'hoja: renglón con kg y destino corregido');
-  ok(/Fecha:17\.11\.2026/.test(hoja)&&/N.º de Lote: 171126/.test(hoja),'hoja: fecha y lote');
+  ok(/Km. 745 · Colonia Caroya/.test(hoja)&&/Establecimiento N.º Oficial 4886/.test(hoja)&&/PRODUCCIÓN RENDERING FRIGORIFICO QUALITA S\.A\./.test(hoja)&&/DECLARACIÓN JURADA/.test(hoja),'hoja: encabezado con establecimiento 4886');
+  ok(/HARINA DE CARNE Y HUESO PORCINA<\/td><td>QUALITA<\/td><td class=\"r\">1\.210,00<\/td><td>VENTA/.test(hoja),'hoja: renglón con kg y destino corregido');
+  ok(/Fecha:<\/b> 17\.11\.2026/.test(hoja)&&/N.º de Lote:<\/b> 171126/.test(hoja),'hoja: fecha y lote');
   // Excel del día y del mes (el .xlsx va sin comprimir: se lee el XML)
   await p.evaluate(()=>{window.__auto={hecho:true};window.__autoOut=[];});
   await p.click('text=Excel del día');await p.click('text=Excel del mes');
