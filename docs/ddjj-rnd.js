@@ -20,6 +20,7 @@ function sisRd() {
   if (_rdDe === S.sis && _rdCache) return _rdCache;
   const o = {};
   for (const m of (S.sis && S.sis.me) || []) if (m.ticd === 6) (o[m.f] = o[m.f] || { re: [], in: [] }).re.push({ art: m.art, den: m.den, uni: m.uni, kg: m.kg });
+  for (const m of (S.sis && S.sis.mi) || []) if (m.ticd === 6) (o[m.f] = o[m.f] || { re: [], in: [] }).in.push({ art: m.art, den: m.den, uni: m.uni, kg: m.kg });   // materia prima que entra (Sabi 27/11)
   _rdDe = S.sis; _rdCache = o; return o;
 }
 const eqRd = () => (eq().rd || RD_DEF);
@@ -67,7 +68,19 @@ function planillaRd(f) {
   }
   const tot = r2(filas.reduce((a, r) => a + (Number(r.kg) || 0), 0));
   const lote = x.lote != null ? x.lote : f.slice(8, 10) + f.slice(5, 7) + f.slice(2, 4);
-  return { c, filas, tot, lote, x };
+  /* ingreso de materia prima (Sabi 27/11): del sistema, por artículo; el peso se puede corregir a mano (x.ing[art] = kg) */
+  const ingSis = {}, oi = x.ing || {};
+  for (const r of c.d.in || []) { const k = String(r.art); (ingSis[k] = ingSis[k] || { art: r.art, n: r.den, kg: 0 }).kg = r2(ingSis[k].kg + r.kg); }
+  const ingreso = Object.values(ingSis).map(r => ({ art: r.art, n: r.n, kgSis: r.kg, kg: oi[r.art] !== undefined ? oi[r.art] : r.kg, aj: oi[r.art] !== undefined }))
+    .filter(r => r.kg !== null && r.kg !== '').sort((a, b) => b.kg - a.kg);
+  const totIng = r2(ingreso.reduce((a, r) => a + (Number(r.kg) || 0), 0));
+  return { c, filas, tot, lote, x, ingreso, totIng };
+}
+function editarIngRd(art) {
+  const P = planillaRd(S.fechaRd), r = P.ingreso.find(z => z.art === art) || {};
+  pedir('Kilos que ingresaron', r.kg, 'Del sistema: ' + fmt2(r.kgSis) + ' kg. Dejalo vacío para volver al del sistema.', v => {
+    cambiarDiaRd(x => { x.ing = x.ing || {}; if (v === '' || v == null) delete x.ing[art]; else x.ing[art] = Number(String(v).replace(',', '.')); }, 'ingreso ' + art + ' = ' + v);
+  });
 }
 
 function chipDiaRd(f) {
@@ -110,6 +123,11 @@ function renderRd() {
   h += '<div class="row" style="margin-top:10px"><select id="nuevaRd"><option value="">+ Agregar un renglón…</option>' +
     eqRd().lineas.map(l => l.n).filter(n => !P.filas.some(r => r.n === n)).map(n => '<option>' + esc(n) + '</option>').join('') + '<option value="*">Otro (escribir el nombre)</option></select><button class="small" onclick="agregarRd()">Agregar</button>' +
     (quitados.length ? '<span class="muted" style="font-size:13px">Sacados: ' + quitados.map(n => esc(n) + ' <a href="#" onclick="cambiarDiaRd(x=>{delete x.prod[\'' + jsq(n) + '\']},\'vuelve ' + jsq(n) + '\');return false">volver a poner</a>').join(' · ') + '</span>' : '') + '</div>';
+  h += '</section><section><h2>Ingreso de materia prima</h2>';
+  if (!P.ingreso.length) h += '<p class="muted">El sistema no tiene ingresos de materia prima al rendering este día' + (S.sis && S.sis.mi && S.sis.mi.length ? '' : ' (o todavía no llegaron: se traen con "Traer datos nuevos")') + '.</p>';
+  else h += '<p class="sub">Tocá un peso para corregirlo.</p><div class="tw"><table class="planilla dj-tab"><thead><tr><th>Materia prima</th><th class="num">Kilogramos</th></tr></thead><tbody>' +
+    P.ingreso.map(r => '<tr><td>' + r.art + ' · ' + esc(r.n) + '</td><td class="ed num' + (r.aj ? ' aj' : '') + '" onclick="editarIngRd(' + r.art + ')">' + fmt2(r.kg) + (r.aj ? '<small class="dj-sis">' + fmt2(r.kgSis) + '</small>' : '') + '</td></tr>').join('') +
+    '<tr class="tot"><td>Total ingresado</td><td class="num">' + fmt2(P.totIng) + ' kg</td></tr></tbody></table></div>';
   h += '</section></div></div>';
   $('main').innerHTML = h;
 }
@@ -231,8 +249,10 @@ function hojaRd(f) {
     const r = filas[i];
     h += '<tr class="fi">' + (r ? '<td>' + esc(r.n) + '</td><td>' + esc(r.marca || '') + '</td><td>' + (r.kg != null ? fmtP(r.kg) : '') + '</td><td>' + esc(r.dest || '') + '</td>' : '<td></td><td></td><td></td><td></td>') + '</tr>';
   }
-  h += '<tr class="tt"><td>TOTAL</td><td></td><td>' + fmtP(P.tot) + ' Kg</td><td></td></tr></table>' +
-    '<div class="h3-firma">..........................................................................................................<br>Firma del responsable de la Empresa</div></div>';
+  h += '<tr class="tt"><td>TOTAL</td><td></td><td>' + fmtP(P.tot) + ' Kg</td><td></td></tr></table>';
+  if (P.ingreso.length) h += '<table class="h3-tab h3-ing"><colgroup><col style="width:70.8%"><col style="width:29.2%"></colgroup><tr class="th"><td>INGRESO DE MATERIA PRIMA</td><td>KILOGRAMOS</td></tr>' +
+    P.ingreso.map(r => '<tr class="fi"><td>' + esc(r.n) + '</td><td>' + fmtP(r.kg) + '</td></tr>').join('') + '<tr class="tt"><td>TOTAL</td><td>' + fmtP(P.totIng) + ' Kg</td></tr></table>';
+  h += '<div class="h3-firma">..........................................................................................................<br>Firma del responsable de la Empresa</div></div>';
   return h;
 }
 function imprimirRd() {
@@ -269,8 +289,17 @@ function excelHojaDJ(o) {
       h.set('B' + fila, r ? r.n : null, cel).set('C' + fila, r ? (r.marca || '') : null, Object.assign({ h: 'center' }, cel))
         .set('D' + fila, r && r.kg != null && r.kg !== '' ? Number(r.kg) : null, Object.assign({ h: 'center', fmt: '0.00' }, cel)).set('E' + fila, r ? (r.dest || '') : null, Object.assign({ h: 'center' }, cel));
     }
-    const ft = 12 + N; h.op.altos[ft] = 24;
+    let ft = 12 + N; h.op.altos[ft] = 24;
     h.set('B' + ft, 'TOTAL', Object.assign({ b: 1 }, cel)).set('C' + ft, null, cel).set('D' + ft, { f: 'SUM(D12:D' + (ft - 1) + ')', v: P.tot }, Object.assign({ b: 1, h: 'center', fmt: '0.00' }, cel)).set('E' + ft, null, cel);
+    let fz = ft;
+    if (P.ingreso && P.ingreso.length) {   // rendering: ingreso de materia prima (Sabi 27/11)
+      const i0 = ft + 2; h.op.altos[i0] = 24;
+      h.set('B' + i0, 'INGRESO DE MATERIA PRIMA', cab).set('C' + i0, null, cab).set('D' + i0, 'KILOGRAMOS', cab).set('E' + i0, null, cab).merge('B' + i0 + ':C' + i0);
+      P.ingreso.forEach((r, k) => { const fi = i0 + 1 + k; h.op.altos[fi] = 20; h.set('B' + fi, r.n, cel).set('C' + fi, null, cel).merge('B' + fi + ':C' + fi).set('D' + fi, Number(r.kg), Object.assign({ h: 'center', fmt: '0.00' }, cel)); });
+      fz = i0 + 1 + P.ingreso.length; h.op.altos[fz] = 22;
+      h.set('B' + fz, 'TOTAL', Object.assign({ b: 1 }, cel)).set('C' + fz, null, cel).merge('B' + fz + ':C' + fz).set('D' + fz, { f: 'SUM(D' + (i0 + 1) + ':D' + (fz - 1) + ')', v: P.totIng }, Object.assign({ b: 1, h: 'center', fmt: '0.00' }, cel));
+    }
+    ft = fz;
     h.set('B' + (ft + 5), '.......................................................................', { sz: 11, h: 'center' }).merge('B' + (ft + 5) + ':E' + (ft + 5));
     h.set('B' + (ft + 6), 'Firma del responsable de la Empresa', { sz: 11, h: 'center' }).merge('B' + (ft + 6) + ':E' + (ft + 6));
   }

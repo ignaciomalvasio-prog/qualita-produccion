@@ -8,6 +8,7 @@
 #    IN|fecha|artículo|nombre|unidades|kg        (lo que entra al desposte que no son medias: reprocesos)
 #    RE|fecha|artículo|nombre|contrato|unidades|piezas|kg   (lo que sale del desposte)
 #    ME|fecha|tipo de ciclo (3 menudencias, 6 rendering)|artículo|nombre|unidades|kg   (resumen mensual de menudencias y rendering para SENASA)
+#    MI|fecha|6|artículo|nombre|unidades|kg   (lo que entra al rendering: materia prima; DDJJ de rendering, Sabi 27/11)
 #    CO|contrato|nombre|país
 #    EN|fecha|artículo|tropa|unidades   (medias que salen enteras, art. 22: de qué tropa son)
 #    C3|fecha|artículo|nombre|unidades|kg  /  C3I|...  (Ciclo III, embutidos: lo que sale / lo que entra; tipo de ciclo 4)
@@ -93,6 +94,10 @@ SELECT 'ME|'||TO_CHAR(d.desp_fecha,'YYYY-MM-DD')||'|'||d.ticd_codigo||'|'||r.art
   FROM desposte d JOIN desposteres r ON r.desp_numero=d.desp_numero LEFT JOIN articulos a ON a.art_codigo=r.art_codigo
  WHERE d.ticd_codigo IN (3,6) AND d.desp_fecha>=$d0 AND d.desp_fecha<$d1
  GROUP BY d.desp_fecha, d.ticd_codigo, r.art_codigo, a.art_denom;
+SELECT 'MI|'||TO_CHAR(d.desp_fecha,'YYYY-MM-DD')||'|'||d.ticd_codigo||'|'||i.art_codigo||'|'||$Den||'|'||SUM(NVL(i.despi_canuni,0))||'|'||TO_CHAR(ROUND(SUM(i.despi_kilos),2))
+  FROM desposte d JOIN desposteing i ON i.desp_numero=d.desp_numero LEFT JOIN articulos a ON a.art_codigo=i.art_codigo
+ WHERE d.ticd_codigo=6 AND d.desp_fecha>=$d0 AND d.desp_fecha<$d1
+ GROUP BY d.desp_fecha, d.ticd_codigo, i.art_codigo, a.art_denom;
 SELECT 'CO|'||c.cont_numero||'|'||TRIM(TRANSLATE(NVL(c.cont_denom,' '), CHR(9)||'|', '  '))||'|'||TRIM(NVL(pa.pais_denom,' '))
   FROM contratos c LEFT JOIN paises pa ON pa.pais_codigo=c.pais_codigo
  WHERE c.cont_numero IN (SELECT DISTINCT r.cont_numero FROM desposte d JOIN desposteres r ON r.desp_numero=d.desp_numero

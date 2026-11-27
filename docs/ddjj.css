@@ -125,3 +125,6 @@ body.vista-m .hoja::before{display:none}
 .tz-tipo label{display:flex;align-items:center;gap:5px;font-size:15px;cursor:pointer}
 .tz-tipo input{width:auto;margin:0}
 .tz-dest{margin:4px 0 8px 18px;line-height:1.7}
+/* rendering: ingreso de materia prima, más compacto para que entre en la hoja (Sabi 27/11) */
+.h3-ing{margin-top:14pt}.h3-ing tr.th td{height:20pt}.h3-ing tr.fi td{height:16pt}.h3-ing tr.tt td{height:18pt}
+.h3-ing tr.fi td:first-child{text-align:left}
