@@ -778,7 +778,7 @@ async function imprimir() {
 function verImpresion() {
   const w = window.open('', '_blank');
   if (!w) { toast('El navegador bloqueó la ventana. Usá Imprimir directamente.', true); return; }
-  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>DDJJ ' + ddmm(S.fecha) + '</title><link rel="stylesheet" href="' + location.origin + '/ddjj.css"></head><body class="vista">' +
+  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>DDJJ ' + ddmm(S.fecha) + '</title><link rel="stylesheet" href="' + location.origin + '/ddjj.css?v=' + Date.now() + '"></head><body class="vista">' +
     '<div class="vista-bar">Así sale impresa la DDJJ del ' + esc(fechaLarga(S.fecha)) + ' (el encabezado lo trae el formulario).</div>' + hojas(S.fecha) + '</body></html>');
   w.document.close();
 }

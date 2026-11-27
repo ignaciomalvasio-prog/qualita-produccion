@@ -199,7 +199,7 @@ function imprimirM() { $('impresion').innerHTML = hojaM(); window.print(); }
 function verImpresionM() {
   const w = window.open('', '_blank');
   if (!w) { toast('El navegador bloqueó la ventana. Usá Imprimir directamente.', true); return; }
-  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Menudencias ' + S.mes + '</title><link rel="stylesheet" href="' + location.origin + '/ddjj.css"></head><body class="vista vista-m">' + hojaM() + '</body></html>');
+  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Menudencias ' + S.mes + '</title><link rel="stylesheet" href="' + location.origin + '/ddjj.css?v=' + Date.now() + '"></head><body class="vista vista-m">' + hojaM() + '</body></html>');
   w.document.close();
 }
 function excelMen() {

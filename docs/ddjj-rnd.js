@@ -310,7 +310,7 @@ function imprimirRd() {
 function verImpresionRd() {
   const w = window.open('', '_blank');
   if (!w) { toast('El navegador bloqueó la ventana. Usá Imprimir directamente.', true); return; }
-  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>DDJJ Rendering ' + ddmm(S.fechaRd) + '</title><base href="' + location.origin + '/"><link rel="stylesheet" href="' + location.origin + '/ddjj.css"></head><body class="vista">' +
+  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>DDJJ Rendering ' + ddmm(S.fechaRd) + '</title><base href="' + location.origin + '/"><link rel="stylesheet" href="' + location.origin + '/ddjj.css?v=' + Date.now() + '"></head><body class="vista">' +
     '<div class="vista-bar">Así sale impresa la DDJJ de rendering del ' + esc(fechaLarga(S.fechaRd)) + '.</div>' + hojaRd(S.fechaRd) + '</body></html>');
   w.document.close();
 }

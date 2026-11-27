@@ -490,3 +490,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Centro de desposte › DDJJ Rendering (Sabi 27/11): observación del sebo = "Producciones desde el DD.MM.AAAA hasta el DD.MM.AAAA" (desde el primer día con producción después de la vez anterior que figuró el sebo, hasta ese día).
 - Centro de desposte › DDJJ Rendering (Sabi 27/11): kilos centrados en la hoja impresa y en el Excel.
 - Centro de desposte › DDJJ Rendering (Sabi 27/11): en el ingreso, la materia prima propia dice "Propia" en Observaciones.
+- Centro de desposte (Sabi 27/11): "Ver cómo sale" carga siempre la hoja de estilos nueva (ddjj.css?v=…), porque la ventana nueva no pasa por el service worker y mostraba el formato viejo.
