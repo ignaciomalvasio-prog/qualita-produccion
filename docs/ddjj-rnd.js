@@ -12,7 +12,8 @@ const RD_DEF = {
     { n: 'HARINA DE CARNE Y HUESO PORCINA', arts: [], pat: 'HARINA' },
     { n: 'GRASA PORCINA (SEBO)', arts: [], pat: 'SEBO|GRASA' }
   ],
-  ignorar: []
+  ignorar: [],
+  terceros: { 434: 'DON PEDRO', 443: 'DON PEDRO', 473: 'DON PEDRO' }   // materia prima de terceros: se aclara en el ingreso (Sabi 27/11)
 };
 /* días con producción de rendering, armados de los renglones ME de tipo 6 (se guarda mientras no cambien los datos) */
 let _rdCache = null, _rdDe = null;
@@ -71,7 +72,8 @@ function planillaRd(f) {
   /* ingreso de materia prima (Sabi 27/11): del sistema, por artículo; el peso se puede corregir a mano (x.ing[art] = kg) */
   const ingSis = {}, oi = x.ing || {};
   for (const r of c.d.in || []) { const k = String(r.art); (ingSis[k] = ingSis[k] || { art: r.art, n: r.den, kg: 0 }).kg = r2(ingSis[k].kg + r.kg); }
-  const ingreso = Object.values(ingSis).map(r => ({ art: r.art, n: r.n, kgSis: r.kg, kg: oi[r.art] !== undefined ? oi[r.art] : r.kg, aj: oi[r.art] !== undefined }))
+  const ter = eqRd().terceros || RD_DEF.terceros;
+  const ingreso = Object.values(ingSis).map(r => ({ art: r.art, n: r.n + (ter[r.art] ? ' (DE TERCEROS: ' + ter[r.art] + ')' : ''), ter: ter[r.art] || '', kgSis: r.kg, kg: oi[r.art] !== undefined ? oi[r.art] : r.kg, aj: oi[r.art] !== undefined }))
     .filter(r => r.kg !== null && r.kg !== '').sort((a, b) => b.kg - a.kg);
   const totIng = r2(ingreso.reduce((a, r) => a + (Number(r.kg) || 0), 0));
   return { c, filas, tot, lote, x, ingreso, totIng };

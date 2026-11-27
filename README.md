@@ -482,3 +482,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - (26/11/2026) Se sacó el cuadro "Pedidos que quedaron sin día" de Logística y la recuperación automática (Renzo ya los arregló a mano).
 - (26/11/2026) Arreglo: las flechas ‹ › del día en Medias no hacían nada.
 - Centro de desposte › DDJJ Rendering (Sabi 27/11): ingreso de materia prima con su peso (renglones MI = desposteing del ciclo 6, nuevos en dj_sync.ps1), en pantalla (peso corregible a mano: rd[fecha].ing[art]), en la hoja impresa (tabla debajo de la producción) y en el Excel. Prueba: tests/prueba918.js.
+- Centro de desposte › DDJJ Rendering (Sabi 27/11): en el ingreso de materia prima, los artículos 434, 443 y 473 (Don Pedro) dicen "(DE TERCEROS: DON PEDRO)" (eq().rd.terceros). Prueba: tests/prueba918.js.
