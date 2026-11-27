@@ -2300,8 +2300,7 @@
   // Si la hora de salida quedó escrita en la nota del camión ("02:00HS", "6:30 hs") y no en su lugar, se pasa a la hora.
   function horaDeNota(c) {
     if (!c || String(c.hora || '').trim()) return c;
-    var m = String(c.nota || '').trim().match(/^(\d{1,2})\s*[:.]\s*(\d{2})\s*(?:H|HS|HRS|HORAS)?\.?$/i);
-    if (m && +m[1] < 24 && +m[2] < 60) { c.hora = (m[1].length < 2 ? '0' : '') + m[1] + ':' + m[2]; c.nota = ''; }
+    var hn = horaEnNota(c.nota); if (hn) { c.hora = hn; c.nota = ''; }
     return c;
   }
   function nombreCamion(f, id) { var c = camionesDe(f).filter(function (x) { return x.id === id; })[0]; return c ? nomCam(c) : ''; }
@@ -2410,8 +2409,12 @@
   }
   // Los tildados de un día, en el orden en que se fueron tildando.
   function tildadosDe(f) { return Object.keys(S.sel || {}).filter(function (id) { var p = pedidoDe(id); return S.sel[id] && p && p.entrega === f; }); }
+  // Si en la nota se escribe solo una hora ("3", "330", "03:00HS", "15 hs"), se toma como horario de salida (pedido de Renzo, 27/11/2026).
+  function horaEnNota(t) { t = String(t || '').trim(); return /^(\d{1,2}([:.]\d{1,2})?|\d{3,4})\s*(H|HS|HRS|HORAS?)?\.?$/i.test(t) ? h24(t.replace(/\s*(H|HS|HRS|HORAS?)\.?$/i, '')) : ''; }
   function crearCamion(f, nombre, nota, ids, kg, idFijo, num) {
-    var cams = camionesDe(f).slice(), cam = { id: idFijo || 'c' + uid(), nombre: String(nombre || '').trim(), num: String(num || '').trim(), nota: String(nota || '').trim(), kg: +kg || 0 };
+    var hn = horaEnNota(nota);
+    var cams = camionesDe(f).slice(), cam = { id: idFijo || 'c' + uid(), nombre: String(nombre || '').trim(), num: String(num || '').trim(), nota: hn ? '' : String(nota || '').trim(), kg: +kg || 0 };
+    if (hn) cam.hora = hn;
     cams.push(cam);
     if (cams.some(function (c) { return c.hora; })) cams = porHorario(cams);   // uno nuevo, sin hora, va arriba
     return asignarCamion(f, ids || [], cam.id, cams).then(function () { return cam; });
@@ -2479,6 +2482,7 @@
     if (hh > 23 || mm > 59 || isNaN(hh) || isNaN(mm)) return '';
     return ('0' + hh).slice(-2) + ':' + ('0' + mm).slice(-2);
   }
+  document.addEventListener('focusout', function (e) { var t = e.target; if (t && t.id === 'cam-nota') { var hv = horaEnNota(t.value); if (hv) { t.value = hv; S.camNota = hv; } } }, true);
   ['focusout', 'change'].forEach(function (ev) { document.addEventListener(ev, function (e) { var t = e.target; if (t && t.dataset && t.dataset.h24 && t.value) { var v = h24(t.value); if (!v) { avisar('!Hora no válida: escribila como 14:30.', 3500); t.value = ''; } else t.value = v; } }, true); });
   function guardarConfig(ya) {
     S.msg.flota = 'Guardando…'; pintarMsg('flota'); clearTimeout(tFlota);
@@ -3583,7 +3587,7 @@
     // Sin N°: el orden de los camiones lo da la numeración de Logística (1, 2, 3…).
     if (escribir) h += '<input type="text" id="cam-nombre" value="' + esc(S.camNombre || '') + '" placeholder="Nombre del camión" aria-label="Nombre del camión">'
       + '<input type="number" inputmode="numeric" id="cam-kg" class="n" value="' + esc(S.camKg || '') + '" placeholder="Capacidad kg" aria-label="Capacidad en kilos">'
-      + '<input type="text" id="cam-nota" value="' + esc(S.camNota || '') + '" placeholder="Nota" aria-label="Nota del camión">'
+      + '<input type="text" id="cam-nota" value="' + esc(S.camNota || '') + '" placeholder="Hora (ej. 3 o 1430) o nota" aria-label="Hora de salida o nota del camión">'
       + '<button class="btn pri" data-act="cam-crear">Armar camión</button>';
     var ops = [], fd = hoy(); if (!esHabil(fd)) fd = habilSiguiente(fd);
     while (ops.length < 8) { if (fd !== f) ops.push(fd); fd = habilSiguiente(fd); }
