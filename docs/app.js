@@ -2411,33 +2411,37 @@
   function tildadosDe(f) { return Object.keys(S.sel || {}).filter(function (id) { var p = pedidoDe(id); return S.sel[id] && p && p.entrega === f; }); }
   // Si en la nota se escribe solo una hora ("3", "330", "03:00HS", "15 hs"), se toma como horario de salida (pedido de Renzo, 27/11/2026).
   function horaEnNota(t) { t = String(t || '').trim(); return /^(\d{1,2}([:.]\d{1,2})?|\d{3,4})\s*(H|HS|HRS|HORAS?)?\.?$/i.test(t) ? h24(t.replace(/\s*(H|HS|HRS|HORAS?)\.?$/i, '')) : ''; }
-  /* Choferes de siempre para "Armar camión" (pedido de Renzo, 27/11/2026): de los últimos 45 días, los que más salieron,
-     con su hora de siempre (por viaje). Tocar uno completa nombre y hora; "1er / 2do viaje" agrega el viaje. */
-  var VIAJE_TXT = ['', 'PRIMER VIAJE', 'SEGUNDO VIAJE', 'TERCER VIAJE'];
+  // Choferes de siempre para "Armar camión" (pedido de Renzo, 27/11/2026): de los últimos 45 días, con su hora habitual.
   function choferBase(nm) { var t = String(nm || '').toUpperCase(); VIAJES.forEach(function (r) { t = t.replace(r, ' '); }); return t.replace(/[()\-–·,]+/g, ' ').replace(/\s+/g, ' ').trim(); }
-  function choferesFrec(f) {
-    var logs = logsTodos(), desde = mas(hoy(), -45), cnt = {};
+  /* Chofer y hora con flechita (lista desplegable), en vez de botones (pedido de Renzo, 27/11/2026). "Escribir otro…" abre el casillero. */
+  function choferLista(f) {
+    var logs = logsTodos(), desde = mas(hoy(), -45), cnt = {}, hs = {};
     Object.keys(logs).forEach(function (d) {
       if (d < desde || d === f) return;
       (logs[d].camiones || []).forEach(function (c) {
         var nm = nomLimpio(c.nombre); if (!nm || !/[A-ZÁÉÍÓÚÑ]{3}/i.test(nm)) return;
-        var b = choferBase(nm), k = norm(b), v = (viajeDe(c) || {}).n || 1; if (!k) return;
-        var x = cnt[k] = cnt[k] || { nom: b, n: 0, horas: {} }; x.n++;
-        var hh = c.hora || horaEnNota(c.nota); if (hh) { var hv = x.horas[v] = x.horas[v] || {}; hv[hh] = (hv[hh] || 0) + 1; }
+        var k = nm.toUpperCase().replace(/\s+/g, ' ').trim(), x = cnt[k] = cnt[k] || { nom: k, n: 0, h: {} }; x.n++;
+        var hh = c.hora || horaEnNota(c.nota); if (hh) { x.h[hh] = (x.h[hh] || 0) + 1; hs[hh] = (hs[hh] || 0) + 1; }
       });
     });
-    var top = function (o) { return Object.keys(o || {}).sort(function (a, b) { return o[b] - o[a]; })[0] || ''; };
-    return Object.keys(cnt).map(function (k) { var x = cnt[k]; return { nom: x.nom, n: x.n, hora: function (v) { return top(x.horas[v || 1]); } }; })
-      .filter(function (x) { return x.n >= 2; }).sort(function (a, b) { return b.n - a.n; }).slice(0, 14);
+    var top = function (o) { return Object.keys(o).sort(function (a, b) { return o[b] - o[a]; })[0] || ''; };
+    var noms = Object.keys(cnt).map(function (k) { return { nom: cnt[k].nom, n: cnt[k].n, hora: top(cnt[k].h) }; }).filter(function (x) { return x.n >= 2; })
+      .sort(function (a, b) { var ba = choferBase(a.nom), bb = choferBase(b.nom); return ba < bb ? -1 : ba > bb ? 1 : ((viajeDe({ nombre: a.nom }) || {}).n || 0) - ((viajeDe({ nombre: b.nom }) || {}).n || 0); });
+    return { noms: noms, horas: Object.keys(hs).sort() };
   }
-  function choferesHTML(f) {
-    var l = choferesFrec(f); if (!l.length) return '';
-    var actual = norm(choferBase(S.camNombre || '')), v = (viajeDe({ nombre: S.camNombre }) || {}).n || 0;
-    return '<div class="choferes"><span class="small muted">Choferes de siempre:</span>' + l.map(function (x) {
-      var h1 = x.hora(1); return '<button type="button" class="btn sm chip' + (norm(x.nom) === actual ? ' on' : '') + '" data-act="chofer" data-nom="' + esc(x.nom) + '">' + esc(x.nom) + (h1 ? ' <small>' + esc(h1) + '</small>' : '') + '</button>';
-    }).join('') + '<span class="choferes-v">' + [1, 2, 3].map(function (k) { return '<button type="button" class="btn sm chip' + (v === k ? ' on' : '') + '" data-act="chofer-viaje" data-v="' + k + '">' + k + (k === 1 ? 'er' : k === 2 ? 'do' : 'er') + ' viaje</button>'; }).join('') + '</span></div>';
+  function choferSelHTML(f) {
+    var L = choferLista(f), v = String(S.camNombre || '').toUpperCase().trim(), en = L.noms.some(function (x) { return x.nom === v; });
+    var inp = '<input type="text" id="cam-nombre" value="' + esc(S.camNombre || '') + '" placeholder="Nombre del camión" aria-label="Nombre del camión">';
+    if (!L.noms.length || S.camNomOtro || (v && !en)) return inp;
+    return '<select id="cam-nom-sel" aria-label="Chofer"><option value="">Elegí el chofer…</option>' + L.noms.map(function (x) { return '<option value="' + esc(x.nom) + '"' + (x.nom === v ? ' selected' : '') + '>' + esc(x.nom) + (x.hora ? ' · ' + esc(x.hora) : '') + '</option>'; }).join('') + '<option value="__otro">✏ Escribir otro…</option></select>';
   }
-  function choferHora(nom, v) { var x = choferesFrec(S.selDia).filter(function (c) { return norm(c.nom) === norm(nom); })[0]; return x ? x.hora(v || 1) || (v > 1 ? '' : '') : ''; }
+  function horaSelHTML(f) {
+    var L = choferLista(f), v = String(S.camNota || '').trim(), hv = horaEnNota(v) || '', hs = L.horas.slice();
+    if (hv && hs.indexOf(hv) < 0) { hs.push(hv); hs.sort(); }
+    var inp = '<input type="text" id="cam-nota" value="' + esc(S.camNota || '') + '" placeholder="Hora (ej. 3 o 1430) o nota" aria-label="Hora de salida o nota del camión">';
+    if (!hs.length || S.camHoraOtra || (v && !hv)) return inp;
+    return '<select id="cam-hora-sel" aria-label="Hora de salida"><option value="">Hora…</option>' + hs.map(function (x) { return '<option value="' + x + '"' + (x === hv ? ' selected' : '') + '>' + x + ' hs</option>'; }).join('') + '<option value="__otra">✏ Otra hora o nota…</option></select>';
+  }
   function crearCamion(f, nombre, nota, ids, kg, idFijo, num) {
     var hn = horaEnNota(nota);
     var cams = camionesDe(f).slice(), cam = { id: idFijo || 'c' + uid(), nombre: String(nombre || '').trim(), num: String(num || '').trim(), nota: hn ? '' : String(nota || '').trim(), kg: +kg || 0 };
@@ -3612,9 +3616,9 @@
       + libres.map(function (c) { return '<option value="f:' + esc(c.id) + '">' + esc(nomLimpio(c.nombre)) + (+c.kg ? ' — ' + n(+c.kg) + ' kg libres' : '') + '</option>'; }).join('')
       + '<option value="nuevo">Otro camión…</option></select>';
     // Sin N°: el orden de los camiones lo da la numeración de Logística (1, 2, 3…).
-    if (escribir) h += choferesHTML(S.selDia) + '<input type="text" id="cam-nombre" value="' + esc(S.camNombre || '') + '" placeholder="Nombre del camión" aria-label="Nombre del camión">'
+    if (escribir) h += choferSelHTML(S.selDia)
       + '<input type="number" inputmode="numeric" id="cam-kg" class="n" value="' + esc(S.camKg || '') + '" placeholder="Capacidad kg" aria-label="Capacidad en kilos">'
-      + '<input type="text" id="cam-nota" value="' + esc(S.camNota || '') + '" placeholder="Hora (ej. 3 o 1430) o nota" aria-label="Hora de salida o nota del camión">'
+      + horaSelHTML(S.selDia)
       + '<button class="btn pri" data-act="cam-crear">Armar camión</button>';
     var ops = [], fd = hoy(); if (!esHabil(fd)) fd = habilSiguiente(fd);
     while (ops.length < 8) { if (fd !== f) ops.push(fd); fd = habilSiguiente(fd); }
@@ -5304,19 +5308,11 @@
     }
 
     // camiones
-    else if (a === 'chofer' || a === 'chofer-viaje') {
-      var vAct = (viajeDe({ nombre: S.camNombre }) || {}).n || 0, base = a === 'chofer' ? D.nom : choferBase(S.camNombre || '');
-      var vNue = a === 'chofer-viaje' ? (vAct === +D.v ? 0 : +D.v) : 0;
-      if (!base) { avisar('Elegí primero el chofer.', 2500); return; }
-      S.camNombre = base + (vNue ? ' ' + VIAJE_TXT[vNue] : '');
-      var hc = choferHora(base, vNue || 1); if (hc) S.camNota = hc; else if (horaEnNota(S.camNota)) S.camNota = '';
-      renderPedidos(); var cn = $('cam-nombre'); if (cn && a === 'chofer') { /* no abrir el teclado */ }
-    }
     else if (a === 'cam-crear' || a === 'cam-sacar') {
       var idsT = tildadosDe(S.selDia);
       if (!idsT.length) return;
       var hecho = function () { S.sel = {}; S.camNombre = ''; S.camNota = ''; renderPedidos(); }, mal = function () { S.msg.fotos = '!No se pudo guardar el camión. Revisá la conexión.'; renderPedidos(); };
-      if (a === 'cam-crear') crearCamion(S.selDia, S.camNombre, S.camNota, idsT, S.camKg, null, S.camNum).then(function (cam) { S.msg.fotos = avisoCamion(S.selDia, cam.id, idsT.length); S.camKg = ''; S.camNum = ''; S.camOtro = false; hecho(); }, mal);
+      if (a === 'cam-crear') crearCamion(S.selDia, S.camNombre, S.camNota, idsT, S.camKg, null, S.camNum).then(function (cam) { S.msg.fotos = avisoCamion(S.selDia, cam.id, idsT.length); S.camKg = ''; S.camNum = ''; S.camOtro = false; S.camNomOtro = false; S.camHoraOtra = false; hecho(); }, mal);
       else asignarCamion(S.selDia, idsT, '').then(hecho, mal);
     }
     else if (a === 'pd') { var yp = S.pd || habilSiguiente(hoy()); do { yp = mas(yp, +D.d); } while (!esHabil(yp)); S.pd = yp; S.abierto = {}; renderPedidos(); }
@@ -5592,6 +5588,14 @@
       camGuardarCelda(D.f, D.cf, t.value).then(function () { setTimeout(redib, 0); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); });
       setTimeout(redib, 0);
       return;
+    }
+    if (t.id === 'cam-nom-sel') {
+      if (t.value === '__otro') { S.camNomOtro = true; S.camNombre = ''; renderPedidos(); var ci = $('cam-nombre'); if (ci) ci.focus(); return; }
+      S.camNombre = t.value; var ch = choferLista(S.selDia).noms.filter(function (x) { return x.nom === t.value; })[0]; if (ch && ch.hora) S.camNota = ch.hora; renderPedidos(); return;
+    }
+    if (t.id === 'cam-hora-sel') {
+      if (t.value === '__otra') { S.camHoraOtra = true; S.camNota = ''; renderPedidos(); var hi = $('cam-nota'); if (hi) hi.focus(); return; }
+      S.camNota = t.value; return;
     }
     if (t.id === 'cam-cap') { var cv = +String(t.value).replace(/\D/g, ''); if (cv > 0) camAjustes({ capacidad: cv }).then(function () { renderCamara(); }); return; }
     // Ojo: "cam-nota" es la nota del camión (Pedidos/Logística); la de la semana de Cámara es "cam-nota-sem".

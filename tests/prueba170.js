@@ -10,10 +10,12 @@ await p.addInitScript(d=>{window.__mock={data:JSON.parse(JSON.stringify(d)),user
 await p.goto('http://127.0.0.1:8765/index.html#pedidos');await p.clock.runFor(2000);await p.waitForTimeout(300);
 await p.evaluate(()=>{const c=document.querySelector('.ped input[type=checkbox]');c.click();});await p.waitForTimeout(300);
 const sel=await p.$('#cam-a');if(sel){await p.selectOption('#cam-a','nuevo').catch(()=>{});await p.waitForTimeout(200);}
-console.log(w,'chips:',await p.evaluate(()=>[...document.querySelectorAll('.choferes .chip')].map(x=>x.innerText.replace(/\s+/g,' ')).join(' | ')));
-await p.click('.choferes [data-act=chofer][data-nom="LOVAIZA"]');await p.click('.choferes [data-act=chofer-viaje][data-v="2"]');
-console.log(w,'lovaiza 2do:',await p.inputValue('#cam-nombre'),'/',await p.inputValue('#cam-nota'));
-await p.click('.choferes [data-act=chofer][data-nom="MAXIMO"]');console.log(w,'maximo:',await p.inputValue('#cam-nombre'),'/',await p.inputValue('#cam-nota'));
+console.log(w,'choferes:',await p.evaluate(()=>[...document.querySelectorAll('#cam-nom-sel option')].map(o=>o.textContent).join(' | ')));
+console.log(w,'horas:',await p.evaluate(()=>[...document.querySelectorAll('#cam-hora-sel option')].map(o=>o.textContent).join(' | ')));
+await p.selectOption('#cam-nom-sel','LOVAIZA SEGUNDO VIAJE');await p.waitForTimeout(200);
+console.log(w,'lovaiza 2do:',await p.inputValue('#cam-nom-sel'),'/',await p.inputValue('#cam-hora-sel'));
+await p.selectOption('#cam-hora-sel','05:00');
+await p.screenshot({path:SP+'/sel'+w+'.png',clip:{x:0,y:0,width:w,height:900}});await p.selectOption('#cam-nom-sel','__otro');await p.waitForTimeout(200);await p.fill('#cam-nombre','NUEVO CHOFER');
 await p.screenshot({path:SP+'/chof'+w+'.png'});
 await p.click('[data-act=cam-crear]');await p.clock.runFor(1500);await p.waitForTimeout(300);
 console.log(w,'creado:',await p.evaluate(()=>JSON.stringify((window.__mock.data.config['log-2026-11-30']||{}).camiones)));
