@@ -9,7 +9,7 @@ for(const w of [1300,400]){const p=await b.newPage({viewport:{width:w,height:900
  await p.addInitScript(m=>{window.__mock=m},{user:{email:'s@x.com',displayName:'Sabi',emailVerified:true},rol:'ddjj',sis:{'dj-2026-11':TXT},docs:{}});
  await p.goto('http://127.0.0.1:8765/ddjj.html');await p.clock.runFor(1500);await p.click('#nav a[data-t="rd"]');await p.waitForTimeout(400);
  const txt=await p.textContent('main');
- ok(/Ingreso de materia prima/.test(txt)&&/HUESOS/.test(txt)&&/3[.,]?600,50/.test(txt)&&/9[.,]?984,55/.test(txt),w+' pantalla: ingresos por artículo y total');
+ ok(/Ingreso de materia prima/.test(txt)&&/HUESOS/.test(txt)&&!/361 · HUESOS/.test(txt)&&/3[.,]?600,50/.test(txt)&&/9[.,]?984,55/.test(txt),w+' pantalla: ingresos por artículo y total');
  if(w===1300){
   const hh=await p.evaluate(()=>{const d=document.createElement('div');d.innerHTML=hojaRd('2026-11-26');document.body.appendChild(d);const H=d.querySelector('.hoja'),f=d.querySelector('.h3-firma');const r={tabla:!!d.querySelector('.h3-ing'),cabe:f.getBoundingClientRect().bottom-H.getBoundingClientRect().top<=H.clientHeight};d.remove();return r;});
   ok(hh.tabla&&hh.cabe,'hoja impresa: tabla de ingreso y entra en la hoja '+JSON.stringify(hh));

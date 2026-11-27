@@ -128,7 +128,7 @@ function renderRd() {
   h += '</section><section><h2>Ingreso de materia prima</h2>';
   if (!P.ingreso.length) h += '<p class="muted">El sistema no tiene ingresos de materia prima al rendering este día' + (S.sis && S.sis.mi && S.sis.mi.length ? '' : ' (o todavía no llegaron: se traen con "Traer datos nuevos")') + '.</p>';
   else h += '<p class="sub">Tocá un peso para corregirlo.</p><div class="tw"><table class="planilla dj-tab"><thead><tr><th>Materia prima</th><th class="num">Kilogramos</th></tr></thead><tbody>' +
-    P.ingreso.map(r => '<tr><td>' + r.art + ' · ' + esc(r.n) + '</td><td class="ed num' + (r.aj ? ' aj' : '') + '" onclick="editarIngRd(' + r.art + ')">' + fmt2(r.kg) + (r.aj ? '<small class="dj-sis">' + fmt2(r.kgSis) + '</small>' : '') + '</td></tr>').join('') +
+    P.ingreso.map(r => '<tr><td>' + esc(r.n) + '</td><td class="ed num' + (r.aj ? ' aj' : '') + '" onclick="editarIngRd(' + r.art + ')">' + fmt2(r.kg) + (r.aj ? '<small class="dj-sis">' + fmt2(r.kgSis) + '</small>' : '') + '</td></tr>').join('') +
     '<tr class="tot"><td>Total ingresado</td><td class="num">' + fmt2(P.totIng) + ' kg</td></tr></tbody></table></div>';
   h += '</section></div></div>';
   $('main').innerHTML = h;
