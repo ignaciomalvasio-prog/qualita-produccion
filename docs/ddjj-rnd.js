@@ -288,16 +288,16 @@ function hojaRd(f) {
     '<div class="h3-leg">La presente planilla reviste el carácter de <b>Declaración Jurada</b> y está sujeta al Artículo 293 Primera Parte del Código Penal.</div>' +
     '<div class="h3-f"><span><b>Fecha:</b> ' + f.slice(8, 10) + '.' + f.slice(5, 7) + '.' + f.slice(0, 4) + '</span><span><b>N.º de Lote:</b> ' + esc(P.lote) + '</span></div>';
   if (conIng) h += '<div class="h3-sec">1. Ingreso de materia prima</div><table class="h3-tab h3-ing">' + COLS + '<tr class="th"><td colspan="2">MATERIA PRIMA</td><td>KILOGRAMOS</td><td>OBSERVACIONES</td></tr>' +
-    P.ingreso.map(r => '<tr class="fi"><td colspan="2" class="l">' + esc(r.nom) + '</td><td class="r">' + kg(r.kg) + '</td><td>' + esc(r.obs) + '</td></tr>').join('') +
-    '<tr class="tt"><td colspan="2">TOTAL INGRESADO</td><td class="r">' + kg(P.totIng) + ' kg</td><td></td></tr></table>' +
+    P.ingreso.map(r => '<tr class="fi"><td colspan="2" class="l">' + esc(r.nom) + '</td><td class="r" style="text-align:center">' + kg(r.kg) + '</td><td>' + esc(r.obs) + '</td></tr>').join('') +
+    '<tr class="tt"><td colspan="2">TOTAL INGRESADO</td><td class="r" style="text-align:center">' + kg(P.totIng) + ' kg</td><td></td></tr></table>' +
     '<div class="h3-sec">2. Producción</div>';
   h += '<table class="h3-tab' + (conIng ? ' h3-prod' : '') + '">' + COLS +
     '<tr class="th"><td>NOMBRE DEL PRODUCTO</td><td>MARCA</td><td>KILOGRAMOS PRODUCIDOS</td><td>OBSERVACIONES / DESTINO</td></tr>';
   for (let i = 0; i < N; i++) {
     const r = filas[i];
-    h += '<tr class="fi">' + (r ? '<td class="l">' + esc(r.n) + '</td><td>' + esc(r.marca || '') + '</td><td class="r">' + kg(r.kg) + '</td><td>' + esc(r.dest || '') + '</td>' : '<td></td><td></td><td></td><td></td>') + '</tr>';
+    h += '<tr class="fi">' + (r ? '<td class="l">' + esc(r.n) + '</td><td>' + esc(r.marca || '') + '</td><td class="r" style="text-align:center">' + kg(r.kg) + '</td><td>' + esc(r.dest || '') + '</td>' : '<td></td><td></td><td></td><td></td>') + '</tr>';
   }
-  h += '<tr class="tt"><td>TOTAL PRODUCIDO</td><td></td><td class="r">' + kg(P.tot) + ' kg</td><td></td></tr></table>';
+  h += '<tr class="tt"><td>TOTAL PRODUCIDO</td><td></td><td class="r" style="text-align:center">' + kg(P.tot) + ' kg</td><td></td></tr></table>';
   h += '<div class="h3-firma"><div class="h3-linea"></div>Firma del responsable de la Empresa</div></div>';
   return h;
 }

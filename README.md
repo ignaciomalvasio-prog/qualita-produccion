@@ -491,3 +491,4 @@ Cada cambio en `main` se publica solo en Firebase Hosting (`.github/workflows/fi
 - Centro de desposte › DDJJ Rendering (Sabi 27/11): kilos centrados en la hoja impresa y en el Excel.
 - Centro de desposte › DDJJ Rendering (Sabi 27/11): en el ingreso, la materia prima propia dice "Propia" en Observaciones.
 - Centro de desposte (Sabi 27/11): "Ver cómo sale" carga siempre la hoja de estilos nueva (ddjj.css?v=…), porque la ventana nueva no pasa por el service worker y mostraba el formato viejo.
+- Centro de desposte › DDJJ Rendering (Sabi 27/11): kilos centrados también al imprimir desde la página (estilo puesto en la celda; ddjj.css con ?v= en ddjj.html y faena.html).
