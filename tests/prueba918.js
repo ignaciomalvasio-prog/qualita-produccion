@@ -19,7 +19,7 @@ for(const w of [1300,400]){const p=await b.newPage({viewport:{width:w,height:900
   ok(!/CH"/.test(await p.evaluate(F=>hojaRd(F),F))&&hh.tabla&&hh.cabe&&hh.primero&&hh.filasProd===2,F+' hoja impresa: tabla de ingreso y entra en la hoja con margen '+JSON.stringify(hh));}
   await p.evaluate(()=>{window.__auto={hecho:true};window.__autoOut=[];});await p.click('text=Excel del día');
   const x=await p.evaluate(()=>window.__autoOut[0]);const s=Buffer.from(x.b64,'base64').toString('utf8');
-  ok(s.indexOf('INGRESO DE MATERIA PRIMA')<s.indexOf('NOMBRE DEL PRODUCTO')&&/De terceros \(Don Pedro\)/.test(s)&&/INGRESO DE MATERIA PRIMA/.test(s)&&/<v>3600.5<\/v>/.test(s)&&/HUESOS/.test(s),'Excel con el ingreso');
+  ok(s.indexOf('INGRESO DE MATERIA PRIMA')<s.indexOf('NOMBRE DEL PRODUCTO')&&/Propia/.test(s)&&/De terceros \(Don Pedro\)/.test(s)&&/INGRESO DE MATERIA PRIMA/.test(s)&&/<v>3600.5<\/v>/.test(s)&&/HUESOS/.test(s),'Excel con el ingreso');
   await p.evaluate(()=>{window.__auto=null;});
   await p.evaluate(()=>{window.pedir=(t,v,s,cb)=>cb('4000');});await p.click('td[onclick="editarIngRd(361)"]');await p.waitForTimeout(300);
   const tt=await p.textContent('main');ok(tt.indexOf('Ingreso de materia prima')<tt.indexOf('Producción de rendering'),'pantalla: ingreso primero');console.log(tt.slice(tt.indexOf('Ingreso de materia'),tt.indexOf('Ingreso de materia')+200));ok(/9[.,]?784,55/.test(tt),'corregir un peso a mano cambia el total');}
