@@ -58,7 +58,13 @@ function calcularRd(f) {
     let ing = [];
     if (bruto - ing.reduce((a, r) => a + r.kg, 0) <= 0) ing = [];
     prod[n] = { n, kg: r2(bruto - ing.reduce((a, r) => a + r.kg, 0)), marca: E.marca || 'QUALITA', dest: '', re, ing };
-    if (/SEBO/i.test(n)) { const u = ultimoRd(n, f); if (u) prod[n].dest = 'Proviene de las producciones realizadas después del ' + u.slice(8, 10) + '.' + u.slice(5, 7) + '.' + u.slice(0, 4); }
+    if (/SEBO/i.test(n)) {   // "Producciones desde el (primer día con producción después de la vez anterior que figuró el sebo) hasta el (este día)" (Sabi 27/11)
+      const u = ultimoRd(n, f);
+      if (u) {
+        const desde = Object.keys(sisRd()).filter(d => d > u && d <= f).sort()[0] || f, fp = d => d.slice(8, 10) + '.' + d.slice(5, 7) + '.' + d.slice(0, 4);
+        prod[n].dest = desde === f ? 'Producción del ' + fp(f) : 'Producciones desde el ' + fp(desde) + ' hasta el ' + fp(f);
+      }
+    }
   }
   const nuevos = d.re.filter(r => destinoRd(r.art, r.den, f) === null);
   return { prod, nuevos, d, orden: nombres };
