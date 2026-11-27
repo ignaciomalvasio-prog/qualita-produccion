@@ -101,7 +101,8 @@ function planillaRd(f) {
   const lote = x.lote != null ? x.lote : f.slice(8, 10) + f.slice(5, 7) + f.slice(2, 4);
   /* ingreso de materia prima (Sabi 27/11): del sistema, por artículo; el peso se puede corregir a mano (x.ing[art] = kg) */
   const ingSis = {}, oi = x.ing || {};
-  for (const r of c.d.in || []) { const k = String(r.art); (ingSis[k] = ingSis[k] || { art: r.art, n: r.den, kg: 0 }).kg = r2(ingSis[k].kg + r.kg); }
+  const nomIng = den => /^CUERO\s*"?CH"?$/i.test(String(den).trim()) ? 'CUERO' : den;   // "CUERO "CH"" se declara como CUERO (Sabi 27/11)
+  for (const r of c.d.in || []) { const k = String(r.art); (ingSis[k] = ingSis[k] || { art: r.art, n: nomIng(r.den), kg: 0 }).kg = r2(ingSis[k].kg + r.kg); }
   const ter = eqRd().terceros || RD_DEF.terceros;
   const ingreso = Object.values(ingSis).map(r => ({ art: r.art, n: r.n + (ter[r.art] ? ' (DE TERCEROS: ' + ter[r.art] + ')' : ''), nom: r.n, obs: ter[r.art] ? 'De terceros (' + ter[r.art].replace(/\b\w+/g, w => w[0] + w.slice(1).toLowerCase()) + ')' : '', kgSis: r.kg, kg: oi[r.art] !== undefined ? oi[r.art] : r.kg, aj: oi[r.art] !== undefined }))
     .filter(r => r.kg !== null && r.kg !== '').sort((a, b) => b.kg - a.kg);

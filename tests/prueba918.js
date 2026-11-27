@@ -16,7 +16,7 @@ for(const w of [1300,400]){const p=await b.newPage({viewport:{width:w,height:900
   ok(/después del 18\.11\.2026/.test(ob[0])&&/después del 25\.11\.2026/.test(ob[1])&&!ob2,'sebo: aclara desde cuándo se acumula');
   for(const F of ['2026-11-26','2026-11-25']){
   const hh=await p.evaluate((F)=>{const d=document.createElement('div');d.innerHTML=hojaRd(F);document.body.appendChild(d);const H=d.querySelector('.hoja'),f=d.querySelector('.h3-firma');const tb=[...d.querySelectorAll('.h3-tab')];const r={tabla:!!d.querySelector('.h3-ing'),primero:tb[0].classList.contains('h3-ing'),filasProd:tb[1].querySelectorAll('tr.fi').length,cabe:f.getBoundingClientRect().bottom-H.getBoundingClientRect().top<=H.clientHeight-50,abajo:Math.round(f.getBoundingClientRect().bottom-H.getBoundingClientRect().top),alto:H.clientHeight};d.remove();return r;},F);
-  ok(hh.tabla&&hh.cabe&&hh.primero&&hh.filasProd===2,F+' hoja impresa: tabla de ingreso y entra en la hoja con margen '+JSON.stringify(hh));}
+  ok(!/CH"/.test(await p.evaluate(F=>hojaRd(F),F))&&hh.tabla&&hh.cabe&&hh.primero&&hh.filasProd===2,F+' hoja impresa: tabla de ingreso y entra en la hoja con margen '+JSON.stringify(hh));}
   await p.evaluate(()=>{window.__auto={hecho:true};window.__autoOut=[];});await p.click('text=Excel del día');
   const x=await p.evaluate(()=>window.__autoOut[0]);const s=Buffer.from(x.b64,'base64').toString('utf8');
   ok(s.indexOf('INGRESO DE MATERIA PRIMA')<s.indexOf('NOMBRE DEL PRODUCTO')&&/De terceros \(Don Pedro\)/.test(s)&&/INGRESO DE MATERIA PRIMA/.test(s)&&/<v>3600.5<\/v>/.test(s)&&/HUESOS/.test(s),'Excel con el ingreso');
