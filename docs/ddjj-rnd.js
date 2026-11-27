@@ -58,7 +58,7 @@ function calcularRd(f) {
     let ing = [];
     if (bruto - ing.reduce((a, r) => a + r.kg, 0) <= 0) ing = [];
     prod[n] = { n, kg: r2(bruto - ing.reduce((a, r) => a + r.kg, 0)), marca: E.marca || 'QUALITA', dest: '', re, ing };
-    if (/SEBO/i.test(n)) { const u = ultimoRd(n, f); if (u) prod[n].dest = 'Proviene de las producciones realizadas después del ' + u.slice(8, 10) + '.' + u.slice(5, 7) + '.' + u.slice(0, 4) + ' (última vez que figuró)'; }
+    if (/SEBO/i.test(n)) { const u = ultimoRd(n, f); if (u) prod[n].dest = 'Proviene de las producciones realizadas después del ' + u.slice(8, 10) + '.' + u.slice(5, 7) + '.' + u.slice(0, 4); }
   }
   const nuevos = d.re.filter(r => destinoRd(r.art, r.den, f) === null);
   return { prod, nuevos, d, orden: nombres };
