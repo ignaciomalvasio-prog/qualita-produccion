@@ -15,6 +15,4 @@ const data={faena:{},privado:{},config:{general:{feriados:[]},['log-'+F]:{fecha:
  await p.evaluate(()=>document.querySelector('[data-act=menu][data-k=cam-c1]').click());await p.waitForTimeout(200);
  await p.evaluate(()=>document.querySelector('[data-act=camion-subir][data-id=c1]').click());await p.clock.runFor(1500);await p.waitForTimeout(400);
  console.log('2 subir MAXIMO:',await est());
- await p.evaluate(()=>{document.getElementById('perd-x').value='2026-11-26';document.querySelector('[data-act=perd-rec][data-id=x]').click();});await p.clock.runFor(1500);await p.waitForTimeout(400);
- console.log('3 recupero a mano:',await est());
  console.log('errores:',errs);await b.close();})();
