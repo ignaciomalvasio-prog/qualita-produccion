@@ -2425,21 +2425,28 @@
       });
     });
     var top = function (o) { return Object.keys(o).sort(function (a, b) { return o[b] - o[a]; })[0] || ''; };
-    var noms = Object.keys(cnt).map(function (k) { return { nom: cnt[k].nom, n: cnt[k].n, hora: top(cnt[k].h) }; }).filter(function (x) { return x.n >= 2; })
+    var noms = Object.keys(cnt).map(function (k) { return { nom: cnt[k].nom, n: cnt[k].n, hora: top(cnt[k].h) }; })
       .sort(function (a, b) { var ba = choferBase(a.nom), bb = choferBase(b.nom); return ba < bb ? -1 : ba > bb ? 1 : ((viajeDe({ nombre: a.nom }) || {}).n || 0) - ((viajeDe({ nombre: b.nom }) || {}).n || 0); });
     return { noms: noms, horas: Object.keys(hs).sort() };
   }
+  // Tres listas: chofer, viaje y hora; cada una se elige por separado (pedido de Renzo, 27/11/2026).
+  var VIAJE_NOM = ['', 'PRIMER VIAJE', 'SEGUNDO VIAJE', 'TERCER VIAJE', 'CUARTO VIAJE'];
+  function nombreArmado() { var b = String(S.camChofer || '').trim(), v = +S.camViaje || 0; return b ? b + (v ? ' (' + VIAJE_NOM[v] + ')' : '') : ''; }
   function choferSelHTML(f) {
-    var L = choferLista(f), v = String(S.camNombre || '').toUpperCase().trim(), en = L.noms.some(function (x) { return x.nom === v; });
-    var inp = '<input type="text" id="cam-nombre" value="' + esc(S.camNombre || '') + '" placeholder="Nombre del camión" aria-label="Nombre del camión">';
-    if (!L.noms.length || S.camNomOtro || (v && !en)) return inp;
-    return '<select id="cam-nom-sel" aria-label="Chofer"><option value="">Elegí el chofer…</option>' + L.noms.map(function (x) { return '<option value="' + esc(x.nom) + '"' + (x.nom === v ? ' selected' : '') + '>' + esc(x.nom) + (x.hora ? ' · ' + esc(x.hora) : '') + '</option>'; }).join('') + '<option value="__otro">✏ Escribir otro…</option></select>';
+    var L = choferLista(f), bases = [];
+    var cb = {}; L.noms.forEach(function (x) { var b = choferBase(x.nom); if (b) cb[b] = (cb[b] || 0) + x.n; });
+    Object.keys(cb).forEach(function (b) { if (cb[b] >= 2) bases.push(b); }); bases.sort();   // los que salieron 2 veces o más
+    var v = String(S.camChofer || '').toUpperCase().trim();
+    var vi = '<select id="cam-viaje-sel" aria-label="Viaje"><option value="">Viaje…</option>' + [1, 2, 3, 4].map(function (k) { return '<option value="' + k + '"' + (+S.camViaje === k ? ' selected' : '') + '>' + VIAJE_NOM[k].charAt(0) + VIAJE_NOM[k].slice(1).toLowerCase() + '</option>'; }).join('') + '</select>';
+    if (!bases.length || S.camNomOtro || (v && bases.indexOf(v) < 0)) return '<input type="text" id="cam-chofer" value="' + esc(S.camChofer || '') + '" placeholder="Nombre del chofer" aria-label="Nombre del chofer">' + vi;
+    return '<select id="cam-nom-sel" aria-label="Chofer"><option value="">Chofer…</option>' + bases.map(function (x) { return '<option value="' + esc(x) + '"' + (x === v ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '<option value="__otro">✏ Escribir otro…</option></select>' + vi;
   }
   function horaSelHTML(f) {
-    var L = choferLista(f), v = String(S.camNota || '').trim(), hv = horaEnNota(v) || '', hs = L.horas.slice();
+    var v = String(S.camNota || '').trim(), hv = horaEnNota(v) || '', hs = [];
+    for (var hq = 0; hq < 48; hq++) hs.push((hq < 20 ? '0' : '') + Math.floor(hq / 2) + ':' + (hq % 2 ? '30' : '00'));
     if (hv && hs.indexOf(hv) < 0) { hs.push(hv); hs.sort(); }
     var inp = '<input type="text" id="cam-nota" value="' + esc(S.camNota || '') + '" placeholder="Hora (ej. 3 o 1430) o nota" aria-label="Hora de salida o nota del camión">';
-    if (!hs.length || S.camHoraOtra || (v && !hv)) return inp;
+    if (S.camHoraOtra || (v && !hv)) return inp;
     return '<select id="cam-hora-sel" aria-label="Hora de salida"><option value="">Hora…</option>' + hs.map(function (x) { return '<option value="' + x + '"' + (x === hv ? ' selected' : '') + '>' + x + ' hs</option>'; }).join('') + '<option value="__otra">✏ Otra hora o nota…</option></select>';
   }
   function crearCamion(f, nombre, nota, ids, kg, idFijo, num) {
@@ -5250,7 +5257,7 @@
         .then(function () { avisar(D.f ? pm2.cliente + ': medias ya en cámara (faenadas el ' + diaCorto(D.f).toLowerCase() + '). No se suman a la faena del ' + diaCorto(trabajoAnterior(pm2.entrega)).toLowerCase() + '.' : pm2.cliente + ': las medias vuelven a la faena del ' + diaCorto(trabajoAnterior(pm2.entrega)).toLowerCase() + '.', 7000); renderPedidos(); }, function () { avisar('!No se pudo guardar. Revisá la conexión.', 6000); renderPedidos(); });
     }
     else if (a === 'camp-menu') { e.preventDefault(); e.stopPropagation(); S.camMenu = S.camMenu === D.id ? null : D.id; S.frioMenu = null; renderPedidos(); }
-    else if (a === 'camp-otro') { e.preventDefault(); e.stopPropagation(); var po = pedidoDe(D.id); S.camMenu = null; if (po) { if (!(S.sel[po.id] && S.selDia === po.entrega)) S.sel = {}; S.sel[po.id] = true; S.selDia = po.entrega; S.camOtro = true; } renderPedidos(); var fco = $('cam-nombre'); if (fco) fco.focus(); }
+    else if (a === 'camp-otro') { e.preventDefault(); e.stopPropagation(); var po = pedidoDe(D.id); S.camMenu = null; if (po) { if (!(S.sel[po.id] && S.selDia === po.entrega)) S.sel = {}; S.sel[po.id] = true; S.selDia = po.entrega; S.camOtro = true; } renderPedidos(); var fco = $('cam-nom-sel') || $('cam-chofer'); if (fco) fco.focus(); }
     else if (a === 'camp-crear') {
       // Camión nuevo con el nombre escrito ahí mismo, y el pedido (o los tildados) adentro.
       e.preventDefault(); e.stopPropagation(); var pn2 = pedidoDe(D.id), inn = $('camp-nombre-' + D.id), nom2 = String((inn && inn.value) || '').trim().toUpperCase();
@@ -5312,7 +5319,7 @@
       var idsT = tildadosDe(S.selDia);
       if (!idsT.length) return;
       var hecho = function () { S.sel = {}; S.camNombre = ''; S.camNota = ''; renderPedidos(); }, mal = function () { S.msg.fotos = '!No se pudo guardar el camión. Revisá la conexión.'; renderPedidos(); };
-      if (a === 'cam-crear') crearCamion(S.selDia, S.camNombre, S.camNota, idsT, S.camKg, null, S.camNum).then(function (cam) { S.msg.fotos = avisoCamion(S.selDia, cam.id, idsT.length); S.camKg = ''; S.camNum = ''; S.camOtro = false; S.camNomOtro = false; S.camHoraOtra = false; hecho(); }, mal);
+      if (a === 'cam-crear') crearCamion(S.selDia, S.camNombre, S.camNota, idsT, S.camKg, null, S.camNum).then(function (cam) { S.msg.fotos = avisoCamion(S.selDia, cam.id, idsT.length); S.camKg = ''; S.camNum = ''; S.camOtro = false; S.camNomOtro = false; S.camHoraOtra = false; S.camChofer = ''; S.camViaje = ''; hecho(); }, mal);
       else asignarCamion(S.selDia, idsT, '').then(hecho, mal);
     }
     else if (a === 'pd') { var yp = S.pd || habilSiguiente(hoy()); do { yp = mas(yp, +D.d); } while (!esHabil(yp)); S.pd = yp; S.abierto = {}; renderPedidos(); }
@@ -5441,6 +5448,7 @@
     if (t.id === 'carga-dia-otra') { if (S.tab === 'pedidos' && t.value) { S.pd = t.value; S.cargaSegun = false; S.abierto = {}; } else S.cargaDia = t.value || ''; setTimeout(render, 0); return; }
     if (t.id === 'pegar-txt') { S.pegarTxt = t.value; if (S.msg.fotos) { S.msg.fotos = ''; pintarMsg('fotos'); } return; }
     if (t.id === 'cam-nombre') { S.camNombre = t.value; return; }
+    if (t.id === 'cam-chofer') { S.camChofer = t.value; S.camNombre = nombreArmado(); return; }
     if (t.id === 'cam-nota') { S.camNota = t.value; return; }
     if (t.id === 'cam-kg') { S.camKg = t.value; return; }
     if (t.id === 'cam-e-kg') { S.ecKg = t.value; return; }
@@ -5590,9 +5598,10 @@
       return;
     }
     if (t.id === 'cam-nom-sel') {
-      if (t.value === '__otro') { S.camNomOtro = true; S.camNombre = ''; renderPedidos(); var ci = $('cam-nombre'); if (ci) ci.focus(); return; }
-      S.camNombre = t.value; var ch = choferLista(S.selDia).noms.filter(function (x) { return x.nom === t.value; })[0]; if (ch && ch.hora) S.camNota = ch.hora; renderPedidos(); return;
+      if (t.value === '__otro') { S.camNomOtro = true; S.camChofer = ''; S.camNombre = ''; renderPedidos(); var ci = $('cam-chofer'); if (ci) ci.focus(); return; }
+      S.camChofer = t.value; S.camNombre = nombreArmado(); return;
     }
+    if (t.id === 'cam-viaje-sel') { S.camViaje = t.value; S.camNombre = nombreArmado(); return; }
     if (t.id === 'cam-hora-sel') {
       if (t.value === '__otra') { S.camHoraOtra = true; S.camNota = ''; renderPedidos(); var hi = $('cam-nota'); if (hi) hi.focus(); return; }
       S.camNota = t.value; return;
@@ -5703,7 +5712,7 @@
         function () { S._ocup = false; S.msg.fotos = '!No se pudo cambiar de día. Revisá la conexión.'; renderPedidos(); });
     }
     else if (t.id === 'cam-a' && t.value) {
-      if (t.value === 'nuevo') { S.camOtro = true; renderPedidos(); var fnn = $('cam-nombre'); if (fnn) fnn.focus(); return; }
+      if (t.value === 'nuevo') { S.camOtro = true; renderPedidos(); var fnn = $('cam-nom-sel') || $('cam-chofer'); if (fnn) fnn.focus(); return; }
       var ids = tildadosDe(S.selDia), v = t.value.slice(2), f = S.selDia;
       (t.value.charAt(0) === 'f' ? usarDeFlota(f, v, ids) : asignarCamion(f, ids, v).then(function () { return { id: v }; }))
         .then(function (cam) { S.msg.fotos = avisoCamion(f, cam.id, ids.length); S.sel = {}; S.camOtro = false; renderPedidos(); }, function (e) { S.msg.fotos = '!' + ((e && e.message) || 'No se pudo guardar. Revisá la conexión.'); renderPedidos(); });
